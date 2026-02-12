@@ -75,9 +75,10 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         msg = t.errors[log.messageKey as keyof typeof t.errors];
     }
 
-    const hasLoot = log.params?.loot && Object.keys(log.params.loot).length > 0;
-    const hasCombatParams = !!log.params?.combatResult;
-    const isTrade = log.type === 'market' && log.params?.type;
+    const params = log.params || {};
+    const hasLoot = params.loot && Object.keys(params.loot).length > 0;
+    const hasCombatParams = !!params.combatResult;
+    const isTrade = log.type === 'market' && params.type;
     const isIntel = log.type === 'intel';
 
     // --- Styling Logic (Differentiated) ---
@@ -187,19 +188,19 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                      </div>
                      
                      <div className="space-y-2 mt-2 ml-6">
-                        {isIntel && log.params && (
+                        {isIntel && (
                             <div className="text-xs bg-indigo-950/40 rounded p-2 border border-indigo-500/20">
                                 {log.messageKey === 'log_intel_acquired' ? (
                                     <>
                                         <div className="flex justify-between items-center mb-2 border-b border-indigo-500/20 pb-1">
-                                            <span className="text-indigo-300 font-bold uppercase">{t.reports.intel_target}: {log.params.targetName}</span>
-                                            <span className="font-mono text-indigo-400 text-[10px]">{t.reports.intel_strength}: {formatNumber(log.params.score)}</span>
+                                            <span className="text-indigo-300 font-bold uppercase">{t.reports.intel_target}: {params.targetName}</span>
+                                            <span className="font-mono text-indigo-400 text-[10px]">{t.reports.intel_strength}: {formatNumber(Number(params.score) || 0)}</span>
                                         </div>
                                         
                                         <div className="space-y-1">
                                             <div className="text-[9px] text-slate-500 uppercase tracking-widest mb-1">{t.reports.intel_composition}</div>
                                             <div className="flex flex-wrap gap-2">
-                                                {log.params.units && Object.entries(log.params.units).map(([uType, count]) => {
+                                                {params.units && Object.entries(params.units).map(([uType, count]) => {
                                                     const def = UNIT_DEFS[uType as UnitType];
                                                     const name = t.units[def?.translationKey]?.name || uType;
                                                     return (
@@ -212,9 +213,9 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                             </div>
                                         </div>
 
-                                        {onSimulate && log.params.units && (
+                                        {onSimulate && params.units && (
                                             <button
-                                                onClick={() => onSimulate(log.params.units)}
+                                                onClick={() => onSimulate && onSimulate(params.units || {})}
                                                 className="w-full mt-2 py-1.5 rounded border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98]"
                                             >
                                                 <Icons.Simulate />
@@ -228,16 +229,16 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                             </div>
                         )}
 
-                        {hasLoot && log.params?.loot && (
+                        {hasLoot && params.loot && (
                             <div className={`p-2 rounded text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-black/20 border-white/5'}`}>
                                 <div className={`${isDefenseLoss ? 'text-red-400' : 'text-emerald-400'} font-bold mb-1 text-[10px] uppercase tracking-wider`}>
                                     {isDefenseLoss ? t.reports.details_stolen : isCampaign ? t.campaign.rewards : t.reports.details_loot}
                                 </div>
                                 <div className="flex gap-2 flex-wrap">
-                                    {Object.entries(log.params.loot).map(([k,v]) => (
+                                    {Object.entries(params.loot).map(([k,v]) => (
                                         <span key={k} className={`px-2 py-1 rounded border text-[10px] font-mono font-bold flex items-center gap-1 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/20' : 'text-slate-300 border-emerald-500/10 bg-black/40'}`}>
                                             {getResourceIcon(k)}
-                                            <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
+                                            <span>{isDefenseLoss ? '-' : '+'}{formatNumber(Number(v) || 0)}</span>
                                         </span>
                                     ))}
                                 </div>
@@ -260,17 +261,17 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                             </button>
                         )}
 
-                        {isTrade && log.params && (
+                        {isTrade && (
                             <div className="text-xs font-mono text-orange-300 flex items-center gap-2">
-                                {log.params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(log.params.amount)}
-                                {getResourceIcon(log.params.resource)}
+                                {params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(Number(params.amount) || 0)}
+                                {getResourceIcon(params.resource || '')}
                             </div>
                         )}
                         
-                        {log.type === 'war' && log.params?.result && (
+                        {log.type === 'war' && params.result && (
                              <div className="text-xs text-red-200 bg-red-900/20 p-2 rounded border border-red-500/20">
-                                 {log.params.result}
-                                 {log.params.warSummary && (
+                                 {params.result}
+                                 {params.warSummary && (
                                      <button 
                                         onClick={(e) => { e.stopPropagation(); onViewDetails(log); }}
                                         className="block mt-2 text-[10px] text-red-400 underline uppercase tracking-widest hover:text-white"

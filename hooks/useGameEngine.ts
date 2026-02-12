@@ -130,6 +130,7 @@ export const useGameEngine = () => {
     speedUp: actions.speedUp,
     executeCampaignBattle: actions.executeCampaignBattle, 
     executeTrade: actions.executeTrade, 
+    executeDiamondExchange: actions.executeDiamondExchange,
     acceptTutorialStep: actions.acceptTutorialStep, 
     claimTutorialReward: actions.claimTutorialReward,
     toggleTutorialMinimize: actions.toggleTutorialMinimize, 
