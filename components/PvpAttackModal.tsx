@@ -60,7 +60,7 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
             onAttackSent(result.newState);
             onClose();
         } else {
-            alert(t.errors[result.errorKey || 'invalid_mission']);
+            alert(t.errors[(result.errorKey || 'invalid_mission') as keyof typeof t.errors]);
         }
     };
 
@@ -177,7 +177,7 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
                         <div className="space-y-1">
                             <GlassButton 
                                 onClick={handleLaunch} 
-                                disabled={totalSelected === 0 || limitReached || isWarActiveWithSomeoneElse}
+                                disabled={totalSelected === 0 || limitReached || !!isWarActiveWithSomeoneElse}
                                 variant="primary"
                                 className="w-full py-3 text-sm font-bold tracking-[0.2em]"
                             >

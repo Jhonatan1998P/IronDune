@@ -105,6 +105,8 @@ export interface TranslationDictionary {
       defense: string;
       upkeep: string;
       research_time: string;
+      recruit_cap: string;
+      sustain_cap: string;
     };
     actions: {
       construct: string;
@@ -352,6 +354,13 @@ export interface TranslationDictionary {
       intel_target: string;
       intel_strength: string;
       intel_composition: string;
+      kill_analysis: string;
+      targets_neutralized: string;
+      fell_to: string;
+      no_data: string;
+      efficiency: string;
+      analysis_kill_text: string;
+      analysis_death_text: string;
   };
   market: { 
       title: string;
@@ -366,6 +375,10 @@ export interface TranslationDictionary {
       available: string;
       sold_out: string;
       events: Record<string, { title: string, desc: string }>;
+      liquidation_title: string;
+      your_diamonds: string;
+      rate_desc: string;
+      exchange_btn: string;
   };
   simulator: { 
       title: string;

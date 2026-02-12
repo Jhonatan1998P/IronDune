@@ -94,7 +94,7 @@ export const TerminalLogs: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
                         ))}
                         <div ref={endRef} />
                         {/* Fake cursor at bottom */}
-                        <div className="px-2 py-0.5 text-cyan-500 animate-pulse font-bold">>_</div>
+                        <div className="px-2 py-0.5 text-cyan-500 animate-pulse font-bold">&gt;_</div>
                     </div>
                 </div>
             )}
