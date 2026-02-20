@@ -262,7 +262,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar bg-black/20 pb-10">
+            <div className="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar bg-black/20 pb-20 md:pb-10">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <div className={`flex flex-col gap-2 ${activeTab === 'player' ? 'block' : 'hidden md:flex'}`}>
@@ -323,14 +323,25 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
             {result && simLogEntry && (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/90 backdrop-blur-xl animate-[fadeIn_0.2s_ease-out] md:p-4">
                     <div className="w-full h-[90vh] md:h-auto md:max-h-[85vh] md:max-w-2xl relative flex flex-col">
-                        <div className="bg-slate-900 border-t md:border border-white/10 flex-1 overflow-hidden relative rounded-t-2xl md:rounded-xl shadow-2xl flex flex-col">
-                            <div className="flex-1 overflow-hidden relative">
+                        <div className="bg-slate-900 border-t md:border border-white/10 overflow-hidden relative rounded-t-2xl md:rounded-xl shadow-2xl flex flex-col max-h-full">
+                            {/* Close Button - Sticky */}
+                            <button 
+                                onClick={() => setResult(null)} 
+                                className="absolute top-4 right-4 z-20 p-2 bg-black/40 rounded-full text-slate-400 hover:text-white border border-white/5 transition-transform active:scale-95"
+                            >
+                                <Icons.Close />
+                            </button>
+                            
+                            {/* All Content - Scrollable */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar">
                                 <CombatReportContent 
                                     log={simLogEntry} 
                                     t={t} 
                                     embedded={true} 
                                 />
                             </div>
+                            
+                            {/* Footer Actions */}
                             <div className="p-4 bg-slate-950 border-t border-white/10 shrink-0 flex gap-4">
                                 <button 
                                     onClick={() => setResult(null)} 

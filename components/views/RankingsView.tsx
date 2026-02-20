@@ -260,7 +260,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
 
                 {/* Pagination Controls - Fixed Bottom (Inside View) */}
-                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10 bg-slate-900/95 backdrop-blur-md flex justify-between items-center z-20">
+                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10 bg-slate-900/95 backdrop-blur-md flex justify-between items-center z-20 pb-20 md:pb-4">
                     <button 
                         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                         disabled={currentPage === 1}

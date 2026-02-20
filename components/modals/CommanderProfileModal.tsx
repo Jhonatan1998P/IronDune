@@ -66,28 +66,30 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
             {/* Slide-over Panel (Desktop) / Bottom Sheet (Mobile) */}
             <div className={`
-                fixed z-[101] bg-slate-900 border border-white/10 shadow-2xl flex flex-col
+                fixed z-[101] bg-slate-900 border border-white/10 shadow-2xl
                 
                 md:inset-y-0 md:right-0 md:w-full md:max-w-sm md:border-l md:border-t-0 md:animate-in md:slide-in-from-right
                 
-                inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl animate-in slide-in-from-bottom border-t
+                inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl animate-in slide-in-from-bottom border-t overflow-y-auto custom-scrollbar
             `}>
                 
-                {/* Header Actions */}
-                <button onClick={onClose} className="absolute top-4 left-4 p-2 bg-black/40 rounded-full text-slate-400 hover:text-white z-20 border border-white/5 active:scale-95 transition-transform">
+                {/* Close Button - Sticky */}
+                <button onClick={onClose} className="sticky top-4 left-4 p-2 bg-black/40 rounded-full text-slate-400 hover:text-white z-20 border border-white/5 active:scale-95 transition-transform float-left">
                     <Icons.Close />
                 </button>
 
-                {/* Cover Image Area */}
-                <div className="relative h-40 md:h-48 bg-gradient-to-br from-slate-800 to-black p-6 flex items-center justify-center shrink-0 rounded-t-2xl md:rounded-none overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                    <div className="text-8xl drop-shadow-2xl transform scale-125 filter grayscale-[30%]">{getFlagEmoji(entry.country)}</div>
-                    <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-slate-900 to-transparent"></div>
-                </div>
+                {/* Profile Content - All scrollable together */}
+                <div className="pt-20 md:pt-0">
+                    {/* Cover Image Area */}
+                    <div className="relative h-40 md:h-48 bg-gradient-to-br from-slate-800 to-black p-6 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                        <div className="text-8xl drop-shadow-2xl transform scale-125 filter grayscale-[30%]">{getFlagEmoji(entry.country)}</div>
+                        <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-slate-900 to-transparent"></div>
+                    </div>
 
-                {/* Profile Content */}
-                <div className="flex-1 overflow-y-auto p-6 -mt-8 relative z-10 custom-scrollbar">
-                    <div className="bg-slate-900/90 backdrop-blur border border-white/10 rounded-xl p-6 shadow-xl space-y-6">
+                    {/* Content Body */}
+                    <div className="p-6 -mt-8 relative z-10">
+                        <div className="bg-slate-900/90 backdrop-blur border border-white/10 rounded-xl p-6 shadow-xl space-y-6">
                         
                         <div className="text-center">
                             <h2 className="font-tech text-2xl text-white uppercase tracking-widest truncate shadow-glow">{entry.name}</h2>
@@ -146,52 +148,49 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                 <p className="text-[9px] text-slate-500 mt-1 text-center uppercase tracking-wide">{t.common.ui.range_label}: 50% - 200%</p>
                             </div>
                         )}
-                    </div>
-                </div>
 
-                {/* Footer Actions */}
-                {!isMe && (
-                    <div className="p-6 bg-slate-950 border-t border-white/10 shrink-0 space-y-3 safe-area-bottom">
-                        {isWarTarget ? (
-                            // Existing War Button
-                            <GlassButton 
-                                onClick={onAttack} 
-                                variant="danger" 
-                                className="w-full py-4 shadow-[0_0_20px_rgba(220,38,38,0.4)] text-sm tracking-widest font-bold"
-                            >
-                                {t.common.actions.attack}
-                            </GlassButton>
-                        ) : (
-                            <div className="flex flex-col gap-3">
-                                {/* 1. STANDARD RAID BUTTON */}
-                                <GlassButton 
-                                    onClick={onAttack} 
-                                    disabled={!inRange || isNewbie}
-                                    variant="primary" 
-                                    className="w-full py-3 text-sm tracking-widest font-bold"
-                                >
-                                    {t.common.actions.attack}
-                                </GlassButton>
+                        {/* Footer Actions */}
+                        {!isMe && (
+                            <div className="p-6 bg-slate-950 border-t border-white/10 shrink-0 space-y-3 safe-area-bottom">
+                                {isWarTarget ? (
+                                    <GlassButton 
+                                        onClick={onAttack} 
+                                        variant="danger" 
+                                        className="w-full py-4 shadow-[0_0_20px_rgba(220,38,38,0.4)] text-sm tracking-widest font-bold"
+                                    >
+                                        {t.common.actions.attack}
+                                    </GlassButton>
+                                ) : (
+                                    <div className="flex flex-col gap-3">
+                                        <GlassButton 
+                                            onClick={onAttack} 
+                                            disabled={!inRange || isNewbie}
+                                            variant="primary" 
+                                            className="w-full py-3 text-sm tracking-widest font-bold"
+                                        >
+                                            {t.common.actions.attack}
+                                        </GlassButton>
 
-                                {/* 2. DECLARE WAR BUTTON */}
-                                <GlassButton 
-                                    onClick={onDeclareWar} 
-                                    disabled={hasActiveWar || !inRange || isNewbie}
-                                    variant="neutral" 
-                                    className={`w-full py-3 border-red-500/30 text-red-300 hover:bg-red-900/20 text-sm tracking-widest font-bold ${(hasActiveWar || !inRange || isNewbie) ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
-                                >
-                                    {t.common.war.declare_title}
-                                </GlassButton>
+                                        <GlassButton 
+                                            onClick={onDeclareWar} 
+                                            disabled={hasActiveWar || !inRange || isNewbie}
+                                            variant="neutral" 
+                                            className={`w-full py-3 border-red-500/30 text-red-300 hover:bg-red-900/20 text-sm tracking-widest font-bold ${(hasActiveWar || !inRange || isNewbie) ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                                        >
+                                            {t.common.war.declare_title}
+                                        </GlassButton>
+                                    </div>
+                                )}
+                                
+                                <div className="text-center h-4">
+                                    {isNewbie && <p className="text-[10px] text-cyan-500">{t.errors.protection_active}</p>}
+                                    {hasActiveWar && !isWarTarget && <p className="text-[10px] text-red-400">{t.common.war.already_war}</p>}
+                                </div>
                             </div>
                         )}
-                        
-                        {/* Explanatory Text for Disabled States */}
-                        <div className="text-center h-4">
-                            {isNewbie && <p className="text-[10px] text-cyan-500">{t.errors.protection_active}</p>}
-                            {hasActiveWar && !isWarTarget && <p className="text-[10px] text-red-400">{t.common.war.already_war}</p>}
-                        </div>
                     </div>
-                )}
+                    </div>
+                </div>
             </div>
         </>
     );

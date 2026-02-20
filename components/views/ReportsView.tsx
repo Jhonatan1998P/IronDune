@@ -129,8 +129,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
 
      const hasSelection = selectedIds.size > 0;
 
-     return (
-         <div className="flex h-full animate-[fadeIn_0.3s_ease-out] gap-4">
+    return (
+        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] gap-4">
              
              <div className={`md:hidden`}>
                 {selectedLog && (
@@ -195,8 +195,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
                      </div>
                  </div>
 
-                 {/* MAIN CONTENT LIST */}
-                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar flex flex-col bg-slate-900/40">
+                  {/* MAIN CONTENT LIST */}
+                  <div className="flex-1 overflow-y-auto p-3 custom-scrollbar flex flex-col bg-slate-900/40 pb-20 md:pb-4">
                      {paginatedLogs.length === 0 ? (
                          <div className="flex flex-col items-center justify-center flex-1 text-slate-600 opacity-60 min-h-[200px]">
                              <div className="w-16 h-16 mb-4 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 border-dashed">
