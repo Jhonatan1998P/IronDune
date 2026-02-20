@@ -173,7 +173,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
 
                 {/* Table Body */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 pb-16 md:pb-4">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 pb-4">
                     {paginatedData.map((entry) => (
                         <div 
                             key={entry.id}
@@ -259,8 +259,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                     ))}
                 </div>
 
-                {/* Pagination Controls - Fixed Bottom (Inside View) */}
-                <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10 bg-slate-900/95 backdrop-blur-md flex justify-between items-center z-20 pb-20 md:pb-4">
+                {/* Pagination Controls - Bottom of flex container */}
+                <div className="p-3 border-t border-white/10 bg-slate-900/80 flex justify-between items-center shrink-0">
                     <button 
                         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                         disabled={currentPage === 1}

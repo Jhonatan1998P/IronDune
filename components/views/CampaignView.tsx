@@ -233,7 +233,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                             </div>
 
                             {/* Scrollable Detail Content */}
-                            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24 md:pb-6">
+                            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar pb-6">
                                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                                      
                                      {/* Intelligence & Rewards */}
@@ -330,8 +330,8 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                                  </div>
                             </div>
 
-                            {/* Mobile Fixed Action Bar / Desktop Inline */}
-                            <div className="fixed bottom-0 left-0 right-0 md:static md:bottom-auto p-4 border-t border-white/10 bg-slate-950/95 backdrop-blur-xl md:bg-black/40 shrink-0 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] md:shadow-none pb-20 md:pb-4">
+                            {/* Action Bar */}
+                            <div className="mt-auto md:mt-0 p-4 border-t border-white/10 bg-slate-950/95 backdrop-blur-xl md:bg-black/40 shrink-0 z-20 md:border-0 md:shadow-none">
                                  {availableSlots <= 0 ? (
                                      <div className="w-full py-4 text-center text-xs font-bold tracking-widest text-red-400 bg-red-950/30 border border-red-500/30 rounded-lg uppercase flex items-center justify-center gap-2">
                                          <Icons.Warning /> {t.errors.campaign_slots_full || "No Command Slots Available"}
