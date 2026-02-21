@@ -55,7 +55,7 @@ export const WAR_WAVE_INTERVAL_MS = PVP_TRAVEL_TIME_MS; // Waves arrive every 15
 export const OFFLINE_PRODUCTION_LIMIT_MS = 4 * 60 * 60 * 1000; // 4 Hours Cap for Resources/Upkeep
 
 // RVE & BALANCING CONSTANTS (V1.2.2)
-export const SCORE_TO_RESOURCE_VALUE = 12500; // 1 Point = $12,500 Resource Value (Updated Requirement)
+export const SCORE_TO_RESOURCE_VALUE = 9000; // 1 Point = $9,000 Resource Value (Attack Budget Formula)
 export const BOT_BUDGET_RATIO = 1.0; // Bots invest 100% of Total Value into Army
 
 export const TIER_THRESHOLDS = {

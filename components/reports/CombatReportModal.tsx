@@ -39,18 +39,6 @@ export const CombatReportModal: React.FC<CombatReportProps> = (props) => {
         <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/95 overflow-y-auto">
             <div className="w-full min-h-full relative flex flex-col">
                 <div className="bg-slate-950 relative flex-1 flex flex-col">
-                    {/* Close Button - Sticky to top */}
-                    <div className="sticky top-0 right-0 z-50 flex justify-end p-4 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
-                        <button 
-                            onClick={props.onClose} 
-                            className="p-2 bg-black/40 rounded-full text-slate-400 hover:text-white border border-white/5 transition-transform active:scale-95 flex items-center gap-2 px-4"
-                        >
-                            <span className="text-[10px] font-bold uppercase tracking-widest">{props.t.common.actions.close}</span>
-                            <Icons.Close />
-                        </button>
-                    </div>
-                    
-                    {/* Content */}
                     <div className="flex-1">
                         <CombatReportContent {...props} />
                     </div>
@@ -140,13 +128,15 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     )}
                 </div>
 
-                {!embedded && onClose && (
-                    <div className="p-4 md:p-6 bg-slate-950/95 backdrop-blur-md border-t border-white/10 mt-auto sticky bottom-0 z-30 safe-area-bottom">
-                        <button onClick={onClose} className="w-full py-4 bg-white/5 hover:bg-white/10 active:scale-[0.98] rounded-xl text-white text-xs font-bold uppercase tracking-widest transition-all border border-white/10 shadow-lg hover:shadow-white/5">
+                    {/* Footer Actions */}
+                    <div className="p-4 md:p-6 bg-slate-950 border-t border-white/10 shrink-0 flex gap-4 md:gap-6 mt-auto">
+                        <button 
+                            onClick={onClose} 
+                            className="flex-1 py-4 bg-white/5 hover:bg-white/10 active:bg-slate-700 text-white text-xs font-bold uppercase tracking-widest transition-all rounded-xl border border-white/10 shadow-lg"
+                        >
                             {t.common.actions.acknowledge}
                         </button>
                     </div>
-                )}
             </div>
         );
     }
@@ -187,13 +177,15 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     )}
                 </div>
 
-                {!embedded && onClose && (
-                    <div className="p-4 md:p-6 bg-slate-950/95 backdrop-blur-md border-t border-white/10 mt-auto sticky bottom-0 z-30 safe-area-bottom">
-                        <button onClick={onClose} className="w-full py-4 bg-white/5 hover:bg-white/10 active:scale-[0.98] rounded-xl text-white text-xs font-bold uppercase tracking-widest transition-all border border-white/10 shadow-lg hover:shadow-white/5">
+                    {/* Footer Actions */}
+                    <div className="p-4 md:p-6 bg-slate-950 border-t border-white/10 shrink-0 flex gap-4 md:gap-6 mt-auto">
+                        <button 
+                            onClick={onClose} 
+                            className="flex-1 py-4 bg-white/5 hover:bg-white/10 active:bg-slate-700 text-white text-xs font-bold uppercase tracking-widest transition-all rounded-xl border border-white/10 shadow-lg"
+                        >
                             {t.common.actions.acknowledge}
                         </button>
                     </div>
-                )}
                 
                 {!embedded && onClose && (
                     <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/20 rounded-full text-slate-400 hover:text-white transition-colors">
@@ -213,6 +205,10 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const isDefenseWin = log.messageKey === 'log_defense_win';
     const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
     
+    // Ensure we handle names for bots and players correctly
+    const attackerName = log.params?.attackerName || (log.messageKey.includes('defense') ? (log.params?.targetName || 'Hostile Force') : t.common.ui.you);
+    const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.common.ui.you : 'Enemy Target');
+
     const playerHpPercent = result.playerTotalHpStart > 0 ? ((result.playerTotalHpStart - result.playerTotalHpLost) / result.playerTotalHpStart) * 100 : 0;
     const enemyHpPercent = result.enemyTotalHpStart > 0 ? ((result.enemyTotalHpStart - result.enemyTotalHpLost) / result.enemyTotalHpStart) * 100 : 0;
     
@@ -479,9 +475,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                 <button onClick={() => setActiveTab('summary')} className={`px-4 md:px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x ${activeTab === 'summary' ? 'border-white/20 bg-slate-900 text-white shadow-[0_-5px_10px_rgba(0,0,0,0.3)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.common.ui.summary}</button>
                 <button onClick={() => setActiveTab('analysis')} className={`px-4 md:px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x ${activeTab === 'analysis' ? 'border-yellow-500/30 bg-slate-900 text-yellow-400 shadow-[0_-5px_10px_rgba(234,179,8,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.combat_analysis}</button>
                 <button onClick={() => setActiveTab('player')} className={`px-4 md:px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x ${activeTab === 'player' ? 'border-cyan-500/30 bg-slate-900 text-cyan-400 shadow-[0_-5px_10px_rgba(6,182,212,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.friendly}</button>
-                {!isPatrol && (
-                    <button onClick={() => setActiveTab('enemy')} className={`px-4 md:px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x ${activeTab === 'enemy' ? 'border-red-500/30 bg-slate-900 text-red-400 shadow-[0_-5px_10px_rgba(239,68,68,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.hostile}</button>
-                )}
+                <button onClick={() => setActiveTab('enemy')} className={`px-4 md:px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x ${activeTab === 'enemy' ? 'border-red-500/30 bg-slate-900 text-red-400 shadow-[0_-5px_10px_rgba(239,68,68,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.hostile}</button>
             </div>
 
             {/* Scrollable Content Area */}
@@ -489,6 +483,18 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                 {activeTab === 'summary' && (
                     <div className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
                         
+                        {/* Combatants Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-cyan-900/20 border border-cyan-500/30 p-4 rounded-xl flex flex-col items-center">
+                                <span className="text-[10px] text-cyan-400 uppercase tracking-widest mb-1 font-bold">{t.reports.friendly}</span>
+                                <span className="text-white font-tech text-lg uppercase tracking-wider">{attackerName === t.common.ui.you || attackerName === 'You' ? attackerName : defenderName === t.common.ui.you || defenderName === 'You' ? defenderName : t.common.ui.you}</span>
+                            </div>
+                            <div className="bg-red-900/20 border border-red-500/30 p-4 rounded-xl flex flex-col items-center">
+                                <span className="text-[10px] text-red-400 uppercase tracking-widest mb-1 font-bold">{t.reports.hostile}</span>
+                                <span className="text-white font-tech text-lg uppercase tracking-wider">{(attackerName === t.common.ui.you || attackerName === 'You') ? defenderName : attackerName}</span>
+                            </div>
+                        </div>
+
                         {log.params.buildingLoot && Object.keys(log.params.buildingLoot).length > 0 && (
                             <div className={`p-5 rounded-xl border ${isDefenseLoss ? 'bg-red-950/30 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : 'bg-yellow-950/20 border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.1)]'}`}>
                                 <div className={`text-[10px] md:text-xs uppercase tracking-widest mb-4 font-bold flex justify-center items-center gap-2 ${isDefenseLoss ? 'text-red-400' : 'text-yellow-400'}`}>
@@ -560,17 +566,15 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                     <div className={`h-full transition-all duration-1000 ${playerHpPercent < 30 ? 'bg-red-500' : 'bg-cyan-500'}`} style={{ width: `${playerHpPercent}%` }}></div>
                                 </div>
                             </div>
-                            {!isPatrol && (
-                                <div className="bg-black/30 p-4 rounded-xl border border-white/5 shadow-inner">
-                                    <div className="flex justify-between text-[10px] md:text-xs uppercase tracking-widest mb-2 font-bold">
-                                        <span className="text-red-400 flex items-center gap-2"><Icons.Skull className="w-3 h-3" /> {t.reports.integrity} ({t.reports.hostile})</span>
-                                        <span className="text-white bg-black/50 px-2 py-0.5 rounded">{enemyHpPercent.toFixed(0)}%</span>
-                                    </div>
-                                    <div className="h-3 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                                        <div className="h-full bg-red-500 transition-all duration-1000" style={{ width: `${enemyHpPercent}%` }}></div>
-                                    </div>
+                            <div className="bg-black/30 p-4 rounded-xl border border-white/5 shadow-inner">
+                                <div className="flex justify-between text-[10px] md:text-xs uppercase tracking-widest mb-2 font-bold">
+                                    <span className="text-red-400 flex items-center gap-2"><Icons.Skull className="w-3 h-3" /> {t.reports.integrity} ({t.reports.hostile})</span>
+                                    <span className="text-white bg-black/50 px-2 py-0.5 rounded">{enemyHpPercent.toFixed(0)}%</span>
                                 </div>
-                            )}
+                                <div className="h-3 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+                                    <div className="h-full bg-red-500 transition-all duration-1000" style={{ width: `${enemyHpPercent}%` }}></div>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">

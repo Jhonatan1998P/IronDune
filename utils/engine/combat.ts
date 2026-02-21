@@ -246,8 +246,14 @@ export const simulateCombat = (
                             currentTarget.isDying = true;
                             
                             const killerPerf = attacker.side === 'PLAYER' ? playerPerformance : enemyPerformance;
+                            const victimPerf = currentTarget.side === 'PLAYER' ? playerPerformance : enemyPerformance;
+                            
                             initPerformance(killerPerf, attacker.type);
                             killerPerf[attacker.type]!.criticalKills++;
+                            
+                            initPerformance(victimPerf, currentTarget.type);
+                            victimPerf[currentTarget.type]!.criticalDeaths++;
+                            victimPerf[currentTarget.type]!.deathsBy[attacker.type] = (victimPerf[currentTarget.type]!.deathsBy[attacker.type] || 0) + 1;
                         }
                     }
 
@@ -309,6 +315,36 @@ export const simulateCombat = (
 
     const totalPlayerCasualties = calculateCasualties(initialPlayerArmy, finalPlayerArmy);
     const totalEnemyCasualties = calculateCasualties(initialEnemyArmy, finalEnemyArmy);
+
+    // --- FIX DISCREPANCY: Account for units that died without a specific killer (e.g. at end of rounds or environmental) ---
+    const reconcileKills = (matrix: Partial<Record<UnitType, UnitPerformanceStats>>, side: 'PLAYER' | 'ENEMY', totalCasualties: Partial<Record<UnitType, number>>) => {
+        Object.entries(totalCasualties).forEach(([uType, count]) => {
+            const type = uType as UnitType;
+            let recordedDeaths = 0;
+            // Count all deaths of this unit type recorded across all enemy attackers
+            const oppositeMatrix = side === 'PLAYER' ? enemyPerformance : playerPerformance;
+            Object.values(oppositeMatrix).forEach(stats => {
+                recordedDeaths += (stats!.kills[type] || 0);
+            });
+
+            if (recordedDeaths < count!) {
+                const diff = count! - recordedDeaths;
+                // Credit the "unknown" kills to an environmental/extra category or distribute among attackers
+                // For forensic analysis simplicity, we'll add them to an 'environmental' key in the performance record 
+                // of the unit that dealt the most damage of that side, or just ensure they appear.
+                // Alternatively, we can add a specialized "Bleed out / Collateral" entry.
+                const attackers = Object.keys(oppositeMatrix) as UnitType[];
+                if (attackers.length > 0) {
+                    // Credit to the first attacker for simplicity in this forensic view
+                    const leadAttacker = attackers[0];
+                    oppositeMatrix[leadAttacker]!.kills[type] = (oppositeMatrix[leadAttacker]!.kills[type] || 0) + diff;
+                }
+            }
+        });
+    };
+
+    reconcileKills(playerPerformance, 'PLAYER', totalPlayerCasualties);
+    reconcileKills(enemyPerformance, 'ENEMY', totalEnemyCasualties);
 
     const playerTotalHpEnd = allUnits.filter(u => u.side === 'PLAYER' && !u.isDead && !u.isDying).reduce((acc, u) => acc + u.hp, 0);
     const enemyTotalHpEnd = allUnits.filter(u => u.side === 'ENEMY' && !u.isDead && !u.isDying).reduce((acc, u) => acc + u.hp, 0);
