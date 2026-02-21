@@ -7,25 +7,25 @@ const CRITICAL_KILL_CHANCE = 0.10;
 const DEFENSE_THRESHOLD_PCT = 0.20; 
 
 export const UNIT_PRIORITY: UnitType[] = [
-    UnitType.FIGHTER_JET,   
-    UnitType.BOMBER,        
-    UnitType.HELICOPTER,    
-
-    UnitType.MLRS,          
-    UnitType.SUBMARINE,     
-    UnitType.DESTROYER,     
-    UnitType.HOWITZER,      
-
-    UnitType.HEAVY_TANK,    
-    UnitType.TANK,          
-    UnitType.LIGHT_TANK,    
-
-    UnitType.PATROL_BOAT,   
-    UnitType.MORTAR,        
-
-    UnitType.COMMANDO,      
+    UnitType.SOLDIER,        
     UnitType.SNIPER,        
-    UnitType.SOLDIER        
+    UnitType.COMMANDO,      
+
+    UnitType.MORTAR,        
+    UnitType.PATROL_BOAT,   
+
+    UnitType.LIGHT_TANK,    
+    UnitType.TANK,          
+    UnitType.HEAVY_TANK,    
+
+    UnitType.HOWITZER,      
+    UnitType.DESTROYER,     
+    UnitType.SUBMARINE,     
+    UnitType.MLRS,          
+
+    UnitType.HELICOPTER,    
+    UnitType.BOMBER,        
+    UnitType.FIGHTER_JET    
 ];
 
 interface BattleEntity {

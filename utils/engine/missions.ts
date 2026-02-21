@@ -103,8 +103,7 @@ export const generateBotArmy = (
     personality: BotPersonality = BotPersonality.TYCOON
 ): Partial<Record<UnitType, number>> => {
     
-    const totalEmpireValue = targetScore * SCORE_TO_RESOURCE_VALUE;
-    const totalBudget = totalEmpireValue * BOT_BUDGET_RATIO * budgetMultiplier;
+    const totalBudget = targetScore * 1500 * budgetMultiplier;
 
     const allowedUnits = getAvailableUnitsForScore(targetScore);
     

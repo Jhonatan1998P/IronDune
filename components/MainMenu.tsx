@@ -69,7 +69,7 @@ export const MainMenu: React.FC = () => {
     };
 
     return (
-        <div className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden">
+        <div className="relative w-full h-screen flex items-center justify-center p-4 overflow-hidden">
             {/* Ambient Background Effects */}
             <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse"></div>
