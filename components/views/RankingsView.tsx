@@ -95,7 +95,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     };
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] relative overflow-hidden">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] relative">
             
             {/* 1. SLIDEOVER PROFILE (INTERMEDIATE) */}
             {profileEntry && (
@@ -160,7 +160,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
             </div>
 
             {/* Table Container */}
-            <div className="flex-1 glass-panel rounded-xl overflow-hidden border border-white/10 flex flex-col relative min-h-0">
+            <div className="glass-panel rounded-xl border border-white/10 flex flex-col relative min-h-0">
                 
                 {/* Table Header - Hidden on small mobile to save space */}
                 <div className="hidden md:grid grid-cols-12 gap-2 p-3 bg-black/40 border-b border-white/10 text-[10px] text-slate-500 uppercase tracking-widest font-bold shrink-0">
@@ -173,7 +173,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
 
                 {/* Table Body */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 pb-4">
+                <div className="p-2 space-y-1 pb-4">
                     {paginatedData.map((entry) => (
                         <div 
                             key={entry.id}

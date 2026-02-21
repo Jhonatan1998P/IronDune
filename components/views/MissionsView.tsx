@@ -61,7 +61,7 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
     const totalSelected = Object.values(selectedUnits).reduce((a: number, b) => a + ((b as number) || 0), 0);
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 animate-[fadeIn_0.3s_ease-out] pb-24">
+        <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] pb-24 min-h-full">
             
             {/* LEFT: SQUAD SELECTION */}
             <div className="w-full lg:w-1/3 flex flex-col gap-4">
@@ -73,7 +73,7 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
                         <span className="text-[10px] text-slate-500 font-bold bg-black/50 px-2 py-1 rounded border border-white/5 uppercase tracking-widest">{t.common.ui.total}: {totalSelected}</span>
                     </div>
 
-                    <div className="max-h-[50vh] overflow-y-auto p-2 custom-scrollbar bg-slate-900/40">
+                    <div className="p-2 bg-slate-900/40">
                          {(Object.keys(gameState.units) as UnitType[]).filter(u => gameState.units[u] > 0).map(u => {
                              const def = UNIT_DEFS[u];
                              const name = t.units[def.translationKey]?.name || u;

@@ -253,7 +253,7 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
     );
 }
 
-export const UnitsView: React.FC<ViewProps> = ({ gameState, onAction }) => {
+export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType, amount: number) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = ({ gameState, onAction, onSpeedUp }) => {
   const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<UnitCategory | 'ALL'>('ALL');
 
@@ -271,10 +271,10 @@ export const UnitsView: React.FC<ViewProps> = ({ gameState, onAction }) => {
   );
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative">
+    <div className="flex flex-col min-h-full relative">
       
-      {/* FIXED / STICKY TOP SECTION: Categories */}
-      <div className="shrink-0 sticky top-0 z-30 pt-1 pb-3 mb-2 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 -mx-3 px-3 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-b-0">
+      {/* Categories */}
+      <div className="shrink-0 pt-1 pb-3 mb-2 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 -mx-3 px-3 md:mx-0 md:px-0 md:bg-transparent md:backdrop-blur-none md:border-b-0">
           
           {/* MOBILE COMPACT LAYOUT (Dropdown) */}
           <div className="md:hidden flex flex-col gap-2">
@@ -321,8 +321,8 @@ export const UnitsView: React.FC<ViewProps> = ({ gameState, onAction }) => {
 
       </div>
 
-      {/* Scrollable Unit Grid */}
-      <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pb-24 pr-1">
+      {/* Unit Grid */}
+      <div className="pb-24">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 md:p-2">
             {filteredUnits.map((def) => (
                 <UnitCard 

@@ -130,7 +130,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
      const hasSelection = selectedIds.size > 0;
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] gap-4">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] gap-4">
              
              <div className={`md:hidden`}>
                 {selectedLog && (
@@ -139,7 +139,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
              </div>
 
              {/* LEFT COLUMN: LIST */}
-             <div className="flex-1 flex flex-col min-w-0 glass-panel border border-white/10 rounded-xl overflow-hidden h-full">
+             <div className="flex flex-col min-w-0 glass-panel border border-white/10 rounded-xl overflow-hidden">
                  {/* TOP BAR: TABS */}
                  <div className="bg-slate-900/95 backdrop-blur-md border-b border-white/10 shrink-0 flex flex-col relative z-20">
                      <div className="flex overflow-x-auto no-scrollbar mask-image-sides px-2 pt-2 border-b border-white/5">
@@ -155,12 +155,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
                             <div className="flex-1 w-full flex items-center justify-between animate-[fadeIn_0.2s_ease-out]">
                                 <div className="text-xs font-bold text-cyan-300 flex items-center gap-2 bg-cyan-950/40 px-3 py-1.5 rounded-full border border-cyan-500/30">
                                     <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
-                                    <span className="font-mono">{selectedIds.size}</span> {t.common.actions.selected || 'Selected'}
+                                    <span className="font-mono">{selectedIds.size}</span> {t.common.actions.archive || 'Selected'}
                                 </div>
                                 <div className="flex gap-2">
                                     {activeTab === 'archived' ? (
                                         <button onClick={() => handleBulkArchive(false)} className="flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded text-xs text-emerald-300 transition-colors font-bold uppercase tracking-wider shadow-sm">
-                                            <Icons.Settings className="w-3 h-3" /> {t.common.actions.unarchive || 'Unarchive'}
+                                            <Icons.Settings className="w-3 h-3" /> {t.common.actions.archive || 'Unarchive'}
                                         </button>
                                     ) : (
                                         <button onClick={() => handleBulkArchive(true)} className="flex items-center gap-1 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-3 py-1.5 rounded text-xs text-cyan-300 transition-colors font-bold uppercase tracking-wider shadow-sm">
@@ -196,7 +196,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
                  </div>
 
                   {/* MAIN CONTENT LIST */}
-                  <div className="flex-1 overflow-y-auto p-3 custom-scrollbar flex flex-col bg-slate-900/40 pb-20 md:pb-4">
+                  <div className="p-3 flex flex-col bg-slate-900/40 pb-20 md:pb-4">
                      {paginatedLogs.length === 0 ? (
                          <div className="flex flex-col items-center justify-center flex-1 text-slate-600 opacity-60 min-h-[200px]">
                              <div className="w-16 h-16 mb-4 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 border-dashed">

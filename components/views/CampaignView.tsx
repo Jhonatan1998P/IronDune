@@ -100,7 +100,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
     const now = Date.now();
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] relative">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] relative">
             
             {/* TOP HEADER: SLOTS & ACTIVE OPS */}
             <div className="shrink-0 glass-panel p-4 rounded-xl border border-white/10 flex flex-col gap-3 shadow-lg mb-4">
@@ -146,17 +146,17 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
             </div>
 
             {/* MAIN CONTENT AREA */}
-            <div className="flex-1 flex overflow-hidden min-h-0 bg-black/20 rounded-xl border border-white/5">
+            <div className="flex flex-col bg-black/20 rounded-xl border border-white/5">
                 
                 {/* LEFT: LIST OF LEVELS */}
                 <div className={`
-                    w-full md:w-1/3 flex flex-col overflow-hidden border-r border-white/5
+                    w-full flex flex-col border-b md:border-b-0 md:border-r border-white/5
                     ${selectedLevelId !== null ? 'hidden md:flex' : 'flex'}
                 `}>
                     <div className="p-3 bg-black/40 border-b border-white/10 shrink-0 text-xs font-bold text-slate-400 uppercase tracking-widest">
                         {t.common.ui.mission_list}
                     </div>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                    <div className="p-2 space-y-1">
                         {CAMPAIGN_LEVELS.map((level) => {
                             const isLocked = level.id > gameState.campaignProgress;
                             const isCompleted = level.id < gameState.campaignProgress;
@@ -204,7 +204,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
 
                 {/* RIGHT/FULL: LEVEL DETAILS */}
                 <div className={`
-                    w-full md:w-2/3 flex flex-col overflow-hidden relative
+                    w-full flex flex-col relative
                     ${selectedLevelId !== null ? 'flex' : 'hidden md:flex'}
                 `}>
                     {selectedLevel ? (
@@ -233,8 +233,8 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                             </div>
 
                             {/* Scrollable Detail Content */}
-                            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar pb-6">
-                                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            <div className="p-4 md:p-6 pb-6">
+                                 <div className="grid grid-cols-1 gap-6">
                                      
                                      {/* Intelligence & Rewards */}
                                      <div className="space-y-6">

@@ -179,7 +179,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
     } : null;
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] relative">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] relative">
             
             {showHistory && (
                 <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
@@ -212,7 +212,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                 </div>
             )}
 
-            <div className="shrink-0 glass-panel border-b border-white/10 p-4 z-20 bg-slate-900/95 backdrop-blur sticky top-0">
+            <div className="shrink-0 glass-panel border-b border-white/10 p-4 z-20 bg-slate-900/95 backdrop-blur">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="font-tech text-lg text-white uppercase tracking-widest flex items-center gap-2">
                         <Icons.Radar /> {t.simulator.title}
@@ -262,7 +262,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar bg-black/20 pb-20 md:pb-10">
+            <div className="flex flex-col p-2 md:p-4 gap-4 pb-24">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <div className={`flex flex-col gap-2 ${activeTab === 'player' ? 'block' : 'hidden md:flex'}`}>
@@ -332,8 +332,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                                 <Icons.Close />
                             </button>
                             
-                            {/* All Content - Scrollable */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
                                 <CombatReportContent 
                                     log={simLogEntry} 
                                     t={t} 

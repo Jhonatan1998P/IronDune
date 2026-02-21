@@ -30,7 +30,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
         gameState, logs, 
         build, recruit, research, handleBankTransaction, 
         startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
-        speedUp, spyOnAttacker, repair,
+        speedUp, spyOnAttacker, 
         deleteLogs, archiveLogs, markReportsRead,
         resetGame, saveGame, exportSave 
     } = useGame();
@@ -44,7 +44,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
 
     switch (activeTab) {
         case 'buildings':
-            return <BuildingsView gameState={gameState} onAction={build} onSpeedUp={speedUp} onRepair={repair} />;
+            return <BuildingsView gameState={gameState} onAction={build} onSpeedUp={speedUp} />;
         case 'units':
             return <UnitsView gameState={gameState} onAction={recruit} onSpeedUp={speedUp} />;
         case 'missions':
