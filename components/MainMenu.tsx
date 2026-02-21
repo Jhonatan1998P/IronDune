@@ -103,7 +103,7 @@ export const MainMenu: React.FC = () => {
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity transform -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] duration-1000"></div>
                         <span className="relative z-10 font-tech text-lg uppercase tracking-[0.2em] text-cyan-100 group-hover:text-white transition-colors flex items-center justify-center gap-3">
-                            <Icons.Radar className="w-5 h-5" />
+                            <Icons.Radar className="w-5 h-5 text-cyan-400" />
                             {t.common.menu.new_game}
                         </span>
                     </button>
@@ -118,7 +118,7 @@ export const MainMenu: React.FC = () => {
                         } ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                         <span className={`relative z-10 font-tech text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 ${hasSave ? 'text-emerald-300 group-hover:text-emerald-100' : 'text-slate-500'}`}>
-                            {hasSave && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>}
+                            {hasSave && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>}
                             {t.common.menu.continue_game}
                         </span>
                     </button>
