@@ -11,14 +11,35 @@ export const MainMenu: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
+    const [isTransitioning, setIsTransitioning] = useState(false);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+
+    const simulateLoading = (callback: () => void) => {
+        setIsTransitioning(true);
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 30;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                setTimeout(callback, 200);
+            }
+            setLoadingProgress(progress);
+        }, 100);
+    };
+
     const handleNewGameClick = () => {
         if (hasSave) {
             if (window.confirm(t.common.menu.confirm_new)) {
-                startNewGame();
+                simulateLoading(() => startNewGame());
             }
         } else {
-            startNewGame();
+            simulateLoading(() => startNewGame());
         }
+    };
+
+    const handleContinueClick = () => {
+        simulateLoading(() => loadGame());
     };
 
     const handleImportClick = () => {
@@ -77,7 +98,8 @@ export const MainMenu: React.FC = () => {
                 <div className="w-full space-y-4">
                     <button
                         onClick={handleNewGameClick}
-                        className="w-full group relative overflow-hidden p-4 rounded-lg border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.1)] hover:shadow-[0_0_25px_rgba(6,182,212,0.25)]"
+                        disabled={isTransitioning}
+                        className={`w-full group relative overflow-hidden p-4 rounded-lg border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.1)\] hover:shadow-[0_0_25px_rgba(6,182,212,0.25)\] ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity transform -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] duration-1000"></div>
                         <span className="relative z-10 font-tech text-lg uppercase tracking-[0.2em] text-cyan-100 group-hover:text-white transition-colors flex items-center justify-center gap-3">
@@ -87,13 +109,13 @@ export const MainMenu: React.FC = () => {
                     </button>
 
                     <button
-                        onClick={loadGame}
-                        disabled={!hasSave}
+                        onClick={handleContinueClick}
+                        disabled={!hasSave || isTransitioning}
                         className={`w-full group relative overflow-hidden p-4 rounded-lg border transition-all duration-300 ${
                             hasSave 
                             ? 'border-emerald-500/20 bg-emerald-950/20 hover:bg-emerald-900/30 hover:border-emerald-500/40 cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.05)]' 
                             : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                        }`}
+                        } ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                         <span className={`relative z-10 font-tech text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 ${hasSave ? 'text-emerald-300 group-hover:text-emerald-100' : 'text-slate-500'}`}>
                             {hasSave && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>}
@@ -134,6 +156,29 @@ export const MainMenu: React.FC = () => {
                     <div className="text-[9px] text-slate-700 font-mono">SYS.VER.1.2.2 // SECURE CONNECTION</div>
                 </div>
             </div>
+
+            {/* Transition Overlay */}
+            {isTransitioning && (
+                <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-in fade-in duration-300">
+                    <div className="relative w-48 h-48 mb-8">
+                        <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-t-2 border-cyan-400 rounded-full animate-spin"></div>
+                        <div className="absolute inset-4 border border-cyan-500/10 rounded-full animate-pulse"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Icons.Radar className="w-12 h-12 text-cyan-400 animate-pulse" />
+                        </div>
+                    </div>
+                    <div className="w-64 h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+                        <div 
+                            className="h-full bg-gradient-to-r from-cyan-600 to-blue-400 transition-all duration-300 ease-out"
+                            style={{ width: `${loadingProgress}%` }}
+                        ></div>
+                    </div>
+                    <p className="mt-4 font-tech text-xs text-cyan-400 tracking-[0.3em] uppercase animate-pulse">
+                        {loadingProgress < 100 ? 'Initializing Systems...' : 'Access Granted'}
+                    </p>
+                </div>
+            )}
         </div>
     );
 };

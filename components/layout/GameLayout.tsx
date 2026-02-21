@@ -33,7 +33,7 @@ export const GameLayout: React.FC = () => {
 
   if (status === 'MENU') {
       return (
-          <div className="h-screen w-full bg-slate-950 overflow-hidden relative font-sans">
+          <div className="h-screen w-full bg-slate-950 overflow-hidden relative font-sans transition-opacity duration-700">
              {/* Intro Background */}
              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#020617] to-black"></div>
              <div className="absolute inset-0 bg-grid-pattern opacity-20 animate-pulse-slow"></div>
@@ -44,7 +44,7 @@ export const GameLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] text-slate-200 selection:bg-cyan-500/30 overflow-hidden relative font-sans bg-[#020617]">
+    <div className="flex flex-col h-[100dvh] text-slate-200 selection:bg-cyan-500/30 overflow-hidden relative font-sans bg-[#020617] animate-in fade-in duration-1000">
       
       {/* --- ATMOSPHERIC LAYERS --- */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
@@ -93,7 +93,7 @@ export const GameLayout: React.FC = () => {
             {/* Center Panel: Content */}
             <div className="flex-1 overflow-y-auto scroll-smooth relative flex flex-col custom-scrollbar" id="main-scroll-view">
               <div className="w-full min-h-full p-3 md:p-6 flex flex-col max-w-[1920px] mx-auto">
-                <div className="animate-[fadeIn_0.3s_ease-out] flex-1 flex flex-col min-h-0 pb-6">
+                <div className="flex-1 flex flex-col min-h-0 pb-6">
                   <ViewRouter 
                     activeTab={activeTab} 
                     simEnemyArmy={simEnemyArmy} 

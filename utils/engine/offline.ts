@@ -170,7 +170,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             newLogs.push({
                 id: `mis-res-${mission.endTime}-${mission.id}`,
                 messageKey: outcome.logKey,
-                type: outcome.logType,
+                type: outcome.logType as any,
                 timestamp: mission.endTime,
                 params: outcome.logParams
             });

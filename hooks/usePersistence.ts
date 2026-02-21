@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, MutableRefObject, useRef } from 'react';
 import { GameState, GameStatus, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
@@ -60,17 +60,25 @@ export const usePersistence = (
     }
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
+  const lastSaveTimeRef = React.useRef(Date.now());
+
+  // Auto-save logic with throttle to improve performance
+  const performAutoSave = useCallback(() => {
+      const now = Date.now();
+      if (now - lastSaveTimeRef.current < 30000) return; // Save at most every 30s
+      lastSaveTimeRef.current = now;
+      localStorage.setItem('ironDuneSave', JSON.stringify(gameState));
+      setHasSave(true);
+  }, [gameState]);
+
   const saveGame = useCallback(() => {
-      const stateToSave = { ...gameState, lastSaveTime: Date.now() };
+      const now = Date.now();
+      lastSaveTimeRef.current = now;
+      const stateToSave = { ...gameState, lastSaveTime: now };
       localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
       setHasSave(true);
       setStatus('MENU');
   }, [gameState, setStatus]);
-
-  // Auto-save logic
-  const performAutoSave = useCallback(() => {
-      localStorage.setItem('ironDuneSave', JSON.stringify(gameState));
-  }, [gameState]);
 
   const exportSave = useCallback(() => {
     const stateToSave = { ...gameState, lastSaveTime: Date.now() };
