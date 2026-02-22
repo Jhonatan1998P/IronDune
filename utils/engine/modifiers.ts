@@ -20,7 +20,6 @@ export const calculateTechMultipliers = (researchedTechs: TechType[], techLevels
     let ammoProdMult = 1.0;
     let goldProdMult = 1.0;
 
-    if (researchedTechs.includes(TechType.WAREHOUSING_1)) storageMult += 0.2;
     if (researchedTechs.includes(TechType.RESOURCE_MANAGEMENT)) storageMult += 0.1;
     
     // Production Techs with Levels (+5% per level)
