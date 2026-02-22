@@ -318,7 +318,17 @@ export const ui = {
         attacks_left: "Attacks Left",
         launch_counter: "Launch Counter-Attack (7.5m)",
         active_against_empire: "War is active against your empire!",
-        bot_attack_time: "Time until next bot attack can occur"
+        bot_attack_time: "Time until next bot attack can occur",
+        status_war: "WAR",
+        status_protected: "PROTECTED",
+        status_cooldown: "COOLDOWN",
+        status_ready: "READY",
+        status_safe: "SAFE",
+        status_wait: "WAIT",
+        status_newbie_protection: "NEWBIE PROTECTION",
+        status_peace_time: "PEACE TIME",
+        status_time_remaining: "Time remaining",
+        status_attacks_enabled: "ATTACKS ENABLED"
       }
     },
     missions: {

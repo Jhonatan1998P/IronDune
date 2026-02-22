@@ -45,7 +45,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
           <div className="border-b border-white/10 pb-2">
               <div className="font-bold uppercase tracking-wider text-cyan-400 mb-1 flex justify-between items-center">
                   <span>STATUS</span>
-                  <span className="text-white text-lg">{gameState.activeWar ? 'WAR' : (isProtected ? 'PROTECTED' : (isCoolingDown ? 'COOLDOWN' : 'READY'))}</span>
+                  <span className="text-white text-lg">{gameState.activeWar ? t.common.war.status_war : (isProtected ? t.common.war.status_protected : (isCoolingDown ? t.common.war.status_cooldown : t.common.war.status_ready))}</span>
               </div>
               <p className="text-[10px] text-slate-400 leading-tight">
                   {gameState.activeWar ? t.common.war.active_against_empire : t.common.war.bot_attack_time}
@@ -54,17 +54,17 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
           
           {isProtected ? (
               <div className="bg-cyan-900/20 p-2 rounded border border-cyan-500/30 text-[10px] text-cyan-300">
-                  <span className="font-bold block uppercase mb-1">NEWBIE PROTECTION</span>
+                  <span className="font-bold block uppercase mb-1">{t.common.war.status_newbie_protection}</span>
                   ({formatNumber(gameState.empirePoints)} / {NEWBIE_PROTECTION_THRESHOLD})
               </div>
           ) : isCoolingDown ? (
               <div className="bg-blue-900/20 p-2 rounded border border-blue-500/30 text-[10px] text-blue-300">
-                  <span className="font-bold block uppercase mb-1">PEACE TIME</span>
-                  Time remaining: {formatDuration(cooldownLeft)}
+                  <span className="font-bold block uppercase mb-1">{t.common.war.status_peace_time}</span>
+                  {t.common.war.status_time_remaining}: {formatDuration(cooldownLeft)}
               </div>
           ) : !gameState.activeWar ? (
               <div className="bg-green-900/20 p-2 rounded border border-green-500/30 text-[10px] text-green-300">
-                  <span className="font-bold block uppercase">ATTACKS ENABLED</span>
+                  <span className="font-bold block uppercase">{t.common.war.status_attacks_enabled}</span>
               </div>
           ) : null}
       </div>
@@ -160,13 +160,13 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
                             <span className="hidden lg:inline">STATUS</span>
                             <span className="lg:hidden text-center w-full block"><Icons.Warning /></span>
                             {gameState.activeWar ? (
-                                <span className="text-red-500 font-bold animate-pulse hidden lg:inline">WAR</span>
+                                <span className="text-red-500 font-bold animate-pulse hidden lg:inline">{t.common.war.status_war}</span>
                             ) : isProtected ? (
-                                <span className="text-cyan-400 font-bold hidden lg:inline">SAFE</span>
+                                <span className="text-cyan-400 font-bold hidden lg:inline">{t.common.war.status_safe}</span>
                             ) : isCoolingDown ? (
-                                <span className="text-blue-400 font-bold hidden lg:inline">WAIT</span>
+                                <span className="text-blue-400 font-bold hidden lg:inline">{t.common.war.status_wait}</span>
                             ) : (
-                                <span className="text-green-400 font-bold hidden lg:inline">READY</span>
+                                <span className="text-green-400 font-bold hidden lg:inline">{t.common.war.status_ready}</span>
                             )}
                         </div>
                         <div className="h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5 w-full">

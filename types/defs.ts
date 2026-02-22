@@ -389,6 +389,16 @@ export interface TranslationDictionary {
       launch_counter: string;
       active_against_empire: string;
       bot_attack_time: string;
+      status_war: string;
+      status_protected: string;
+      status_cooldown: string;
+      status_ready: string;
+      status_safe: string;
+      status_wait: string;
+      status_newbie_protection: string;
+      status_peace_time: string;
+      status_time_remaining: string;
+      status_attacks_enabled: string;
     };
   };
   reports: {

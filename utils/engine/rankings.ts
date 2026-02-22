@@ -9,6 +9,117 @@ export enum RankingCategory {
     CAMPAIGN = 'CAMPAIGN'
 }
 
+const BOT_NAME_PREFIXES = [
+    'Night', 'Dark', 'Iron', 'Steel', 'Shadow', 'Ghost', 'Cyber', 'Neo', 'Ultra', 'Mega',
+    'Death', 'Blood', 'Skull', 'War', 'Battle', 'Strike', 'Thunder', 'Storm', 'Fire', 'Frost',
+    'Zero', 'Alpha', 'Omega', 'Delta', 'Sigma', 'Prime', 'Elite', 'Viper', 'Cobra', 'Titan',
+    'Raven', 'Wolf', 'Fox', 'Eagle', 'Hawk', 'Dragon', 'Phoenix', 'Reaper', 'Slayer', 'Hunter',
+    'Chrome', 'Toxic', 'Venom', 'Chaos', 'Demon', 'Angel', 'Ninja', 'Samurai', 'Knight', 'Warlord',
+    'Blaze', 'Tempest', 'Avalanche', 'Cyclone', 'Thunder', 'Onyx', 'Crimson', 'Azure', 'Emerald', 'Violet'
+];
+
+const BOT_NAME_ROOTS = [
+    'Wolf', 'Hawk', 'Fox', 'Viper', 'Cobra', 'Raven', 'Tiger', 'Lion', 'Eagle', 'Shark',
+    'Blade', 'Fang', 'Claw', 'Strike', 'Force', 'Power', 'Might', 'Fury', 'Rage', 'Wrath',
+    'Star', 'Nova', 'Comet', 'Storm', 'Blaze', 'Frost', 'Shadow', 'Ghost', 'Spectre', 'Phantom',
+    'Wraith', 'Titan', 'Giant', 'Colossus', 'Behemoth', 'Leviathan', 'Hydra', 'Basilisk', 'Sphinx', 'Minotaur',
+    'Nexus', 'Core', 'Node', 'Link', 'Sync', 'Grid', 'Net', 'Web', 'Signal', 'Wave',
+    'Secutor', 'Centurion', 'Legion', 'Cohort', 'Phalanx', 'Battalion', 'Regiment', 'Division', 'Corp', 'Force',
+    'Commander', 'General', 'Colonel', 'Captain', 'Sergeant', 'Major', 'Lieutenant', 'Warden', 'Guardian', 'Protector'
+];
+
+const BOT_NAME_SUFFIXES = [
+    'X', 'XX', 'XXX', 'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15',
+    'King', 'Lord', 'Master', 'Chief', 'Boss', 'Head', 'Lord', 'Queen', 'Prince', 'Duke',
+    'Strike', 'Force', 'Power', 'Fury', 'Rage', 'Vengeance', 'Retribution', 'Justice', 'Wrath', 'Dominion',
+    'Unit', 'Squad', 'Team', ' Platoon', 'Company', 'Detachment', 'Section', 'Troop', 'Battalion', 'Regiment',
+    'Ace', 'Pro', 'Elite', 'Prime', 'Ultra', 'Super', 'Mega', 'Giga', 'Tera', 'Omega'
+];
+
+const SPANISH_BOT_NAME_PREFIXES = [
+    'Noche', 'Sombra', 'Fantasma', 'Cyber', 'Neo', 'Acero', 'Hierro', 'Lobo', 'Halcón', 'Cuervo',
+    'Víbora', 'Cobra', 'Tigre', 'León', 'Águila', 'Tiburón', 'Dragón', 'Fénix', 'Guerrero', 'Cazador',
+    'Sombras', 'Oscuridad', 'Tormenta', 'Trueno', 'Fuego', 'Hielo', 'Veneno', 'Caos', 'Demonio', 'Ángel',
+    'Ninja', 'Samurái', 'Caballero', 'Señor', 'General', 'Capitán', 'Comandante', 'Alfa', 'Omega', 'Delta',
+    'Sigma', 'Primo', 'Élite', 'Cromo', 'Tóxico', 'Espada', 'Garras', 'Colmillo', 'Rayo', 'Ciclón',
+    'Avalancha', 'Tempestad', 'Violeta', 'Escarlata', 'Carmesí', 'Azur', 'Esmeralda', 'Negro', 'Blanco', 'Gris'
+];
+
+const SPANISH_BOT_NAME_ROOTS = [
+    'Wolf', 'Hawk', 'Fox', 'Viper', 'Cobra', 'Raven', 'Tiger', 'Lion', 'Eagle', 'Shark',
+    'Lobo', 'Halcón', 'Zorro', 'Víbora', 'Serpiente', 'Cuervo', 'Tigre', 'León', 'Águila', 'Tiburón',
+    'Fuego', 'Lluvia', 'Viento', 'Tierra', 'Mar', 'Cielo', 'Sol', 'Luna', 'Estrella', 'Cometa',
+    'Garra', 'Colmillo', 'Espada', 'Escudo', 'Armadura', 'Yelmo', 'Lanza', 'Arco', 'Ballesta', 'Bomba',
+    'Centinela', 'Guardián', 'Vigilante', ' Protector', 'Defensor', 'Escudero', 'Paladín', ' Templario', 'Cruzado', 'Mago',
+    'Brujo', 'Hechicero', 'Conjurador', 'Nigromante', 'Invocador', 'Artesano', 'Maestro', 'Experto', 'Veterano', 'Leyenda'
+];
+
+const SPANISH_BOT_NAME_SUFFIXES = [
+    'X', 'XX', 'XXX', 'Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez',
+    '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15',
+    'Rey', 'Señor', 'Maestro', 'Jefe', 'Capitán', 'Comandante', 'General', 'Coronel', 'Teniente', 'Sargento',
+    'Force', 'Power', 'Fury', 'Rage', 'Vengeance', 'Justice', 'Wrath', 'Dominion', 'Strike', 'Team',
+    'Squad', 'Unit', 'Platoon', 'Company', 'Regiment', 'Division', 'Corp', 'Legion', 'Cohort', 'Phalanx',
+    'Pro', 'Elite', 'Prime', 'Ultra', 'Super', 'Mega', 'Giga', 'Tera', 'Omega', 'Alpha'
+];
+
+const usedBotNames = new Set<string>();
+
+const randomElement = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+const generateEnglishBotName = (): string => {
+    const patterns = [
+        () => `${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}_${randomElement(BOT_NAME_SUFFIXES)}`,
+        () => `${randomElement(BOT_NAME_PREFIXES)}${randomElement(BOT_NAME_ROOTS)}${randomElement(BOT_NAME_SUFFIXES)}`,
+        () => `${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}${Math.floor(Math.random() * 99)}`,
+        () => `${randomElement(BOT_NAME_ROOTS)}${Math.floor(Math.random() * 999)}`,
+        () => `${randomElement(BOT_NAME_PREFIXES)}${Math.floor(Math.random() * 999)}`,
+        () => `The_${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}`,
+        () => `${randomElement(BOT_NAME_PREFIXES)}${randomElement(BOT_NAME_SUFFIXES)}`,
+    ];
+    
+    let name = '';
+    let attempts = 0;
+    do {
+        name = randomElement(patterns)();
+        attempts++;
+    } while (usedBotNames.has(name) && attempts < 50);
+    
+    usedBotNames.add(name);
+    return name;
+};
+
+const generateSpanishBotName = (): string => {
+    const patterns = [
+        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}_${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
+        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${randomElement(SPANISH_BOT_NAME_ROOTS)}${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
+        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}${Math.floor(Math.random() * 99)}`,
+        () => `${randomElement(SPANISH_BOT_NAME_ROOTS)}${Math.floor(Math.random() * 999)}`,
+        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${Math.floor(Math.random() * 999)}`,
+        () => `El_${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}`,
+        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
+    ];
+    
+    let name = '';
+    let attempts = 0;
+    do {
+        name = randomElement(patterns)();
+        attempts++;
+    } while (usedBotNames.has(name) && attempts < 50);
+    
+    usedBotNames.add(name);
+    return name;
+};
+
+export const generateBotName = (language: 'en' | 'es' = 'en'): string => {
+    return language === 'es' ? generateSpanishBotName() : generateEnglishBotName();
+};
+
+export const resetBotNameGenerator = (): void => {
+    usedBotNames.clear();
+};
+
 export interface RankingEntry {
     id: string;
     rank: number;
@@ -50,7 +161,7 @@ export const getFlagEmoji = (countryCode: string) => {
 export const initializeRankingState = (): RankingData => ({
     bots: Array.from({ length: TOTAL_BOTS }, (_, i) => ({
         id: `bot-${i}`,
-        name: `Bot ${i}`,
+        name: generateBotName('en'),
         avatarId: (i % 8) + 1,
         country: COUNTRIES[i % COUNTRIES.length],
         stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
