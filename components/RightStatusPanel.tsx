@@ -79,7 +79,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                         <div className="min-h-[50px] max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
                             {incomingAttacks.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-[10px] text-slate-600 uppercase tracking-widest border border-dashed border-white/5 rounded p-2 bg-black/10">
-                                    {activeWar ? 'No Inbound Waves' : 'No Active Threats'}
+                                    {activeWar ? t.common.ui.no_inbound_waves : t.common.ui.no_active_threats}
                                 </div>
                             ) : (
                                 <div className="space-y-1.5">
@@ -223,7 +223,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                         <div key={m.id} className="bg-white/5 rounded p-2 border border-white/5 text-[10px] flex justify-between items-center">
                                             <div className="text-slate-300 truncate max-w-[65%] flex items-center gap-2">
                                                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${m.type === 'PVP_ATTACK' ? 'bg-yellow-500' : 'bg-blue-500'}`}></span>
-                                                <span className="truncate">{m.type === 'PVP_ATTACK' ? `Atk: ${m.targetName}` : m.type === 'PATROL' ? 'Patrol' : 'Campaign'}</span>
+                                                <span className="truncate">{m.type === 'PVP_ATTACK' ? `Atk: ${m.targetName}` : m.type === 'PATROL' ? t.common.ui.mission_patrol : t.common.ui.mission_campaign}</span>
                                             </div>
                                             <div className="font-mono text-cyan-400">{formatDuration(Math.max(0, m.endTime - Date.now()))}</div>
                                         </div>

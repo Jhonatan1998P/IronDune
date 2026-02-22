@@ -24,6 +24,7 @@ export const ui = {
         attack: "Attack",
         defense: "Defense",
         upkeep: "Upkeep",
+        cost: "Cost",
         research_time: "Research Time",
         recruit_cap: "Recruit Cap",
         sustain_cap: "Sustain Cap",
@@ -136,6 +137,22 @@ export const ui = {
         unknown_tech: "Unknown Tech",
         status_locked: "LOCKED",
         status_unlocked: "UNLOCKED",
+        status_busy: "BUSY (WAR)",
+        out_range: "OUT OF RANGE",
+        in_range: "IN RANGE",
+        power_ratio_label: "Power Ratio",
+        commander_intel: "Commander Intel",
+        strategic_profile: "Strategic Profile",
+        technical_specs: "Technical Specs",
+        target_outside_range: "Target outside combat range (50% - 150%)",
+        instant_arrival_desc: "Reduce travel time by 80%",
+        total_troops: "Total Troops",
+        select_target_zone: "Select Target Zone",
+        ready_for_deployment: "Ready for Deployment",
+        rate: "Rate",
+        units: "Units",
+        you: "YOU",
+        amount: "Amount",
         status_damaged: "DAMAGED",
         status_repaired: "Repaired",
         tutorial: "Current Objective",
@@ -255,7 +272,12 @@ export const ui = {
         active_ops_limit: "Active Operations at capacity.",
         mission_type_campaign: "Campaign Mission",
         mission_type_patrol: "Sector Patrol",
-        mission_type_tactical: "Tactical Engagement"
+        mission_type_tactical: "Tactical Engagement",
+        no_inbound_waves: "No Inbound Waves",
+        no_active_threats: "No Active Threats",
+        mission_patrol: "Patrol",
+        mission_campaign: "Campaign",
+        profile_unknown: "Unknown"
       },
       menu: {
         new_game: "New Operation",
@@ -265,7 +287,9 @@ export const ui = {
         save_exit: "Save & Exit to Menu",
         save_success: "Data Secured.",
         import_error: "Invalid or Tampered Data File.",
-        confirm_new: "Start new game? Unsaved progress will be lost."
+        confirm_new: "Start new game? Unsaved progress will be lost.",
+        initializing: "Initializing Systems...",
+        access_granted: "Access Granted"
       },
       categories: {
         MILITARY_GROUND: "Ground",
@@ -292,10 +316,16 @@ export const ui = {
         declare_desc: "- Duration: 2 Hours\n- 8 Enemy Waves (Increasing Difficulty)\n- Winner takes 50% of ALL unit losses value.",
         already_war: "You are already in a war!",
         attacks_left: "Attacks Left",
-        launch_counter: "Launch Counter-Attack (7.5m)"
+        launch_counter: "Launch Counter-Attack (7.5m)",
+        active_against_empire: "War is active against your empire!",
+        bot_attack_time: "Time until next bot attack can occur"
       }
     },
     missions: {
+        zone_risk_low: "Low",
+        zone_risk_medium: "Medium",
+        zone_risk_high: "High",
+        zone_risk_extreme: "Extreme",
         patrol: {
             title: "Patrol Sector",
             desc: "Send units to patrol the area. Low risk, variable rewards.",
@@ -406,8 +436,11 @@ export const ui = {
         no_loot: "No Resources Secured",
         no_losses: "No Resources Lost",
         no_kills: "No Hostiles Neutralized",
-        no_casualties: "No Friendly Casualties"
-    },
+        no_casualties: "No Friendly Casualties",
+        hostile_force: "Hostile Force",
+        enemy_target: "Enemy Target",
+        you_label: "You"
+      },
     errors: {
         insufficient_funds: "Insufficient Resources",
         req_building: "Requires Building",

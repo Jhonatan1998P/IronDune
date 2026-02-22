@@ -12,11 +12,11 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const [selectedDuration, setSelectedDuration] = useState<MissionDuration | null>(null);
 
-    const ZONES: { id: MissionDuration, lvl: number, nameKey: string, risk: string, color: string, bg: string, border: string }[] = [
-        { id: 5, lvl: 1, nameKey: 'zone_1', risk: 'Low', color: 'text-emerald-400', bg: 'bg-emerald-950/40', border: 'border-emerald-500/50' },
-        { id: 15, lvl: 2, nameKey: 'zone_2', risk: 'Medium', color: 'text-yellow-400', bg: 'bg-yellow-950/40', border: 'border-yellow-500/50' },
-        { id: 30, lvl: 3, nameKey: 'zone_3', risk: 'High', color: 'text-orange-400', bg: 'bg-orange-950/40', border: 'border-orange-500/50' },
-        { id: 60, lvl: 4, nameKey: 'zone_4', risk: 'Extreme', color: 'text-red-400', bg: 'bg-red-950/40', border: 'border-red-500/50' }
+    const ZONES: { id: MissionDuration, lvl: number, nameKey: string, riskKey: string, color: string, bg: string, border: string }[] = [
+        { id: 5, lvl: 1, nameKey: 'zone_1', riskKey: 'zone_risk_low', color: 'text-emerald-400', bg: 'bg-emerald-950/40', border: 'border-emerald-500/50' },
+        { id: 15, lvl: 2, nameKey: 'zone_2', riskKey: 'zone_risk_medium', color: 'text-yellow-400', bg: 'bg-yellow-950/40', border: 'border-yellow-500/50' },
+        { id: 30, lvl: 3, nameKey: 'zone_3', riskKey: 'zone_risk_high', color: 'text-orange-400', bg: 'bg-orange-950/40', border: 'border-orange-500/50' },
+        { id: 60, lvl: 4, nameKey: 'zone_4', riskKey: 'zone_risk_extreme', color: 'text-red-400', bg: 'bg-red-950/40', border: 'border-red-500/50' }
     ];
 
     const handleUnitChange = (uType: UnitType, delta: number) => {
@@ -163,7 +163,7 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
                                             </span>
                                         </div>
                                         <div className={`text-[10px] uppercase tracking-widest font-bold ${isSelected ? zone.color : 'text-slate-500'}`}>
-                                            Risk: {zone.risk}
+                                            Risk: {(t.missions as any)[zone.riskKey] || zone.riskKey}
                                         </div>
                                     </div>
 
@@ -196,9 +196,9 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
                             {totalSelected === 0 ? (
                                 <span className="text-red-400 font-bold uppercase text-xs">{t.errors.insufficient_units}</span>
                             ) : !selectedDuration ? (
-                                <span className="text-orange-400 font-bold uppercase text-xs">Select Target Zone</span>
+                                <span className="text-orange-400 font-bold uppercase text-xs">{t.common.ui.select_target_zone}</span>
                             ) : (
-                                <span className="text-emerald-400 font-bold uppercase text-xs">Ready for Deployment</span>
+                                <span className="text-emerald-400 font-bold uppercase text-xs">{t.common.ui.ready_for_deployment}</span>
                             )}
                         </div>
                     </div>

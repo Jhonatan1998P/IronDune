@@ -175,7 +175,7 @@ export const MainMenu: React.FC = () => {
                         ></div>
                     </div>
                     <p className="mt-4 font-tech text-xs text-cyan-400 tracking-[0.3em] uppercase animate-pulse">
-                        {loadingProgress < 100 ? 'Initializing Systems...' : 'Access Granted'}
+                        {loadingProgress < 100 ? t.common.menu.initializing : t.common.menu.access_granted}
                     </p>
                 </div>
             )}

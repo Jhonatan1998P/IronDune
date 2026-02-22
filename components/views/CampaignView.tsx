@@ -306,7 +306,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                                                         <div key={uType} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 border-b border-white/5 last:border-0 rounded transition-colors gap-3 ${isSelected ? 'bg-cyan-900/20 border-cyan-500/20' : 'hover:bg-white/5'}`}>
                                                             <div className="flex justify-between sm:flex-col sm:justify-start">
                                                                 <div className={`text-xs font-bold ${isSelected ? 'text-cyan-300' : 'text-slate-300'}`}>{name}</div>
-                                                                <div className="text-[10px] text-slate-500 font-mono">Max: {formatNumber(max)}</div>
+                                                                <div className="text-[10px] text-slate-500 font-mono">{t.common.ui.max}: {formatNumber(max)}</div>
                                                             </div>
                                                             <div className="flex items-center gap-1.5 bg-black/50 rounded-lg p-1 border border-white/5 sm:w-auto w-full justify-center">
                                                                 <button onClick={() => handleUnitChange(uType, -5)} className="text-[10px] font-mono text-slate-500 hover:text-white px-2 py-1.5 bg-white/5 hover:bg-white/10 rounded active:scale-95 transition-all">-5</button>

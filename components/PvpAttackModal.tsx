@@ -216,7 +216,7 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
                 {/* Footer - Sticky */}
                 <div className="shrink-0 p-5 md:p-8 border-t border-white/10 bg-slate-950/80 backdrop-blur-md safe-area-bottom space-y-3">
                     <div className="flex justify-between items-center px-2 mb-2">
-                         <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Troops</span>
+                         <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">{t.common.ui.total_troops}</span>
                          <span className="text-sm font-mono text-white font-black">{formatNumber(totalSelected)}</span>
                     </div>
 

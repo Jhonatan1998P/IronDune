@@ -52,8 +52,8 @@ export const ResourceDisplay: React.FC<{ label: string; value: number; max: numb
                 <span className={`text-sm font-mono font-bold text-white leading-none mt-0.5 truncate`}>{formatNumber(value)}</span>
             </div>
             
-            <div className="flex flex-col items-end shrink-0">
-                 <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">Rate</span>
+             <div className="flex flex-col items-end shrink-0">
+                 <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">{t.common.ui.rate}</span>
                  <span className={`text-[10px] font-mono font-bold ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {net > 0 ? '+' : ''}{fmt(net)}/10m
                  </span>

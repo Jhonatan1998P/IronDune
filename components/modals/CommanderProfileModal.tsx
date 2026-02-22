@@ -33,13 +33,13 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         statusText = t.features.rankings.commander.toUpperCase();
         statusColor = "text-cyan-400";
     } else if (hasActiveWar && !isWarTarget) {
-        statusText = "BUSY (WAR)";
+        statusText = t.common.ui.status_busy;
         statusColor = "text-slate-500";
     } else if (isWarTarget) {
         statusText = t.reports.hostile.toUpperCase();
         statusColor = "text-red-500 animate-pulse";
     } else if (!inRange) {
-        statusText = "OUT OF RANGE";
+        statusText = t.common.ui.out_range;
         statusColor = "text-orange-500";
     }
 
@@ -49,7 +49,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             case BotPersonality.TURTLE: return { color: 'text-green-500', bg: 'bg-green-500/10 border-green-500/30', icon: '🛡️', title: t.features.rankings.types.TURTLE, desc: t.features.rankings.types.TURTLE_DESC };
             case BotPersonality.TYCOON: return { color: 'text-yellow-500', bg: 'bg-yellow-500/10 border-yellow-500/30', icon: '💰', title: t.features.rankings.types.TYCOON, desc: t.features.rankings.types.TYCOON_DESC };
             case BotPersonality.ROGUE: return { color: 'text-purple-500', bg: 'bg-purple-500/10 border-purple-500/30', icon: '🕵️', title: t.features.rankings.types.ROGUE, desc: t.features.rankings.types.ROGUE_DESC };
-            default: return { color: 'text-slate-500', bg: 'bg-slate-500/10', icon: '?', title: 'Unknown', desc: '' };
+            default: return { color: 'text-slate-500', bg: 'bg-slate-500/10', icon: '?', title: t.common.ui.profile_unknown, desc: '' };
         }
     };
 
@@ -61,7 +61,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             <div className={`fixed z-[101] bg-slate-900 border border-white/10 shadow-2xl md:inset-y-0 md:right-0 md:w-full md:max-w-sm md:border-l inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl md:rounded-none animate-in slide-in-from-bottom md:slide-in-from-right overflow-y-auto custom-scrollbar flex flex-col`}>
                 
                 <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20 sticky top-0 z-20 backdrop-blur">
-                    <h3 className="font-tech text-sm text-slate-400 tracking-widest uppercase">Commander Intel</h3>
+                    <h3 className="font-tech text-sm text-slate-400 tracking-widest uppercase">{t.common.ui.commander_intel}</h3>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-white transition-colors"><Icons.Close /></button>
                 </div>
 
@@ -88,7 +88,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     {pInfo && !isMe && (
                         <div className={`p-4 rounded-xl border ${pInfo.bg} space-y-2`}>
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] uppercase tracking-widest font-bold opacity-60">Strategic Profile</span>
+                                <span className="text-[10px] uppercase tracking-widest font-bold opacity-60">{t.common.ui.strategic_profile}</span>
                                 <span className="text-xl">{pInfo.icon}</span>
                             </div>
                             <div className={`font-tech text-base font-bold uppercase tracking-wide ${pInfo.color}`}>{pInfo.title}</div>
@@ -97,13 +97,13 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     )}
 
                     <div className="bg-black/20 rounded-xl p-4 space-y-3">
-                        <h4 className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">Technical Specs</h4>
+                        <h4 className="text-[10px] text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">{t.common.ui.technical_specs}</h4>
                         <div className="flex justify-between text-xs">
                             <span className="text-slate-400">{t.common.ui.tier_class}</span>
                             <span className="text-white font-tech font-bold">{entry.tier}{t.features.rankings.class_suffix}</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                            <span className="text-slate-400">Power Ratio</span>
+                            <span className="text-slate-400">{t.common.ui.power_ratio_label}</span>
                             <span className={`font-mono font-bold ${inRange ? 'text-emerald-400' : 'text-red-400'}`}>{percentage}%</span>
                         </div>
                         <div className="h-1 bg-white/5 rounded-full overflow-hidden">
@@ -125,7 +125,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             )}
                             <div className="text-center">
                                 {isNewbie && <p className="text-[10px] text-cyan-500 uppercase font-bold tracking-tighter">{t.errors.protection_active}</p>}
-                                {!inRange && <p className="text-[10px] text-orange-400 uppercase font-bold tracking-tighter">Target outside combat range (50% - 150%)</p>}
+                                {!inRange && <p className="text-[10px] text-orange-400 uppercase font-bold tracking-tighter">{t.common.ui.target_outside_range}</p>}
                                 {hasActiveWar && !isWarTarget && <p className="text-[10px] text-red-400 uppercase font-bold tracking-tighter">{t.common.war.already_war}</p>}
                             </div>
                         </>

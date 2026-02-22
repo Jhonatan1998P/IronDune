@@ -206,7 +206,7 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
             <div className="mt-auto">
                 <div className="bg-slate-950/50 p-2.5 rounded-lg border border-white/5 mb-3">
                     <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase mb-2 tracking-widest font-bold">
-                        <span>Cost</span>
+                        <span>{t.common.stats.cost}</span>
                         <span className="text-cyan-400 flex items-center gap-1"><Icons.Clock className="w-3 h-3" />{formatDuration(totalTime)}</span>
                     </div>
                     <CostDisplay cost={totalCost} currentResources={gameState.resources} t={t} />

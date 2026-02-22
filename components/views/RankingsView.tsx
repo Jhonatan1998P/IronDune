@@ -250,9 +250,9 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                                             {t.common.actions.inspect}
                                         </button>
                                         {(entry.score / Math.max(1, gameState.empirePoints) >= 0.5 && entry.score / Math.max(1, gameState.empirePoints) <= 1.5) ? (
-                                            <span className="text-[8px] text-emerald-500 font-bold px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded uppercase">In Range</span>
+                                            <span className="text-[8px] text-emerald-500 font-bold px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded uppercase">{t.common.ui.in_range}</span>
                                         ) : (
-                                            <span className="text-[8px] text-red-500 font-bold px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded uppercase">Out Range</span>
+                                            <span className="text-[8px] text-red-500 font-bold px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded uppercase">{t.common.ui.out_range}</span>
                                         )}
                                     </div>
                                 )}

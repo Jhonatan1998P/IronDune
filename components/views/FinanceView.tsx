@@ -161,7 +161,7 @@ export const FinanceView: React.FC<{ gameState: GameState; onBankAction: (amount
                                      value={amount}
                                      onChange={(e) => setAmount(Number(e.target.value))}
                                      className="w-1/3 bg-black/40 border border-white/10 rounded px-2 py-2 font-mono text-xs text-right focus:border-cyan-500/50 outline-none transition-colors"
-                                     placeholder="Amount"
+                                      placeholder={t.common.ui.amount}
                                  />
                                  <GlassButton 
                                      onClick={() => onBankAction(amount, 'deposit')} 

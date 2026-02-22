@@ -111,6 +111,7 @@ export interface TranslationDictionary {
       attack: string;
       defense: string;
       upkeep: string;
+      cost: string;
       research_time: string;
       recruit_cap: string;
       sustain_cap: string;
@@ -174,6 +175,9 @@ export interface TranslationDictionary {
       fs_off: string;
       quantity: string;
       production_rate: string;
+      rate: string;
+      units: string;
+      you: string;
       max_storage: string;
       next_cost: string;
       req_university: string; 
@@ -221,6 +225,18 @@ export interface TranslationDictionary {
       status_unlocked: string;
       status_damaged: string;
       status_repaired: string;
+      status_busy: string;
+      out_range: string;
+      in_range: string;
+      power_ratio_label: string;
+      commander_intel: string;
+      strategic_profile: string;
+      technical_specs: string;
+      target_outside_range: string;
+      instant_arrival_desc: string;
+      total_troops: string;
+      select_target_zone: string;
+      ready_for_deployment: string;
       tutorial: string; 
       objective: string; 
       completed: string; 
@@ -336,6 +352,14 @@ export interface TranslationDictionary {
       warning: string;
       cmd_slots: string;
       active_ops_limit: string;
+      no_inbound_waves: string;
+      no_active_threats: string;
+      mission_patrol: string;
+      mission_campaign: string;
+      profile_unknown: string;
+      mission_type_campaign: string;
+      mission_type_patrol: string;
+      mission_type_tactical: string;
     };
     menu: {
       new_game: string;
@@ -346,6 +370,8 @@ export interface TranslationDictionary {
       save_success: string;
       import_error: string;
       confirm_new: string;
+      initializing: string;
+      access_granted: string;
     };
     categories: Record<string, string>; 
     war: {
@@ -361,6 +387,8 @@ export interface TranslationDictionary {
       already_war: string;
       attacks_left: string;
       launch_counter: string;
+      active_against_empire: string;
+      bot_attack_time: string;
     };
   };
   reports: {
@@ -411,6 +439,9 @@ export interface TranslationDictionary {
       no_losses: string;
       no_kills: string;
       no_casualties: string;
+      hostile_force: string;
+      enemy_target: string;
+      you_label: string;
   };
   market: { 
       title: string;
@@ -507,7 +538,8 @@ export interface TranslationDictionary {
           investment_lost: string;
           troop_casualties: string;
           tactical_status: string;
-          you: string;
+      you: string;
+      amount: string;
           enemy: string;
           rate: string;
           wins: string;
@@ -522,6 +554,10 @@ export interface TranslationDictionary {
   units: Record<string, { name: string; stats: string }>;
   techs: Record<string, { name: string; description: string }>; 
   missions: {
+    zone_risk_low: string;
+    zone_risk_medium: string;
+    zone_risk_high: string;
+    zone_risk_extreme: string;
     patrol: {
       title: string;
       desc: string;

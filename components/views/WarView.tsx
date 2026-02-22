@@ -46,7 +46,7 @@ export const WarView: React.FC<WarViewProps> = ({ gameState, onSpy, onSimulate }
             <div className="h-full flex items-center justify-center animate-[fadeIn_0.3s_ease-out]">
                 <div className="text-center text-slate-500">
                     <Icons.Shield />
-                    <p className="mt-2 text-sm uppercase tracking-widest">Peace Time</p>
+                    <p className="mt-2 text-sm uppercase tracking-widest">{t.common.ui.peace_time}</p>
                 </div>
             </div>
         );

@@ -48,7 +48,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
                   <span className="text-white text-lg">{gameState.activeWar ? 'WAR' : (isProtected ? 'PROTECTED' : (isCoolingDown ? 'COOLDOWN' : 'READY'))}</span>
               </div>
               <p className="text-[10px] text-slate-400 leading-tight">
-                  {gameState.activeWar ? 'War is active against your empire!' : 'Time until next bot attack can occur'}
+                  {gameState.activeWar ? t.common.war.active_against_empire : t.common.war.bot_attack_time}
               </p>
           </div>
           

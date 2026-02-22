@@ -24,6 +24,7 @@ export const ui = {
         attack: "Ataque",
         defense: "Defensa",
         upkeep: "Mantenimiento",
+        cost: "Costo",
         research_time: "Tiempo de Inv.",
         recruit_cap: "Cap. Reclutar",
         sustain_cap: "Cap. Sostenible",
@@ -136,6 +137,22 @@ export const ui = {
         unknown_tech: "Tecnología Desconocida",
         status_locked: "BLOQUEADO",
         status_unlocked: "DESBLOQUEADO",
+        status_busy: "OCUPADO (GUERRA)",
+        out_range: "FUERA DE RANGO",
+        in_range: "EN RANGO",
+        power_ratio_label: "Ratio de Poder",
+        commander_intel: "Intel del Comandante",
+        strategic_profile: "Perfil Estratégico",
+        technical_specs: "Specs Técnicos",
+        target_outside_range: "Objetivo fuera de rango de combate (50% - 150%)",
+        instant_arrival_desc: "Reduce el tiempo de viaje en 80%",
+        total_troops: "Tropas Totales",
+        select_target_zone: "Seleccionar Zona Objetivo",
+        ready_for_deployment: "Listo para Despliegue",
+        rate: "Tasa",
+        units: "Unidades",
+        you: "TU",
+        amount: "Cantidad",
         status_damaged: "DAÑADO",
         status_repaired: "Reparado",
         tutorial: "Objetivo Actual",
@@ -255,7 +272,12 @@ export const ui = {
         active_ops_limit: "Límite de Operaciones Activas alcanzado.",
         mission_type_campaign: "Misión de Campaña",
         mission_type_patrol: "Patrulla de Sector",
-        mission_type_tactical: "Enfrentamiento Táctico"
+        mission_type_tactical: "Enfrentamiento Táctico",
+        no_inbound_waves: "Sin Oleadas Entrantes",
+        no_active_threats: "Sin Amenazas Activas",
+        mission_patrol: "Patrulla",
+        mission_campaign: "Campaña",
+        profile_unknown: "Desconocido"
       },
       menu: {
         new_game: "Nueva Operación",
@@ -265,7 +287,9 @@ export const ui = {
         save_exit: "Guardar y Salir",
         save_success: "Datos Asegurados.",
         import_error: "Archivo Inválido o Modificado.",
-        confirm_new: "¿Iniciar nueva partida? Se perderá el progreso no guardado."
+        confirm_new: "¿Iniciar nueva partida? Se perderá el progreso no guardado.",
+        initializing: "Inicializando Sistemas...",
+        access_granted: "Acceso Concedido"
       },
       categories: {
         MILITARY_GROUND: "Terrestre",
@@ -292,10 +316,16 @@ export const ui = {
         declare_desc: "- Duración: 2 Horas\n- 8 Oleadas Enemigas (Dificultad Creciente)\n- El ganador se lleva el 50% del valor de TODAS las bajas.",
         already_war: "¡Ya estás en una guerra!",
         attacks_left: "Ataques Restantes",
-        launch_counter: "Lanzar Contraataque (7.5m)"
+        launch_counter: "Lanzar Contraataque (7.5m)",
+        active_against_empire: "¡Guerra activa contra tu imperio!",
+        bot_attack_time: "Tiempo hasta el siguiente ataque de bots"
       }
     },
     missions: {
+        zone_risk_low: "Bajo",
+        zone_risk_medium: "Medio",
+        zone_risk_high: "Alto",
+        zone_risk_extreme: "Extremo",
         patrol: {
             title: "Patrullar Sector",
             desc: "Enviar unidades a patrullar. Bajo riesgo, recompensas variables.",
@@ -406,8 +436,11 @@ export const ui = {
         no_loot: "Sin Recursos Asegurados",
         no_losses: "Sin Recursos Perdidos",
         no_kills: "Sin Hostiles Neutralizados",
-        no_casualties: "Sin Bajas Aliadas"
-    },
+        no_casualties: "Sin Bajas Aliadas",
+        hostile_force: "Fuerza Hostil",
+        enemy_target: "Objetivo Enemigo",
+        you_label: "Tú"
+      },
     errors: {
         insufficient_funds: "Recursos Insuficientes",
         req_building: "Requiere Edificio",

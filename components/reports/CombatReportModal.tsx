@@ -115,14 +115,14 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                 <div className="text-2xl md:text-3xl font-mono text-white font-bold mb-1">
                                     ${formatNumber(Object.values(warSummary.playerResourceLosses || {}).reduce((a: number, b: number | undefined) => a + (b || 0), 0))}
                                 </div>
-                                <div className="text-[10px] text-slate-500 font-mono">{warSummary.playerUnitLosses} Units</div>
+                                <div className="text-[10px] text-slate-500 font-mono">{warSummary.playerUnitLosses} {t.common.ui.units}</div>
                             </div>
                             <div className="bg-emerald-950/20 p-6 rounded-xl border border-emerald-500/20 text-center flex flex-col shadow-lg">
                                 <div className="text-[10px] md:text-xs text-emerald-400 uppercase tracking-widest font-bold mb-2">{t.common.ui.enemies_killed}</div>
                                 <div className="text-2xl md:text-3xl font-mono text-white font-bold mb-1">
                                     {formatNumber(warSummary.enemyUnitLosses)}
                                 </div>
-                                <div className="text-[10px] text-slate-500 font-mono">Units</div>
+                                <div className="text-[10px] text-slate-500 font-mono">{t.common.ui.units}</div>
                             </div>
                         </div>
                     )}
@@ -206,8 +206,8 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
     
     // Ensure we handle names for bots and players correctly
-    const attackerName = log.params?.attackerName || (log.messageKey.includes('defense') ? (log.params?.targetName || 'Hostile Force') : t.common.ui.you);
-    const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.common.ui.you : 'Enemy Target');
+    const attackerName = log.params?.attackerName || (log.messageKey.includes('defense') ? (log.params?.targetName || t.reports.hostile_force) : t.reports.you_label);
+    const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
 
     const playerHpPercent = result.playerTotalHpStart > 0 ? ((result.playerTotalHpStart - result.playerTotalHpLost) / result.playerTotalHpStart) * 100 : 0;
     const enemyHpPercent = result.enemyTotalHpStart > 0 ? ((result.enemyTotalHpStart - result.enemyTotalHpLost) / result.enemyTotalHpStart) * 100 : 0;
@@ -331,7 +331,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
                     <Icons.Radar className="w-12 h-12 mb-4 opacity-50" />
-                    <span className="text-sm font-bold uppercase tracking-widest">{t.reports.no_data || "No Detailed Data Available"}</span>
+                    <span className="text-sm font-bold uppercase tracking-widest">{t.reports.no_data}</span>
                 </div>
             );
         }
@@ -367,7 +367,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     const kdRatio = myLosses > 0 ? (myKills / myLosses).toFixed(1) : myKills > 0 ? "∞" : "0.0";
                     const isEfficient = parseFloat(kdRatio) >= 1.0 || kdRatio === "∞";
 
-                    const isHuman = unitDef.category === UnitCategory.GROUND && uType !== UnitType.LIGHT_TANK;
+                    const isHuman = unitDef.category === UnitCategory.GROUND;
                     const criticalText = isHuman ? t.reports.critical_bio : t.reports.critical_mech;
 
                     return (
