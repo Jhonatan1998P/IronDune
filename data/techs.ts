@@ -6,6 +6,105 @@ const HOUR = 60 * MINUTE;
 
 export const TECH_DEFS: Record<TechType, TechDef> = {
   // =================================================================================
+  // NEW UNIT UNLOCKS
+  // =================================================================================
+
+  // --- INFANTRY UNLOCKS ---
+  [TechType.UNLOCK_CYBER_MARINE]: {
+    id: TechType.UNLOCK_CYBER_MARINE,
+    category: TechCategory.MILITARY_GROUND,
+    reqUniversityLevel: 1,
+    reqBuildings: { [BuildingType.BARRACKS]: 1 },
+    translationKey: 'unlock_cyber_marine',
+    cost: { money: 25000, oil: 0, ammo: 1000 },
+    researchTime: 5 * MINUTE,
+    score: 50,
+  },
+  [TechType.UNLOCK_HEAVY_COMMANDO]: {
+    id: TechType.UNLOCK_HEAVY_COMMANDO,
+    category: TechCategory.MILITARY_GROUND,
+    reqUniversityLevel: 3,
+    reqBuildings: { [BuildingType.BARRACKS]: 5 },
+    reqTechs: [TechType.UNLOCK_CYBER_MARINE],
+    translationKey: 'unlock_heavy_commando',
+    cost: { money: 250000, oil: 0, ammo: 50000 },
+    researchTime: 15 * MINUTE,
+    score: 150,
+  },
+
+  // --- ARMOR UNLOCKS ---
+  [TechType.UNLOCK_SCOUT_TANK]: {
+    id: TechType.UNLOCK_SCOUT_TANK,
+    category: TechCategory.MILITARY_MECH,
+    reqUniversityLevel: 4,
+    reqBuildings: { [BuildingType.TANK_FACTORY]: 2 },
+    reqTechs: [TechType.COMBUSTION_ENGINE],
+    translationKey: 'unlock_scout_tank',
+    cost: { money: 500000, oil: 25000, ammo: 10000 },
+    researchTime: 30 * MINUTE,
+    score: 300,
+  },
+  [TechType.UNLOCK_TITAN_MBT]: {
+    id: TechType.UNLOCK_TITAN_MBT,
+    category: TechCategory.MILITARY_MECH,
+    reqUniversityLevel: 6,
+    reqBuildings: { [BuildingType.TANK_FACTORY]: 5 },
+    reqTechs: [TechType.HEAVY_PLATING, TechType.UNLOCK_SCOUT_TANK],
+    translationKey: 'unlock_titan_mbt',
+    cost: { money: 2000000, oil: 100000, ammo: 50000 },
+    researchTime: 1 * HOUR,
+    score: 600,
+  },
+
+  // --- AIR UNLOCKS ---
+  [TechType.UNLOCK_WRAITH_GUNSHIP]: {
+    id: TechType.UNLOCK_WRAITH_GUNSHIP,
+    category: TechCategory.MILITARY_AIR,
+    reqUniversityLevel: 6,
+    reqBuildings: { [BuildingType.AIRFIELD]: 2 },
+    reqTechs: [TechType.AERODYNAMICS],
+    translationKey: 'unlock_wraith_gunship',
+    cost: { money: 3000000, oil: 100000, ammo: 50000 },
+    researchTime: 90 * MINUTE,
+    score: 800,
+  },
+  [TechType.UNLOCK_ACE_FIGHTER]: {
+    id: TechType.UNLOCK_ACE_FIGHTER,
+    category: TechCategory.MILITARY_AIR,
+    reqUniversityLevel: 8,
+    reqBuildings: { [BuildingType.AIRFIELD]: 5 },
+    reqTechs: [TechType.JET_ENGINES, TechType.UNLOCK_WRAITH_GUNSHIP],
+    translationKey: 'unlock_ace_fighter',
+    cost: { money: 10000000, oil: 500000, ammo: 200000 },
+    researchTime: 3 * HOUR,
+    score: 1500,
+  },
+
+  // --- NAVAL UNLOCKS ---
+  [TechType.UNLOCK_AEGIS_DESTROYER]: {
+    id: TechType.UNLOCK_AEGIS_DESTROYER,
+    category: TechCategory.MILITARY_NAVAL,
+    reqUniversityLevel: 7,
+    reqBuildings: { [BuildingType.SHIPYARD]: 5 },
+    reqTechs: [TechType.NAVAL_ENGINEERING],
+    translationKey: 'unlock_aegis_destroyer',
+    cost: { money: 20000000, oil: 500000, ammo: 200000 },
+    researchTime: 4 * HOUR,
+    score: 2500,
+  },
+  [TechType.UNLOCK_PHANTOM_SUB]: {
+    id: TechType.UNLOCK_PHANTOM_SUB,
+    category: TechCategory.MILITARY_NAVAL,
+    reqUniversityLevel: 10,
+    reqBuildings: { [BuildingType.SHIPYARD]: 10 },
+    reqTechs: [TechType.STEALTH_HULL, TechType.UNLOCK_AEGIS_DESTROYER],
+    translationKey: 'unlock_phantom_sub',
+    cost: { money: 50000000, oil: 2000000, ammo: 1000000 },
+    researchTime: 6 * HOUR,
+    score: 5000,
+  },
+
+  // =================================================================================
   // RAMA: PRODUCTIVE & LOGISTICS (La base de la pirámide)
   // =================================================================================
   
@@ -119,17 +218,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 2 * MINUTE,
     score: 10,
   },
-  [TechType.UNLOCK_SOLDIER]: {
-    id: TechType.UNLOCK_SOLDIER,
-    category: TechCategory.MILITARY_GROUND,
-    reqUniversityLevel: 1,
-    reqBuildings: { [BuildingType.BARRACKS]: 1 },
-    reqTechs: [TechType.BASIC_TRAINING],
-    translationKey: 'unlock_soldier',
-    cost: { money: 25000, oil: 0, ammo: 1000 },
-    researchTime: 5 * MINUTE,
-    score: 20,
-  },
 
   // TIER 2: SPECIALIZED INFANTRY
   [TechType.CAMOUFLAGE]: {
@@ -152,39 +240,17 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 45 * MINUTE,
     score: 200,
   },
-  [TechType.UNLOCK_SNIPER]: {
-    id: TechType.UNLOCK_SNIPER,
-    category: TechCategory.MILITARY_GROUND,
-    reqUniversityLevel: 4,
-    reqBuildings: { [BuildingType.BARRACKS]: 8 },
-    reqTechs: [TechType.CAMOUFLAGE, TechType.MARKSMANSHIP],
-    translationKey: 'unlock_sniper',
-    cost: { money: 1500000, oil: 10000, ammo: 50000 },
-    researchTime: 1 * HOUR,
-    score: 350,
-  },
 
   // TIER 3: ELITE INFANTRY
   [TechType.ADV_INFANTRY_TACTICS]: {
     id: TechType.ADV_INFANTRY_TACTICS,
     category: TechCategory.MILITARY_GROUND,
     reqUniversityLevel: 7,
-    reqTechs: [TechType.UNLOCK_SNIPER, TechType.UNLOCK_MORTAR], // Cross dependency
+    reqTechs: [TechType.UNLOCK_CYBER_MARINE, TechType.UNLOCK_HEAVY_COMMANDO],
     translationKey: 'adv_infantry_tactics',
     cost: { money: 15000000, oil: 100000, ammo: 500000 }, // High Cost
     researchTime: 4 * HOUR,
     score: 1000,
-  },
-  [TechType.UNLOCK_COMMANDO]: {
-    id: TechType.UNLOCK_COMMANDO,
-    category: TechCategory.MILITARY_GROUND,
-    reqUniversityLevel: 8,
-    reqBuildings: { [BuildingType.BARRACKS]: 15, [BuildingType.UNIVERSITY]: 8 },
-    reqTechs: [TechType.ADV_INFANTRY_TACTICS, TechType.EXPLOSIVE_CHEMISTRY], // Needs explosives
-    translationKey: 'unlock_commando',
-    cost: { money: 35000000, oil: 250000, ammo: 1000000 },
-    researchTime: 6 * HOUR,
-    score: 2500,
   },
 
   // SPECIAL: PATROL
@@ -216,17 +282,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 20 * MINUTE,
     score: 100,
   },
-  [TechType.UNLOCK_LIGHT_TANK]: {
-    id: TechType.UNLOCK_LIGHT_TANK,
-    category: TechCategory.MILITARY_MECH,
-    reqUniversityLevel: 3,
-    reqBuildings: { [BuildingType.TANK_FACTORY]: 2 },
-    reqTechs: [TechType.COMBUSTION_ENGINE],
-    translationKey: 'unlock_light_tank',
-    cost: { money: 800000, oil: 50000, ammo: 10000 },
-    researchTime: 40 * MINUTE,
-    score: 250,
-  },
 
   // TIER 2: MAIN BATTLE TANKS
   [TechType.HEAVY_PLATING]: {
@@ -239,17 +294,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 2 * HOUR,
     score: 600,
   },
-  [TechType.UNLOCK_TANK]: {
-    id: TechType.UNLOCK_TANK,
-    category: TechCategory.MILITARY_MECH,
-    reqUniversityLevel: 6,
-    reqBuildings: { [BuildingType.TANK_FACTORY]: 5 },
-    reqTechs: [TechType.COMBUSTION_ENGINE, TechType.HEAVY_PLATING, TechType.BALLISTICS], // Needs Ballistics
-    translationKey: 'unlock_tank',
-    cost: { money: 12000000, oil: 500000, ammo: 100000 },
-    researchTime: 4 * HOUR,
-    score: 1200,
-  },
 
   // TIER 3: SUPER HEAVY
   [TechType.COMPOSITE_ARMOR]: {
@@ -261,17 +305,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     cost: { money: 40000000, oil: 2000000, ammo: 0 },
     researchTime: 8 * HOUR,
     score: 3000,
-  },
-  [TechType.UNLOCK_HEAVY_TANK]: {
-    id: TechType.UNLOCK_HEAVY_TANK,
-    category: TechCategory.MILITARY_MECH,
-    reqUniversityLevel: 9,
-    reqBuildings: { [BuildingType.TANK_FACTORY]: 10 },
-    reqTechs: [TechType.COMPOSITE_ARMOR, TechType.UNLOCK_TANK, TechType.EXPLOSIVE_CHEMISTRY],
-    translationKey: 'unlock_heavy_tank',
-    cost: { money: 85000000, oil: 5000000, ammo: 1000000 },
-    researchTime: 12 * HOUR,
-    score: 5000,
   },
 
   // =================================================================================
@@ -288,17 +321,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 15 * MINUTE,
     score: 80,
   },
-  [TechType.UNLOCK_MORTAR]: {
-    id: TechType.UNLOCK_MORTAR,
-    category: TechCategory.MILITARY_GROUND,
-    reqUniversityLevel: 2,
-    reqBuildings: { [BuildingType.FACTORY]: 5 },
-    reqTechs: [TechType.BALLISTICS],
-    translationKey: 'unlock_mortar',
-    cost: { money: 400000, oil: 10000, ammo: 25000 },
-    researchTime: 30 * MINUTE,
-    score: 150,
-  },
 
   // TIER 2: HEAVY ARTILLERY
   [TechType.EXPLOSIVE_CHEMISTRY]: {
@@ -312,17 +334,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 2 * HOUR,
     score: 500,
   },
-  [TechType.UNLOCK_HOWITZER]: {
-    id: TechType.UNLOCK_HOWITZER,
-    category: TechCategory.MILITARY_MECH,
-    reqUniversityLevel: 5,
-    reqBuildings: { [BuildingType.TANK_FACTORY]: 4 },
-    reqTechs: [TechType.EXPLOSIVE_CHEMISTRY, TechType.HEAVY_PLATING], // Needs Tank Armor tech
-    translationKey: 'unlock_howitzer',
-    cost: { money: 6000000, oil: 150000, ammo: 250000 },
-    researchTime: 3 * HOUR,
-    score: 900,
-  },
 
   // TIER 3: ROCKETRY
   [TechType.ROCKETRY]: {
@@ -334,17 +345,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     cost: { money: 30000000, oil: 1000000, ammo: 500000 },
     researchTime: 6 * HOUR,
     score: 2500,
-  },
-  [TechType.UNLOCK_MLRS]: {
-    id: TechType.UNLOCK_MLRS,
-    category: TechCategory.MILITARY_MECH,
-    reqUniversityLevel: 9,
-    reqBuildings: { [BuildingType.TANK_FACTORY]: 8 },
-    reqTechs: [TechType.ROCKETRY, TechType.UNLOCK_TANK],
-    translationKey: 'unlock_mlrs',
-    cost: { money: 65000000, oil: 3000000, ammo: 2000000 },
-    researchTime: 10 * HOUR,
-    score: 4500,
   },
 
   // =================================================================================
@@ -362,17 +362,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 1 * HOUR,
     score: 400,
   },
-  [TechType.UNLOCK_PATROL_BOAT]: {
-    id: TechType.UNLOCK_PATROL_BOAT,
-    category: TechCategory.MILITARY_NAVAL,
-    reqUniversityLevel: 4,
-    reqBuildings: { [BuildingType.SHIPYARD]: 2 },
-    reqTechs: [TechType.NAVAL_ENGINEERING, TechType.COMBUSTION_ENGINE],
-    translationKey: 'unlock_patrol_boat',
-    cost: { money: 2500000, oil: 200000, ammo: 50000 },
-    researchTime: 2 * HOUR,
-    score: 700,
-  },
 
   // TIER 2: BLUE WATER NAVY
   [TechType.SONAR_TECH]: {
@@ -385,17 +374,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 4 * HOUR,
     score: 1500,
   },
-  [TechType.UNLOCK_DESTROYER]: {
-    id: TechType.UNLOCK_DESTROYER,
-    category: TechCategory.MILITARY_NAVAL,
-    reqUniversityLevel: 7,
-    reqBuildings: { [BuildingType.SHIPYARD]: 5 },
-    reqTechs: [TechType.SONAR_TECH, TechType.HEAVY_PLATING, TechType.BALLISTICS],
-    translationKey: 'unlock_destroyer',
-    cost: { money: 20000000, oil: 1500000, ammo: 500000 },
-    researchTime: 6 * HOUR,
-    score: 3000,
-  },
 
   // TIER 3: DEEP SEA
   [TechType.STEALTH_HULL]: {
@@ -407,17 +385,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     cost: { money: 50000000, oil: 3000000, ammo: 0 },
     researchTime: 10 * HOUR,
     score: 5000,
-  },
-  [TechType.UNLOCK_SUBMARINE]: {
-    id: TechType.UNLOCK_SUBMARINE,
-    category: TechCategory.MILITARY_NAVAL,
-    reqUniversityLevel: 10,
-    reqBuildings: { [BuildingType.SHIPYARD]: 10 },
-    reqTechs: [TechType.STEALTH_HULL, TechType.SONAR_TECH, TechType.ROCKETRY], // Needs torpedo/rocketry
-    translationKey: 'unlock_submarine',
-    cost: { money: 100000000, oil: 8000000, ammo: 2000000 },
-    researchTime: 16 * HOUR,
-    score: 8000,
   },
 
   // =================================================================================
@@ -434,17 +401,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 3 * HOUR,
     score: 800,
   },
-  [TechType.UNLOCK_HELICOPTER]: {
-    id: TechType.UNLOCK_HELICOPTER,
-    category: TechCategory.MILITARY_AIR,
-    reqUniversityLevel: 5,
-    reqBuildings: { [BuildingType.AIRFIELD]: 2 },
-    reqTechs: [TechType.AERODYNAMICS, TechType.COMBUSTION_ENGINE, TechType.ROCKETRY], // Needs rockets
-    translationKey: 'unlock_helicopter',
-    cost: { money: 6000000, oil: 1000000, ammo: 200000 },
-    researchTime: 4 * HOUR,
-    score: 1200,
-  },
 
   // TIER 2: JET AIRCRAFT
   [TechType.JET_ENGINES]: {
@@ -457,17 +413,6 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     researchTime: 6 * HOUR,
     score: 2500,
   },
-  [TechType.UNLOCK_FIGHTER]: {
-    id: TechType.UNLOCK_FIGHTER,
-    category: TechCategory.MILITARY_AIR,
-    reqUniversityLevel: 8,
-    reqBuildings: { [BuildingType.AIRFIELD]: 5 },
-    reqTechs: [TechType.JET_ENGINES, TechType.MARKSMANSHIP], // Needs advanced optics/aiming
-    translationKey: 'unlock_fighter',
-    cost: { money: 35000000, oil: 4000000, ammo: 1000000 },
-    researchTime: 8 * HOUR,
-    score: 4000,
-  },
 
   // TIER 3: STRATEGIC BOMBER
   [TechType.PRECISION_BOMBING]: {
@@ -479,16 +424,5 @@ export const TECH_DEFS: Record<TechType, TechDef> = {
     cost: { money: 50000000, oil: 1000000, ammo: 2000000 },
     researchTime: 10 * HOUR,
     score: 5000,
-  },
-  [TechType.UNLOCK_BOMBER]: {
-    id: TechType.UNLOCK_BOMBER,
-    category: TechCategory.MILITARY_AIR,
-    reqUniversityLevel: 10,
-    reqBuildings: { [BuildingType.AIRFIELD]: 10 },
-    reqTechs: [TechType.PRECISION_BOMBING, TechType.JET_ENGINES, TechType.EXPLOSIVE_CHEMISTRY],
-    translationKey: 'unlock_bomber',
-    cost: { money: 120000000, oil: 10000000, ammo: 5000000 },
-    researchTime: 24 * HOUR,
-    score: 10000,
   }
 };

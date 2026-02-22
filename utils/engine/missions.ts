@@ -40,10 +40,10 @@ const calculateUnitCP = (uType: UnitType): number => {
 };
 
 const UNITS_BY_TIER = {
-    1: [UnitType.SOLDIER, UnitType.SNIPER, UnitType.MORTAR, UnitType.LIGHT_TANK, UnitType.PATROL_BOAT],
-    2: [UnitType.TANK, UnitType.HOWITZER, UnitType.HELICOPTER, UnitType.DESTROYER],
-    3: [UnitType.HEAVY_TANK, UnitType.MLRS, UnitType.FIGHTER_JET, UnitType.SUBMARINE],
-    4: [UnitType.BOMBER, UnitType.COMMANDO]
+    1: [UnitType.CYBER_MARINE, UnitType.SCOUT_TANK, UnitType.AEGIS_DESTROYER],
+    2: [UnitType.HEAVY_COMMANDO, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
+    3: [UnitType.ACE_FIGHTER, UnitType.PHANTOM_SUB, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
+    4: [UnitType.PHANTOM_SUB, UnitType.ACE_FIGHTER]
 };
 
 const getAvailableUnitsForScore = (score: number): UnitType[] => {
@@ -63,12 +63,12 @@ const getAvailableUnitsForScore = (score: number): UnitType[] => {
 };
 
 const UNIT_POOLS = {
-    MASS: [UnitType.SOLDIER, UnitType.LIGHT_TANK, UnitType.PATROL_BOAT],
-    SUPPORT: [UnitType.MORTAR, UnitType.HOWITZER, UnitType.MLRS, UnitType.SNIPER, UnitType.HELICOPTER],
-    DEFENSIVE: [UnitType.TANK, UnitType.HEAVY_TANK, UnitType.DESTROYER, UnitType.HOWITZER, UnitType.SOLDIER],
-    ELITE: [UnitType.HEAVY_TANK, UnitType.BOMBER, UnitType.SUBMARINE, UnitType.DESTROYER, UnitType.FIGHTER_JET],
-    ASSASSIN: [UnitType.SNIPER, UnitType.COMMANDO, UnitType.SUBMARINE, UnitType.BOMBER, UnitType.MLRS],
-    FAST: [UnitType.LIGHT_TANK, UnitType.HELICOPTER, UnitType.FIGHTER_JET, UnitType.PATROL_BOAT, UnitType.COMMANDO]
+    MASS: [UnitType.CYBER_MARINE, UnitType.SCOUT_TANK, UnitType.AEGIS_DESTROYER],
+    SUPPORT: [UnitType.HEAVY_COMMANDO, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP, UnitType.CYBER_MARINE],
+    DEFENSIVE: [UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.SCOUT_TANK, UnitType.HEAVY_COMMANDO],
+    ELITE: [UnitType.TITAN_MBT, UnitType.PHANTOM_SUB, UnitType.AEGIS_DESTROYER, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
+    ASSASSIN: [UnitType.HEAVY_COMMANDO, UnitType.PHANTOM_SUB, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
+    FAST: [UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER, UnitType.HEAVY_COMMANDO]
 };
 
 const spendBudgetOnPool = (
@@ -164,7 +164,7 @@ export const generateBotArmy = (
     });
 
     if (Object.keys(army).length === 0) {
-        army[UnitType.SOLDIER] = Math.max(1, Math.floor(totalBudget / calculateUnitCP(UnitType.SOLDIER)));
+        army[UnitType.CYBER_MARINE] = Math.max(1, Math.floor(totalBudget / calculateUnitCP(UnitType.CYBER_MARINE)));
     }
 
     return army;
@@ -202,7 +202,7 @@ export const generateBotBuildings = (score: number): Partial<Record<BuildingType
 export const generateEnemyForce = (playerUnits: Partial<Record<UnitType, number>>, patrolLevel: number = 1, isAmbush: boolean = false): Partial<Record<UnitType, number>> => {
     // 1. Calculate Monetary Value of Patrol
     const playerBudget = calculateTotalUnitCost(playerUnits);
-    if (playerBudget <= 0) return { [UnitType.SOLDIER]: 1 };
+    if (playerBudget <= 0) return { [UnitType.CYBER_MARINE]: 1 };
 
     // 2. Scale enemy force. Ambush is significantly stronger.
     const baseMultiplier = isAmbush ? (1.2 + (patrolLevel * 0.15)) : (0.4 + (patrolLevel * 0.15));

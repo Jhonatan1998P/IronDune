@@ -30,11 +30,11 @@ export interface UnitDef {
   hp: number; 
   attack: number;
   defense: number;
+  threshold: number;
   cost: Cost;
   recruitTime: number; 
   upkeep: Partial<Record<ResourceType, number>>; 
   translationKey: string; 
-  // Changed from bonuses to rapidFire (Target Type -> Chance 0.0 to 1.0)
   rapidFire: Partial<Record<UnitType, number>>;
   reqTech: TechType;
   score: number; 

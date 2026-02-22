@@ -121,27 +121,27 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         titleKey: 'unlock_soldier',
         descKey: 'unlock_soldier_desc',
         targetTab: 'research',
-        targetElementId: `btn-research-${TechType.UNLOCK_SOLDIER}`,
+        targetElementId: `btn-research-${TechType.UNLOCK_CYBER_MARINE}`,
         reward: { [ResourceType.MONEY]: 50000, [ResourceType.AMMO]: 2000 }, // Funds Recruitment
         progressCondition: (state) => {
-            const task = state.activeResearch?.techId === TechType.UNLOCK_SOLDIER ? state.activeResearch : null;
+            const task = state.activeResearch?.techId === TechType.UNLOCK_CYBER_MARINE ? state.activeResearch : null;
             return task ? calculateProgress(task.startTime, task.endTime) : false;
         },
-        condition: (state) => state.researchedTechs.includes(TechType.UNLOCK_SOLDIER)
+        condition: (state) => state.researchedTechs.includes(TechType.UNLOCK_CYBER_MARINE)
     },
     {
         id: 'tut_recruit_soldier',
         titleKey: 'recruit_soldier',
         descKey: 'recruit_soldier_desc',
         targetTab: 'units',
-        targetElementId: `btn-recruit-${UnitType.SOLDIER}`,
+        targetElementId: `btn-recruit-${UnitType.CYBER_MARINE}`,
         reward: { [ResourceType.OIL]: 1000 },
-        unitReward: { [UnitType.SOLDIER]: 5 }, // Grant a squad
+        unitReward: { [UnitType.CYBER_MARINE]: 5 }, // Grant a squad
         progressCondition: (state) => {
-            const task = state.activeRecruitments.find(r => r.unitType === UnitType.SOLDIER);
+            const task = state.activeRecruitments.find(r => r.unitType === UnitType.CYBER_MARINE);
             return task ? calculateProgress(task.startTime, task.endTime) : false;
         },
-        condition: (state) => state.units[UnitType.SOLDIER] >= 1
+        condition: (state) => state.units[UnitType.CYBER_MARINE] >= 1
     },
     {
         id: 'tut_patrol',
