@@ -1,16 +1,14 @@
+
 import { BuildingType, GameState, IncomingAttack, LogEntry, ResourceType, UnitType, WarState } from '../../types';
 import { RankingCategory } from './rankings';
-import { WAR_TOTAL_WAVES, WAR_PLAYER_ATTACKS, PVP_TRAVEL_TIME_MS, WAR_DURATION_MS, THREAT_PER_DIAMOND_LEVEL_PER_MINUTE, THREAT_THRESHOLD, WAR_WAVE_INTERVAL_MS, WAR_OVERTIME_MS, WAR_COOLDOWN_MS, NEWBIE_PROTECTION_THRESHOLD, BOT_BUDGET_RATIO, PVP_LOOT_FACTOR, PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from '../../constants';
+import { WAR_TOTAL_WAVES, WAR_PLAYER_ATTACKS, PVP_TRAVEL_TIME_MS, WAR_DURATION_MS, WAR_WAVE_INTERVAL_MS, WAR_OVERTIME_MS, WAR_COOLDOWN_MS, NEWBIE_PROTECTION_THRESHOLD, BOT_BUDGET_RATIO, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, ATTACK_COOLDOWN_MIN_MS, ATTACK_COOLDOWN_MAX_MS } from '../../constants';
 import { generateBotArmy, calculateResourceCost } from './missions';
-import { BASE_PRICES } from './market';
 import { calculateMaxBankCapacity } from './modifiers';
 import { simulateCombat } from './combat';
 import { BotPersonality } from '../../types/enums';
 
 export const generateWarWave = (state: GameState, waveNumber: number, warState: WarState, specificEndTime?: number): IncomingAttack => {
-    
     let budgetRatio = 0.05; 
-
     if (waveNumber === 1) budgetRatio = 0.05;       
     else if (waveNumber === 2) budgetRatio = 0.08;  
     else if (waveNumber === 3) budgetRatio = 0.10;  
@@ -22,14 +20,7 @@ export const generateWarWave = (state: GameState, waveNumber: number, warState: 
         budgetRatio = 0.20 + ((waveNumber - 8) * 0.05); 
     }
 
-    let personality = BotPersonality.WARLORD; 
-    const bot = state.rankingData.bots.find(b => b.id === warState.enemyId);
-    if (bot) {
-        personality = bot.personality;
-    }
-
     const enemyForce = generateBotArmy(warState.enemyScore, budgetRatio);
-
     const now = Date.now();
     const endTime = specificEndTime || (now + PVP_TRAVEL_TIME_MS);
     
@@ -49,13 +40,12 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
     let enemyId = targetId || '';
     let enemyName = targetName || '';
     let enemyScore = targetScore || 0;
-    let personality = BotPersonality.WARLORD;
 
     if (!enemyId) {
         const bots = state.rankingData.bots;
         const validBots = bots.filter(b => {
             const ratio = b.stats[RankingCategory.DOMINION] / Math.max(1, state.empirePoints);
-            return ratio >= 0.5 && ratio <= 2.0;
+            return ratio >= 0.5 && ratio <= 1.5;
         });
 
         if (validBots.length > 0) {
@@ -63,15 +53,11 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
             enemyId = bot.id;
             enemyName = bot.name;
             enemyScore = bot.stats[RankingCategory.DOMINION];
-            personality = bot.personality;
         } else {
             enemyId = 'bot-system-rival';
             enemyName = 'Rival Warlord';
             enemyScore = Math.max(1000, state.empirePoints); 
         }
-    } else {
-        const bot = state.rankingData.bots.find(b => b.id === enemyId);
-        if (bot) personality = bot.personality;
     }
 
     const now = Date.now();
@@ -85,7 +71,6 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
 
     const fullBudgetMultiplier = 1.0 / BOT_BUDGET_RATIO;
     const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier);
-
     const firstWaveEndTime = now + PVP_TRAVEL_TIME_MS;
 
     const warState: WarState = {
@@ -114,7 +99,6 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
     return {
         ...state,
         activeWar: warState,
-        threatLevel: 0,
         incomingAttacks: [...state.incomingAttacks, firstWave]
     };
 };
@@ -147,6 +131,13 @@ export const distributeWarLoot = (
     let convertedCash = 0;
 
     const physicalResources = [ResourceType.OIL, ResourceType.AMMO, ResourceType.GOLD, ResourceType.DIAMOND];
+    const BASE_VALUES: Record<ResourceType, number> = {
+        [ResourceType.MONEY]: 1,
+        [ResourceType.OIL]: 10,
+        [ResourceType.AMMO]: 5,
+        [ResourceType.GOLD]: 50,
+        [ResourceType.DIAMOND]: 500
+    };
     
     physicalResources.forEach(res => {
         const amount = Math.floor(pool[res] * payoutFactor);
@@ -157,7 +148,16 @@ export const distributeWarLoot = (
             if (current + amount > max) {
                 nextResources[res] = max;
                 const excess = (current + amount) - max;
-                const conversion = excess * BASE_PRICES[res];
+                
+                // Base values for conversion fallback
+                const conversionFactors: Record<string, number> = {
+                    'OIL': 10,
+                    'AMMO': 5,
+                    'GOLD': 50,
+                    'DIAMOND': 500
+                };
+                
+                const conversion = excess * (conversionFactors[res] || 10);
                 totalCashToAdd += conversion;
                 convertedCash += conversion;
             } else {
@@ -199,73 +199,60 @@ export const distributeWarLoot = (
     return { newResources: nextResources, newBank: nextBank, resultKey: 'war_victory_secured', payoutMessage: msg, convertedAmount: convertedCash, bankedAmount };
 };
 
-export const processWarTick = (state: GameState, now: number, deltaTimeMs: number): { stateUpdates: Partial<GameState>, logs: LogEntry[] } => {
+export const processWarTick = (state: GameState, now: number): { stateUpdates: Partial<GameState>, logs: LogEntry[] } => {
     const logs: LogEntry[] = [];
-    
-    let newThreatLevel = state.threatLevel;
-    let newWarCooldownEndTime = state.warCooldownEndTime;
     let currentIncomingAttacks = [...state.incomingAttacks];
+    let nextAttackTime = state.nextAttackTime || (now + (3 * 60 * 60 * 1000));
     
     if (!state.activeWar) {
         const isProtected = state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD;
-        const inCooldown = now < state.warCooldownEndTime;
 
-        if (isProtected) {
-            if (newThreatLevel > 0) newThreatLevel = 0;
-        } 
-        else if (!inCooldown) {
-            const diamondLevel = state.buildings[BuildingType.DIAMOND_MINE]?.level || 0;
-            if (diamondLevel > 0) {
-                const growth = (diamondLevel * THREAT_PER_DIAMOND_LEVEL_PER_MINUTE) * (deltaTimeMs / 60000);
-                newThreatLevel = Math.min(100, newThreatLevel + growth);
+        if (!isProtected && now >= nextAttackTime) {
+            // Trigger Random Attack
+            const bots = state.rankingData.bots;
+            const validBots = bots.filter(b => {
+                const ratio = b.stats[RankingCategory.DOMINION] / Math.max(1, state.empirePoints);
+                return ratio >= 0.5 && ratio <= 1.5; 
+            });
+
+            let enemyId = 'bot-system-rival';
+            let enemyName = 'Rival Warlord';
+            let enemyScore = Math.max(1000, state.empirePoints * 1.1);
+
+            if (validBots.length > 0) {
+                const bot = validBots[Math.floor(Math.random() * validBots.length)];
+                enemyId = bot.id;
+                enemyName = bot.name;
+                enemyScore = bot.stats[RankingCategory.DOMINION];
             }
 
-            if (newThreatLevel >= THREAT_THRESHOLD) {
-                let enemyId = 'bot-system-rival';
-                let enemyName = 'Rival Warlord';
-                let enemyScore = Math.max(1000, state.empirePoints * 1.5);
-                let personality = BotPersonality.WARLORD;
+            const fullPowerArmy = generateBotArmy(enemyScore, 1.0);
+            const arrivalTime = now + PVP_TRAVEL_TIME_MS;
 
-                const bots = state.rankingData.bots;
-                const validBots = bots.filter(b => {
-                    const ratio = b.stats[RankingCategory.DOMINION] / Math.max(1, state.empirePoints);
-                    return ratio >= 0.8 && ratio <= 2.5; 
-                });
+            const raidAttack: IncomingAttack = {
+                id: `bot-raid-${now}`,
+                attackerName: enemyName,
+                attackerScore: enemyScore,
+                units: fullPowerArmy,
+                startTime: now,
+                endTime: arrivalTime,
+                isWarWave: false, 
+                delayCount: 0
+            };
 
-                if (validBots.length > 0) {
-                    const bot = validBots[Math.floor(Math.random() * validBots.length)];
-                    enemyId = bot.id;
-                    enemyName = bot.name;
-                    enemyScore = bot.stats[RankingCategory.DOMINION];
-                    personality = bot.personality;
-                }
+            currentIncomingAttacks.push(raidAttack);
+            
+            // Set next attack time (1-6 hours)
+            const wait = ATTACK_COOLDOWN_MIN_MS + Math.random() * (ATTACK_COOLDOWN_MAX_MS - ATTACK_COOLDOWN_MIN_MS);
+            nextAttackTime = now + wait;
 
-                const fullPowerArmy = generateBotArmy(enemyScore, 1.0);
-                const arrivalTime = now + PVP_TRAVEL_TIME_MS;
-
-                const raidAttack: IncomingAttack = {
-                    id: `threat-raid-${now}`,
-                    attackerName: enemyName,
-                    attackerScore: enemyScore,
-                    units: fullPowerArmy,
-                    startTime: now,
-                    endTime: arrivalTime,
-                    isWarWave: false, 
-                    delayCount: 0
-                };
-
-                newThreatLevel = 0;
-                newWarCooldownEndTime = now + WAR_COOLDOWN_MS;
-                currentIncomingAttacks.push(raidAttack);
-
-                logs.push({ 
-                    id: `threat-alert-${now}`, 
-                    messageKey: 'alert_incoming', 
-                    type: 'combat', 
-                    timestamp: now, 
-                    params: { attacker: enemyName } 
-                });
-            }
+            logs.push({ 
+                id: `bot-alert-${now}`, 
+                messageKey: 'alert_incoming', 
+                type: 'combat', 
+                timestamp: now, 
+                params: { attacker: enemyName } 
+            });
         }
     }
 
@@ -278,7 +265,6 @@ export const processWarTick = (state: GameState, now: number, deltaTimeMs: numbe
     const remainingAttacks = currentIncomingAttacks.filter(attack => {
         if (now >= attack.endTime) {
             const result = simulateCombat(newUnits, attack.units, 1.0);
-            
             Object.keys(newUnits).forEach(u => newUnits[u as UnitType] = result.finalPlayerArmy[u as UnitType] || 0);
             
             const pLost = Object.values(result.totalPlayerCasualties).reduce((a: number, b: number | undefined) => a + (b || 0), 0);
@@ -316,7 +302,6 @@ export const processWarTick = (state: GameState, now: number, deltaTimeMs: numbe
             } else {
                 if (result.winner !== 'PLAYER') {
                     const plunderRate = PLUNDER_RATES[0]; 
-
                     PLUNDERABLE_BUILDINGS.forEach(bType => {
                         const currentLvl = newBuildings[bType].level;
                         if (currentLvl > 0) {
@@ -389,8 +374,6 @@ export const processWarTick = (state: GameState, now: number, deltaTimeMs: numbe
                 return {
                     stateUpdates: {
                         activeWar: null,
-                        warCooldownEndTime: now + WAR_COOLDOWN_MS,
-                        threatLevel: 0,
                         resources: resolution.newResources,
                         bankBalance: resolution.newBank,
                         units: newUnits,
@@ -413,8 +396,7 @@ export const processWarTick = (state: GameState, now: number, deltaTimeMs: numbe
 
     return {
         stateUpdates: {
-            threatLevel: newThreatLevel,
-            warCooldownEndTime: newWarCooldownEndTime,
+            nextAttackTime,
             activeWar, 
             units: newUnits,
             resources: newResources,

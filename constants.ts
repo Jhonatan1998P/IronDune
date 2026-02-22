@@ -34,13 +34,9 @@ export const PLUNDERABLE_BUILDINGS = [
     BuildingType.MUNITIONS_FACTORY
 ];
 
-// THREAT SYSTEM SETTINGS
-export const THREAT_THRESHOLD = 100; // Trigger attack at 100
-export const THREAT_OFFLINE_FACTOR = 0.25; // 4x Slower when offline
-
-// THREAT (NEW LOGIC)
-export const THREAT_PER_DIAMOND_LEVEL_PER_MINUTE = 1.0; // +1% per level per minute
-export const WAR_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 Hours Cooldown after war
+// ATTACK SYSTEM (NEW V1.4)
+export const ATTACK_COOLDOWN_MIN_MS = 1 * 60 * 60 * 1000; // 1 Hour
+export const ATTACK_COOLDOWN_MAX_MS = 6 * 60 * 60 * 1000; // 6 Hours
 
 // WAR SYSTEM (UPDATED V1.2.1)
 export const WAR_DURATION_MS = 130 * 60 * 1000; // 2 Hours 10 Minutes Base

@@ -242,12 +242,19 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                             {/* Action Column */}
                             <div className="hidden md:flex col-span-2 justify-center pr-1">
                                 {!entry.isPlayer && (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setProfileEntry(entry); }}
-                                        className="text-[10px] text-slate-400 hover:text-cyan-400 uppercase tracking-wider font-bold"
-                                    >
-                                        {t.common.actions.inspect}
-                                    </button>
+                                    <div className="flex flex-col items-center gap-1">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setProfileEntry(entry); }}
+                                            className="text-[10px] text-slate-400 hover:text-cyan-400 uppercase tracking-wider font-bold"
+                                        >
+                                            {t.common.actions.inspect}
+                                        </button>
+                                        {(entry.score / Math.max(1, gameState.empirePoints) >= 0.5 && entry.score / Math.max(1, gameState.empirePoints) <= 1.5) ? (
+                                            <span className="text-[8px] text-emerald-500 font-bold px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded uppercase">In Range</span>
+                                        ) : (
+                                            <span className="text-[8px] text-red-500 font-bold px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded uppercase">Out Range</span>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 

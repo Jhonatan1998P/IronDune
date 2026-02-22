@@ -178,9 +178,8 @@ export interface GameState {
   tutorialAccepted: boolean;
   isTutorialMinimized: boolean; 
 
-  // Threat & Retaliation System
-  threatLevel: number; // 0-100
-  warCooldownEndTime: number; // Timestamp when threat generation resumes
+  // Attack System (New V1.4)
+  nextAttackTime: number; // Timestamp for the next scheduled bot attack
   incomingAttacks: IncomingAttack[];
   activeWar: WarState | null; // New War System
   

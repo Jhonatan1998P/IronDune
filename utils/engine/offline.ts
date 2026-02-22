@@ -5,14 +5,9 @@ import { GameState, ResourceType, TechType, BuildingType, OfflineReport, LogEntr
 import { resolveMission } from './missions';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts, calculateMaxBankCapacity } from './modifiers';
 import { 
-    THREAT_OFFLINE_FACTOR, 
-    THREAT_THRESHOLD,
-    WAR_TOTAL_WAVES,
-    WAR_WAVE_INTERVAL_MS,
-    THREAT_PER_DIAMOND_LEVEL_PER_MINUTE,
-    WAR_PLAYER_ATTACKS,
-    PVP_TRAVEL_TIME_MS,
-    OFFLINE_PRODUCTION_LIMIT_MS
+    OFFLINE_PRODUCTION_LIMIT_MS,
+    ATTACK_COOLDOWN_MIN_MS,
+    ATTACK_COOLDOWN_MAX_MS
 } from '../../constants';
 import { simulateCombat } from './combat';
 
@@ -36,14 +31,12 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
 
     const newLogs: LogEntry[] = [];
 
-    // If offline time is less than 1 minute, don't generate report
     if (timeElapsed < 60000) {
         return { newState: state, report, newLogs };
     }
 
     let newState = { ...state };
     
-    // 1. Cap offline production time to avoid extreme inflation
     const effectiveTimeMs = Math.min(timeElapsed, OFFLINE_PRODUCTION_LIMIT_MS);
     const effectiveTimeSecs = effectiveTimeMs / 1000;
 
@@ -52,7 +45,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     const upkeepCosts = calculateUpkeepCosts(newState.units);
     const maxStorage = calculateMaxStorage(newState.buildings, multipliers, newState.empirePoints);
 
-    // 2. Economy
     Object.values(ResourceType).forEach((res) => {
         const prod = (prodRates[res] || 0) * effectiveTimeSecs;
         const upkeep = (upkeepCosts[res] || 0) * effectiveTimeSecs;
@@ -61,7 +53,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         if (res === ResourceType.DIAMOND) {
             const diamondMine = newState.buildings[BuildingType.DIAMOND_MINE];
             if (diamondMine && !diamondMine.isDamaged && diamondMine.level > 0) {
-                // 1 Diamond per hour
                 const baseDiamondProd = (1 / 3600) * effectiveTimeSecs;
                 netChange += baseDiamondProd;
             }
@@ -74,7 +65,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         newState.resources[res] = Math.max(0, Math.min(maxStorage[res], newState.resources[res] + netChange));
     });
 
-    // 3. Bank Interest
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
         if (newState.bankBalance < maxBankCapacity) {
@@ -87,7 +77,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         }
     }
 
-    // 4. Resolve Constructions
     const remainingConstructions = [];
     for (const c of newState.activeConstructions) {
         if (now >= c.endTime) {
@@ -98,7 +87,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.activeConstructions = remainingConstructions;
 
-    // 5. Resolve Recruitments
     const remainingRecruitments = [];
     for (const r of newState.activeRecruitments) {
         if (now >= r.endTime) {
@@ -109,7 +97,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.activeRecruitments = remainingRecruitments;
 
-    // 6. Resolve Research
     if (newState.activeResearch && now >= newState.activeResearch.endTime) {
         const techId = newState.activeResearch.techId;
         newState.techLevels[techId] = (newState.techLevels[techId] || 0) + 1;
@@ -120,7 +107,13 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         newState.activeResearch = null;
     }
 
-    // 7. Resolve Missions
+    let nextAttackTime = newState.nextAttackTime || 0;
+    if (now > nextAttackTime) {
+        const wait = ATTACK_COOLDOWN_MIN_MS + Math.random() * (ATTACK_COOLDOWN_MAX_MS - ATTACK_COOLDOWN_MIN_MS);
+        nextAttackTime = now + wait;
+    }
+    newState.nextAttackTime = nextAttackTime;
+
     const remainingMissions = [];
     for (const mission of newState.activeMissions) {
         if (now >= mission.endTime) {

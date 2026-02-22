@@ -20,8 +20,8 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     state = { ...state, ...taskUpdates };
     currentLogs = [...currentLogs, ...taskLogs];
 
-    // 3. Military/War Pass (Threat, Inbound Attacks, War Logic)
-    const { stateUpdates: warUpdates, logs: warLogs } = processWarTick(state, now, deltaTimeMs);
+    // 3. Military/War Pass (Attack System, Inbound Attacks, War Logic)
+    const { stateUpdates: warUpdates, logs: warLogs } = processWarTick(state, now);
     state = { ...state, ...warUpdates };
     currentLogs = [...currentLogs, ...warLogs];
 
