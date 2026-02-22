@@ -76,12 +76,12 @@ const spendBudgetOnPool = (
     pool: UnitType[], 
     army: Partial<Record<UnitType, number>>
 ) => {
-    if (pool.length === 0 || budget < 50000) return;
+    if (pool.length === 0 || budget < 50) return;
 
     let remainingBudget = budget;
     let safetyCounter = 0;
 
-    while (remainingBudget > 50000 && safetyCounter < 200) {
+    while (remainingBudget > 50 && safetyCounter < 200) {
         safetyCounter++;
         
         const uType = pool[Math.floor(Math.random() * pool.length)];
@@ -99,11 +99,10 @@ const spendBudgetOnPool = (
 
 export const generateBotArmy = (
     targetScore: number, 
-    budgetMultiplier: number = 1.0, 
-    personality: BotPersonality = BotPersonality.TYCOON
+    budgetMultiplier: number = 1.0
 ): Partial<Record<UnitType, number>> => {
     
-    const totalBudget = targetScore * 1500 * budgetMultiplier;
+    const totalBudget = targetScore * 1.250 * budgetMultiplier;
 
     const allowedUnits = getAvailableUnitsForScore(targetScore);
     
@@ -111,32 +110,9 @@ export const generateBotArmy = (
 
     let buckets: { poolName: keyof typeof UNIT_POOLS | 'ALL', ratio: number }[] = [];
 
-    switch (personality) {
-        case BotPersonality.WARLORD:
-            buckets = [
-                { poolName: 'MASS', ratio: 0.7 },
-                { poolName: 'SUPPORT', ratio: 0.3 }
-            ];
-            break;
-        case BotPersonality.ROGUE:
-            buckets = [
-                { poolName: 'ASSASSIN', ratio: 0.5 },
-                { poolName: 'FAST', ratio: 0.5 }
-            ];
-            break;
-        case BotPersonality.TURTLE:
-            buckets = [
-                { poolName: 'DEFENSIVE', ratio: 0.6 },
-                { poolName: 'SUPPORT', ratio: 0.4 }
-            ];
-            break;
-        case BotPersonality.TYCOON:
-        default:
-            buckets = [
-                { poolName: 'ELITE', ratio: 1.0 }
-            ];
-            break;
-    }
+    buckets = [
+        { poolName: 'ELITE', ratio: 1.0 }
+    ];
 
     buckets.forEach(bucket => {
         const bucketBudget = totalBudget * bucket.ratio;
@@ -154,11 +130,9 @@ export const generateBotArmy = (
             poolUnits = allowedUnits;
         }
 
-        if (personality === BotPersonality.TYCOON) {
-            poolUnits.sort((a, b) => calculateUnitCP(b) - calculateUnitCP(a));
-            const cutoff = Math.ceil(poolUnits.length * 0.5);
-            poolUnits = poolUnits.slice(0, cutoff);
-        }
+        poolUnits.sort((a, b) => calculateUnitCP(b) - calculateUnitCP(a));
+        const cutoff = Math.ceil(poolUnits.length * 0.5);
+        poolUnits = poolUnits.slice(0, cutoff);
 
         spendBudgetOnPool(bucketBudget, poolUnits, army);
     });
@@ -200,19 +174,15 @@ export const generateBotBuildings = (score: number): Partial<Record<BuildingType
 };
 
 export const generateEnemyForce = (playerUnits: Partial<Record<UnitType, number>>, patrolLevel: number = 1, isAmbush: boolean = false): Partial<Record<UnitType, number>> => {
-    // 1. Calculate Monetary Value of Patrol
     const playerBudget = calculateTotalUnitCost(playerUnits);
     if (playerBudget <= 0) return { [UnitType.CYBER_MARINE]: 1 };
 
-    // 2. Scale enemy force. Ambush is significantly stronger.
     const baseMultiplier = isAmbush ? (1.2 + (patrolLevel * 0.15)) : (0.4 + (patrolLevel * 0.15));
     const enemyBudget = playerBudget * baseMultiplier;
 
-    // Convert budget back to faux "Score" for bot generation
     const targetScore = Math.max(10, enemyBudget / SCORE_TO_RESOURCE_VALUE);
 
-    // Generate army using the Warlord profile (Aggressive)
-    return generateBotArmy(targetScore, 1.0, BotPersonality.WARLORD);
+    return generateBotArmy(targetScore, 1.0);
 };
 
 const getPatrolLevel = (duration: number): number => {
@@ -262,35 +232,27 @@ export const resolveMission = (
     let newGrudge: any = undefined;
 
     if (mission.type === 'PVP_ATTACK' && mission.targetScore !== undefined) {
-        
-        let personality = BotPersonality.TYCOON;
-        const targetBot = rankingBots.find(b => b.id === mission.targetId);
-        if (targetBot) personality = targetBot.personality;
-
         let botArmy: Partial<Record<UnitType, number>> = {};
         const isWarAttack = mission.isWarAttack && activeWar && (activeWar.enemyId === mission.targetId);
 
         if (isWarAttack && activeWar) {
             const attackNum = WAR_PLAYER_ATTACKS - activeWar.playerAttacksLeft + 1;
-            
             if (attackNum === 6) {
                 const fullBudgetMultiplier = 1.0 / BOT_BUDGET_RATIO;
-                botArmy = generateBotArmy(mission.targetScore, fullBudgetMultiplier, personality);
+                botArmy = generateBotArmy(mission.targetScore, fullBudgetMultiplier);
             } else {
                 botArmy = activeWar.currentEnemyGarrison || {};
             }
         } else {
-            botArmy = generateBotArmy(mission.targetScore, 1.0, personality);
+            botArmy = generateBotArmy(mission.targetScore, 1.0);
         }
 
         const battleResult = simulateCombat(mission.units, botArmy, 1.0);
-        
         logType = 'combat';
         unitsToReturn = battleResult.finalPlayerArmy;
 
         if (isWarAttack && activeWar) {
             activeWar.currentEnemyGarrison = battleResult.finalEnemyArmy;
-
             const pResLoss = calculateResourceCost(battleResult.totalPlayerCasualties);
             const eResLoss = calculateResourceCost(battleResult.totalEnemyCasualties);
             
@@ -317,32 +279,25 @@ export const resolveMission = (
 
         if (battleResult.winner === 'PLAYER') {
             logKey = 'log_battle_win'; 
-            
             if (isWarAttack) {
                 warVictory = true;
                 logParams = { combatResult: battleResult, targetName: mission.targetName };
             } else {
                 const count = (attackCounts[mission.targetId || ''] || 1) - 1;
                 const safeCount = Math.max(0, Math.min(count, 2)); 
-                
                 const plunderPercentage = PLUNDER_RATES[safeCount];
-                
                 const botBuildings = generateBotBuildings(mission.targetScore);
-                
                 const stolenBuildings: Partial<Record<BuildingType, number>> = {};
                 
                 PLUNDERABLE_BUILDINGS.forEach(bType => {
                     const totalQty = botBuildings[bType] || 0;
-                    
                     let baseForCalculation = totalQty;
                     if (safeCount === 1) baseForCalculation = Math.floor(totalQty * (1 - PLUNDER_RATES[0]));
                     if (safeCount === 2) {
                         const afterFirst = Math.floor(totalQty * (1 - PLUNDER_RATES[0]));
                         baseForCalculation = Math.floor(afterFirst * (1 - PLUNDER_RATES[1]));
                     }
-
                     const stolenAmount = Math.floor(baseForCalculation * plunderPercentage);
-                    
                     if (stolenAmount > 0) {
                         stolenBuildings[bType] = stolenAmount;
                         buildingsToAdd[bType] = stolenAmount;
@@ -356,6 +311,7 @@ export const resolveMission = (
                     targetName: mission.targetName 
                 };
 
+                const targetBot = rankingBots.find(b => b.id === mission.targetId);
                 if (targetBot) {
                     newGrudge = {
                         id: `grudge-${now}`,
@@ -373,14 +329,9 @@ export const resolveMission = (
             logKey = 'log_battle_loss';
             const survivorsCount = Object.values(battleResult.finalPlayerArmy).reduce((a: number, b: number | undefined) => a + (b || 0), 0);
             if (survivorsCount === 0) logKey = 'log_wipeout';
-            
-            if (isWarAttack) {
-                warDefeat = true; 
-            }
-
+            if (isWarAttack) warDefeat = true; 
             logParams = { combatResult: battleResult, targetName: mission.targetName };
         }
-
         return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge };
     }
 
@@ -388,73 +339,52 @@ export const resolveMission = (
         const level = CAMPAIGN_LEVELS.find(l => l.id === mission.levelId);
         const initialEnemyForces = level ? level.enemyArmy : {};
         const battleResult = simulateCombat(mission.units, initialEnemyForces, 1.0);
-        
         logType = 'combat';
-        logParams = { 
-            combatResult: battleResult, 
-            loot: {},
-            targetName: `OP-${mission.levelId}` 
-        };
+        logParams = { combatResult: battleResult, loot: {}, targetName: `OP-${mission.levelId}` };
         unitsToReturn = battleResult.finalPlayerArmy;
 
         if (battleResult.winner === 'PLAYER') {
             logKey = 'log_battle_win';
-            
             if (level) {
                Object.entries(level.reward).forEach(([r, qty]) => {
                    const res = r as ResourceType;
                    resultResources[res] = Math.min(maxResources[res], resultResources[res] + (qty as number));
                });
                logParams.loot = level.reward;
-
-               if (mission.levelId === currentCampaignProgress) {
-                   newCampaignProgress = mission.levelId + 1;
-               }
+               if (mission.levelId === currentCampaignProgress) newCampaignProgress = mission.levelId + 1;
            }
         } else {
             logKey = 'log_battle_loss';
             const survivorsCount = Object.values(battleResult.finalPlayerArmy).reduce((a: number, b: number | undefined) => a + (b || 0), 0);
             if (survivorsCount === 0) logKey = 'log_wipeout';
         }
-        
         return { resources: resultResources, unitsToAdd: unitsToReturn, logKey, logType, logParams, newCampaignProgress };
     }
 
     if (mission.type === 'PATROL') {
         const patrolLevel = getPatrolLevel(mission.duration);
         const roll = Math.random() * 100; 
-        
-        // Carga máxima escala con el valor invertido en la patrulla y la duración
         const fleetValue = calculateTotalUnitCost(mission.units);
         const baseLootCapacity = fleetValue * 0.05 * patrolLevel;
 
         if (roll < 45) {
-            // RETORNO SEGURO (45%)
             logKey = 'log_patrol_nothing';
             unitsToReturn = mission.units; 
         } 
         else if (roll < 55) {
-            // EMBOSCADA CRÍTICA (10%)
             logKey = 'log_patrol_ambush';
             logType = 'combat';
-            
             const enemyForces = generateEnemyForce(mission.units, patrolLevel, true);
-            // El jugador es sorprendido (modificador de daño de 0.7 para el jugador)
             const battleResult = simulateCombat(mission.units, enemyForces, 0.7);
-            
             unitsToReturn = battleResult.finalPlayerArmy;
-            
             if (battleResult.winner === 'PLAYER') {
                 logKey = 'log_patrol_battle_win';
-                // Si sobrevive, el botín es gigantesco por el riesgo
                 const survivingValue = calculateTotalUnitCost(unitsToReturn);
                 const lootAmount = survivingValue * 0.15 * patrolLevel; 
-                
                 const loot: Partial<Record<ResourceType, number>> = { 
                     [ResourceType.MONEY]: Math.floor(lootAmount),
                     [ResourceType.OIL]: Math.floor(lootAmount * 0.1)
                 };
-
                 Object.entries(loot).forEach(([r, qty]) => {
                     const res = r as ResourceType;
                     resultResources[res] = Math.min(maxResources[res], resultResources[res] + (qty as number));
@@ -468,29 +398,21 @@ export const resolveMission = (
             }
         } 
         else if (roll < 75) {
-            // BATALLA ESTÁNDAR (20%)
             let damageMultiplier = 1.0;
             const patrolTechLevel = techLevels[TechType.PATROL_TRAINING] || 0;
             if (patrolTechLevel > 0) damageMultiplier += (patrolTechLevel * 0.05);
-
             const enemyForces = generateEnemyForce(mission.units, patrolLevel, false);
             const battleResult = simulateCombat(mission.units, enemyForces, damageMultiplier);
-            
             unitsToReturn = battleResult.finalPlayerArmy;
             logType = 'combat';
-            
             if (battleResult.winner === 'PLAYER') {
                 logKey = 'log_patrol_battle_win';
-                
-                // Loot proporcional a la fuerza que sobrevivió
                 const survivingValue = calculateTotalUnitCost(unitsToReturn);
                 const lootAmount = survivingValue * 0.05 * patrolLevel;
-                
                 const loot: Partial<Record<ResourceType, number>> = { 
                     [ResourceType.MONEY]: Math.floor(lootAmount),
                     [ResourceType.OIL]: Math.floor(lootAmount * 0.05)
                 };
-
                 Object.entries(loot).forEach(([r, qty]) => {
                     const res = r as ResourceType;
                     resultResources[res] = Math.min(maxResources[res], resultResources[res] + (qty as number));
@@ -504,15 +426,12 @@ export const resolveMission = (
             }
         } 
         else {
-            // CONTRABANDO (25%)
             logKey = 'log_patrol_contraband';
             unitsToReturn = mission.units; 
-            
             const loot: Partial<Record<ResourceType, number>> = {
                 [ResourceType.MONEY]: Math.floor(baseLootCapacity),
                 [ResourceType.AMMO]: Math.floor(baseLootCapacity * 0.1)
             };
-
             Object.entries(loot).forEach(([r, qty]) => {
                 const res = r as ResourceType;
                 resultResources[res] = Math.min(maxResources[res], resultResources[res] + (qty as number));
@@ -521,17 +440,5 @@ export const resolveMission = (
         }
     }
 
-    return { 
-        resources: resultResources, 
-        unitsToAdd: unitsToReturn,
-        buildingsToAdd,
-        logKey, 
-        logType, 
-        logParams, 
-        newCampaignProgress, 
-        warLootAdded, 
-        warVictory, 
-        warDefeat, 
-        newGrudge 
-    };
+    return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge };
 };

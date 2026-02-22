@@ -28,7 +28,8 @@ export const generateWarWave = (state: GameState, waveNumber: number, warState: 
         personality = bot.personality;
     }
 
-    const enemyForce = generateBotArmy(warState.enemyScore, budgetRatio, personality);
+    const totalBudget = warState.enemyScore * 1.250 * budgetRatio;
+    const enemyForce = generateBotArmy(warState.enemyScore, budgetRatio);
 
     const now = Date.now();
     const endTime = specificEndTime || (now + PVP_TRAVEL_TIME_MS);
@@ -84,7 +85,8 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
     };
 
     const fullBudgetMultiplier = 1.0 / BOT_BUDGET_RATIO;
-    const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier, personality);
+    const totalBudget = enemyScore * 1.250 * fullBudgetMultiplier;
+    const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier);
 
     const firstWaveEndTime = now + PVP_TRAVEL_TIME_MS;
 
@@ -240,7 +242,8 @@ export const processWarTick = (state: GameState, now: number, deltaTimeMs: numbe
                     personality = bot.personality;
                 }
 
-                const fullPowerArmy = generateBotArmy(enemyScore, 1.0, personality);
+                const totalBudget = enemyScore * 1.250 * 1.0;
+                const fullPowerArmy = generateBotArmy(enemyScore, 1.0);
                 const arrivalTime = now + PVP_TRAVEL_TIME_MS;
 
                 const raidAttack: IncomingAttack = {

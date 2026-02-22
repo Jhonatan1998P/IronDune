@@ -178,3 +178,7 @@ export const calculateResearchCost = (
         ammo: Math.floor(def.cost.ammo * multiplier)
     };
 };
+
+export const calculateEspionageCost = (targetScore: number, playerLevel: number): number => {
+    return Math.floor((5000 + (targetScore * 2)) / 5);
+};

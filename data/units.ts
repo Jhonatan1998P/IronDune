@@ -39,6 +39,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(150), [ResourceType.AMMO]: rate(20) },
     rapidFire: {
       [UnitType.SCOUT_TANK]: 0.86,
+      [UnitType.TITAN_MBT]: 0.86,
     },
     score: 15,
   },
@@ -61,7 +62,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(300), [ResourceType.OIL]: rate(25) },
     rapidFire: {
       [UnitType.CYBER_MARINE]: 0.88,
-      [UnitType.HEAVY_COMMANDO]: 0.75,
+      [UnitType.HEAVY_COMMANDO]: 0.88,
     },
     score: 40,
   },
@@ -80,6 +81,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(800), [ResourceType.OIL]: rate(100) },
     rapidFire: {
       [UnitType.AEGIS_DESTROYER]: 0.89,
+      [UnitType.PHANTOM_SUB]: 0.89,
     },
     score: 80,
   },
@@ -102,7 +104,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(2000), [ResourceType.OIL]: rate(250) },
     rapidFire: {
       [UnitType.SCOUT_TANK]: 0.91,
-      [UnitType.TITAN_MBT]: 0.85,
+      [UnitType.TITAN_MBT]: 0.91,
     },
     score: 150,
   },
@@ -121,7 +123,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(5000), [ResourceType.OIL]: rate(600) },
     rapidFire: {
       [UnitType.WRAITH_GUNSHIP]: 0.92,
-      [UnitType.ACE_FIGHTER]: 0.80,
+      [UnitType.ACE_FIGHTER]: 0.92,
     },
     score: 300,
   },
@@ -144,7 +146,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(15000), [ResourceType.OIL]: rate(2000) },
     rapidFire: {
       [UnitType.ACE_FIGHTER]: 0.94,
-      [UnitType.WRAITH_GUNSHIP]: 0.90,
+      [UnitType.WRAITH_GUNSHIP]: 0.94,
     },
     score: 600,
   },
@@ -163,9 +165,13 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     upkeep: { [ResourceType.MONEY]: rate(40000), [ResourceType.OIL]: rate(5000) },
     rapidFire: {
       [UnitType.PHANTOM_SUB]: 0.95,
-      [UnitType.AEGIS_DESTROYER]: 0.90,
-      [UnitType.ACE_FIGHTER]: 0.85,
-      [UnitType.WRAITH_GUNSHIP]: 0.80,
+      [UnitType.AEGIS_DESTROYER]: 0.95,
+      [UnitType.ACE_FIGHTER]: 0.95,
+      [UnitType.WRAITH_GUNSHIP]: 0.95,
+      [UnitType.SCOUT_TANK]: 0.95,
+      [UnitType.TITAN_MBT]: 0.95,
+      [UnitType.HEAVY_COMMANDO]: 0.95,
+      [UnitType.CYBER_MARINE]: 0.95,
     },
     score: 1200,
   },

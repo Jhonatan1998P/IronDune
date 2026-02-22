@@ -201,8 +201,9 @@ export const executeEspionage = (state: GameState, attackId: string): ActionResu
     const attack = state.incomingAttacks[incomingIndex];
     if (attack.isScouted) return { success: false }; // Already scouted
 
-    // Cost Formula: EnemyScore * 64
-    const cost = Math.max(100, Math.floor(attack.attackerScore * 64));
+    // Cost Formula: (EnemyScore * 64) / 5
+    const baseCost = Math.max(100, Math.floor(attack.attackerScore * 64));
+    const cost = Math.floor(baseCost / 5);
     
     if (state.resources[ResourceType.GOLD] < cost) return { success: false, errorKey: 'insufficient_funds' };
 
