@@ -8,7 +8,7 @@ export const data = {
       munitions_factory: { name: "Fábrica de Munición", description: "Manufactura Munición (700/10m)." },
       bank: { name: "Banco Nacional", description: "Asegura fondos. Aumenta capacidad de Dinero, Munición, Petróleo y Oro." },
       market: { name: "Mercado Negro", description: "Centro de intercambio de recursos." },
-      diamond_mine: { name: "Mina de Diamantes", description: "Extrae Diamantes (1/hora). Genera +2% Amenaza/min por nivel." },
+      diamond_mine: { name: "Mina de Diamantes", description: "Extrae Diamantes (1/hora). Recurso valioso para operaciones avanzadas." },
       university: { name: "Laboratorio", description: "Desarrolla nuevas tecnologías." },
       barracks: { name: "Cuartel", description: "Centro de reclutamiento de Soldados." },
       tank_factory: { name: "Fábrica Pesada", description: "Línea de ensamblaje de Tanques." },

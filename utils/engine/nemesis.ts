@@ -70,7 +70,7 @@ export const processNemesisTick = (state: GameState, now: number): { stateUpdate
     
     // Check if player is protected
     const isNewbie = state.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
-    const isCoolingDown = state.warCooldownEndTime > now;
+    const isCoolingDown = state.nextAttackTime > now;
     const isProtected = isNewbie || isCoolingDown;
 
     state.grudges.forEach(grudge => {
@@ -86,13 +86,13 @@ export const processNemesisTick = (state: GameState, now: number): { stateUpdate
             // we reschedule the attack for EXACTLY when protection ends (plus a small random jitter).
             // This creates the "Wake-Up Call" effect where attacks land right after shield drop.
             
-            const protectionEnd = Math.max(state.warCooldownEndTime, now); // If newbie, undefined end, but logic handles it
+            const protectionEnd = Math.max(state.nextAttackTime, now); // If newbie, undefined end, but logic handles it
             
             if (grudge.retaliationTime <= now) {
                 // Reschedule to future
                 const jitter = Math.random() * 5 * 60 * 1000; // 0-5 mins jitter
                 // If it's cooldown protection, target end time. If newbie, just push back 1 hour.
-                const newTarget = isCoolingDown ? (state.warCooldownEndTime + jitter) : (now + 3600000);
+                const newTarget = isCoolingDown ? (state.nextAttackTime + jitter) : (now + 3600000);
                 
                 grudge.retaliationTime = newTarget;
                 

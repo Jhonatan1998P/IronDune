@@ -5,7 +5,7 @@ import { ResourceType, BuildingType } from '../types';
 import { ResourceDisplay, SmartTooltip, Icons } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
 import { useLanguage } from '../context/LanguageContext';
-import { NEWBIE_PROTECTION_THRESHOLD, THREAT_PER_DIAMOND_LEVEL_PER_MINUTE } from '../constants';
+import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
 import { getIncomeStats } from '../utils/engine/selectors';
 
 interface GameHeaderProps {
@@ -17,21 +17,19 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
   const { t } = useLanguage();
   
   const isProtected = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
-  const threatPercent = Math.min(100, Math.max(0, gameState.threatLevel || 0));
   
   const now = Date.now();
-  const isCoolingDown = gameState.warCooldownEndTime > now;
-  const cooldownLeft = Math.max(0, gameState.warCooldownEndTime - now);
+  const isCoolingDown = gameState.nextAttackTime > now;
+  const cooldownLeft = Math.max(0, gameState.nextAttackTime - now);
 
   const totalActiveTasks = gameState.activeConstructions.length + gameState.activeRecruitments.length + (gameState.activeResearch ? 1 : 0);
   const hasIncoming = gameState.incomingAttacks.length > 0;
 
-  let threatColor = 'bg-emerald-500';
-  if (threatPercent > 50) threatColor = 'bg-yellow-500';
-  if (threatPercent > 80) threatColor = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
-  if (gameState.activeWar) threatColor = 'bg-red-600 animate-pulse'; 
+  let statusColor = 'bg-emerald-500';
+  if (isCoolingDown) statusColor = 'bg-blue-500';
+  if (gameState.activeWar) statusColor = 'bg-red-600 animate-pulse'; 
   
-  if (isProtected || isCoolingDown) threatColor = 'bg-cyan-500';
+  if (isProtected) statusColor = 'bg-cyan-500';
 
   const { production, upkeep } = useMemo(() => getIncomeStats(gameState), [
       gameState.buildings, 
@@ -42,37 +40,31 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
       gameState.currentInterestRate
   ]);
 
-  const threatGain = (gameState.buildings[BuildingType.DIAMOND_MINE]?.level || 0) * THREAT_PER_DIAMOND_LEVEL_PER_MINUTE;
-
-  const threatTooltipContent = (
+  const tooltipContent = (
       <div className="w-64 space-y-3">
           <div className="border-b border-white/10 pb-2">
-              <div className="font-bold uppercase tracking-wider text-red-400 mb-1 flex justify-between items-center">
-                  <span>{t.common.ui.threat_level}</span>
-                  <span className="text-white text-lg">{threatPercent.toFixed(1)}%</span>
+              <div className="font-bold uppercase tracking-wider text-cyan-400 mb-1 flex justify-between items-center">
+                  <span>STATUS</span>
+                  <span className="text-white text-lg">{gameState.activeWar ? 'WAR' : (isProtected ? 'PROTECTED' : (isCoolingDown ? 'COOLDOWN' : 'READY'))}</span>
               </div>
               <p className="text-[10px] text-slate-400 leading-tight">
-                  {gameState.activeWar ? t.common.ui.threat_frozen_war : t.common.ui.threat_desc_diamond}
+                  {gameState.activeWar ? 'War is active against your empire!' : 'Time until next bot attack can occur'}
               </p>
           </div>
           
           {isProtected ? (
               <div className="bg-cyan-900/20 p-2 rounded border border-cyan-500/30 text-[10px] text-cyan-300">
-                  <span className="font-bold block uppercase mb-1">{t.errors.protection_active}</span>
+                  <span className="font-bold block uppercase mb-1">NEWBIE PROTECTION</span>
                   ({formatNumber(gameState.empirePoints)} / {NEWBIE_PROTECTION_THRESHOLD})
               </div>
           ) : isCoolingDown ? (
               <div className="bg-blue-900/20 p-2 rounded border border-blue-500/30 text-[10px] text-blue-300">
-                  <span className="font-bold block uppercase mb-1">{t.common.ui.peace_time}</span>
-                  {t.common.ui.time_remaining}: {formatDuration(cooldownLeft)}
+                  <span className="font-bold block uppercase mb-1">PEACE TIME</span>
+                  Time remaining: {formatDuration(cooldownLeft)}
               </div>
           ) : !gameState.activeWar ? (
-              <div className="bg-black/40 p-2 rounded border border-white/5 space-y-1">
-                  <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">{t.common.ui.threat_source_diamond}</div>
-                  <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-300">{t.buildings.diamond_mine.name}</span>
-                      <span className="text-red-400 font-mono">+{threatGain.toFixed(1)}%/m</span>
-                  </div>
+              <div className="bg-green-900/20 p-2 rounded border border-green-500/30 text-[10px] text-green-300">
+                  <span className="font-bold block uppercase">ATTACKS ENABLED</span>
               </div>
           ) : null}
       </div>
@@ -161,22 +153,24 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
                     icon={<Icons.Resources.Gold className="w-4 h-4 text-yellow-500" />}
                 />
 
-                {/* THREAT */}
-                <SmartTooltip content={threatTooltipContent}>
+                {/* ATTACK STATUS */}
+                <SmartTooltip content={tooltipContent}>
                     <div className="flex flex-col justify-center min-w-[70px] lg:w-full bg-black/40 px-3 py-1.5 rounded border border-white/5 h-[44px] lg:h-[50px] cursor-help hover:bg-white/5 transition-colors shrink-0">
                         <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase tracking-widest mb-1 lg:mb-2">
-                            <span className="hidden lg:inline">{t.common.ui.threat_short}</span>
+                            <span className="hidden lg:inline">STATUS</span>
                             <span className="lg:hidden text-center w-full block"><Icons.Warning /></span>
                             {gameState.activeWar ? (
                                 <span className="text-red-500 font-bold animate-pulse hidden lg:inline">WAR</span>
                             ) : isProtected ? (
                                 <span className="text-cyan-400 font-bold hidden lg:inline">SAFE</span>
+                            ) : isCoolingDown ? (
+                                <span className="text-blue-400 font-bold hidden lg:inline">WAIT</span>
                             ) : (
-                                <span className={`${threatPercent > 80 ? "text-red-500" : "text-slate-400"} hidden lg:inline`}>{Math.floor(threatPercent)}%</span>
+                                <span className="text-green-400 font-bold hidden lg:inline">READY</span>
                             )}
                         </div>
                         <div className="h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5 w-full">
-                            <div className={`h-full ${threatColor} transition-all duration-1000 ease-out`} style={{ width: `${(isProtected || isCoolingDown) ? 100 : (gameState.activeWar ? 100 : threatPercent)}%` }}></div>
+                            <div className={`h-full ${statusColor} transition-all duration-1000 ease-out`} style={{ width: `${(isProtected || gameState.activeWar) ? 100 : (isCoolingDown ? Math.min(100, (cooldownLeft / (6 * 60 * 60 * 1000)) * 100) : 15)}%` }}></div>
                         </div>
                     </div>
                 </SmartTooltip>

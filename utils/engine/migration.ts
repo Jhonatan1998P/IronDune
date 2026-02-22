@@ -25,9 +25,8 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     if (typeof saved.isTutorialMinimized === 'boolean') cleanState.isTutorialMinimized = saved.isTutorialMinimized;
     if (typeof saved.tutorialAccepted === 'boolean') cleanState.tutorialAccepted = saved.tutorialAccepted;
     
-    // Threat System Persistence (Fix)
-    if (typeof saved.threatLevel === 'number') cleanState.threatLevel = saved.threatLevel;
-    if (typeof saved.warCooldownEndTime === 'number') cleanState.warCooldownEndTime = saved.warCooldownEndTime;
+    // Attack System Persistence (V1.4 - Cooldown based)
+    if (typeof saved.nextAttackTime === 'number') cleanState.nextAttackTime = saved.nextAttackTime;
     if (Array.isArray(saved.incomingAttacks)) cleanState.incomingAttacks = saved.incomingAttacks;
     if (Array.isArray(saved.grudges)) cleanState.grudges = saved.grudges;
     
