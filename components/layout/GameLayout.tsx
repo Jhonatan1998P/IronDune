@@ -80,7 +80,7 @@ export const GameLayout: React.FC = () => {
           </div>
           
           {/* 1. FIXED HEADER */}
-          <div className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
+          <div id="game-header" className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
               <GameHeader onToggleStatus={() => setIsStatusPanelOpen(true)} />
           </div>
 
@@ -108,7 +108,7 @@ export const GameLayout: React.FC = () => {
           </main>
 
           {/* 3. FIXED BOTTOM NAVBAR (Mobile Only) */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[70px]">
+          <div id="mobile-navbar" className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[70px]">
               <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
       </div>
