@@ -159,16 +159,25 @@ export const getFlagEmoji = (countryCode: string) => {
 };
 
 export const initializeRankingState = (): RankingData => ({
-    bots: Array.from({ length: TOTAL_BOTS }, (_, i) => ({
-        id: `bot-${i}`,
-        name: generateBotName('en'),
-        avatarId: (i % 8) + 1,
-        country: COUNTRIES[i % COUNTRIES.length],
-        stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
-        ambition: 1.0,
-        personality: BotPersonality.WARLORD,
-        lastRank: i + 1
-    })),
+    bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
+        // Assign diverse personalities based on index
+        const personalityRoll = ((i * 7 + 13) % 100);
+        const personality = personalityRoll < 30 ? BotPersonality.WARLORD
+            : personalityRoll < 55 ? BotPersonality.TURTLE
+            : personalityRoll < 80 ? BotPersonality.TYCOON
+            : BotPersonality.ROGUE;
+
+        return {
+            id: `bot-${i}`,
+            name: generateBotName('en'),
+            avatarId: (i % 8) + 1,
+            country: COUNTRIES[i % COUNTRIES.length],
+            stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
+            ambition: 0.5 + Math.random() * 0.5,
+            personality,
+            lastRank: i + 1
+        };
+    }),
     lastUpdateTime: Date.now()
 });
 
