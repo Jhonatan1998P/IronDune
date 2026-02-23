@@ -36,14 +36,14 @@ export const ActiveAttacksIndicator: React.FC = () => {
                 />
             )}
 
-            {/* Container for floating bars - Centered Top on Mobile/Desktop or just standard flow */}
-            <div className="xl:hidden fixed top-20 left-0 right-0 z-40 flex flex-col items-center gap-2 px-4 pointer-events-none">
+            {/* Container now flows with document to avoid fixed positioning */}
+            <div className="xl:hidden w-full flex flex-col items-center gap-2 px-4 pointer-events-none">
                 
                 {/* 1. INCOMING THREAT BAR (High Priority) */}
                 {imminentAttack && (
                     <button 
                         onClick={() => setSelectedAttackId(imminentAttack.id)}
-                        className="pointer-events-auto w-full max-w-md bg-red-950/90 backdrop-blur-md border border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.6)] rounded-lg overflow-hidden relative group animate-in slide-in-from-top duration-500"
+                        className="pointer-events-auto w-full max-w-md bg-red-950/90 backdrop-blur-md border border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.6)] rounded-lg overflow-hidden relative group"
                     >
                         {/* Striped Background Animation */}
                         <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,0,0,0.1)_25%,rgba(255,0,0,0.1)_50%,transparent_50%,transparent_75%,rgba(255,0,0,0.1)_75%,rgba(255,0,0,0.1)_100%)] bg-[length:20px_20px] animate-[drift_2s_linear_infinite]"></div>
@@ -76,7 +76,7 @@ export const ActiveAttacksIndicator: React.FC = () => {
 
                 {/* 2. OUTBOUND MISSION PILL (Lower Priority) */}
                 {hasOutbound && (
-                    <div className="pointer-events-auto bg-yellow-950/90 backdrop-blur-md border border-yellow-500/50 rounded-full px-4 py-2 shadow-lg flex items-center gap-3 animate-in slide-in-from-top duration-700 delay-100">
+                    <div className="pointer-events-auto bg-yellow-950/90 backdrop-blur-md border border-yellow-500/50 rounded-full px-4 py-2 shadow-lg flex items-center gap-3">
                         <Icons.Army className="w-4 h-4 text-yellow-400" />
                         <span className="text-[10px] font-bold text-yellow-100 uppercase tracking-wider">
                             {outboundAttacks.length} {t.common.ui.attack_outbound}

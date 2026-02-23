@@ -75,22 +75,26 @@ export const PERSONALITY_WEIGHTS: Record<BotPersonality, PersonalityTraits> = {
 };
 
 /**
- * Descripciones de comportamiento para UI/tooltips
+ * Descripciones de comportamiento para UI/tooltips (bilingüe)
  */
-export const PERSONALITY_DESCRIPTIONS: Record<BotPersonality, string> = {
-  [BotPersonality.WARLORD]:
-    "Aggressive and vengeful. Strikes fast and never forgets offenses. " +
-    "Seeks alliances to conquer, but may abandon them if convenient.",
+export const PERSONALITY_DESCRIPTIONS: Record<BotPersonality, { es: string; en: string }> = {
+  [BotPersonality.WARLORD]: {
+    es: "Agresivo y vengativo. Ataca rápido y nunca olvida las ofensivas. Busca alianzas para conquistar, pero puede abandonarlas si le conviene.",
+    en: "Aggressive and vengeful. Strikes fast and never forgets offenses. Seeks alliances to conquer, but may abandon them if convenient."
+  },
 
-  [BotPersonality.TURTLE]:
-    "Defensive and loyal. Prefers to build in peace and only attacks when provoked. " +
-    "Excellent ally, but slow to act. When they strike, they strike hard.",
+  [BotPersonality.TURTLE]: {
+    es: "Defensivo y leal. Prefiere construir en paz y solo ataca cuando es provocado. Excelente aliado, pero lento para actuar. Cuando ataca, ataca con fuerza.",
+    en: "Defensive and loyal. Prefers to build in peace and only attacks when provoked. Excellent ally, but slow to act. When they strike, they strike hard."
+  },
 
-  [BotPersonality.TYCOON]:
-    "Economy-focused. Prefers trading over fighting. " +
-    "Seeks profitable deals and avoids costly conflicts.",
+  [BotPersonality.TYCOON]: {
+    es: "Enfocado en la economía. Prefiere comerciar antes que luchar. Busca acuerdos rentables y evita conflictos costosos.",
+    en: "Economy-focused. Prefers trading over fighting. Seeks profitable deals and avoids costly conflicts."
+  },
 
-  [BotPersonality.ROGUE]:
-    "Unpredictable and opportunistic. Can be your best ally one moment " +
-    "and betray you the next. Very dangerous but useful if managed well."
+  [BotPersonality.ROGUE]: {
+    es: "Impredecible y oportunista. Puede ser tu mejor aliado un momento y traicionarte al siguiente. Muy peligroso pero útil si se gestiona bien.",
+    en: "Unpredictable and opportunistic. Can be your best ally one moment and betray you the next. Very dangerous but useful if managed well."
+  }
 };

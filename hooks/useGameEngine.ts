@@ -107,6 +107,7 @@ export const useGameEngine = () => {
   return {
     status, 
     gameState, 
+    setGameState,
     logs: gameState.logs, 
     hasSave: persistence.hasSave, 
     offlineReport, 
