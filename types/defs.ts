@@ -92,6 +92,7 @@ export interface TutorialStep {
     progressCondition?: (state: GameState) => boolean | number; 
     targetTab: string; 
     targetElementId?: string; 
+    getTargetElementId?: (state: GameState) => string | undefined;
 }
 
 export type Language = 'en' | 'es';

@@ -41,7 +41,21 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ activeTab }) =
         } 
         
         if (currentStep.targetElementId) {
-            return document.getElementById(currentStep.targetElementId);
+            const element = document.getElementById(currentStep.targetElementId);
+            if (element && element.offsetParent !== null) return element;
+        }
+
+        if (currentStep.getTargetElementId) {
+            const dynamicId = currentStep.getTargetElementId(gameState);
+            if (dynamicId) {
+                const element = document.getElementById(dynamicId);
+                if (element && element.offsetParent !== null) return element;
+            }
+        }
+
+        if (currentStep.targetElementId) {
+            const element = document.getElementById(currentStep.targetElementId);
+            if (element) return element;
         }
 
         return null;
@@ -52,6 +66,12 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ activeTab }) =
         if (gameState.tutorialClaimable) return false;
         if (gameState.isTutorialMinimized) return false;
         if (!gameState.tutorialAccepted) return false;
+        if (currentStep.progressCondition) {
+            const result = currentStep.progressCondition(gameState);
+            if ((typeof result === 'number' && result >= 0) || result === true) {
+                return false;
+            }
+        }
         return true;
     };
 
@@ -142,7 +162,7 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ activeTab }) =
         return () => {
             if (animationRef.current) cancelAnimationFrame(animationRef.current);
         };
-    }, [currentStep, activeTab, gameState.tutorialClaimable, gameState.isTutorialMinimized, gameState.tutorialAccepted, gameState.activeResearch, gameState.activeMissions, gameState.activeConstructions]); 
+    }, [currentStep, activeTab, gameState.tutorialClaimable, gameState.isTutorialMinimized, gameState.tutorialAccepted, gameState.activeResearch, gameState.activeMissions, gameState.activeConstructions, gameState.units]); 
 
     if (!isVisible || !targetRect) return null;
 

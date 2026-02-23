@@ -167,6 +167,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                             return (
                                 <button
                                     key={level.id}
+                                    id={level.id === 1 ? 'btn-campaign-level-1' : undefined}
                                     onClick={() => !isLocked && handleLevelSelect(level.id)}
                                     disabled={isLocked}
                                     className={`
@@ -338,6 +339,7 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
                                      </div>
                                  ) : (
                                      <GlassButton 
+                                        id="btn-campaign-attack"
                                         onClick={handleAttack} 
                                         disabled={totalSelected === 0 || activeCampaignMissions.some(m => m.levelId === selectedLevel.id)}
                                         variant="primary"

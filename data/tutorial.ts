@@ -155,5 +155,25 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
             return task ? calculateProgress(task.startTime, task.endTime) : false;
         },
         condition: (state) => state.activeMissions.length > 0 
+    },
+    {
+        id: 'tut_campaign',
+        titleKey: 'campaign_mission',
+        descKey: 'campaign_mission_desc',
+        targetTab: 'campaign',
+        targetElementId: 'btn-campaign-level-1',
+        reward: { [ResourceType.MONEY]: 100000, [ResourceType.GOLD]: 50 },
+        progressCondition: (state) => {
+            const task = state.activeMissions.find(m => m.type === 'CAMPAIGN_ATTACK');
+            return task ? calculateProgress(task.startTime, task.endTime) : false;
+        },
+        condition: (state) => state.campaignProgress > 1,
+        getTargetElementId: (state) => {
+            const hasUnits = Object.values(state.units).some(count => count > 0);
+            if (hasUnits) {
+                return 'btn-campaign-attack';
+            }
+            return undefined;
+        }
     }
 ];

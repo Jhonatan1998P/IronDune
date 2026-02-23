@@ -396,7 +396,9 @@ export const ui = {
         recruit_soldier: "Recruit Squad",
         recruit_soldier_desc: "Recruit your first Soldier unit.",
         patrol_mission: "First Patrol",
-        patrol_mission_desc: "Send a patrol mission."
+        patrol_mission_desc: "Send a patrol mission.",
+        campaign_mission: "First Strike",
+        campaign_mission_desc: "Launch your first campaign mission.\nSelect the available mission and deploy your forces."
     },
     reports: {
         title: "Mission Reports",
