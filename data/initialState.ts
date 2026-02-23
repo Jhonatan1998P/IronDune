@@ -5,8 +5,6 @@ import { INITIAL_BUILDINGS } from './buildings';
 import { INITIAL_UNITS } from './units';
 import { TUTORIAL_STEPS } from './tutorial';
 import { initializeRankingState } from '../utils/engine/rankings';
-import { initializeAllBotStates } from '../utils/engine/botInitialization';
-import { initializeFactions } from '../utils/engine/factions';
 
 export const INITIAL_RESOURCES: Record<ResourceType, number> = {
   [ResourceType.MONEY]: 5000, 
@@ -27,15 +25,6 @@ export const INITIAL_MAX_RESOURCES: Record<ResourceType, number> = {
 const initBuildings = { ...INITIAL_BUILDINGS };
 initBuildings[BuildingType.DIAMOND_MINE] = { level: 1 };
 initBuildings[BuildingType.BANK] = { level: 1 };
-
-// Initialize ranking bots first
-const initialRankingData = initializeRankingState();
-
-// Initialize advanced AI bot states from ranking bots
-const initialBotStates = initializeAllBotStates(initialRankingData.bots);
-
-// Initialize factions and assign bots
-const { factions: initialFactions, updatedBots: botsWithFactions } = initializeFactions(initialBotStates);
 
 export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,
@@ -71,19 +60,7 @@ export const INITIAL_GAME_STATE: GameState = {
   grudges: [],
   targetAttackCounts: {},
   lastAttackResetTime: Date.now(),
-  rankingData: initialRankingData,
-
-  // Advanced AI Systems
-  botStates: botsWithFactions,
-  factions: initialFactions,
-  diplomacy: {
-    proposals: {},
-    treaties: {},
-    worldEvents: []
-  },
-  operations: {},
-  playerFactionId: null,
-
+  rankingData: initializeRankingState(),
   lifetimeStats: {
     enemiesKilled: 0,
     unitsLost: 0,

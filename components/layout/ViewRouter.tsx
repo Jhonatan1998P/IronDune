@@ -18,9 +18,6 @@ import {
 } from '../GameViews';
 import { GlassButton, Card } from '../UIComponents';
 import { useLanguage } from '../../context/LanguageContext';
-import { DiplomacyPanel } from '../Diplomacy/DiplomacyPanel';
-import { FactionPanel } from '../Factions/FactionPanel';
-import { IntelPanel } from '../Intelligence/IntelPanel';
 
 interface ViewRouterProps {
     activeTab: TabType;
@@ -68,12 +65,6 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
             return <RankingsView gameState={gameState} onAttack={(_, newState) => (window as any)._updateGameState?.(newState)} />;
         case 'war':
             return <WarView gameState={gameState} onSpy={spyOnAttacker} onSimulate={onSimulateRequest} />;
-        case 'diplomacy':
-            return <DiplomacyPanel isOpen={true} onClose={() => {}} />;
-        case 'factions':
-            return <FactionPanel isOpen={true} onClose={() => {}} />;
-        case 'intelligence':
-            return <IntelPanel isOpen={true} onClose={() => {}} />;
         case 'settings':
             return (
                 <Card title={t.common.ui.settings} className="max-w-md mx-auto mt-4">

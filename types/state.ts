@@ -2,10 +2,6 @@
 import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
 import type { MarketEvent, MarketOffer } from './defs';
 import { StaticBot } from '../utils/engine/rankings'; // Import StaticBot type
-import type { BotState } from './bot';
-import type { Faction } from './faction';
-import type { DiplomacyState } from './diplomacy';
-import type { CoordinatedOperation } from './operations';
 
 export interface BuildingState {
   level: number;
@@ -196,25 +192,6 @@ export interface GameState {
 
   // Ranking System (Moved to State for Persistence)
   rankingData: RankingData;
-
-  // ══════════════════════════════════════════
-  // ADVANCED AI SYSTEMS (New)
-  // ══════════════════════════════════════════
-  
-  // Bot AI State (Persistent)
-  botStates: Record<string, BotState>;
-  
-  // Faction System
-  factions: Record<string, Faction>;
-  
-  // Diplomacy System
-  diplomacy: DiplomacyState;
-  
-  // Coordinated Operations
-  operations: Record<string, CoordinatedOperation>;
-
-  // Player faction membership
-  playerFactionId: string | null;
 
   lifetimeStats: LifetimeStats; 
 

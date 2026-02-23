@@ -3,7 +3,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'factions' | 'intelligence';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -49,9 +49,6 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
               { id: 'reports' as TabType, label: t.common.ui.nav_reports, icon: Icons.Report },
               { id: 'rankings' as TabType, label: t.features.rankings.title.split(' ')[0], icon: Icons.Crown },
               { id: 'simulator' as TabType, label: t.common.ui.nav_simulator, icon: NavIcons.Simulator },
-              { id: 'diplomacy' as TabType, label: 'Diplomacy', icon: Icons.Mail },
-              { id: 'factions' as TabType, label: 'Factions', icon: Icons.Shield },
-              { id: 'intelligence' as TabType, label: 'Global Intel', icon: Icons.Info },
           ]
       }
   ];
@@ -193,9 +190,6 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'research' as TabType, icon: Icons.Science, label: t.common.ui.nav_research },
         { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
         { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
-        { id: 'diplomacy' as TabType, icon: Icons.Mail, label: 'Diplomacy' },
-        { id: 'factions' as TabType, icon: Icons.Shield, label: 'Factions' },
-        { id: 'intelligence' as TabType, icon: Icons.Info, label: 'Global Intel' },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];
 

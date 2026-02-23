@@ -14,17 +14,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Mobile flow: avoid fixed subpanels except top/bottom bars */
-@media (max-width: 768px) {
-  .md\:overflow-y-auto {
-    overflow-y: visible !important;
-  }
-  .md\:max-h-\[calc\(100vh-200px\)\],
-  .md\:max-h-\[calc\(100vh-280px\)\] {
-    max-height: none !important;
-  }
-}
-
 button, input, select, textarea {
   font: inherit;
   color: inherit;

@@ -68,14 +68,21 @@ export const GameLayout: React.FC = () => {
       {/* --- UI LAYER (Z-INDEX 10+) --- */}
       <div className="relative z-10 flex flex-col h-full">
           {offlineReport && <OfflineWelcome report={offlineReport} onClose={clearOfflineReport} />}
-           <TutorialOverlay activeTab={activeTab} gameState={gameState} />
-           <ObjectiveTracker />
-           <WarHUD />
+          <TutorialOverlay activeTab={activeTab} gameState={gameState} />
+          <ObjectiveTracker />
+          <WarHUD />
           
-           {/* 1. FIXED HEADER */}
-           <div className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
-               <GameHeader onToggleStatus={() => setIsStatusPanelOpen(true)} />
-           </div>
+          {/* Floating Indicator (Mobile/Tablet Only) - Positioned below fixed header */}
+          <div className="xl:hidden fixed top-24 right-4 z-40 pointer-events-none">
+            <div className="pointer-events-auto">
+                <ActiveAttacksIndicator />
+            </div>
+          </div>
+          
+          {/* 1. FIXED HEADER */}
+          <div className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
+              <GameHeader onToggleStatus={() => setIsStatusPanelOpen(true)} />
+          </div>
 
           {/* 2. MAIN SCROLLABLE AREA */}
           <main className="flex-1 flex overflow-hidden relative pt-[70px] pb-[70px] md:pt-0 md:pb-0 h-full">
@@ -100,10 +107,10 @@ export const GameLayout: React.FC = () => {
             <RightStatusPanel isOpen={isStatusPanelOpen} onClose={() => setIsStatusPanelOpen(false)} />
           </main>
 
-           {/* 3. FIXED BOTTOM NAVBAR (Mobile Only) */}
-           <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[70px]">
-               <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
-           </div>
+          {/* 3. FIXED BOTTOM NAVBAR (Mobile Only) */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[70px]">
+              <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
+          </div>
       </div>
       
       <style>{`

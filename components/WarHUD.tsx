@@ -29,7 +29,7 @@ export const WarHUD: React.FC = () => {
 
     return (
         <>
-            <div className="relative mt-6 ml-4 z-20 animate-[fadeIn_0.5s_ease-out]">
+            <div className="fixed top-24 left-4 z-40 animate-[fadeIn_0.5s_ease-out]">
                 <div className={`
                     glass-panel border-l-4 border-l-red-600 bg-red-950/90 backdrop-blur-xl shadow-[0_0_30px_rgba(220,38,38,0.3)]
                     transition-all duration-300 overflow-hidden rounded-r-xl
