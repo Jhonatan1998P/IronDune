@@ -58,6 +58,42 @@ const MARKET_EVENTS: Omit<MarketEvent, 'duration'>[] = [
         nameKey: 'evt_drought',
         descriptionKey: 'evt_drought_desc',
         priceModifiers: { [ResourceType.OIL]: 1.8 }
+    },
+    {
+        id: 'evt_embargo',
+        nameKey: 'evt_embargo',
+        descriptionKey: 'evt_embargo_desc',
+        priceModifiers: { [ResourceType.OIL]: 2.0, [ResourceType.AMMO]: 1.4 }
+    },
+    {
+        id: 'evt_surplus',
+        nameKey: 'evt_surplus',
+        descriptionKey: 'evt_surplus_desc',
+        priceModifiers: { [ResourceType.OIL]: 0.6, [ResourceType.AMMO]: 0.7, [ResourceType.GOLD]: 0.8 }
+    },
+    {
+        id: 'evt_gold_rush',
+        nameKey: 'evt_gold_rush',
+        descriptionKey: 'evt_gold_rush_desc',
+        priceModifiers: { [ResourceType.GOLD]: 2.2, [ResourceType.OIL]: 1.1 }
+    },
+    {
+        id: 'evt_tech_boom',
+        nameKey: 'evt_tech_boom',
+        descriptionKey: 'evt_tech_boom_desc',
+        priceModifiers: { [ResourceType.AMMO]: 1.6, [ResourceType.OIL]: 1.2 }
+    },
+    {
+        id: 'evt_diamond_fever',
+        nameKey: 'evt_diamond_fever',
+        descriptionKey: 'evt_diamond_fever_desc',
+        priceModifiers: { [ResourceType.GOLD]: 1.8, [ResourceType.OIL]: 1.4, [ResourceType.AMMO]: 1.3 }
+    },
+    {
+        id: 'evt_recession',
+        nameKey: 'evt_recession',
+        descriptionKey: 'evt_recession_desc',
+        priceModifiers: { [ResourceType.GOLD]: 0.5, [ResourceType.OIL]: 0.4, [ResourceType.AMMO]: 0.5 }
     }
 ];
 
@@ -96,8 +132,12 @@ export const calculateDiamondExchangeRate = (
 
 export const generateMarketState = (empirePoints: number, marketLevel: number): { offers: MarketOffer[], event: MarketEvent, nextRefresh: number } => {
     // 1. Seleccionar Evento
-    // Peso mayor para 'stable' (40% probabilidad)
-    const eventPool = [...MARKET_EVENTS, ...MARKET_EVENTS, MARKET_EVENTS[0], MARKET_EVENTS[0]];
+    // Peso mayor para 'stable' (20% probabilidad), otros eventos tienen peso igual
+    const eventPool = [
+        MARKET_EVENTS[0], // stable - solo 1 copy (20%)
+        ...MARKET_EVENTS.slice(1), // todos los demás
+        ...MARKET_EVENTS.slice(1), // duplicados para mayor peso
+    ];
     const template = eventPool[Math.floor(Math.random() * eventPool.length)];
     
     // Duración aleatoria entre 30 y 120 minutos
@@ -154,8 +194,11 @@ export const generateMarketState = (empirePoints: number, marketLevel: number): 
         const eventMod = event.priceModifiers[res] || 1.0;
         const randomFluctuation = 0.9 + (Math.random() * 0.2);
         
-        // Spread: Si el jugador compra (Mercado Vende), precio un poco más alto. Viceversa para venta.
-        const spread = type === 'BUY' ? 1.05 : 0.95;
+        // Spread: Major gap between buy/sell to prevent exploit
+        // BUY (Market sells to player): 1.25 (25% markup)
+        // SELL (Market buys from player): 0.75 (25% discount)
+        // This 50% spread prevents arbitrage exploit
+        const spread = type === 'BUY' ? 1.25 : 0.75;
 
         let finalPrice = Math.floor(basePrice * eventMod * randomFluctuation * spread);
         finalPrice = Math.max(1, finalPrice);

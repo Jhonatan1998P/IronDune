@@ -70,7 +70,13 @@ export const features = {
             evt_peace: { title: "Tratado de Paz", desc: "Excedente militar inunda el mercado. El precio de la Munición cae." },
             evt_crash: { title: "Crack Bursátil", desc: "Pánico global. El precio de las materias primas se desploma." },
             evt_boom: { title: "Auge Económico", desc: "Alta demanda industrial. Materias primas cotizan con prima." },
-            evt_drought: { title: "Crisis en Refinerías", desc: "Interrupción en cadena de suministro. Petróleo por las nubes." }
+            evt_drought: { title: "Crisis en Refinerías", desc: "Interrupción en cadena de suministro. Petróleo por las nubes." },
+            evt_embargo: { title: "Embargo Comercial", desc: "Sanciones internacionales restringen el flujo de recursos. Escasez crítica." },
+            evt_surplus: { title: "Excedente Agrícola", desc: "Cosechas históricas inundan los mercados. Precios en caída libre." },
+            evt_gold_rush: { title: "Fiebre del Oro", desc: "Yacimientos descubiertos. Demanda masiva de Oro." },
+            evt_tech_boom: { title: "Revolución Tecnológica", desc: "La industria tecnológica impulsa la demanda de componentes." },
+            evt_diamond_fever: { title: "Fiebre de Diamantes", desc: "Las minas descubren vetas ricas. Especulación en máximos." },
+            evt_recession: { title: "Recesión Global", desc: "Colapso económico. Los mercados se hunden en picado." }
         }
     },
     simulator: {

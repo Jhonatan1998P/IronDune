@@ -3,7 +3,9 @@ import { BuildingType, GameState, ResourceType } from '../../types';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts, calculateMaxBankCapacity } from './modifiers';
 import { generateMarketState } from './market';
 
-const RATE_CHANGE_INTERVAL = 60 * 60 * 1000; // 1 Hour
+const RATE_CHANGE_INTERVAL = 24 * 60 * 60 * 1000; // 24 Hours
+const MIN_INTEREST_RATE = 0.025; // 2.5%
+const MAX_INTEREST_RATE = 0.10; // 10%
 
 /**
  * Handles resource production, consumption, bank interest, and market refreshes.
@@ -49,8 +51,8 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
     const bankLevel = state.buildings[BuildingType.BANK].level;
 
     if (now >= state.nextRateChangeTime) {
-       // High Volatility: Random between 2% (0.02) and 10% (0.10)
-       newRate = Math.random() * (0.10 - 0.02) + 0.02;
+       // Interest rate changes every 24 hours: Random between 2.5% (0.025) and 10% (0.10)
+       newRate = Math.random() * (MAX_INTEREST_RATE - MIN_INTEREST_RATE) + MIN_INTEREST_RATE;
        newNextRateChange = now + RATE_CHANGE_INTERVAL;
     }
 

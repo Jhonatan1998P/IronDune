@@ -40,7 +40,7 @@ export const INITIAL_GAME_STATE: GameState = {
   activeConstructions: [],
   bankBalance: 0,
   currentInterestRate: 0.05,
-  nextRateChangeTime: Date.now() + (60 * 60 * 1000),
+  nextRateChangeTime: Date.now() + (24 * 60 * 60 * 1000),
   lastInterestPayoutTime: Date.now(),
   empirePoints: 0,
   lastSaveTime: Date.now(),

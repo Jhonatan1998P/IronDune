@@ -70,7 +70,13 @@ export const features = {
             evt_peace: { title: "Peace Treaty Signed", desc: "Military surplus floods the market. Ammo prices dropping." },
             evt_crash: { title: "Stock Market Crash", desc: "Global panic. All commodity prices plummeting." },
             evt_boom: { title: "Economic Boom", desc: "High industrial demand. Commodities trading at premium." },
-            evt_drought: { title: "Refinery Crisis", desc: "Supply chain disruption. Oil prices skyrocketing." }
+            evt_drought: { title: "Refinery Crisis", desc: "Supply chain disruption. Oil prices skyrocketing." },
+            evt_embargo: { title: "Trade Embargo", desc: "International sanctions restrict resource flow. Critical shortages." },
+            evt_surplus: { title: "Harvest Surplus", desc: "Record harvests flood markets. Prices in freefall." },
+            evt_gold_rush: { title: "Gold Rush", desc: "New gold deposits discovered. Massive demand for Gold." },
+            evt_tech_boom: { title: "Tech Revolution", desc: "Tech industry drives component demand to new highs." },
+            evt_diamond_fever: { title: "Diamond Fever", desc: "Mines discover rich veins. Speculation at all-time highs." },
+            evt_recession: { title: "Global Recession", desc: "Economic collapse. Markets plummet across the board." }
         }
     },
     simulator: {
