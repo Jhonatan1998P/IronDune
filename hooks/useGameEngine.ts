@@ -135,6 +135,8 @@ export const useGameEngine = () => {
     claimTutorialReward: actions.claimTutorialReward,
     toggleTutorialMinimize: actions.toggleTutorialMinimize, 
     spyOnAttacker: actions.spyOnAttacker,
+    changePlayerName: actions.changePlayerName,
+    repair: actions.repair,
 
     // Logs
     deleteLogs, 

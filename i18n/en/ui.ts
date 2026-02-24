@@ -277,7 +277,16 @@ export const ui = {
         no_active_threats: "No Active Threats",
         mission_patrol: "Patrol",
         mission_campaign: "Campaign",
-        profile_unknown: "Unknown"
+        profile_unknown: "Unknown",
+        commander_name: "Commander Name",
+        new_name_placeholder: "New name...",
+        name_changed_success: "Name changed successfully!",
+        name_too_short: "Name must be at least 2 characters.",
+        name_too_long: "Name cannot exceed 20 characters.",
+        name_invalid_chars: "Name can only contain letters, numbers, spaces and underscores.",
+        name_already_taken: "This name is already taken by another commander.",
+        not_enough_diamonds: "Not enough diamonds. Cost: 20 💎",
+        first_change_free: "1st FREE"
       },
       menu: {
         new_game: "New Operation",

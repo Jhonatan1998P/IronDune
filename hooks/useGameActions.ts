@@ -216,9 +216,53 @@ export const useGameActions = (
       });
   }, [addLog, setGameState]);
 
+  const changePlayerName = useCallback((newName: string): { success: boolean; errorKey?: string } => {
+      const trimmedName = newName.trim();
+      
+      if (trimmedName.length < 2) {
+          return { success: false, errorKey: 'name_too_short' };
+      }
+      if (trimmedName.length > 20) {
+          return { success: false, errorKey: 'name_too_long' };
+      }
+      if (!/^[a-zA-Z0-9_\s]+$/.test(trimmedName)) {
+          return { success: false, errorKey: 'name_invalid_chars' };
+      }
+      
+      const nameLower = trimmedName.toLowerCase();
+      const nameTaken = gameState.rankingData.bots.some(
+          bot => bot.name.toLowerCase() === nameLower
+      );
+      
+      if (nameTaken) {
+          return { success: false, errorKey: 'name_already_taken' };
+      }
+      
+      const isFreeChange = !gameState.hasChangedName;
+      const cost = isFreeChange ? 0 : 20;
+      
+      if (!isFreeChange && gameState.resources[ResourceType.DIAMOND] < cost) {
+          return { success: false, errorKey: 'not_enough_diamonds' };
+      }
+      
+      setGameState(prev => ({
+          ...prev,
+          playerName: trimmedName,
+          hasChangedName: true,
+          resources: {
+              ...prev.resources,
+              [ResourceType.DIAMOND]: prev.resources[ResourceType.DIAMOND] - cost
+          }
+      }));
+      
+      addLog('name_changed', 'info', { newName: trimmedName, wasFree: isFreeChange });
+      return { success: true };
+  }, [gameState, addLog, setGameState]);
+
   return {
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,
-    acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair
+    acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,
+    changePlayerName
   };
 };

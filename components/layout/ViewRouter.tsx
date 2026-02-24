@@ -32,10 +32,13 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
         startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, 
         deleteLogs, archiveLogs, markReportsRead,
-        resetGame, saveGame, exportSave 
+        resetGame, saveGame, exportSave, changePlayerName
     } = useGame();
     
     const { t, setLanguage, language } = useLanguage();
+    const [newName, setNewName] = useState('');
+    const [nameError, setNameError] = useState<string | null>(null);
+    const [nameSuccess, setNameSuccess] = useState(false);
 
     // Effect to mark reports read when tab is opened
     useEffect(() => {
@@ -66,6 +69,23 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
         case 'war':
             return <WarView gameState={gameState} onSpy={spyOnAttacker} onSimulate={onSimulateRequest} />;
         case 'settings':
+            const handleNameChange = () => {
+                setNameError(null);
+                setNameSuccess(false);
+                const result = changePlayerName(newName);
+                if (result.success) {
+                    setNameSuccess(true);
+                    setNewName('');
+                    setTimeout(() => setNameSuccess(false), 3000);
+                } else if (result.errorKey) {
+                    setNameError(result.errorKey);
+                }
+            };
+            
+            const isFreeChange = !gameState.hasChangedName;
+            const nameChangeCost = isFreeChange ? 'FREE' : '💎 20';
+            const canAfford = isFreeChange || gameState.resources.DIAMOND >= 20;
+            
             return (
                 <Card title={t.common.ui.settings} className="max-w-md mx-auto mt-4">
                    <div className="space-y-6">
@@ -76,6 +96,43 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                                <button key={lang} onClick={() => setLanguage(lang)} className={`px-3 py-1 rounded text-xs font-bold transition-all ${language === lang ? 'bg-cyan-500 text-black shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>{lang.toUpperCase()}</button>
                             ))}
                          </div>
+                      </div>
+                      
+                      <div className="pb-4 border-b border-white/10">
+                         <div className="flex justify-between items-center mb-3">
+                            <span className="text-sm font-mono text-slate-300">{t.common.ui.commander_name || 'Commander Name'}</span>
+                            <div className="flex items-center gap-2">
+                               <span className="text-cyan-400 font-bold">{gameState.playerName}</span>
+                               {isFreeChange && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">{t.common.ui.first_change_free || '1st FREE'}</span>}
+                            </div>
+                         </div>
+                         <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={newName}
+                                onChange={(e) => { setNewName(e.target.value); setNameError(null); }}
+                                placeholder={t.common.ui.new_name_placeholder || 'New name...'}
+                                maxLength={20}
+                                className="flex-1 bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+                            />
+                            <button
+                                onClick={handleNameChange}
+                                disabled={!newName.trim() || newName.trim() === gameState.playerName || !canAfford}
+                                className={`px-3 py-2 rounded text-xs font-bold transition-all flex items-center gap-1 ${
+                                    isFreeChange 
+                                        ? 'bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700' 
+                                        : 'bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700'
+                                } disabled:text-slate-500`}
+                            >
+                                {nameChangeCost}
+                            </button>
+                         </div>
+                         {nameError && (
+                            <p className="text-red-400 text-xs mt-2">{t.common.ui[nameError] || nameError}</p>
+                         )}
+                         {nameSuccess && (
+                            <p className="text-emerald-400 text-xs mt-2">{t.common.ui.name_changed_success || 'Name changed successfully!'}</p>
+                         )}
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">

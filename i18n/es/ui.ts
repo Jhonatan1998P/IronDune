@@ -277,7 +277,16 @@ export const ui = {
         no_active_threats: "Sin Amenazas Activas",
         mission_patrol: "Patrulla",
         mission_campaign: "Campaña",
-        profile_unknown: "Desconocido"
+        profile_unknown: "Desconocido",
+        commander_name: "Nombre del Comandante",
+        new_name_placeholder: "Nuevo nombre...",
+        name_changed_success: "¡Nombre cambiado con éxito!",
+        name_too_short: "El nombre debe tener al menos 2 caracteres.",
+        name_too_long: "El nombre no puede exceder 20 caracteres.",
+        name_invalid_chars: "El nombre solo puede contener letras, números, espacios y guiones bajos.",
+        name_already_taken: "Este nombre ya está en uso por otro comandante.",
+        not_enough_diamonds: "No tienes suficientes diamantes. Costo: 20 💎",
+        first_change_free: "1er GRATIS"
       },
       menu: {
         new_game: "Nueva Operación",

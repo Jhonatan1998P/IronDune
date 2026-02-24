@@ -2,10 +2,93 @@
 import { BuildingType, GameState, ResourceType, TechType, UnitType } from '../../types';
 import { SAVE_VERSION, WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';
 import { INITIAL_GAME_STATE } from '../../data/initialState';
-import { initializeRankingState } from './rankings';
+import { initializeRankingState, RankingCategory, StaticBot, BotEvent } from './rankings';
+import { BotPersonality } from '../../types/enums';
 
 // Key for old deprecated local storage ranking system
 const LEGACY_STORAGE_KEY = 'ironDune_static_rankings_v3';
+
+const VALID_PERSONALITIES = Object.values(BotPersonality);
+const VALID_BOT_EVENTS = Object.values(BotEvent);
+const REQUIRED_RANKING_CATEGORIES = Object.values(RankingCategory);
+
+const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
+    [RankingCategory.DOMINION]: 1000,
+    [RankingCategory.MILITARY]: 500,
+    [RankingCategory.ECONOMY]: 10000,
+    [RankingCategory.CAMPAIGN]: 1
+};
+
+export const sanitizeBot = (bot: any, index: number): StaticBot => {
+    const sanitizedStats = { ...DEFAULT_BOT_STATS };
+    
+    if (bot.stats && typeof bot.stats === 'object') {
+        REQUIRED_RANKING_CATEGORIES.forEach(cat => {
+            if (typeof bot.stats[cat] === 'number' && !isNaN(bot.stats[cat])) {
+                sanitizedStats[cat] = bot.stats[cat];
+            } else if (typeof bot.stats[cat] === 'number' && isNaN(bot.stats[cat])) {
+                console.warn(`Bot ${bot.id || index} has NaN stat for ${cat}, using default`);
+            }
+        });
+    }
+    
+    let personality = BotPersonality.WARLORD;
+    if (bot.personality && VALID_PERSONALITIES.includes(bot.personality)) {
+        personality = bot.personality;
+    }
+    
+    let currentEvent = BotEvent.PEACEFUL_PERIOD;
+    if (bot.currentEvent && VALID_BOT_EVENTS.includes(bot.currentEvent)) {
+        currentEvent = bot.currentEvent;
+    }
+    
+    return {
+        id: bot.id || `bot-${index}`,
+        name: bot.name || `Bot_${index}`,
+        avatarId: typeof bot.avatarId === 'number' ? bot.avatarId : (index % 8) + 1,
+        country: bot.country || 'US',
+        stats: sanitizedStats,
+        ambition: typeof bot.ambition === 'number' && !isNaN(bot.ambition) ? bot.ambition : 1.0,
+        personality,
+        lastRank: typeof bot.lastRank === 'number' && !isNaN(bot.lastRank) ? bot.lastRank : index + 1,
+        currentEvent,
+        eventTurnsRemaining: typeof bot.eventTurnsRemaining === 'number' && !isNaN(bot.eventTurnsRemaining) 
+            ? Math.max(0, bot.eventTurnsRemaining) 
+            : 0,
+        growthModifier: typeof bot.growthModifier === 'number' && !isNaN(bot.growthModifier) 
+            ? bot.growthModifier 
+            : 0
+    };
+};
+
+export const sanitizeRankingData = (rankingData: any): { bots: StaticBot[]; lastUpdateTime: number } => {
+    const now = Date.now();
+    
+    if (!rankingData || typeof rankingData !== 'object') {
+        return initializeRankingState();
+    }
+    
+    if (!Array.isArray(rankingData.bots) || rankingData.bots.length === 0) {
+        return initializeRankingState();
+    }
+    
+    const sanitizedBots = rankingData.bots
+        .filter((bot: any) => bot && typeof bot === 'object')
+        .map((bot: any, index: number) => sanitizeBot(bot, index));
+    
+    if (sanitizedBots.length === 0) {
+        return initializeRankingState();
+    }
+    
+    const lastUpdateTime = typeof rankingData.lastUpdateTime === 'number' && !isNaN(rankingData.lastUpdateTime)
+        ? rankingData.lastUpdateTime
+        : now;
+    
+    return {
+        bots: sanitizedBots,
+        lastUpdateTime
+    };
+};
 
 export const sanitizeAndMigrateSave = (saved: any): GameState => {
     // 1. Deep Clone Initial State to ensure full structure exists
@@ -14,6 +97,10 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     if (!saved) return cleanState;
 
     // 2. Migrate Primitives & Simple Arrays
+    if (typeof saved.playerName === 'string' && saved.playerName.trim().length >= 2) {
+        cleanState.playerName = saved.playerName.trim().substring(0, 20);
+    }
+    if (typeof saved.hasChangedName === 'boolean') cleanState.hasChangedName = saved.hasChangedName;
     if (typeof saved.bankBalance === 'number' && !isNaN(saved.bankBalance)) cleanState.bankBalance = saved.bankBalance;
     if (typeof saved.currentInterestRate === 'number') cleanState.currentInterestRate = saved.currentInterestRate;
     if (typeof saved.nextRateChangeTime === 'number') cleanState.nextRateChangeTime = saved.nextRateChangeTime;
@@ -26,41 +113,63 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     if (typeof saved.tutorialAccepted === 'boolean') cleanState.tutorialAccepted = saved.tutorialAccepted;
     
     // Attack System Persistence (V1.4 - Cooldown based)
-    if (typeof saved.nextAttackTime === 'number') cleanState.nextAttackTime = saved.nextAttackTime;
+    if (typeof saved.nextAttackTime === 'number' && !isNaN(saved.nextAttackTime)) cleanState.nextAttackTime = saved.nextAttackTime;
     if (Array.isArray(saved.incomingAttacks)) cleanState.incomingAttacks = saved.incomingAttacks;
-    if (Array.isArray(saved.grudges)) cleanState.grudges = saved.grudges;
+    
+    // Grudges Migration (with personality sanitization)
+    if (Array.isArray(saved.grudges)) {
+        cleanState.grudges = saved.grudges.filter((g: any) => g && typeof g === 'object').map((g: any) => ({
+            id: g.id || `grudge-${Date.now()}`,
+            botId: g.botId || '',
+            botName: g.botName || 'Unknown',
+            botPersonality: g.botPersonality && VALID_PERSONALITIES.includes(g.botPersonality) 
+                ? g.botPersonality : BotPersonality.WARLORD,
+            botScore: typeof g.botScore === 'number' && !isNaN(g.botScore) ? g.botScore : 1000,
+            createdAt: typeof g.createdAt === 'number' && !isNaN(g.createdAt) ? g.createdAt : Date.now(),
+            retaliationTime: typeof g.retaliationTime === 'number' && !isNaN(g.retaliationTime) ? g.retaliationTime : Date.now(),
+            notified: typeof g.notified === 'boolean' ? g.notified : false
+        }));
+    }
     
     // Attack Counts Migration
     if (saved.targetAttackCounts) cleanState.targetAttackCounts = saved.targetAttackCounts;
     if (saved.lastAttackResetTime) cleanState.lastAttackResetTime = saved.lastAttackResetTime;
 
     // WAR MIGRATION: Ensure new fields exist if war is active
-    if (saved.activeWar) {
-        cleanState.activeWar = saved.activeWar;
-        if (!cleanState.activeWar!.playerResourceLosses) {
-            cleanState.activeWar!.playerResourceLosses = { [ResourceType.MONEY]: 0, [ResourceType.OIL]: 0, [ResourceType.AMMO]: 0, [ResourceType.GOLD]: 0, [ResourceType.DIAMOND]: 0 };
-        }
-        if (!cleanState.activeWar!.enemyResourceLosses) {
-            cleanState.activeWar!.enemyResourceLosses = { [ResourceType.MONEY]: 0, [ResourceType.OIL]: 0, [ResourceType.AMMO]: 0, [ResourceType.GOLD]: 0, [ResourceType.DIAMOND]: 0 };
-        }
-        if (typeof cleanState.activeWar!.playerUnitLosses !== 'number') cleanState.activeWar!.playerUnitLosses = 0;
-        if (typeof cleanState.activeWar!.enemyUnitLosses !== 'number') cleanState.activeWar!.enemyUnitLosses = 0;
+    if (saved.activeWar && typeof saved.activeWar === 'object') {
+        const war = saved.activeWar;
         
-        // V3 Overtime & Duration Fix Migration
-        // Force update duration if it looks like the old default, otherwise trust save state (in case of mid-overtime)
-        if (typeof cleanState.activeWar!.duration !== 'number' || cleanState.activeWar!.duration === 110 * 60 * 1000) {
-             cleanState.activeWar!.duration = WAR_DURATION_MS;
-        }
-        if (typeof cleanState.activeWar!.totalWaves !== 'number' || cleanState.activeWar!.totalWaves === 7) {
-             cleanState.activeWar!.totalWaves = WAR_TOTAL_WAVES;
-        }
-        // Fix potential bug where old attacks left might be undefined
-        if (typeof cleanState.activeWar!.playerAttacksLeft !== 'number') cleanState.activeWar!.playerAttacksLeft = WAR_PLAYER_ATTACKS;
-
-        // V4 Garrison Persistence Migration
-        if (!cleanState.activeWar!.currentEnemyGarrison) {
-            cleanState.activeWar!.currentEnemyGarrison = {};
-        }
+        const sanitizeWarResources = (res: any): Record<ResourceType, number> => ({
+            [ResourceType.MONEY]: typeof res?.[ResourceType.MONEY] === 'number' && !isNaN(res[ResourceType.MONEY]) ? res[ResourceType.MONEY] : 0,
+            [ResourceType.OIL]: typeof res?.[ResourceType.OIL] === 'number' && !isNaN(res[ResourceType.OIL]) ? res[ResourceType.OIL] : 0,
+            [ResourceType.AMMO]: typeof res?.[ResourceType.AMMO] === 'number' && !isNaN(res[ResourceType.AMMO]) ? res[ResourceType.AMMO] : 0,
+            [ResourceType.GOLD]: typeof res?.[ResourceType.GOLD] === 'number' && !isNaN(res[ResourceType.GOLD]) ? res[ResourceType.GOLD] : 0,
+            [ResourceType.DIAMOND]: typeof res?.[ResourceType.DIAMOND] === 'number' && !isNaN(res[ResourceType.DIAMOND]) ? res[ResourceType.DIAMOND] : 0
+        });
+        
+        cleanState.activeWar = {
+            id: war.id || `war-${Date.now()}`,
+            enemyId: war.enemyId || '',
+            enemyName: war.enemyName || 'Unknown Enemy',
+            enemyScore: typeof war.enemyScore === 'number' && !isNaN(war.enemyScore) ? war.enemyScore : 1000,
+            startTime: typeof war.startTime === 'number' && !isNaN(war.startTime) ? war.startTime : Date.now(),
+            duration: typeof war.duration === 'number' && !isNaN(war.duration) && war.duration !== 110 * 60 * 1000 
+                ? war.duration : WAR_DURATION_MS,
+            nextWaveTime: typeof war.nextWaveTime === 'number' && !isNaN(war.nextWaveTime) ? war.nextWaveTime : Date.now(),
+            currentWave: typeof war.currentWave === 'number' && !isNaN(war.currentWave) ? war.currentWave : 1,
+            totalWaves: typeof war.totalWaves === 'number' && !isNaN(war.totalWaves) && war.totalWaves !== 7 
+                ? war.totalWaves : WAR_TOTAL_WAVES,
+            playerVictories: typeof war.playerVictories === 'number' && !isNaN(war.playerVictories) ? war.playerVictories : 0,
+            enemyVictories: typeof war.enemyVictories === 'number' && !isNaN(war.enemyVictories) ? war.enemyVictories : 0,
+            playerAttacksLeft: typeof war.playerAttacksLeft === 'number' && !isNaN(war.playerAttacksLeft) 
+                ? war.playerAttacksLeft : WAR_PLAYER_ATTACKS,
+            lootPool: sanitizeWarResources(war.lootPool),
+            playerResourceLosses: sanitizeWarResources(war.playerResourceLosses),
+            enemyResourceLosses: sanitizeWarResources(war.enemyResourceLosses),
+            playerUnitLosses: typeof war.playerUnitLosses === 'number' && !isNaN(war.playerUnitLosses) ? war.playerUnitLosses : 0,
+            enemyUnitLosses: typeof war.enemyUnitLosses === 'number' && !isNaN(war.enemyUnitLosses) ? war.enemyUnitLosses : 0,
+            currentEnemyGarrison: war.currentEnemyGarrison || {}
+        };
     }
 
     // 3. Migrate Techs
@@ -163,37 +272,40 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
         cleanState.tutorialClaimable = saved.tutorialClaimable;
     }
 
-    // Rankings Migration (NEW V1.2.0 Fix)
-    if (saved.rankingData && Array.isArray(saved.rankingData.bots)) {
-        // Safe migration: use existing data from save file
-        cleanState.rankingData = saved.rankingData;
+    // Rankings Migration (IMPROVED V2.0 - Full sanitization)
+    if (saved.rankingData) {
+        cleanState.rankingData = sanitizeRankingData(saved.rankingData);
     } else {
         // LEGACY MIGRATION: Try to rescue data from localStorage if it exists
-        // This ensures existing players don't lose their "universe" when this update hits
         try {
             const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
             if (legacyData) {
                 const parsedLegacy = JSON.parse(legacyData);
-                if (parsedLegacy && Array.isArray(parsedLegacy.bots)) {
-                    cleanState.rankingData = {
-                        bots: parsedLegacy.bots,
-                        lastUpdateTime: parsedLegacy.lastUpdateTime || Date.now()
-                    };
-                    console.log("Migrated rankings from LocalStorage to GameState.");
-                } else {
-                    cleanState.rankingData = initializeRankingState();
-                }
+                cleanState.rankingData = sanitizeRankingData(parsedLegacy);
+                console.log("Migrated rankings from LocalStorage to GameState.");
             } else {
                 cleanState.rankingData = initializeRankingState();
             }
         } catch (e) {
+            console.warn("Failed to migrate legacy rankings, initializing fresh:", e);
             cleanState.rankingData = initializeRankingState();
         }
     }
 
-    // Migrate Lifetime Stats (New)
-    if (saved.lifetimeStats) {
-        cleanState.lifetimeStats = saved.lifetimeStats;
+    // Migrate Lifetime Stats (with NaN protection)
+    if (saved.lifetimeStats && typeof saved.lifetimeStats === 'object') {
+        cleanState.lifetimeStats = {
+            enemiesKilled: typeof saved.lifetimeStats.enemiesKilled === 'number' && !isNaN(saved.lifetimeStats.enemiesKilled) 
+                ? saved.lifetimeStats.enemiesKilled : 0,
+            unitsLost: typeof saved.lifetimeStats.unitsLost === 'number' && !isNaN(saved.lifetimeStats.unitsLost) 
+                ? saved.lifetimeStats.unitsLost : 0,
+            resourcesMined: typeof saved.lifetimeStats.resourcesMined === 'number' && !isNaN(saved.lifetimeStats.resourcesMined) 
+                ? saved.lifetimeStats.resourcesMined : 0,
+            missionsCompleted: typeof saved.lifetimeStats.missionsCompleted === 'number' && !isNaN(saved.lifetimeStats.missionsCompleted) 
+                ? saved.lifetimeStats.missionsCompleted : 0,
+            highestRankAchieved: typeof saved.lifetimeStats.highestRankAchieved === 'number' && !isNaN(saved.lifetimeStats.highestRankAchieved) 
+                ? saved.lifetimeStats.highestRankAchieved : 9999
+        };
     }
 
     // Logs Migration (New)

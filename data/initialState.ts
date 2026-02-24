@@ -28,6 +28,8 @@ initBuildings[BuildingType.BANK] = { level: 1 };
 
 export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,
+  playerName: 'Commander',
+  hasChangedName: false,
   resources: INITIAL_RESOURCES,
   maxResources: INITIAL_MAX_RESOURCES,
   buildings: initBuildings,

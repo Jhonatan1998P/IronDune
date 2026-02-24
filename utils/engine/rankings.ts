@@ -314,7 +314,7 @@ export const getCurrentStandings = (state: GameState, bots: StaticBot[], categor
     entries.push({
         id: 'PLAYER',
         rank: 0,
-        name: 'YOU',
+        name: state.playerName || 'Commander',
         score: state.empirePoints,
         isPlayer: true,
         avatarId: 0,

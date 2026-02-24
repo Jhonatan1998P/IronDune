@@ -149,6 +149,8 @@ export interface RankingData {
 
 export interface GameState {
   saveVersion: number; 
+  playerName: string;
+  hasChangedName: boolean;
   resources: Record<ResourceType, number>;
   maxResources: Record<ResourceType, number>; 
   buildings: Record<BuildingType, BuildingState>;
