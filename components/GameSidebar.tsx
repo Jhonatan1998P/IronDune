@@ -192,6 +192,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'finance' as TabType, icon: NavIcons.Finance, label: t.common.ui.nav_economy },
         { id: 'research' as TabType, icon: Icons.Science, label: t.common.ui.nav_research },
         { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
+        { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
         { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];

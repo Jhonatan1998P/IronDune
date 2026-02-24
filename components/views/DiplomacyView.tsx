@@ -43,30 +43,30 @@ const DiplomacyView: React.FC = () => {
     };
 
     const getReputationLabel = (rep: number = 50) => {
-        if (rep > 85) return 'Aliado Leal';
-        if (rep > 70) return 'Amistoso';
-        if (rep > 40) return 'Neutral';
-        if (rep > 15) return 'Hostil';
-        return 'Enemigo Mortal';
+        if (rep > 85) return t.common.ui.reputation_loyal_ally || 'Aliado Leal';
+        if (rep > 70) return t.common.ui.reputation_friendly || 'Amistoso';
+        if (rep > 40) return t.common.ui.reputation_neutral || 'Neutral';
+        if (rep > 15) return t.common.ui.reputation_hostile || 'Hostil';
+        return t.common.ui.reputation_mortal_enemy || 'Enemigo Mortal';
     };
 
     return (
         <div className="flex flex-col space-y-4 p-4 pb-24 bg-gray-900 min-h-screen text-white">
             <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg">
                 <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                    <Shield className="text-blue-400" /> {t.common.ui.diplomacy || 'Diplomacia Galáctica'}
+                    <Shield className="text-blue-400" /> {t.common.ui.diplomacy || 'Diplomacy'}
                 </h1>
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
                     <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.performance || 'Promedio'}</div>
+                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.performance || 'Average'}</div>
                         <div className="font-bold text-blue-400">{Math.floor(stats.avgRep)}%</div>
                     </div>
                     <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">Aliados</div>
+                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.diplomacy_allies || 'Allies'}</div>
                         <div className="font-bold text-green-400">{stats.allies}</div>
                     </div>
                     <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">Enemigos</div>
+                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.diplomacy_enemies || 'Enemies'}</div>
                         <div className="font-bold text-red-400">{stats.enemies}</div>
                     </div>
                 </div>
@@ -77,7 +77,7 @@ const DiplomacyView: React.FC = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder={t.common.ui.search || "Buscar comandante..."}
+                        placeholder={t.common.ui.diplomacy_search_placeholder || "Search commander..."}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:border-blue-500"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
@@ -89,7 +89,7 @@ const DiplomacyView: React.FC = () => {
                         value={personalityFilter}
                         onChange={(e) => setPersonalityFilter(e.target.value)}
                     >
-                        <option value="ALL">Todas las Personalidades</option>
+                        <option value="ALL">{t.common.ui.diplomacy_filter_all || 'All Personalities'}</option>
                         {Object.values(BotPersonality).map(p => (
                             <option key={p} value={p}>{p}</option>
                         ))}
@@ -99,9 +99,9 @@ const DiplomacyView: React.FC = () => {
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as any)}
                     >
-                        <option value="REPUTATION">Reputación</option>
-                        <option value="SCORE">{t.features.rankings.score || 'Puntos'}</option>
-                        <option value="NAME">{t.features.rankings.commander || 'Nombre'}</option>
+                        <option value="REPUTATION">{t.common.ui.diplomacy_sort_reputation || 'Reputation'}</option>
+                        <option value="SCORE">{t.common.ui.diplomacy_sort_score || 'Score'}</option>
+                        <option value="NAME">{t.common.ui.diplomacy_sort_name || 'Name'}</option>
                     </select>
                 </div>
             </div>
@@ -142,15 +142,15 @@ const DiplomacyView: React.FC = () => {
 
                         <div className="w-full bg-gray-900 rounded-full h-2 mt-1 overflow-hidden">
                             <div 
-                                className={`h-full transition-all duration-500 ${(bot.reputation || 50) > 70 ? 'bg-green-500' : (bot.reputation || 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'}`}
-                                style={{ width: `${bot.reputation || 50}%` }}
+                                className={`h-full transition-all duration-500 ${(bot.reputation ?? 50) > 70 ? 'bg-green-500' : (bot.reputation ?? 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                                style={{ width: `${bot.reputation ?? 50}%` }}
                             />
                         </div>
                     </div>
                 ))}
                 {filteredBots.length === 0 && (
                     <div className="text-center py-10 text-gray-500 italic">
-                        {t.common.ui.no_results || 'No se encontraron comandantes con esos criterios.'}
+                        {t.common.ui.diplomacy_no_results || 'No commanders found matching criteria.'}
                     </div>
                 )}
             </div>
