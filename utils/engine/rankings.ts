@@ -147,13 +147,12 @@ export interface StaticBot {
     currentEvent: BotEvent;
     eventTurnsRemaining: number;
     growthModifier: number;
+    reputation: number;
 }
 
 const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
 const TOTAL_BOTS = 199;
-const BOT_SCORE_MIN = 1000;
-const BOT_SCORE_MAX = 2000000;
-export const GROWTH_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
 const SOFT_CAP_SCORE = 5000000;
 
@@ -193,11 +192,9 @@ const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersona
 export const initializeRankingState = (): RankingData => ({
     bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
         const personality = PERSONALITIES[i % PERSONALITIES.length];
-        // i goes from 0 to 198. 
-        // Rank 1 (index 0) = 2,000,000
-        // Rank 199 (index 198) = 1,000
-        const posRatio = (198 - i) / 198;
-        const dominionScore = Math.floor(BOT_SCORE_MIN + posRatio * (BOT_SCORE_MAX - BOT_SCORE_MIN));
+        const botRank = TOTAL_BOTS - i;
+        const basePoints = 1000 * Math.pow(1.04, TOTAL_BOTS - botRank);
+        const dominionScore = Math.round(basePoints / 50) * 50;
         
         return {
             id: `bot-${i}`,
@@ -295,8 +292,11 @@ export const processRankingEvolution = (currentBots: StaticBot[], elapsed: numbe
     const cycles = Math.floor(elapsed / GROWTH_INTERVAL_MS);
     if (cycles <= 0) return { bots: currentBots, cycles: 0 };
 
-    let updatedBots = currentBots.map(bot => applyEvent(bot));
-    updatedBots = updatedBots.map(bot => applyGrowth(bot));
+    let updatedBots = currentBots;
+    for (let c = 0; c < cycles; c++) {
+        updatedBots = updatedBots.map(bot => applyEvent(bot));
+        updatedBots = updatedBots.map(bot => applyGrowth(bot));
+    }
 
     return { bots: updatedBots, cycles };
 };

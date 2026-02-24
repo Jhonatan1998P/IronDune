@@ -364,6 +364,24 @@ export interface TranslationDictionary {
       mission_type_campaign: string;
       mission_type_patrol: string;
       mission_type_tactical: string;
+      diplomacy: string;
+      diplomacy_search_placeholder: string;
+      diplomacy_filter_all: string;
+      diplomacy_sort_reputation: string;
+      diplomacy_sort_score: string;
+      diplomacy_sort_name: string;
+      diplomacy_no_results: string;
+      diplomacy_allies: string;
+      diplomacy_enemies: string;
+      reputation_loyal_ally: string;
+      reputation_friendly: string;
+      reputation_neutral: string;
+      reputation_hostile: string;
+      reputation_mortal_enemy: string;
+      commander_name: string;
+      new_name_placeholder: string;
+      name_changed_success: string;
+      first_change_free: string;
     };
     menu: {
       new_game: string;

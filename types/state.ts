@@ -1,7 +1,7 @@
 
 import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
 import type { MarketEvent, MarketOffer } from './defs';
-import { StaticBot } from '../utils/engine/rankings'; // Import StaticBot type
+import { StaticBot } from '../utils/engine/rankings';
 
 export interface BuildingState {
   level: number;
@@ -140,21 +140,6 @@ export interface WarState {
 
     // Persistence for Total War logic
     currentEnemyGarrison: Partial<Record<UnitType, number>>;
-}
-
-export interface StaticBot {
-    id: string;
-    name: string;
-    avatarId: number;
-    country: string;
-    stats: Record<RankingCategory, number>;
-    ambition: number;
-    personality: BotPersonality;
-    lastRank?: number;
-    currentEvent: BotEvent;
-    eventTurnsRemaining: number;
-    growthModifier: number;
-    reputation: number; // 0 to 100, 50 is neutral
 }
 
 export interface RankingData {

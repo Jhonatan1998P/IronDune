@@ -30,13 +30,13 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     state = { ...state, ...nemesisUpdates };
     currentLogs = [...currentLogs, ...nemesisLogs];
 
-    // 5. Ranking Evolution (Periodic 6H check)
-    if (now - state.rankingData.lastUpdateTime >= GROWTH_INTERVAL_MS) {
-        const { bots: updatedBots, cycles } = processRankingEvolution(state.rankingData.bots, now - state.rankingData.lastUpdateTime);
+    // 5. Ranking Evolution (Every 6H of gameplay)
+    const rankingElapsed = now - state.rankingData.lastUpdateTime;
+    if (rankingElapsed >= GROWTH_INTERVAL_MS) {
+        const { bots: updatedBots, cycles } = processRankingEvolution(state.rankingData.bots, rankingElapsed);
         state.rankingData = {
             bots: updatedBots,
-            // Advance time by exact intervals to prevent drift
-            lastUpdateTime: state.rankingData.lastUpdateTime + (cycles * GROWTH_INTERVAL_MS) 
+            lastUpdateTime: state.rankingData.lastUpdateTime + (cycles * GROWTH_INTERVAL_MS)
         };
     }
 

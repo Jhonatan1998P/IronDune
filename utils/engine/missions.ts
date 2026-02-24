@@ -3,7 +3,7 @@ import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, Un
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
-import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from '../../constants';
+import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS } from '../../constants';
 import { BASE_PRICES, calculateTotalUnitCost } from './market';
 import { calculateRetaliationTime } from './nemesis';
 import { BotPersonality } from '../../types/enums';
@@ -215,7 +215,8 @@ export const resolveMission = (
     warLootAdded?: Partial<Record<ResourceType, number>>, 
     warVictory?: boolean,
     warDefeat?: boolean,
-    newGrudge?: any
+    newGrudge?: any,
+    reputationChanges?: { botId: string, change: number }[]
 } => {
     
     let resultResources = { ...currentResources };
@@ -230,6 +231,7 @@ export const resolveMission = (
     let warVictory = false;
     let warDefeat = false;
     let newGrudge: any = undefined;
+    let reputationChanges: { botId: string, change: number }[] = [];
 
     if (mission.type === 'PVP_ATTACK' && mission.targetScore !== undefined) {
         let botArmy: Partial<Record<UnitType, number>> = {};
@@ -323,6 +325,7 @@ export const resolveMission = (
                         retaliationTime: calculateRetaliationTime(targetBot.personality, now),
                         notified: false
                     };
+                    reputationChanges.push({ botId: targetBot.id, change: REPUTATION_ATTACK_PENALTY });
                 }
             }
         } else {
@@ -331,8 +334,11 @@ export const resolveMission = (
             if (survivorsCount === 0) logKey = 'log_wipeout';
             if (isWarAttack) warDefeat = true; 
             logParams = { combatResult: battleResult, targetName: mission.targetName };
+            if (!isWarAttack && mission.targetId) {
+                reputationChanges.push({ botId: mission.targetId, change: REPUTATION_WIN_BONUS });
+            }
         }
-        return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge };
+        return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
     }
 
     if (mission.type === 'CAMPAIGN_ATTACK' && mission.levelId) {
@@ -440,5 +446,5 @@ export const resolveMission = (
         }
     }
 
-    return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge };
+    return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
 };

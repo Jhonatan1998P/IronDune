@@ -83,3 +83,15 @@ export const BANK_LEVEL_CAPACITIES = [
 ];
 
 export const SAVE_VERSION = 5;
+
+// REPUTATION SYSTEM
+export const REPUTATION_ALLY_THRESHOLD = 70; // Bots above this are allies
+export const REPUTATION_ENEMY_THRESHOLD = 30; // Bots below this are enemies
+export const REPUTATION_ATTACK_PENALTY = -15; // Reputation loss when player attacks bot
+export const REPUTATION_DEFEAT_PENALTY = -10; // Reputation loss when player defeats bot
+export const REPUTATION_WIN_BONUS = 5; // Reputation gain when bot wins against player (they respect strength)
+export const REPUTATION_DEFEND_BONUS = 8; // Reputation gain when player successfully defends against bot
+export const REPUTATION_ALLY_DEFEND_CHANCE = 0.4; // 40% chance ally bots will help defend
+export const REPUTATION_ALLY_BONUS = 3; // Reputation bonus from allied bots
+export const REPUTATION_MIN = 0;
+export const REPUTATION_MAX = 100;

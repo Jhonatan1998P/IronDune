@@ -5,6 +5,7 @@ import { TUTORIAL_STEPS } from '../../data/tutorial';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
 import { TECH_DEFS } from '../../data/techs';
+import { REPUTATION_MIN, REPUTATION_MAX, REPUTATION_ALLY_THRESHOLD } from '../../constants';
 
 /**
  * Handles construction, recruitment, research, missions and general progression.
@@ -18,6 +19,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
     let newCampaignProgress = state.campaignProgress;
     let newLastCampaignTime = state.lastCampaignMissionFinishedTime;
     let updatedGrudges = [...state.grudges || []]; // Ensure it exists
+    let updatedRankingBots = [...state.rankingData.bots];
 
     // 1. Constructions
     const updatedConstructions = state.activeConstructions.filter(c => {
@@ -104,6 +106,30 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 updatedGrudges.push(outcome.newGrudge);
             }
 
+            // --- REPUTATION HANDLING ---
+            if (outcome.reputationChanges && outcome.reputationChanges.length > 0) {
+                updatedRankingBots = updatedRankingBots.map(bot => {
+                    const change = outcome.reputationChanges?.find(r => r.botId === bot.id);
+                    if (change) {
+                        const newRep = Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, (bot.reputation || 50) + change.change));
+                        return { ...bot, reputation: newRep };
+                    }
+                    return bot;
+                });
+
+                const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
+                const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
+                if (alliesAfter.length > alliesBefore.length) {
+                    logs.push({
+                        id: `rep-gain-${now}`,
+                        messageKey: 'log_new_ally',
+                        type: 'info',
+                        timestamp: now,
+                        params: {}
+                    });
+                }
+            }
+
             logs.push({
                 id: `mis-res-${now}-${idx}`,
                 messageKey: outcome.logKey,
@@ -130,7 +156,11 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             campaignProgress: newCampaignProgress,
             lastCampaignMissionFinishedTime: newLastCampaignTime,
             lifetimeStats: newLifetimeStats,
-            grudges: updatedGrudges
+            grudges: updatedGrudges,
+            rankingData: {
+                bots: updatedRankingBots,
+                lastUpdateTime: state.rankingData.lastUpdateTime
+            }
         },
         logs
     };

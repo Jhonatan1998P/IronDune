@@ -1,7 +1,7 @@
 
 import { BotPersonality, UnitType } from '../../types/enums';
 import { GameState, Grudge, IncomingAttack, LogEntry } from '../../types';
-import { PVP_TRAVEL_TIME_MS, NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
+import { PVP_TRAVEL_TIME_MS, NEWBIE_PROTECTION_THRESHOLD, REPUTATION_ALLY_THRESHOLD, REPUTATION_ENEMY_THRESHOLD } from '../../constants';
 import { generateBotArmy } from './missions';
 
 const RETALIATION_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 Hours to hold a grudge
@@ -117,6 +117,29 @@ export const processNemesisTick = (state: GameState, now: number): { stateUpdate
 
         // 3. Logic: Active Retaliation (No Protection)
         if (now >= grudge.retaliationTime) {
+            // Check bot's reputation to determine attack probability
+            const bot = state.rankingData.bots.find(b => b.id === grudge.botId);
+            const reputation = bot?.reputation ?? 50;
+            
+            let attackChance = 0.8; // Default 80% for neutral bots
+            if (reputation >= REPUTATION_ALLY_THRESHOLD) {
+                attackChance = 0.3; // Allies only 30% likely to follow through
+            } else if (reputation < REPUTATION_ENEMY_THRESHOLD) {
+                attackChance = 1.0; // Enemies always follow through
+            }
+            
+            if (Math.random() > attackChance) {
+                // Bot forgives - reputation improves slightly
+                logs.push({
+                    id: `grudge-forgive-${grudge.id}`,
+                    messageKey: 'log_grudge_forgiven',
+                    type: 'info',
+                    timestamp: now,
+                    params: { attacker: grudge.botName }
+                });
+                return; // Grudge removed, bot decides not to attack
+            }
+            
             // ATTACK LAUNCH
             const attack = launchRetaliation(grudge, now);
             newIncomingAttacks.push(attack);
