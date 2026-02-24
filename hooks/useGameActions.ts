@@ -15,6 +15,7 @@ import {
 } from '../utils/engine/actions';
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
+import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
 
 export const useGameActions = (
   gameState: GameState,
@@ -259,10 +260,151 @@ export const useGameActions = (
       return { success: true };
   }, [gameState, addLog, setGameState]);
 
+  const sendDiplomaticGift = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
+      const now = Date.now();
+      const result = sendGift(gameState, botId, now);
+      
+      if (result.success && result.newReputation !== undefined) {
+          setGameState(prev => {
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
+                      ? { ...bot, reputation: result.newReputation! }
+                      : bot
+              );
+              
+              const newDiplomaticActions = {
+                  ...prev.diplomaticActions,
+                  [botId]: {
+                      ...(prev.diplomaticActions[botId] || {}),
+                      lastGiftTime: now
+                  }
+              };
+              
+              const newLog: LogEntry = {
+                  id: `dip-gift-${now}`,
+                  messageKey: result.messageKey,
+                  type: 'info',
+                  timestamp: now,
+                  params: result.params
+              };
+              
+              const newResources = result.newResources 
+                  ? { ...prev.resources, ...result.newResources }
+                  : prev.resources;
+              
+              return {
+                  ...prev,
+                  rankingData: {
+                      ...prev.rankingData,
+                      bots: newBots
+                  },
+                  diplomaticActions: newDiplomaticActions,
+                  resources: newResources,
+                  logs: [newLog, ...prev.logs].slice(0, 100)
+              };
+          });
+          return { success: true, messageKey: result.messageKey, params: result.params };
+      }
+      
+      addLog(result.messageKey, 'info', result.params);
+      return { success: false, messageKey: result.messageKey, params: result.params };
+  }, [gameState, addLog, setGameState]);
+
+  const proposeDiplomaticAlliance = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
+      const now = Date.now();
+      const result = proposeAlliance(gameState, botId, now);
+      
+      if (result.success && result.newReputation !== undefined) {
+          setGameState(prev => {
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
+                      ? { ...bot, reputation: result.newReputation! }
+                      : bot
+              );
+              
+              const newDiplomaticActions = {
+                  ...prev.diplomaticActions,
+                  [botId]: {
+                      ...(prev.diplomaticActions[botId] || {}),
+                      lastAllianceTime: now
+                  }
+              };
+              
+              const newLog: LogEntry = {
+                  id: `dip-alliance-${now}`,
+                  messageKey: result.messageKey,
+                  type: 'info',
+                  timestamp: now,
+                  params: result.params
+              };
+              
+              return {
+                  ...prev,
+                  rankingData: {
+                      ...prev.rankingData,
+                      bots: newBots
+                  },
+                  diplomaticActions: newDiplomaticActions,
+                  logs: [newLog, ...prev.logs].slice(0, 100)
+              };
+          });
+          return { success: true, messageKey: result.messageKey, params: result.params };
+      }
+      
+      addLog(result.messageKey, 'info', result.params);
+      return { success: false, messageKey: result.messageKey, params: result.params };
+  }, [gameState, addLog, setGameState]);
+
+  const proposeDiplomaticPeace = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
+      const now = Date.now();
+      const result = proposePeace(gameState, botId, now);
+      
+      if (result.success && result.newReputation !== undefined) {
+          setGameState(prev => {
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
+                      ? { ...bot, reputation: result.newReputation! }
+                      : bot
+              );
+              
+              const newDiplomaticActions = {
+                  ...prev.diplomaticActions,
+                  [botId]: {
+                      ...(prev.diplomaticActions[botId] || {}),
+                      lastPeaceTime: now
+                  }
+              };
+              
+              const newLog: LogEntry = {
+                  id: `dip-peace-${now}`,
+                  messageKey: result.messageKey,
+                  type: 'info',
+                  timestamp: now,
+                  params: result.params
+              };
+              
+              return {
+                  ...prev,
+                  rankingData: {
+                      ...prev.rankingData,
+                      bots: newBots
+                  },
+                  diplomaticActions: newDiplomaticActions,
+                  logs: [newLog, ...prev.logs].slice(0, 100)
+              };
+          });
+          return { success: true, messageKey: result.messageKey, params: result.params };
+      }
+      
+      addLog(result.messageKey, 'info', result.params);
+      return { success: false, messageKey: result.messageKey, params: result.params };
+  }, [gameState, addLog, setGameState]);
+
   return {
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,
     acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,
-    changePlayerName
+    changePlayerName,
+    sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace
   };
 };

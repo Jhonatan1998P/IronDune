@@ -1,19 +1,22 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { RankingCategory, getFlagEmoji, BotEvent } from '../../utils/engine/rankings';
-import { BotPersonality } from '../../types/enums';
-import { Search, Shield, Zap, Target } from 'lucide-react';
+import { BotPersonality, ResourceType } from '../../types/enums';
+import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, Info, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons } from '../UIComponents';
+import { calculateGiftCost } from '../../utils/engine/diplomacy';
 
 const DiplomacyView: React.FC = () => {
-    const { gameState: state } = useGame();
+    const { gameState: state, sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace } = useGame();
     const { t } = useLanguage();
     const [search, setSearch] = useState('');
     const [personalityFilter, setPersonalityFilter] = useState<string>('ALL');
     const [sortBy, setSortBy] = useState<'REPUTATION' | 'SCORE' | 'NAME'>('REPUTATION');
     const [currentPage, setCurrentPage] = useState(1);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -93,6 +96,83 @@ const DiplomacyView: React.FC = () => {
             case BotEvent.PEACEFUL_PERIOD: return t.common.ui.bot_event_peaceful_period || 'Período Pacífico';
             default: return event;
         }
+    };
+
+    const canSendGift = (botId: string): { allowed: boolean; remainingMs: number } => {
+        const actions = state.diplomaticActions[botId];
+        const cooldownMs = 60 * 60 * 1000;
+        const lastTime = actions?.lastGiftTime ?? 0;
+        const remaining = Math.max(0, cooldownMs - (Date.now() - lastTime));
+        return { allowed: remaining === 0, remainingMs: remaining };
+    };
+
+    const canProposeAlliance = (botId: string): { allowed: boolean; remainingMs: number } => {
+        const actions = state.diplomaticActions[botId];
+        const cooldownMs = 4 * 60 * 60 * 1000;
+        const lastTime = actions?.lastAllianceTime ?? 0;
+        const remaining = Math.max(0, cooldownMs - (Date.now() - lastTime));
+        return { allowed: remaining === 0, remainingMs: remaining };
+    };
+
+    const canProposePeace = (botId: string): { allowed: boolean; remainingMs: number } => {
+        const actions = state.diplomaticActions[botId];
+        const cooldownMs = 4 * 60 * 60 * 1000;
+        const lastTime = actions?.lastPeaceTime ?? 0;
+        const remaining = Math.max(0, cooldownMs - (Date.now() - lastTime));
+        return { allowed: remaining === 0, remainingMs: remaining };
+    };
+
+    const hasEnoughResources = (bot: any): boolean => {
+        const cost = calculateGiftCost(bot);
+        return (state.resources[ResourceType.MONEY] ?? 0) >= (cost.MONEY ?? 0) &&
+               (state.resources[ResourceType.OIL] ?? 0) >= (cost.OIL ?? 0) &&
+               (state.resources[ResourceType.AMMO] ?? 0) >= (cost.AMMO ?? 0) &&
+               (state.resources[ResourceType.GOLD] ?? 0) >= (cost.GOLD ?? 0);
+    };
+
+    const getGiftCost = (bot: any) => {
+        return calculateGiftCost(bot);
+    };
+
+    const getCooldownText = (remainingMs: number): string => {
+        if (remainingMs === 0) return '';
+        const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+        const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        if (hours > 0) return `${hours}h ${minutes}m`;
+        return `${minutes}m`;
+    };
+
+    const getDecayTooltip = (rep: number): string => {
+        if (rep >= 75) return t.common.ui.tooltip_no_decay || 'Reputación estable: No decae automáticamente';
+        if (rep <= 30) {
+            const multiplier = 1 + (1 - rep / 30) * 1;
+            return `${t.common.ui.tooltip_accelerated_decay || 'Decaimiento acelerado'}: x${multiplier.toFixed(1)}`;
+        }
+        return t.common.ui.tooltip_normal_decay || 'Decaimiento normal cada 4h';
+    };
+
+    const getDecayIcon = (rep: number) => {
+        if (rep >= 75) return <TrendingUp className="w-3 h-3 text-green-400" />;
+        if (rep <= 30) return <TrendingDown className="w-3 h-3 text-red-400" />;
+        return <Clock className="w-3 h-3 text-yellow-400" />;
+    };
+
+    const handleGift = async (botId: string) => {
+        setActionLoading(botId);
+        await sendDiplomaticGift(botId);
+        setActionLoading(null);
+    };
+
+    const handleAlliance = async (botId: string) => {
+        setActionLoading(botId);
+        await proposeDiplomaticAlliance(botId);
+        setActionLoading(null);
+    };
+
+    const handlePeace = async (botId: string) => {
+        setActionLoading(botId);
+        await proposeDiplomaticPeace(botId);
+        setActionLoading(null);
     };
 
     return (
@@ -206,17 +286,92 @@ const DiplomacyView: React.FC = () => {
                                 <Target className="w-4 h-4 text-orange-400" />
                                 <span>{bot.stats[RankingCategory.DOMINION].toLocaleString()} pts</span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <div className="flex items-center gap-2 text-sm text-gray-300 relative group">
                                 <Zap className="w-4 h-4 text-yellow-400" />
                                 <span>{getEventLabel(bot.currentEvent)}</span>
+                                <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-50">
+                                    <div className="bg-gray-900 text-xs text-white p-2 rounded shadow-lg whitespace-nowrap border border-gray-600">
+                                        {t.common.ui.diplomacy_gift_cost_based || 'El costo del regalo escala con los puntos del bot'}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="w-full bg-gray-900 rounded-full h-2 mt-1 overflow-hidden">
+                        <div className="w-full bg-gray-900 rounded-full h-2 mt-1 overflow-hidden relative group">
                             <div 
                                 className={`h-full transition-all duration-500 ${(bot.reputation ?? 50) > 70 ? 'bg-green-500' : (bot.reputation ?? 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'}`}
                                 style={{ width: `${bot.reputation ?? 50}%` }}
                             />
+                            <div className="absolute inset-0 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {getDecayIcon(bot.reputation ?? 50)}
+                            </div>
+                            <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-50">
+                                <div className="bg-gray-900 text-xs text-white p-2 rounded shadow-lg whitespace-nowrap border border-gray-600">
+                                    {getDecayTooltip(bot.reputation ?? 50)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                            {(() => {
+                                const giftCheck = canSendGift(bot.id);
+                                const giftCost = getGiftCost(bot);
+                                const resourceCheck = hasEnoughResources(bot);
+                                return (
+                            <button
+                                onClick={() => handleGift(bot.id)}
+                                disabled={actionLoading === bot.id || !giftCheck.allowed || !resourceCheck}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
+                                title={!giftCheck.allowed 
+                                    ? `Cooldown: ${getCooldownText(giftCheck.remainingMs)}`
+                                    : `${t.common.ui.diplomacy_send_gift || 'Enviar Regalo'} (+8 rep)\nCosto: ${giftCost.MONEY?.toLocaleString()}💰 ${giftCost.OIL?.toLocaleString()}🛢️ ${giftCost.AMMO?.toLocaleString()}💎 ${giftCost.GOLD?.toLocaleString()}🥇`
+                                }
+                            >
+                                {actionLoading === bot.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <Gift className="w-3 h-3" />
+                                )}
+                                <span>{t.common.ui.diplomacy_gift || 'Regalo'}</span>
+                            </button>
+                                );
+                            })()}
+                            
+                            {(() => {
+                                const allianceCheck = canProposeAlliance(bot.id);
+                                return (
+                            <button
+                                onClick={() => handleAlliance(bot.id)}
+                                disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < 50}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
+                                title={!allianceCheck.allowed 
+                                    ? `Cooldown: ${getCooldownText(allianceCheck.remainingMs)}`
+                                    : `${t.common.ui.diplomacy_propose_alliance || 'Proponer Alianza'} (req: 50 rep)\n+5 reputación`
+                                }
+                            >
+                                <Handshake className="w-3 h-3" />
+                                <span>{t.common.ui.diplomacy_alliance || 'Alianza'}</span>
+                            </button>
+                                );
+                            })()}
+                            
+                            {(() => {
+                                const peaceCheck = canProposePeace(bot.id);
+                                return (
+                            <button
+                                onClick={() => handlePeace(bot.id)}
+                                disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
+                                title={!peaceCheck.allowed 
+                                    ? `Cooldown: ${getCooldownText(peaceCheck.remainingMs)}`
+                                    : `${t.common.ui.diplomacy_propose_peace || 'Proponer Paz'} (req: <50 rep)\n+5-10 reputación según nivel de hostilidad`
+                                }
+                            >
+                                <Heart className="w-3 h-3" />
+                                <span>{t.common.ui.diplomacy_peace || 'Paz'}</span>
+                            </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 ))}

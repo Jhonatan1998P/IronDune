@@ -5,6 +5,7 @@ import { processSystemTick, recalculateProgression } from './systems';
 import { processWarTick } from './war';
 import { processNemesisTick } from './nemesis';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
+import { processReputationDecay } from './diplomacy';
 
 export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): { newState: GameState, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -39,6 +40,20 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
             lastUpdateTime: state.rankingData.lastUpdateTime + (cycles * GROWTH_INTERVAL_MS)
         };
     }
+
+    // 5b. Reputation Decay (Every 4H of gameplay)
+    const { updatedBots: decayedBots, newLastDecayTime } = processReputationDecay(
+        state.rankingData.bots,
+        state.lastReputationDecayTime,
+        now
+    );
+    if (state.rankingData.bots !== decayedBots) {
+        state.rankingData = {
+            ...state.rankingData,
+            bots: decayedBots
+        };
+    }
+    state.lastReputationDecayTime = newLastDecayTime;
 
     // 6. Global Progression (Score Recalculation, Tutorial Triggers)
     const progUpdates = recalculateProgression(state);

@@ -373,6 +373,16 @@ export interface TranslationDictionary {
       diplomacy_no_results: string;
       diplomacy_allies: string;
       diplomacy_enemies: string;
+      diplomacy_send_gift: string;
+      diplomacy_gift: string;
+      diplomacy_propose_alliance: string;
+      diplomacy_alliance: string;
+      diplomacy_propose_peace: string;
+      diplomacy_peace: string;
+      tooltip_no_decay: string;
+      tooltip_accelerated_decay: string;
+      tooltip_normal_decay: string;
+      diplomacy_gift_cost_based: string;
       reputation_loyal_ally: string;
       reputation_friendly: string;
       reputation_neutral: string;

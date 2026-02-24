@@ -95,3 +95,29 @@ export const REPUTATION_ALLY_DEFEND_CHANCE = 0.4; // 40% chance ally bots will h
 export const REPUTATION_ALLY_BONUS = 3; // Reputation bonus from allied bots
 export const REPUTATION_MIN = 0;
 export const REPUTATION_MAX = 100;
+
+// DIPLOMACY SYSTEM
+export const REPUTATION_DECAY_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+export const REPUTATION_DECAY_AMOUNT = 2; // Reputation loss per decay interval
+export const REPUTATION_DECAY_NEUTRAL_ZONE = 40; // Reputation between 30-70 doesn't decay
+export const REPUTATION_DECAY_MIN_THRESHOLD = 0; // Minimum reputation is 0 (no floor)
+export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // Above this, reputation doesn't decay
+export const REPUTATION_DECAY_BOOST_THRESHOLD = 30; // Below this, decay is accelerated
+export const REPUTATION_DECAY_MAX_MULTIPLIER = 2.0; // Maximum 2x decay when at 0 rep
+
+export const DIPLOMACY_GIFT_BASE_COST: Partial<Record<string, number>> = {
+    MONEY: 100000,
+    OIL: 500,
+    AMMO: 200,
+    GOLD: 100
+};
+export const DIPLOMACY_GIFT_COST_SCALE = 50; // Base scale factor
+export const DIPLOMACY_GIFT_COST_MAX_SCALE = 300; // Maximum scale when reputation <= 40
+export const DIPLOMACY_GIFT_COST_REP_THRESHOLD = 40; // Reputation threshold for increased cost
+export const DIPLOMACY_GIFT_REPUTATION_GAIN = 8; // +8 reputation per gift
+export const DIPLOMACY_GIFT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour between gifts to same bot
+export const DIPLOMACY_ALLIANCE_REP_REQUIREMENT = 50; // Minimum reputation to propose alliance
+export const DIPLOMACY_ALLIANCE_REP_GAIN = 5; // +5 reputation for proposing alliance
+export const DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT = 35; // Minimum reputation to propose peace
+export const DIPLOMACY_PEACE_REP_GAIN = 10; // +10 reputation for peace proposal
+export const DIPLOMACY_PEACE_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours cooldown after peace proposal

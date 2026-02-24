@@ -147,6 +147,16 @@ export interface RankingData {
     lastUpdateTime: number;
 }
 
+export interface DiplomaticActionRecord {
+    lastGiftTime: number;
+    lastAllianceTime: number;
+    lastPeaceTime: number;
+}
+
+export interface DiplomaticActions {
+    [botId: string]: DiplomaticActionRecord;
+}
+
 export interface GameState {
   saveVersion: number; 
   playerName: string;
@@ -194,6 +204,10 @@ export interface GameState {
 
   // Ranking System (Moved to State for Persistence)
   rankingData: RankingData;
+
+  // Diplomacy System
+  diplomaticActions: DiplomaticActions;
+  lastReputationDecayTime: number;
 
   lifetimeStats: LifetimeStats; 
 

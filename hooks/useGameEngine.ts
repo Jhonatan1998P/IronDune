@@ -137,6 +137,9 @@ export const useGameEngine = () => {
     spyOnAttacker: actions.spyOnAttacker,
     changePlayerName: actions.changePlayerName,
     repair: actions.repair,
+    sendDiplomaticGift: actions.sendDiplomaticGift,
+    proposeDiplomaticAlliance: actions.proposeDiplomaticAlliance,
+    proposeDiplomaticPeace: actions.proposeDiplomaticPeace,
 
     // Logs
     deleteLogs, 

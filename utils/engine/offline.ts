@@ -11,6 +11,7 @@ import {
 } from '../../constants';
 import { simulateCombat } from './combat';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
+import { processReputationDecay } from './diplomacy';
 
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -184,6 +185,18 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             lastUpdateTime: newState.rankingData.lastUpdateTime + (cycles * GROWTH_INTERVAL_MS)
         };
     }
+
+    // Reputation Decay Offline
+    const { updatedBots: decayedBots, newLastDecayTime } = processReputationDecay(
+        newState.rankingData.bots,
+        newState.lastReputationDecayTime,
+        now
+    );
+    newState.rankingData = {
+        ...newState.rankingData,
+        bots: decayedBots
+    };
+    newState.lastReputationDecayTime = newLastDecayTime;
 
     return { newState, report, newLogs };
 };

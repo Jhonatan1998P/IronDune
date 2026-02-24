@@ -63,6 +63,8 @@ export const INITIAL_GAME_STATE: GameState = {
   targetAttackCounts: {},
   lastAttackResetTime: Date.now(),
   rankingData: initializeRankingState(),
+  diplomaticActions: {},
+  lastReputationDecayTime: Date.now(),
   lifetimeStats: {
     enemiesKilled: 0,
     unitsLost: 0,
