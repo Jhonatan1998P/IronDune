@@ -173,7 +173,17 @@ export const recalculateProgression = (state: GameState): Partial<GameState> => 
     // 1. Calculate Score
     let points = 0;
     Object.keys(state.buildings).forEach(b => points += state.buildings[b as BuildingType].level * (BUILDING_DEFS[b as BuildingType].score || 0));
+    
+    // Base units
     Object.keys(state.units).forEach(u => points += state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0));
+    
+    // Units on active missions still count towards empire points
+    state.activeMissions.forEach(mission => {
+        Object.entries(mission.units).forEach(([uType, qty]) => {
+            points += (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
+        });
+    });
+    
     state.researchedTechs.forEach(t => points += (TECH_DEFS[t]?.score || 0));
     points += Math.floor(state.bankBalance / 100000);
 
