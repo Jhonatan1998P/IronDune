@@ -74,14 +74,17 @@ export const processNemesisTick = (state: GameState, now: number): { stateUpdate
     const isProtected = isNewbie || isCoolingDown;
 
     state.grudges.forEach(grudge => {
-        // 1. Expire old grudges
-        if (now > grudge.createdAt + RETALIATION_WINDOW_MS) {
+        // 1. Expire old grudges (Extended to 48h to ensure vengeance happens)
+        if (now > grudge.createdAt + (RETALIATION_WINDOW_MS * 2)) {
             // Grudge forgotten
             return; 
         }
 
+        // Bots with "Vengeance" in mind will ignore protection if enough time has passed
+        const forceAttack = now > grudge.retaliationTime + (12 * 60 * 60 * 1000);
+
         // 2. Logic: Wake-Up Call (Protection Active)
-        if (isProtected) {
+        if (isProtected && !forceAttack) {
             // If retaliation time has passed BUT player is protected,
             // we reschedule the attack for EXACTLY when protection ends (plus a small random jitter).
             // This creates the "Wake-Up Call" effect where attacks land right after shield drop.

@@ -151,6 +151,8 @@ export interface StaticBot {
 
 const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
 const TOTAL_BOTS = 199;
+const BOT_SCORE_MIN = 1000;
+const BOT_SCORE_MAX = 2000000;
 export const GROWTH_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
 const SOFT_CAP_SCORE = 5000000;
@@ -191,12 +193,23 @@ const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersona
 export const initializeRankingState = (): RankingData => ({
     bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
         const personality = PERSONALITIES[i % PERSONALITIES.length];
+        // i goes from 0 to 198. 
+        // Rank 1 (index 0) = 2,000,000
+        // Rank 199 (index 198) = 1,000
+        const posRatio = (198 - i) / 198;
+        const dominionScore = Math.floor(BOT_SCORE_MIN + posRatio * (BOT_SCORE_MAX - BOT_SCORE_MIN));
+        
         return {
             id: `bot-${i}`,
             name: generateBotName('en'),
             avatarId: (i % 8) + 1,
             country: COUNTRIES[i % COUNTRIES.length],
-            stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
+            stats: { 
+                [RankingCategory.DOMINION]: dominionScore, 
+                [RankingCategory.MILITARY]: Math.floor(dominionScore * 0.5), 
+                [RankingCategory.ECONOMY]: dominionScore * 10, 
+                [RankingCategory.CAMPAIGN]: 1 
+            },
             ambition: 1.0,
             personality,
             lastRank: i + 1,
@@ -213,6 +226,10 @@ const applyEvent = (bot: StaticBot): StaticBot => {
     let newEvent: BotEvent = bot.currentEvent;
     let turns = 0;
 
+    // Check if player attacked this bot recently (vengeance trigger)
+    // This is handled by the nemesis system adding grudges, 
+    // but we can also adjust bot behavior here if needed.
+    
     if (bot.eventTurnsRemaining <= 0) {
         if (roll < 0.15) {
             newEvent = BotEvent.ATTACKED;
@@ -252,6 +269,7 @@ const applyGrowth = (bot: StaticBot): StaticBot => {
     const totalRate = base + bot.growthModifier;
     const currentScore = bot.stats[category];
     
+    // Bots always grow based on their current stats, no reset to 1k
     let newScore = currentScore;
     if (currentScore < SOFT_CAP_SCORE) {
         newScore = currentScore * (1 + totalRate);
@@ -259,16 +277,15 @@ const applyGrowth = (bot: StaticBot): StaticBot => {
         newScore = currentScore + (SOFT_CAP_SCORE * totalRate * 0.1);
     }
 
-    const dominanceGrowth = category !== RankingCategory.DOMINION 
-        ? currentScore * (BASE_GROWTH_RATE + bot.growthModifier * 0.5) 
-        : 0;
-
+    // Dominion grows proportionally to main category growth
+    const dominionBaseGrowth = currentScore * (BASE_GROWTH_RATE + bot.growthModifier * 0.5);
+    
     return {
         ...bot,
         stats: {
             ...bot.stats,
             [category]: Math.floor(newScore),
-            [RankingCategory.DOMINION]: Math.floor(bot.stats[RankingCategory.DOMINION] + dominanceGrowth)
+            [RankingCategory.DOMINION]: Math.floor(bot.stats[RankingCategory.DOMINION] + (category === RankingCategory.DOMINION ? 0 : dominionBaseGrowth))
         }
     };
 };

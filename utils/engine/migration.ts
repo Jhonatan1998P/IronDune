@@ -19,17 +19,36 @@ const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
     [RankingCategory.CAMPAIGN]: 1
 };
 
+const BOT_SCORE_MIN = 1000;
+const BOT_SCORE_MAX = 2000000;
+
 export const sanitizeBot = (bot: any, index: number): StaticBot => {
     const sanitizedStats = { ...DEFAULT_BOT_STATS };
     
+    // Calculate base score for position (199 to 1)
+    // index 0 is rank 1 (2M), index 198 is rank 199 (1k)
+    // We reverse the index logic: rank = index + 1
+    // Score = 2M - ((rank - 1) / 198) * (2M - 1k)
+    const rank = bot.lastRank || (index + 1);
+    const posRatio = Math.max(0, Math.min(1, (199 - rank) / 198));
+    const baseScore = Math.floor(BOT_SCORE_MIN + posRatio * (BOT_SCORE_MAX - BOT_SCORE_MIN));
+
     if (bot.stats && typeof bot.stats === 'object') {
         REQUIRED_RANKING_CATEGORIES.forEach(cat => {
             if (typeof bot.stats[cat] === 'number' && !isNaN(bot.stats[cat])) {
-                sanitizedStats[cat] = bot.stats[cat];
-            } else if (typeof bot.stats[cat] === 'number' && isNaN(bot.stats[cat])) {
-                console.warn(`Bot ${bot.id || index} has NaN stat for ${cat}, using default`);
+                // If it's a legacy bot with exact 1000 score, we might want to re-calculate it
+                // but only if it's the dominion score which is the primary ranking factor
+                if (cat === RankingCategory.DOMINION && bot.stats[cat] === 1000 && rank < 199) {
+                    sanitizedStats[cat] = baseScore;
+                } else {
+                    sanitizedStats[cat] = bot.stats[cat];
+                }
+            } else {
+                sanitizedStats[cat] = cat === RankingCategory.DOMINION ? baseScore : DEFAULT_BOT_STATS[cat];
             }
         });
+    } else {
+        sanitizedStats[RankingCategory.DOMINION] = baseScore;
     }
     
     let personality = BotPersonality.WARLORD;
