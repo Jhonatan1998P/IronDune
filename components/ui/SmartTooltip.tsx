@@ -22,22 +22,29 @@ export const SmartTooltip: React.FC<SmartTooltipProps> = ({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number | null>(null);
 
-  const show = () => {
+  const show = useCallback(() => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setIsVisible(true);
-  };
+      timeoutRef.current = window.setTimeout(() => {
+          setIsVisible(true);
+      }, 200);
+  }, []);
 
-  const hide = () => {
-      // Small delay to allow moving mouse from trigger to tooltip if needed (future proofing)
+  const hide = useCallback(() => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => {
           setIsVisible(false);
-      }, 50); 
-  };
+      }, 150); 
+  }, []);
 
-  const toggleVisibility = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleClick = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+      if (triggerMode === 'hover') {
+          if (isVisible && timeoutRef.current) clearTimeout(timeoutRef.current);
+          setIsVisible(false);
+          return;
+      }
       e.stopPropagation();
       setIsVisible(v => !v);
-  };
+  }, [triggerMode, isVisible]);
 
   const updatePosition = useCallback(() => {
      if (!triggerRef.current || !tooltipRef.current) return;
@@ -96,11 +103,13 @@ export const SmartTooltip: React.FC<SmartTooltipProps> = ({
     
     window.addEventListener('resize', updatePosition);
     document.addEventListener('mousedown', clickOutside);
+    document.addEventListener('touchstart', clickOutside);
     window.addEventListener('scroll', updatePosition, true);
     
     return () => { 
         window.removeEventListener('resize', updatePosition);
         document.removeEventListener('mousedown', clickOutside); 
+        document.removeEventListener('touchstart', clickOutside);
         window.removeEventListener('scroll', updatePosition, true); 
     };
   }, [isVisible, updatePosition]);
@@ -108,11 +117,12 @@ export const SmartTooltip: React.FC<SmartTooltipProps> = ({
   const handlers = triggerMode === 'hover' ? {
       onMouseEnter: show,
       onMouseLeave: hide,
-      onClick: undefined
+      onTouchStart: show
   } : {
-      onClick: toggleVisibility,
+      onClick: handleClick,
       onMouseEnter: undefined,
-      onMouseLeave: undefined
+      onMouseLeave: undefined,
+      onTouchStart: undefined
   };
 
   return (

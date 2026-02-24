@@ -2,10 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { RankingCategory, getFlagEmoji, BotEvent } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
-import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, Info, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Users, Skull, Crown, Info } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { Icons } from '../UIComponents';
+import { Icons, SmartTooltip } from '../UIComponents';
 import { calculateGiftCost } from '../../utils/engine/diplomacy';
+import { formatNumber } from '../../utils';
 
 const DiplomacyView: React.FC = () => {
     const { gameState: state, sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace } = useGame();
@@ -14,14 +15,16 @@ const DiplomacyView: React.FC = () => {
     const [personalityFilter, setPersonalityFilter] = useState<string>('ALL');
     const [sortBy, setSortBy] = useState<'REPUTATION' | 'SCORE' | 'NAME'>('REPUTATION');
     const [currentPage, setCurrentPage] = useState(1);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [isMobile, setIsMobile] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
-    const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+    
+    const ui = t.common.ui as any;
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
     const bots = state.rankingData.bots;
@@ -130,9 +133,7 @@ const DiplomacyView: React.FC = () => {
                (state.resources[ResourceType.GOLD] ?? 0) >= (cost.GOLD ?? 0);
     };
 
-    const getGiftCost = (bot: any) => {
-        return calculateGiftCost(bot);
-    };
+    const getGiftCost = (bot: any) => calculateGiftCost(bot);
 
     const getCooldownText = (remainingMs: number): string => {
         if (remainingMs === 0) return '';
@@ -142,13 +143,33 @@ const DiplomacyView: React.FC = () => {
         return `${minutes}m`;
     };
 
-    const getDecayTooltip = (rep: number): string => {
-        if (rep >= 75) return t.common.ui.tooltip_no_decay || 'Reputación estable: No decae automáticamente';
+    const getDecayTooltip = (rep: number): React.ReactNode => {
+        if (rep >= 75) {
+            return (
+                <div className="space-y-1.5 text-xs">
+                    <div className="font-bold text-green-400 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5" /> {t.common.ui.tooltip_no_decay || 'Reputación Estable'}</div>
+                    <div className="text-slate-400">{t.common.ui.tooltip_no_decay_desc || 'Por encima de 75, la reputación no decae automáticamente'}</div>
+                </div>
+            );
+        }
         if (rep <= 30) {
             const multiplier = 1 + (1 - rep / 30) * 1;
-            return `${t.common.ui.tooltip_accelerated_decay || 'Decaimiento acelerado'}: x${multiplier.toFixed(1)}`;
+            return (
+                <div className="space-y-1.5 text-xs">
+                    <div className="font-bold text-red-400 flex items-center gap-1.5"><TrendingDown className="w-3.5 h-3.5" /> {t.common.ui.tooltip_accelerated_decay || 'Decaimiento Acelerado'}</div>
+                    <div className="text-slate-400">{t.common.ui.tooltip_decay_multiplier || 'Multiplicador'}: x{multiplier.toFixed(1)}</div>
+                    <div className="text-slate-500">{t.common.ui.tooltip_decay_info || 'Bajo 30 de reputación, el decaimiento es más rápido'}</div>
+                </div>
+            );
         }
-        return t.common.ui.tooltip_normal_decay || 'Decaimiento normal cada 4h';
+        return (
+            <div className="space-y-1.5 text-xs">
+                <div className="font-bold text-yellow-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {t.common.ui.tooltip_normal_decay || 'Decaimiento Normal'}</div>
+                <div className="text-slate-400">{t.common.ui.tooltip_decay_interval || 'Intervalo'}: 4 horas</div>
+                <div className="text-slate-400">{t.common.ui.tooltip_decay_amount || 'Pérdida'}: -2 por ciclo</div>
+                <div className="text-slate-500">{t.common.ui.tooltip_decay_neutral || 'Zona neutral (30-70): sin decaimiento'}</div>
+            </div>
+        );
     };
 
     const getDecayIcon = (rep: number) => {
@@ -175,25 +196,58 @@ const DiplomacyView: React.FC = () => {
         setActionLoading(null);
     };
 
+    const statsTooltip = (
+        <div className="space-y-2 text-xs min-w-[200px]">
+            <div className="font-bold text-cyan-400 border-b border-slate-700 pb-1.5 mb-1">{t.common.ui.diplomacy_stats || 'Estadísticas de Diplomacia'}</div>
+            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.performance || 'Promedio'}:</span><span className="text-blue-400 font-bold">{Math.floor(stats.avgRep)}%</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_allies || 'Aliados'} (&gt;70):</span><span className="text-green-400 font-bold">{stats.allies}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_enemies || 'Enemigos'} (&lt;30):</span><span className="text-red-400 font-bold">{stats.enemies}</span></div>
+            <div className="text-slate-500 pt-1 border-t border-slate-700">{t.common.ui.diplomacy_stats_desc || 'Actualizado en tiempo real'}</div>
+        </div>
+    );
+
     return (
         <div className="flex flex-col min-h-full text-white pb-4">
-            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg">
-                <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                    <Shield className="text-blue-400" /> {t.common.ui.diplomacy || 'Diplomacy'}
-                </h1>
+            <div className="bg-gray-800 p-3 md:p-4 rounded-lg border border-gray-700 shadow-lg">
+                <div className="flex items-center justify-between mb-2 md:mb-3">
+                    <h1 className="text-lg md:text-2xl font-bold flex items-center gap-2">
+                        <Shield className="text-blue-400 w-5 h-5 md:w-6 md:h-6" /> 
+                        <span className="hidden sm:inline">{t.common.ui.diplomacy || 'Diplomacy'}</span>
+                    </h1>
+                    <SmartTooltip content={statsTooltip} triggerMode="hover" placement="bottom">
+                        <div className="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 cursor-pointer transition-colors">
+                            <Info className="w-4 h-4 text-slate-400" />
+                        </div>
+                    </SmartTooltip>
+                </div>
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                    <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.performance || 'Average'}</div>
-                        <div className="font-bold text-blue-400">{Math.floor(stats.avgRep)}%</div>
-                    </div>
-                    <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.diplomacy_allies || 'Allies'}</div>
-                        <div className="font-bold text-green-400">{stats.allies}</div>
-                    </div>
-                    <div className="bg-gray-700 p-2 rounded">
-                        <div className="text-gray-400 italic text-[10px] uppercase">{t.common.ui.diplomacy_enemies || 'Enemies'}</div>
-                        <div className="font-bold text-red-400">{stats.enemies}</div>
-                    </div>
+                    <SmartTooltip 
+                        content={<div className="text-xs"><span className="text-blue-400 font-bold">{Math.floor(stats.avgRep)}%</span><br/>{t.common.ui.tooltip_avg_rep || 'Reputación promedio de todos los comandantes'}</div>}
+                        triggerMode="hover"
+                    >
+                        <div className="bg-gray-700 p-2 rounded-lg cursor-help hover:bg-gray-600 transition-colors">
+                            <div className="text-gray-400 italic text-[9px] md:text-[10px] uppercase">{t.common.ui.performance || 'Average'}</div>
+                            <div className="font-bold text-blue-400 text-sm md:text-base">{Math.floor(stats.avgRep)}%</div>
+                        </div>
+                    </SmartTooltip>
+                    <SmartTooltip 
+                        content={<div className="text-xs"><span className="text-green-400 font-bold">{stats.allies}</span> {t.common.ui.tooltip_allies || 'comandantes'}<br/>{t.common.ui.tooltip_allies_desc || 'Con reputación mayor a 70%'}</div>}
+                        triggerMode="hover"
+                    >
+                        <div className="bg-gray-700 p-2 rounded-lg cursor-help hover:bg-gray-600 transition-colors">
+                            <div className="text-gray-400 italic text-[9px] md:text-[10px] uppercase">{t.common.ui.diplomacy_allies || 'Allies'}</div>
+                            <div className="font-bold text-green-400 text-sm md:text-base">{stats.allies}</div>
+                        </div>
+                    </SmartTooltip>
+                    <SmartTooltip 
+                        content={<div className="text-xs"><span className="text-red-400 font-bold">{stats.enemies}</span> {t.common.ui.tooltip_enemies || 'comandantes'}<br/>{t.common.ui.tooltip_enemies_desc || 'Con reputación menor a 30%'}</div>}
+                        triggerMode="hover"
+                    >
+                        <div className="bg-gray-700 p-2 rounded-lg cursor-help hover:bg-gray-600 transition-colors">
+                            <div className="text-gray-400 italic text-[9px] md:text-[10px] uppercase">{t.common.ui.diplomacy_enemies || 'Enemies'}</div>
+                            <div className="font-bold text-red-400 text-sm md:text-base">{stats.enemies}</div>
+                        </div>
+                    </SmartTooltip>
                 </div>
             </div>
 
@@ -203,14 +257,14 @@ const DiplomacyView: React.FC = () => {
                     <input
                         type="text"
                         placeholder={t.common.ui.diplomacy_search_placeholder || "Search commander..."}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:border-blue-500 text-sm md:text-base"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                     <select 
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none"
+                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap"
                         value={personalityFilter}
                         onChange={(e) => setPersonalityFilter(e.target.value)}
                     >
@@ -220,7 +274,7 @@ const DiplomacyView: React.FC = () => {
                         ))}
                     </select>
                     <select 
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none"
+                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap"
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as any)}
                     >
@@ -240,141 +294,236 @@ const DiplomacyView: React.FC = () => {
                         <button 
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
-                            className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
+                            className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
                         >
-                            <Icons.ChevronLeft />
+                            <Icons.ChevronLeft className="w-4 h-4" />
                         </button>
-                        <span className="text-xs font-mono font-bold text-blue-400 w-12 text-center">
+                        <span className="text-xs font-mono font-bold text-blue-400 w-12 md:w-14 text-center">
                             {currentPage} <span className="text-gray-500">/ {totalPages}</span>
                         </span>
                         <button 
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
-                            className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
+                            className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
                         >
-                            <Icons.ChevronRight />
+                            <Icons.ChevronRight className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
             )}
 
-            <div className="flex flex-col space-y-3 mt-4">
-                {displayedBots.map((bot) => (
-                    <div key={bot.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col space-y-3 shadow-md">
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center border-2 border-gray-600 overflow-hidden">
-                                    <img src={`/assets/avatars/bot_${bot.avatarId}.png`} alt="Avatar" className="w-full h-full object-cover" onError={(e) => {
-                                        (e.target as any).src = `https://api.dicebear.com/7.x/bottts/svg?seed=${bot.id}`;
-                                    }} />
-                                </div>
-                                <div>
-                                    <div className="font-bold text-lg flex items-center gap-2">
-                                        {getFlagEmoji(bot.country)} {bot.name}
+            <div className="flex flex-col space-y-2 md:space-y-3 mt-3 md:mt-4">
+                {displayedBots.map((bot) => {
+                    const giftCheck = canSendGift(bot.id);
+                    const allianceCheck = canProposeAlliance(bot.id);
+                    const peaceCheck = canProposePeace(bot.id);
+                    const giftCost = getGiftCost(bot);
+                    const resourceCheck = hasEnoughResources(bot);
+                    
+                    return (
+                        <div key={bot.id} className="bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 flex flex-col space-y-2 md:space-y-3 shadow-md">
+                            <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                                    <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-700 rounded-full flex items-center justify-center border-2 border-gray-600 overflow-hidden shrink-0">
+                                        <img src={`/assets/avatars/bot_${bot.avatarId}.png`} alt="Avatar" className="w-full h-full object-cover" onError={(e) => {
+                                            (e.target as any).src = `https://api.dicebear.com/7.x/bottts/svg?seed=${bot.id}`;
+                                        }} />
                                     </div>
-                                    <div className="text-xs text-gray-400 uppercase tracking-wider">{getPersonalityLabel(bot.personality)}</div>
-                                </div>
-                            </div>
-                            <div className={`text-right ${getReputationColor(bot.reputation ?? 50)}`}>
-                                <div className="text-2xl font-black">{bot.reputation ?? 50}</div>
-                                <div className="text-[10px] font-bold uppercase">{getReputationLabel(bot.reputation ?? 50)}</div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="flex items-center gap-2 text-sm text-gray-300">
-                                <Target className="w-4 h-4 text-orange-400" />
-                                <span>{bot.stats[RankingCategory.DOMINION].toLocaleString()} pts</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-300 relative group">
-                                <Zap className="w-4 h-4 text-yellow-400" />
-                                <span>{getEventLabel(bot.currentEvent)}</span>
-                                <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-50">
-                                    <div className="bg-gray-900 text-xs text-white p-2 rounded shadow-lg whitespace-nowrap border border-gray-600">
-                                        {t.common.ui.diplomacy_gift_cost_based || 'El costo del regalo escala con los puntos del bot'}
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-sm md:text-lg flex items-center gap-1.5 truncate">
+                                            <span className="shrink-0">{getFlagEmoji(bot.country)}</span>
+                                            <span className="truncate">{bot.name}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-400 uppercase tracking-wider truncate">{getPersonalityLabel(bot.personality)}</div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div className="w-full bg-gray-900 rounded-full h-2 mt-1 overflow-hidden relative group">
-                            <div 
-                                className={`h-full transition-all duration-500 ${(bot.reputation ?? 50) > 70 ? 'bg-green-500' : (bot.reputation ?? 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'}`}
-                                style={{ width: `${bot.reputation ?? 50}%` }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {getDecayIcon(bot.reputation ?? 50)}
-                            </div>
-                            <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-50">
-                                <div className="bg-gray-900 text-xs text-white p-2 rounded shadow-lg whitespace-nowrap border border-gray-600">
-                                    {getDecayTooltip(bot.reputation ?? 50)}
+                                <div className={`text-right shrink-0 ${getReputationColor(bot.reputation ?? 50)}`}>
+                                    <div className="text-xl md:text-2xl font-black">{(bot.reputation ?? 50).toFixed(0)}</div>
+                                    <div className="text-[9px] md:text-[10px] font-bold uppercase">{getReputationLabel(bot.reputation ?? 50)}</div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex gap-2 mt-3">
-                            {(() => {
-                                const giftCheck = canSendGift(bot.id);
-                                const giftCost = getGiftCost(bot);
-                                const resourceCheck = hasEnoughResources(bot);
-                                return (
-                            <button
-                                onClick={() => handleGift(bot.id)}
-                                disabled={actionLoading === bot.id || !giftCheck.allowed || !resourceCheck}
-                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
-                                title={!giftCheck.allowed 
-                                    ? `Cooldown: ${getCooldownText(giftCheck.remainingMs)}`
-                                    : `${t.common.ui.diplomacy_send_gift || 'Enviar Regalo'} (+8 rep)\nCosto: ${giftCost.MONEY?.toLocaleString()}💰 ${giftCost.OIL?.toLocaleString()}🛢️ ${giftCost.AMMO?.toLocaleString()}💎 ${giftCost.GOLD?.toLocaleString()}🥇`
-                                }
-                            >
-                                {actionLoading === bot.id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                    <Gift className="w-3 h-3" />
-                                )}
-                                <span>{t.common.ui.diplomacy_gift || 'Regalo'}</span>
-                            </button>
-                                );
-                            })()}
-                            
-                            {(() => {
-                                const allianceCheck = canProposeAlliance(bot.id);
-                                return (
-                            <button
-                                onClick={() => handleAlliance(bot.id)}
-                                disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < 50}
-                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
-                                title={!allianceCheck.allowed 
-                                    ? `Cooldown: ${getCooldownText(allianceCheck.remainingMs)}`
-                                    : `${t.common.ui.diplomacy_propose_alliance || 'Proponer Alianza'} (req: 50 rep)\n+5 reputación`
-                                }
-                            >
-                                <Handshake className="w-3 h-3" />
-                                <span>{t.common.ui.diplomacy_alliance || 'Alianza'}</span>
-                            </button>
-                                );
-                            })()}
-                            
-                            {(() => {
-                                const peaceCheck = canProposePeace(bot.id);
-                                return (
-                            <button
-                                onClick={() => handlePeace(bot.id)}
-                                disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50}
-                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95 relative"
-                                title={!peaceCheck.allowed 
-                                    ? `Cooldown: ${getCooldownText(peaceCheck.remainingMs)}`
-                                    : `${t.common.ui.diplomacy_propose_peace || 'Proponer Paz'} (req: <50 rep)\n+5-10 reputación según nivel de hostilidad`
-                                }
-                            >
-                                <Heart className="w-3 h-3" />
-                                <span>{t.common.ui.diplomacy_peace || 'Paz'}</span>
-                            </button>
-                                );
-                            })()}
+                            <div className="grid grid-cols-2 gap-2 md:gap-4">
+                                <SmartTooltip 
+                                    content={
+                                        <div className="space-y-1 text-xs">
+                                            <div className="font-bold text-orange-400">{t.common.ui.est_power || 'Poder Estimado'}</div>
+                                            <div className="text-slate-400">{t.common.ui.tooltip_score_desc || 'Puntos de imperio del comandante'}</div>
+                                            <div className="text-slate-500">{formatNumber(bot.stats[RankingCategory.DOMINION])} pts</div>
+                                        </div>
+                                    }
+                                    triggerMode="hover"
+                                >
+                                    <div className="flex items-center gap-2 text-sm text-gray-300 cursor-help hover:text-white transition-colors">
+                                        <Target className="w-4 h-4 text-orange-400 shrink-0" />
+                                        <span className="truncate">{formatNumber(bot.stats[RankingCategory.DOMINION])} pts</span>
+                                    </div>
+                                </SmartTooltip>
+                                <SmartTooltip 
+                                    content={
+                                        <div className="space-y-1 text-xs">
+                                            <div className="font-bold text-yellow-400">{t.common.ui.bot_event || 'Evento Actual'}</div>
+                                            <div className="text-slate-400">{getEventLabel(bot.currentEvent)}</div>
+                                            <div className="text-slate-500">{t.common.ui.tooltip_event_desc || 'Estado actual del comandante'}</div>
+                                        </div>
+                                    }
+                                    triggerMode="hover"
+                                >
+                                    <div className="flex items-center gap-2 text-sm text-gray-300 cursor-help hover:text-white transition-colors">
+                                        <Zap className="w-4 h-4 text-yellow-400 shrink-0" />
+                                        <span className="truncate">{getEventLabel(bot.currentEvent)}</span>
+                                    </div>
+                                </SmartTooltip>
+                            </div>
+
+                            <SmartTooltip content={getDecayTooltip(bot.reputation ?? 50)} triggerMode="hover">
+                                <div className="w-full bg-gray-900 rounded-full h-2 mt-1 overflow-hidden relative cursor-help group">
+                                    <div 
+                                        className={`h-full transition-all duration-500 ${(bot.reputation ?? 50) > 70 ? 'bg-green-500' : (bot.reputation ?? 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'}`}
+                                        style={{ width: `${bot.reputation ?? 50}%` }}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-end pr-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {getDecayIcon(bot.reputation ?? 50)}
+                                    </div>
+                                </div>
+                            </SmartTooltip>
+
+                            <div className="flex gap-1.5 md:gap-2 mt-2 md:mt-3">
+                                <SmartTooltip 
+                                    content={
+                                        !giftCheck.allowed ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-yellow-400">{t.common.ui.diplomacy_send_gift || 'Regalo'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_cooldown || 'En cooldown'}</div>
+                                                <div className="text-red-400">{getCooldownText(giftCheck.remainingMs)}</div>
+                                            </div>
+                                        ) : !resourceCheck ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-blue-400">{t.common.ui.diplomacy_send_gift || 'Regalo'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_cost || 'Costo'}:</div>
+                                                <div className="text-red-400">{t.common.ui.tooltip_insufficient_resources || 'Recursos insuficientes'}</div>
+                                                <div className="text-slate-500 flex items-center gap-1">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> {giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> {giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> {giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1 text-xs min-w-[180px]">
+                                                <div className="font-bold text-blue-400 flex items-center gap-1.5"><Gift className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_send_gift || 'Enviar Regalo'}</div>
+                                                <div className="text-green-400">+8 {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_cost || 'Costo'}:</div>
+                                                <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                                                    {giftCost.MONEY > 0 && <span className="flex items-center gap-0.5">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> </span>}
+                                                    {giftCost.OIL > 0 && <span className="flex items-center gap-0.5">{giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> </span>}
+                                                    {giftCost.AMMO > 0 && <span className="flex items-center gap-0.5">{giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> </span>}
+                                                    {giftCost.GOLD > 0 && <span className="flex items-center gap-0.5">{giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </span>}
+                                                </div>
+                                                <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_gift_cooldown || 'Cooldown: 1 hora'}</div>
+                                            </div>
+                                        )
+                                    }
+                                    triggerMode="hover"
+                                    placement="top"
+                                >
+                                    <button
+                                        onClick={() => handleGift(bot.id)}
+                                        disabled={actionLoading === bot.id || !giftCheck.allowed || !resourceCheck}
+                                        className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
+                                    >
+                                        {actionLoading === bot.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <Gift className="w-3 h-3" />
+                                        )}
+                                        <span className="hidden sm:inline">{t.common.ui.diplomacy_gift || 'Regalo'}</span>
+                                    </button>
+                                </SmartTooltip>
+                                
+                                <SmartTooltip 
+                                    content={
+                                        !allianceCheck.allowed ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-green-400">{t.common.ui.diplomacy_propose_alliance || 'Alianza'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_cooldown || 'En cooldown'}</div>
+                                                <div className="text-yellow-400">{getCooldownText(allianceCheck.remainingMs)}</div>
+                                            </div>
+                                        ) : (bot.reputation ?? 50) < 50 ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-green-400">{t.common.ui.diplomacy_propose_alliance || 'Alianza'}</div>
+                                                <div className="text-red-400">{t.common.ui.tooltip_reputation_low || 'Reputación muy baja'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: 50%+</div>
+                                                <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1 text-xs min-w-[180px]">
+                                                <div className="font-bold text-green-400 flex items-center gap-1.5"><Handshake className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_propose_alliance || 'Proponer Alianza'}</div>
+                                                <div className="text-green-400">+5 {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_requirement || 'Requisito'}:</div>
+                                                <div className="text-slate-300">≥50% {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_alliance_cooldown || 'Cooldown: 4 horas'}</div>
+                                            </div>
+                                        )
+                                    }
+                                    triggerMode="hover"
+                                    placement="top"
+                                >
+                                    <button
+                                        onClick={() => handleAlliance(bot.id)}
+                                        disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < 50}
+                                        className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
+                                    >
+                                        {actionLoading === bot.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <Handshake className="w-3 h-3" />
+                                        )}
+                                        <span className="hidden sm:inline">{t.common.ui.diplomacy_alliance || 'Alianza'}</span>
+                                    </button>
+                                </SmartTooltip>
+                                
+                                <SmartTooltip 
+                                    content={
+                                        !peaceCheck.allowed ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-purple-400">{t.common.ui.diplomacy_propose_peace || 'Paz'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_cooldown || 'En cooldown'}</div>
+                                                <div className="text-yellow-400">{getCooldownText(peaceCheck.remainingMs)}</div>
+                                            </div>
+                                        ) : (bot.reputation ?? 50) >= 50 ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-purple-400">{t.common.ui.diplomacy_propose_peace || 'Paz'}</div>
+                                                <div className="text-yellow-400">{t.common.ui.tooltip_peace_unnecessary || 'No necesario'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_peace_desc || 'Ya no es hostil'}</div>
+                                                <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1 text-xs min-w-[180px]">
+                                                <div className="font-bold text-purple-400 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_propose_peace || 'Proponer Paz'}</div>
+                                                <div className="text-green-400">+5-10 {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_requirement || 'Requisito'}:</div>
+                                                <div className="text-slate-300">&lt;50% {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_peace_cooldown || 'Cooldown: 4 horas'}</div>
+                                                <div className="text-slate-600 text-[10px]">{t.common.ui.tooltip_peace_bonus || 'Más bonus si el enemigo es muy hostil'}</div>
+                                            </div>
+                                        )
+                                    }
+                                    triggerMode="hover"
+                                    placement="top"
+                                >
+                                    <button
+                                        onClick={() => handlePeace(bot.id)}
+                                        disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50}
+                                        className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
+                                    >
+                                        {actionLoading === bot.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <Heart className="w-3 h-3" />
+                                        )}
+                                        <span className="hidden sm:inline">{t.common.ui.diplomacy_peace || 'Paz'}</span>
+                                    </button>
+                                </SmartTooltip>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {filteredBots.length === 0 && (
                     <div className="text-center py-10 text-gray-500 italic">
                         {t.common.ui.diplomacy_no_results || 'No commanders found matching criteria.'}
