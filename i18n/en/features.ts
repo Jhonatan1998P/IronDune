@@ -46,7 +46,11 @@ export const features = {
         no_loot: "No Resources Secured",
         no_losses: "No Resources Lost",
         no_kills: "No Hostiles Neutralized",
-        no_casualties: "No Friendly Casualties"
+        no_casualties: "No Friendly Casualties",
+        hostile_force: "Hostile Force",
+        enemy_target: "Enemy Target",
+        you_label: "You",
+        buildings_lost: "Buildings Lost"
     },
     market: {
         title: "Global Market",
@@ -202,6 +206,7 @@ export const features = {
             troop_casualties: "Troop Casualties (Count)",
             tactical_status: "Tactical Status",
             you: "YOU",
+            amount: "Amount",
             enemy: "ENEMY",
             rate: "WIN RATE",
             wins: "Wins",

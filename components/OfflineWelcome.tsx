@@ -80,7 +80,7 @@ export const OfflineWelcome: React.FC<OfflineWelcomeProps> = ({ report, onClose 
                                 {report.completedResearch.map(techId => (
                                     <div key={techId} className="flex items-center gap-3 p-2 bg-cyan-900/10 rounded border border-cyan-500/20">
                                         <div className="text-cyan-400"><Icons.Science /></div>
-                                        <span className="text-sm text-cyan-100">{t.techs[TECH_DEFS[techId].translationKey]?.name}</span>
+                                        <span className="text-sm text-cyan-100">{t.techs[TECH_DEFS[techId]?.translationKey ?? '']?.name}</span>
                                     </div>
                                 ))}
                             </div>

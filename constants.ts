@@ -46,6 +46,7 @@ export const WAR_PLAYER_ATTACKS = 8; // Matches waves
 export const WAR_WAVE_BASE_STRENGTH = 0.95; // 95%
 export const WAR_WAVE_SCALING = 0.05; // +5% per wave
 export const WAR_WAVE_INTERVAL_MS = PVP_TRAVEL_TIME_MS; // Waves arrive every 15 mins (if simulated offline)
+export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wars
 
 // OFFLINE PROGRESSION LIMITS
 export const OFFLINE_PRODUCTION_LIMIT_MS = 4 * 60 * 60 * 1000; // 4 Hours Cap for Resources/Upkeep

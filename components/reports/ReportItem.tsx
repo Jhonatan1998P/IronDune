@@ -56,7 +56,7 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     else if (log.messageKey === 'log_grudge_imminent') msg = t.common.ui.log_intel_fleet.replace('{attacker}', log.params?.attacker || 'Unknown');
     else if (log.messageKey === 'alert_incoming') msg = t.common.ui.alert_incoming;
     else if (log.type === 'research') {
-        const name = t.techs[TECH_DEFS[log.messageKey as TechType]?.translationKey]?.name || log.messageKey;
+        const name = t.techs[TECH_DEFS[log.messageKey as TechType]?.translationKey ?? '']?.name || log.messageKey;
         msg = `${t.common.actions.researched}: ${name}`;
     } else if (log.type === 'market') {
          msg = t.market.title;
@@ -195,7 +195,7 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                 <>
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 border-b border-indigo-500/20 pb-2 gap-2">
                                         <span className="text-indigo-300 font-bold uppercase tracking-widest">{t.reports.intel_target}: {log.params.targetName}</span>
-                                        <span className="font-mono text-indigo-400 text-[10px] bg-indigo-900/30 px-2 py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params.score)}</span>
+                                        <span className="font-mono text-indigo-400 text-[10px] bg-indigo-900/30 px-2 py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params?.score ?? 0)}</span>
                                     </div>
                                     
                                     <div className="space-y-2">
@@ -214,9 +214,9 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                         </div>
                                     </div>
 
-                                    {onSimulate && log.params.units && (
+                                    {onSimulate && log.params?.units && (
                                         <button
-                                            onClick={() => onSimulate(log.params.units)}
+                                            onClick={() => onSimulate(log.params?.units ?? {})}
                                             className="w-full mt-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98]"
                                         >
                                             <Icons.Simulate className="w-4 h-4" />
@@ -233,10 +233,10 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                     {hasBuildingLoot && (
                         <div className={`p-3 rounded-lg text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-yellow-950/40 border-yellow-500/20'}`}>
                             <div className={`${isDefenseLoss ? 'text-red-400' : 'text-yellow-400'} font-bold mb-2 text-[10px] uppercase tracking-wider`}>
-                                {isDefenseLoss ? t.common.ui.buildings_lost?.toUpperCase() || "BUILDINGS LOST" : t.common.ui.buildings_seized?.toUpperCase() || "BUILDINGS SEIZED"}
+                                {isDefenseLoss ? t.reports.buildings_lost?.toUpperCase() || "BUILDINGS LOST" : t.reports.buildings_seized?.toUpperCase() || "BUILDINGS SEIZED"}
                             </div>
                             <div className="flex gap-2 flex-wrap">
-                                {Object.entries(log.params.buildingLoot).map(([k,v]) => (
+                                {Object.entries(log.params?.buildingLoot ?? {}).map(([k,v]) => (
                                     <span key={k} className={`px-2.5 py-1.5 rounded-md border text-[10px] font-mono font-bold flex items-center gap-1.5 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/30' : 'text-yellow-300 border-yellow-500/30 bg-yellow-900/30'}`}>
                                         <Icons.Base className="w-3.5 h-3.5" />
                                         <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
@@ -280,8 +280,8 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
 
                     {isTrade && log.params && (
                         <div className="text-xs font-mono font-bold text-orange-300 flex items-center gap-2 bg-orange-950/20 p-2 rounded-md border border-orange-500/20 w-max">
-                            {log.params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(log.params.amount)}
-                            {getResourceIcon(log.params.resource)}
+                            {log.params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(log.params.amount ?? 0)}
+                            {getResourceIcon(log.params.resource ?? '')}
                         </div>
                     )}
                     

@@ -10,6 +10,7 @@ import {
     ATTACK_COOLDOWN_MAX_MS
 } from '../../constants';
 import { simulateCombat } from './combat';
+import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -77,7 +78,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         }
     }
 
-    const remainingConstructions = [];
+    const remainingConstructions: typeof newState.activeConstructions = [];
     for (const c of newState.activeConstructions) {
         if (now >= c.endTime) {
             newState.buildings[c.buildingType] = { level: newState.buildings[c.buildingType].level + c.count };
@@ -87,7 +88,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.activeConstructions = remainingConstructions;
 
-    const remainingRecruitments = [];
+    const remainingRecruitments: typeof newState.activeRecruitments = [];
     for (const r of newState.activeRecruitments) {
         if (now >= r.endTime) {
             newState.units[r.unitType] = (newState.units[r.unitType] || 0) + r.count;
@@ -114,7 +115,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.nextAttackTime = nextAttackTime;
 
-    const remainingMissions = [];
+    const remainingMissions: typeof newState.activeMissions = [];
     for (const mission of newState.activeMissions) {
         if (now >= mission.endTime) {
             const outcome = resolveMission(
@@ -172,6 +173,17 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         }
     }
     newState.activeMissions = remainingMissions;
+
+    if (now - newState.rankingData.lastUpdateTime >= GROWTH_INTERVAL_MS) {
+        const { bots: updatedBots, cycles } = processRankingEvolution(
+            newState.rankingData.bots, 
+            now - newState.rankingData.lastUpdateTime
+        );
+        newState.rankingData = {
+            bots: updatedBots,
+            lastUpdateTime: newState.rankingData.lastUpdateTime + (cycles * GROWTH_INTERVAL_MS)
+        };
+    }
 
     return { newState, report, newLogs };
 };

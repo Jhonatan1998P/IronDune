@@ -143,6 +143,7 @@ export interface TranslationDictionary {
       claim_reward: string; 
       delete: string; 
       archive: string; 
+      unarchive: string;
       select_all: string;
       max: string; 
       accept_mission: string; 
@@ -162,6 +163,7 @@ export interface TranslationDictionary {
       close: string;
       decrypt: string;
       repair: string;
+      sys_console: string;
     };
     ui: {
       loading: string;
@@ -180,6 +182,7 @@ export interface TranslationDictionary {
       units: string;
       you: string;
       max_storage: string;
+      amount: string;
       next_cost: string;
       req_university: string; 
       nav_research: string; 
@@ -400,6 +403,8 @@ export interface TranslationDictionary {
       status_peace_time: string;
       status_time_remaining: string;
       status_attacks_enabled: string;
+      buildings_lost: string;
+      buildings_seized: string;
     };
   };
   reports: {
@@ -412,6 +417,7 @@ export interface TranslationDictionary {
       details_loot: string;
       details_stolen: string;
       buildings_seized: string;
+      buildings_lost: string;
       infrastructure_lost: string;
       diamond_damaged: string;
       details_losses: string;

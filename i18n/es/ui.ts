@@ -328,7 +328,9 @@ export const ui = {
         status_newbie_protection: "PROTECCIÓN DE NOVATO",
         status_peace_time: "TIEMPO DE PAZ",
         status_time_remaining: "Tiempo restante",
-        status_attacks_enabled: "ATAQUES HABILITADOS"
+        status_attacks_enabled: "ATAQUES HABILITADOS",
+        buildings_lost: "Edificios Perdidos",
+        buildings_seized: "Edificios Ocupados"
       }
     },
     missions: {

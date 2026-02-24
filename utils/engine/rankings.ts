@@ -144,13 +144,41 @@ export interface StaticBot {
     ambition: number;
     personality: BotPersonality;
     lastRank?: number;
+    currentEvent: BotEvent;
+    eventTurnsRemaining: number;
+    growthModifier: number;
 }
 
 const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
 const TOTAL_BOTS = 199;
-export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const GROWTH_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
 const SOFT_CAP_SCORE = 5000000;
+
+export enum BotEvent {
+    ATTACKED = 'ATTACKED',
+    SUCCESSFUL_RAID = 'SUCCESSFUL_RAID',
+    ECONOMIC_BOOM = 'ECONOMIC_BOOM',
+    RESOURCES_CRISIS = 'RESOURCES_CRISIS',
+    MILITARY_BUILDUP = 'MILITARY_BUILDUP',
+    PEACEFUL_PERIOD = 'PEACEFUL_PERIOD'
+}
+
+const PERSONALITY_GROWTH_RATES: Record<BotPersonality, { base: number; category: RankingCategory }> = {
+    [BotPersonality.WARLORD]: { base: 0.08, category: RankingCategory.MILITARY },
+    [BotPersonality.TURTLE]: { base: 0.03, category: RankingCategory.ECONOMY },
+    [BotPersonality.TYCOON]: { base: 0.06, category: RankingCategory.ECONOMY },
+    [BotPersonality.ROGUE]: { base: 0.05, category: RankingCategory.DOMINION }
+};
+
+const EVENT_MODIFIERS: Record<BotEvent, number> = {
+    [BotEvent.ATTACKED]: -0.03,
+    [BotEvent.SUCCESSFUL_RAID]: 0.025,
+    [BotEvent.ECONOMIC_BOOM]: 0.03,
+    [BotEvent.RESOURCES_CRISIS]: -0.04,
+    [BotEvent.MILITARY_BUILDUP]: 0.02,
+    [BotEvent.PEACEFUL_PERIOD]: 0.01
+};
 
 export const getFlagEmoji = (countryCode: string) => {
     if (!countryCode) return '';
@@ -158,21 +186,102 @@ export const getFlagEmoji = (countryCode: string) => {
     return String.fromCodePoint(...codePoints);
 };
 
+const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersonality.TYCOON, BotPersonality.ROGUE];
+
 export const initializeRankingState = (): RankingData => ({
-    bots: Array.from({ length: TOTAL_BOTS }, (_, i) => ({
-        id: `bot-${i}`,
-        name: generateBotName('en'),
-        avatarId: (i % 8) + 1,
-        country: COUNTRIES[i % COUNTRIES.length],
-        stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
-        ambition: 1.0,
-        personality: BotPersonality.WARLORD,
-        lastRank: i + 1
-    })),
+    bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
+        const personality = PERSONALITIES[i % PERSONALITIES.length];
+        return {
+            id: `bot-${i}`,
+            name: generateBotName('en'),
+            avatarId: (i % 8) + 1,
+            country: COUNTRIES[i % COUNTRIES.length],
+            stats: { [RankingCategory.DOMINION]: 1000 + i * 500, [RankingCategory.MILITARY]: i * 50, [RankingCategory.ECONOMY]: i * 10000, [RankingCategory.CAMPAIGN]: 1 },
+            ambition: 1.0,
+            personality,
+            lastRank: i + 1,
+            currentEvent: BotEvent.PEACEFUL_PERIOD,
+            eventTurnsRemaining: 0,
+            growthModifier: 0
+        };
+    }),
     lastUpdateTime: Date.now()
 });
 
-export const processRankingEvolution = (currentBots: StaticBot[], elapsed: number): { bots: StaticBot[], cycles: number } => ({ bots: currentBots, cycles: 0 });
+const applyEvent = (bot: StaticBot): StaticBot => {
+    const roll = Math.random();
+    let newEvent: BotEvent = bot.currentEvent;
+    let turns = 0;
+
+    if (bot.eventTurnsRemaining <= 0) {
+        if (roll < 0.15) {
+            newEvent = BotEvent.ATTACKED;
+            turns = 1 + Math.floor(Math.random() * 2);
+        } else if (roll < 0.25) {
+            newEvent = BotEvent.SUCCESSFUL_RAID;
+            turns = 1 + Math.floor(Math.random() * 2);
+        } else if (roll < 0.35) {
+            newEvent = BotEvent.ECONOMIC_BOOM;
+            turns = 2 + Math.floor(Math.random() * 3);
+        } else if (roll < 0.42) {
+            newEvent = BotEvent.RESOURCES_CRISIS;
+            turns = 1 + Math.floor(Math.random() * 2);
+        } else if (roll < 0.52) {
+            newEvent = BotEvent.MILITARY_BUILDUP;
+            turns = 2 + Math.floor(Math.random() * 2);
+        } else {
+            newEvent = BotEvent.PEACEFUL_PERIOD;
+            turns = 2 + Math.floor(Math.random() * 3);
+        }
+    }
+
+    const modifier = EVENT_MODIFIERS[newEvent];
+    const personalityBonus = PERSONALITY_GROWTH_RATES[bot.personality].base;
+    const finalModifier = modifier + personalityBonus + bot.growthModifier;
+
+    return {
+        ...bot,
+        currentEvent: newEvent,
+        eventTurnsRemaining: Math.max(0, bot.eventTurnsRemaining - 1),
+        growthModifier: finalModifier
+    };
+};
+
+const applyGrowth = (bot: StaticBot): StaticBot => {
+    const { base, category } = PERSONALITY_GROWTH_RATES[bot.personality];
+    const totalRate = base + bot.growthModifier;
+    const currentScore = bot.stats[category];
+    
+    let newScore = currentScore;
+    if (currentScore < SOFT_CAP_SCORE) {
+        newScore = currentScore * (1 + totalRate);
+    } else {
+        newScore = currentScore + (SOFT_CAP_SCORE * totalRate * 0.1);
+    }
+
+    const dominanceGrowth = category !== RankingCategory.DOMINION 
+        ? currentScore * (BASE_GROWTH_RATE + bot.growthModifier * 0.5) 
+        : 0;
+
+    return {
+        ...bot,
+        stats: {
+            ...bot.stats,
+            [category]: Math.floor(newScore),
+            [RankingCategory.DOMINION]: Math.floor(bot.stats[RankingCategory.DOMINION] + dominanceGrowth)
+        }
+    };
+};
+
+export const processRankingEvolution = (currentBots: StaticBot[], elapsed: number): { bots: StaticBot[], cycles: number } => {
+    const cycles = Math.floor(elapsed / GROWTH_INTERVAL_MS);
+    if (cycles <= 0) return { bots: currentBots, cycles: 0 };
+
+    let updatedBots = currentBots.map(bot => applyEvent(bot));
+    updatedBots = updatedBots.map(bot => applyGrowth(bot));
+
+    return { bots: updatedBots, cycles };
+};
 
 const getTier = (rank: number): RankingEntry['tier'] => {
     if (rank <= 3) return 'S';

@@ -187,7 +187,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                 ) : (
                                     (() => {
                                         const def = TECH_DEFS[activeResearch.techId as TechType];
-                                        const name = t.techs[def?.translationKey]?.name || activeResearch.techId;
+                                        const name = t.techs[def?.translationKey ?? '']?.name || activeResearch.techId;
                                         const left = Math.max(0, activeResearch.endTime - Date.now());
                                         const total = activeResearch.endTime - activeResearch.startTime;
                                         const percent = 100 - (left / total * 100);

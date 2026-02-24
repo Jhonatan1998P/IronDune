@@ -63,7 +63,7 @@ export const TerminalLogs: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
         if (type === 'market') return t.market.title;
         
         if (type === 'research') {
-            const tName = t.techs[TECH_DEFS[messageKey as TechType]?.translationKey]?.name || messageKey;
+            const tName = t.techs[TECH_DEFS[messageKey as TechType]?.translationKey ?? '']?.name || messageKey;
             return `${t.common.actions.researched}: ${tName}`;
         }
 
