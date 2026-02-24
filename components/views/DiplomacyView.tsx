@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
-import { RankingCategory, getFlagEmoji } from '../../utils/engine/rankings';
+import { RankingCategory, getFlagEmoji, BotEvent } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
 import { Search, Shield, Zap, Target } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { Icons } from '../UIComponents';
 
 const DiplomacyView: React.FC = () => {
     const { gameState: state } = useGame();
@@ -11,6 +12,14 @@ const DiplomacyView: React.FC = () => {
     const [search, setSearch] = useState('');
     const [personalityFilter, setPersonalityFilter] = useState<string>('ALL');
     const [sortBy, setSortBy] = useState<'REPUTATION' | 'SCORE' | 'NAME'>('REPUTATION');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const bots = state.rankingData.bots;
 
@@ -36,6 +45,20 @@ const DiplomacyView: React.FC = () => {
         return { avgRep, enemies, allies };
     }, [bots]);
 
+    const ITEMS_PER_PAGE_MOBILE = 10;
+    const ITEMS_PER_PAGE_DESKTOP = 20;
+    const itemsPerPage = isMobile ? ITEMS_PER_PAGE_MOBILE : ITEMS_PER_PAGE_DESKTOP;
+    const totalPages = Math.ceil(filteredBots.length / itemsPerPage);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, personalityFilter, sortBy]);
+
+    const displayedBots = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredBots.slice(start, start + itemsPerPage);
+    }, [currentPage, filteredBots, itemsPerPage]);
+
     const getReputationColor = (rep: number = 50) => {
         if (rep > 70) return 'text-green-400';
         if (rep < 30) return 'text-red-400';
@@ -50,8 +73,30 @@ const DiplomacyView: React.FC = () => {
         return t.common.ui.reputation_mortal_enemy || 'Enemigo Mortal';
     };
 
+    const getPersonalityLabel = (personality: BotPersonality): string => {
+        switch (personality) {
+            case BotPersonality.WARLORD: return t.common.ui.personality_warlord || 'Señor de la Guerra';
+            case BotPersonality.TURTLE: return t.common.ui.personality_turtle || 'La Tortuga';
+            case BotPersonality.TYCOON: return t.common.ui.personality_tycoon || 'Magnate';
+            case BotPersonality.ROGUE: return t.common.ui.personality_rogue || 'Oportunista';
+            default: return personality;
+        }
+    };
+
+    const getEventLabel = (event: BotEvent): string => {
+        switch (event) {
+            case BotEvent.ATTACKED: return t.common.ui.bot_event_attacked || 'Bajo Ataque';
+            case BotEvent.SUCCESSFUL_RAID: return t.common.ui.bot_event_successful_raid || 'Saqueo Exitoso';
+            case BotEvent.ECONOMIC_BOOM: return t.common.ui.bot_event_economic_boom || 'Auge Económico';
+            case BotEvent.RESOURCES_CRISIS: return t.common.ui.bot_event_resources_crisis || 'Crisis de Recursos';
+            case BotEvent.MILITARY_BUILDUP: return t.common.ui.bot_event_military_buildup || 'Rearmamento';
+            case BotEvent.PEACEFUL_PERIOD: return t.common.ui.bot_event_peaceful_period || 'Período Pacífico';
+            default: return event;
+        }
+    };
+
     return (
-        <div className="flex flex-col space-y-4 p-4 pb-24 bg-gray-900 min-h-screen text-white">
+        <div className="flex flex-col min-h-full text-white pb-4">
             <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg">
                 <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
                     <Shield className="text-blue-400" /> {t.common.ui.diplomacy || 'Diplomacy'}
@@ -72,7 +117,7 @@ const DiplomacyView: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex flex-col space-y-2">
+            <div className="flex flex-col space-y-2 mt-4">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
@@ -91,7 +136,7 @@ const DiplomacyView: React.FC = () => {
                     >
                         <option value="ALL">{t.common.ui.diplomacy_filter_all || 'All Personalities'}</option>
                         {Object.values(BotPersonality).map(p => (
-                            <option key={p} value={p}>{p}</option>
+                            <option key={p} value={p}>{getPersonalityLabel(p)}</option>
                         ))}
                     </select>
                     <select 
@@ -106,8 +151,35 @@ const DiplomacyView: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex flex-col space-y-3">
-                {filteredBots.map((bot) => (
+            {totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4 mb-2 px-1">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                        {t.common.ui.nav_base || 'Commanders'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
+                        >
+                            <Icons.ChevronLeft />
+                        </button>
+                        <span className="text-xs font-mono font-bold text-blue-400 w-12 text-center">
+                            {currentPage} <span className="text-gray-500">/ {totalPages}</span>
+                        </span>
+                        <button 
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center border border-gray-600 transition-all active:scale-95 text-gray-300"
+                        >
+                            <Icons.ChevronRight />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex flex-col space-y-3 mt-4">
+                {displayedBots.map((bot) => (
                     <div key={bot.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col space-y-3 shadow-md">
                         <div className="flex justify-between items-start">
                             <div className="flex items-center gap-3">
@@ -120,7 +192,7 @@ const DiplomacyView: React.FC = () => {
                                     <div className="font-bold text-lg flex items-center gap-2">
                                         {getFlagEmoji(bot.country)} {bot.name}
                                     </div>
-                                    <div className="text-xs text-gray-400 uppercase tracking-wider">{bot.personality}</div>
+                                    <div className="text-xs text-gray-400 uppercase tracking-wider">{getPersonalityLabel(bot.personality)}</div>
                                 </div>
                             </div>
                             <div className={`text-right ${getReputationColor(bot.reputation ?? 50)}`}>
@@ -136,7 +208,7 @@ const DiplomacyView: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-2 text-sm text-gray-300">
                                 <Zap className="w-4 h-4 text-yellow-400" />
-                                <span>{bot.currentEvent.replace(/_/g, ' ')}</span>
+                                <span>{getEventLabel(bot.currentEvent)}</span>
                             </div>
                         </div>
 

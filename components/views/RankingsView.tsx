@@ -13,7 +13,8 @@ interface RankingsViewProps {
     onAttack?: (target: any, newState: GameState) => void;
 }
 
-const ITEMS_PER_PAGE_MOBILE = 8;
+const ITEMS_PER_PAGE_MOBILE = 10;
+const ITEMS_PER_PAGE_DESKTOP = 20;
 
 export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack }) => {
     const { t } = useLanguage();
@@ -37,8 +38,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     const playerEntry = fullRankings.find(e => e.isPlayer);
     
     const totalPages = useMemo(() => {
-        if (!isMobile) return 1;
-        return Math.ceil(fullRankings.length / ITEMS_PER_PAGE_MOBILE);
+        const itemsPerPage = isMobile ? ITEMS_PER_PAGE_MOBILE : ITEMS_PER_PAGE_DESKTOP;
+        return Math.ceil(fullRankings.length / itemsPerPage);
     }, [isMobile, fullRankings.length]);
 
     useEffect(() => {
@@ -46,9 +47,9 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     }, [category]);
 
     const paginatedData = useMemo(() => {
-        if (!isMobile) return fullRankings;
-        const start = (currentPage - 1) * ITEMS_PER_PAGE_MOBILE;
-        return fullRankings.slice(start, start + ITEMS_PER_PAGE_MOBILE);
+        const itemsPerPage = isMobile ? ITEMS_PER_PAGE_MOBILE : ITEMS_PER_PAGE_DESKTOP;
+        const start = (currentPage - 1) * itemsPerPage;
+        return fullRankings.slice(start, start + itemsPerPage);
     }, [fullRankings, currentPage, isMobile]);
 
     const categories = [
@@ -77,7 +78,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
 
     const jumpToPlayer = () => {
         if (playerEntry) {
-            const playerPage = Math.ceil(playerEntry.rank / ITEMS_PER_PAGE_MOBILE);
+            const itemsPerPage = isMobile ? ITEMS_PER_PAGE_MOBILE : ITEMS_PER_PAGE_DESKTOP;
+            const playerPage = Math.ceil(playerEntry.rank / itemsPerPage);
             setCurrentPage(playerPage);
         }
     };
@@ -195,7 +197,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     };
 
     return (
-        <div className="flex flex-col min-h-full relative animate-[fadeIn_0.3s_ease-out]">
+        <div className="flex flex-col min-h-full relative animate-[fadeIn_0.3s_ease-out] overflow-y-auto custom-scrollbar pb-24">
             
             {profileEntry && (
                 <CommanderProfileModal 
@@ -293,7 +295,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
             </div>
 
-            {isMobile && totalPages > 1 && (
+            {totalPages > 1 && (
                 <div className="flex justify-between items-center shrink-0 p-1.5 mb-3 bg-slate-900/50 rounded-xl border border-white/10 shadow-sm">
                     <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold ml-3">
                         {t.common.ui.page} {currentPage}/{totalPages}
@@ -317,7 +319,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
             )}
 
-            <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pb-24 pr-1">
+            <div className="flex-1 min-h-0 custom-scrollbar pb-24 pr-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 md:p-2">
                     {paginatedData.map((entry) => (
                         <RankingCard key={entry.id} entry={entry} />

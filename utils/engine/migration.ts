@@ -21,26 +21,39 @@ const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
 
 const BOT_SCORE_MIN = 1000;
 const BOT_SCORE_MAX = 2000000;
+const SUSPICIOUS_SCORE_THRESHOLD = 5000000;
+
+const isSuspiciousScore = (score: number): boolean => {
+    return score > SUSPICIOUS_SCORE_THRESHOLD || score < 100;
+};
+
+const calculateProgressiveScore = (rank: number): number => {
+    const minScore = 1000;
+    const maxScore = 2000000;
+    const posRatio = Math.max(0, Math.min(1, (199 - rank) / 198));
+    return Math.floor(minScore + posRatio * (maxScore - minScore));
+};
 
 export const sanitizeBot = (bot: any, index: number): StaticBot => {
     const sanitizedStats = { ...DEFAULT_BOT_STATS };
     
-    // Calculate base score for position (199 to 1)
-    // index 0 is rank 1 (2M), index 198 is rank 199 (1k)
-    const minScore = 1000;
-    const maxScore = 2000000;
     const rank = bot.lastRank || (index + 1);
-    const posRatio = Math.max(0, Math.min(1, (199 - rank) / 198));
-    const progressiveScore = Math.floor(minScore + posRatio * (maxScore - minScore));
+    const progressiveScore = calculateProgressiveScore(rank);
 
     if (bot.stats && typeof bot.stats === 'object') {
         REQUIRED_RANKING_CATEGORIES.forEach(cat => {
             if (typeof bot.stats[cat] === 'number' && !isNaN(bot.stats[cat])) {
-                // If it's a legacy bot with default 1000 score, update it to progressive
-                if (cat === RankingCategory.DOMINION && bot.stats[cat] === 1000 && rank < 199) {
-                    sanitizedStats[cat] = progressiveScore;
+                const botScore = bot.stats[cat];
+                if (cat === RankingCategory.DOMINION) {
+                    if (botScore === 1000 && rank < 199) {
+                        sanitizedStats[cat] = progressiveScore;
+                    } else if (isSuspiciousScore(botScore)) {
+                        sanitizedStats[cat] = progressiveScore;
+                    } else {
+                        sanitizedStats[cat] = botScore;
+                    }
                 } else {
-                    sanitizedStats[cat] = bot.stats[cat];
+                    sanitizedStats[cat] = botScore;
                 }
             } else {
                 sanitizedStats[cat] = cat === RankingCategory.DOMINION ? progressiveScore : DEFAULT_BOT_STATS[cat];
@@ -82,8 +95,16 @@ export const sanitizeBot = (bot: any, index: number): StaticBot => {
     };
 };
 
-export const sanitizeRankingData = (rankingData: any): { bots: StaticBot[]; lastUpdateTime: number } => {
+export const sanitizeRankingData = (rankingData: any, saveVersion?: number): { bots: StaticBot[]; lastUpdateTime: number } => {
     const now = Date.now();
+    
+    const FORCE_RANKING_RESET_VERSION = 6;
+    const needsReset = !saveVersion || saveVersion < FORCE_RANKING_RESET_VERSION;
+    
+    if (needsReset) {
+        console.log(`[Migration] Resetting ranking data (save version: ${saveVersion || 'unknown'}, required: ${FORCE_RANKING_RESET_VERSION})`);
+        return initializeRankingState();
+    }
     
     if (!rankingData || typeof rankingData !== 'object') {
         return initializeRankingState();
@@ -293,16 +314,17 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
         cleanState.tutorialClaimable = saved.tutorialClaimable;
     }
 
-    // Rankings Migration (IMPROVED V2.0 - Full sanitization)
+    // Rankings Migration (IMPROVED V2.0 - Full sanitization) - Reset for old saves
+    const savedVersion = saved.saveVersion;
     if (saved.rankingData) {
-        cleanState.rankingData = sanitizeRankingData(saved.rankingData);
+        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion);
     } else {
         // LEGACY MIGRATION: Try to rescue data from localStorage if it exists
         try {
             const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
             if (legacyData) {
                 const parsedLegacy = JSON.parse(legacyData);
-                cleanState.rankingData = sanitizeRankingData(parsedLegacy);
+                cleanState.rankingData = sanitizeRankingData(parsedLegacy, savedVersion);
                 console.log("Migrated rankings from LocalStorage to GameState.");
             } else {
                 cleanState.rankingData = initializeRankingState();

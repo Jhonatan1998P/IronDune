@@ -82,7 +82,7 @@ export const BANK_LEVEL_CAPACITIES = [
     50000000000 // Level 15: 50.00K Mill (50 Bill)
 ];
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 // REPUTATION SYSTEM
 export const REPUTATION_ALLY_THRESHOLD = 70; // Bots above this are allies

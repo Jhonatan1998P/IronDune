@@ -300,7 +300,17 @@ export const ui = {
         name_invalid_chars: "Name can only contain letters, numbers, spaces and underscores.",
         name_already_taken: "This name is already taken by another commander.",
         not_enough_diamonds: "Not enough diamonds. Cost: 20 💎",
-        first_change_free: "1st FREE"
+        first_change_free: "1st FREE",
+        personality_warlord: "Warlord",
+        personality_turtle: "Turtle",
+        personality_tycoon: "Tycoon",
+        personality_rogue: "Opportunist",
+        bot_event_attacked: "Under Attack",
+        bot_event_successful_raid: "Successful Raid",
+        bot_event_economic_boom: "Economic Boom",
+        bot_event_resources_crisis: "Resources Crisis",
+        bot_event_military_buildup: "Military Buildup",
+        bot_event_peaceful_period: "Peaceful Period"
       },
       menu: {
         new_game: "New Operation",

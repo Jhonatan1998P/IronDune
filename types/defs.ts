@@ -382,6 +382,16 @@ export interface TranslationDictionary {
       new_name_placeholder: string;
       name_changed_success: string;
       first_change_free: string;
+      personality_warlord: string;
+      personality_turtle: string;
+      personality_tycoon: string;
+      personality_rogue: string;
+      bot_event_attacked: string;
+      bot_event_successful_raid: string;
+      bot_event_economic_boom: string;
+      bot_event_resources_crisis: string;
+      bot_event_military_buildup: string;
+      bot_event_peaceful_period: string;
     };
     menu: {
       new_game: string;

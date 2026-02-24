@@ -90,8 +90,9 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
             const canAfford = isFreeChange || gameState.resources.DIAMOND >= 20;
             
             return (
-                <Card title={t.common.ui.settings} className="max-w-md mx-auto mt-4">
-                   <div className="space-y-6">
+                <div className="overflow-y-auto custom-scrollbar pb-24">
+                    <Card title={t.common.ui.settings} className="max-w-md mx-auto mt-4">
+                       <div className="space-y-6">
                       <div className="flex justify-between items-center pb-4 border-b border-white/10">
                          <span className="text-sm font-mono text-slate-300">{t.common.ui.language}</span>
                          <div className="flex gap-2 bg-black/20 p-1 rounded-lg">
@@ -148,6 +149,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                       </div>
                    </div>
                 </Card>
+                </div>
             );
         default:
             return null;

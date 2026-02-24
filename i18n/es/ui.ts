@@ -300,7 +300,17 @@ export const ui = {
         name_invalid_chars: "El nombre solo puede contener letras, números, espacios y guiones bajos.",
         name_already_taken: "Este nombre ya está en uso por otro comandante.",
         not_enough_diamonds: "No tienes suficientes diamantes. Costo: 20 💎",
-        first_change_free: "1er GRATIS"
+        first_change_free: "1er FREE",
+        personality_warlord: "Señor de la Guerra",
+        personality_turtle: "La Tortuga",
+        personality_tycoon: "Magnate",
+        personality_rogue: "Oportunista",
+        bot_event_attacked: "Bajo Ataque",
+        bot_event_successful_raid: "Saqueo Exitoso",
+        bot_event_economic_boom: "Auge Económico",
+        bot_event_resources_crisis: "Crisis de Recursos",
+        bot_event_military_buildup: "Rearmamento",
+        bot_event_peaceful_period: "Período Pacífico"
       },
       menu: {
         new_game: "Nueva Operación",
