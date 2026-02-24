@@ -3,7 +3,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -15,7 +15,8 @@ const NavIcons = {
     Map: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     Finance: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     Market: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-    Simulator: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+    Simulator: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+    Diplomacy: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
 };
 
 export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTab }) => {
@@ -48,6 +49,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
           items: [
               { id: 'reports' as TabType, label: t.common.ui.nav_reports, icon: Icons.Report },
               { id: 'rankings' as TabType, label: t.features.rankings.title.split(' ')[0], icon: Icons.Crown },
+              { id: 'diplomacy' as TabType, label: t.common.ui.diplomacy || 'Diplomacy', icon: NavIcons.Diplomacy },
               { id: 'simulator' as TabType, label: t.common.ui.nav_simulator, icon: NavIcons.Simulator },
           ]
       }
@@ -177,13 +179,14 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
     const primaryItems = [
         { id: 'buildings' as TabType, icon: Icons.Base, label: t.common.ui.nav_base },
         { id: 'units' as TabType, icon: Icons.Army, label: t.common.ui.nav_army },
-        { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map }, 
+        { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
         { id: 'reports' as TabType, icon: Icons.Report, label: t.common.ui.nav_intel },
     ];
 
     // Secondary Tabs (Bottom Sheet)
     const secondaryItems = [
         { id: 'missions' as TabType, icon: Icons.Radar, label: t.missions.patrol.title.split(' ')[0] },
+        { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map },
         { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!gameState.activeWar, color: 'text-red-500' },
         { id: 'market' as TabType, icon: NavIcons.Market, label: t.common.ui.nav_market },
         { id: 'finance' as TabType, icon: NavIcons.Finance, label: t.common.ui.nav_economy },

@@ -142,6 +142,21 @@ export interface WarState {
     currentEnemyGarrison: Partial<Record<UnitType, number>>;
 }
 
+export interface StaticBot {
+    id: string;
+    name: string;
+    avatarId: number;
+    country: string;
+    stats: Record<RankingCategory, number>;
+    ambition: number;
+    personality: BotPersonality;
+    lastRank?: number;
+    currentEvent: BotEvent;
+    eventTurnsRemaining: number;
+    growthModifier: number;
+    reputation: number; // 0 to 100, 50 is neutral
+}
+
 export interface RankingData {
     bots: StaticBot[];
     lastUpdateTime: number;

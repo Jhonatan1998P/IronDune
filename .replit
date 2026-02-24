@@ -7,7 +7,7 @@ packages = ["unzip"]
 expertMode = true
 
 [workflows]
-runButton = "Start Dev Server"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Start Dev Server"
@@ -16,6 +16,19 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Start Dev Server"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev -- --host 0.0.0.0 --port 5000"
 waitForPort = 5000
 
 [workflows.workflow.metadata]

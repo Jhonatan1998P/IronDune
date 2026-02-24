@@ -16,6 +16,7 @@ import {
     RankingsView, 
     WarView
 } from '../GameViews';
+import DiplomacyView from '../views/DiplomacyView';
 import { GlassButton, Card } from '../UIComponents';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -68,6 +69,8 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
             return <RankingsView gameState={gameState} onAttack={(_, newState) => (window as any)._updateGameState?.(newState)} />;
         case 'war':
             return <WarView gameState={gameState} onSpy={spyOnAttacker} onSimulate={onSimulateRequest} />;
+        case 'diplomacy':
+            return <DiplomacyView />;
         case 'settings':
             const handleNameChange = () => {
                 setNameError(null);
@@ -100,10 +103,10 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                       
                       <div className="pb-4 border-b border-white/10">
                          <div className="flex justify-between items-center mb-3">
-                            <span className="text-sm font-mono text-slate-300">{t.common.ui.commander_name || 'Commander Name'}</span>
+                            <span className="text-sm font-mono text-slate-300">{t.common.ui.commander_name}</span>
                             <div className="flex items-center gap-2">
                                <span className="text-cyan-400 font-bold">{gameState.playerName}</span>
-                               {isFreeChange && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">{t.common.ui.first_change_free || '1st FREE'}</span>}
+                               {isFreeChange && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">{t.common.ui.first_change_free}</span>}
                             </div>
                          </div>
                          <div className="flex gap-2">
@@ -111,7 +114,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                                 type="text"
                                 value={newName}
                                 onChange={(e) => { setNewName(e.target.value); setNameError(null); }}
-                                placeholder={t.common.ui.new_name_placeholder || 'New name...'}
+                                placeholder={t.common.ui.new_name_placeholder}
                                 maxLength={20}
                                 className="flex-1 bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
                             />
@@ -131,7 +134,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                             <p className="text-red-400 text-xs mt-2">{t.common.ui[nameError] || nameError}</p>
                          )}
                          {nameSuccess && (
-                            <p className="text-emerald-400 text-xs mt-2">{t.common.ui.name_changed_success || 'Name changed successfully!'}</p>
+                            <p className="text-emerald-400 text-xs mt-2">{t.common.ui.name_changed_success}</p>
                          )}
                       </div>
                       

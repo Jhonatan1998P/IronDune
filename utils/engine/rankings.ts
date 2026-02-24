@@ -215,7 +215,8 @@ export const initializeRankingState = (): RankingData => ({
             lastRank: i + 1,
             currentEvent: BotEvent.PEACEFUL_PERIOD,
             eventTurnsRemaining: 0,
-            growthModifier: 0
+            growthModifier: 0,
+            reputation: 50 // Neutral starting reputation
         };
     }),
     lastUpdateTime: Date.now()

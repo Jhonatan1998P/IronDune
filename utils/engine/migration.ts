@@ -76,7 +76,10 @@ export const sanitizeBot = (bot: any, index: number): StaticBot => {
             : 0,
         growthModifier: typeof bot.growthModifier === 'number' && !isNaN(bot.growthModifier) 
             ? bot.growthModifier 
-            : 0
+            : 0,
+        reputation: typeof bot.reputation === 'number' && !isNaN(bot.reputation)
+            ? bot.reputation
+            : 50
     };
 };
 
