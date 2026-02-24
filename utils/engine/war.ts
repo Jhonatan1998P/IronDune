@@ -20,7 +20,9 @@ export const generateWarWave = (state: GameState, waveNumber: number, warState: 
         budgetRatio = 0.20 + ((waveNumber - 8) * 0.05); 
     }
 
-    const enemyForce = generateBotArmy(warState.enemyScore, budgetRatio);
+    const enemyBot = state.rankingData.bots.find(b => b.id === warState.enemyId);
+    const enemyPersonality = enemyBot?.personality || BotPersonality.WARLORD;
+    const enemyForce = generateBotArmy(warState.enemyScore, budgetRatio, enemyPersonality);
     const now = Date.now();
     const endTime = specificEndTime || (now + PVP_TRAVEL_TIME_MS);
     
@@ -40,6 +42,7 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
     let enemyId = targetId || '';
     let enemyName = targetName || '';
     let enemyScore = targetScore || 0;
+    let enemyPersonality = BotPersonality.WARLORD;
 
     if (!enemyId) {
         const bots = state.rankingData.bots;
@@ -53,10 +56,17 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
             enemyId = bot.id;
             enemyName = bot.name;
             enemyScore = bot.stats[RankingCategory.DOMINION];
+            enemyPersonality = bot.personality;
         } else {
             enemyId = 'bot-system-rival';
             enemyName = 'Rival Warlord';
             enemyScore = Math.max(1000, state.empirePoints); 
+            enemyPersonality = BotPersonality.WARLORD;
+        }
+    } else {
+        const bot = state.rankingData.bots.find(b => b.id === targetId);
+        if (bot) {
+            enemyPersonality = bot.personality;
         }
     }
 
@@ -70,7 +80,7 @@ export const startWar = (state: GameState, targetId?: string, targetName?: strin
     };
 
     const fullBudgetMultiplier = 1.0 / BOT_BUDGET_RATIO;
-    const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier);
+    const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier, enemyPersonality);
     const firstWaveEndTime = now + PVP_TRAVEL_TIME_MS;
 
     const warState: WarState = {
@@ -231,6 +241,7 @@ export const processWarTick = (state: GameState, now: number): { stateUpdates: P
             let enemyId = 'bot-system-rival';
             let enemyName = 'Rival Warlord';
             let enemyScore = Math.max(1000, state.empirePoints * 1.1);
+            let enemyPersonality = BotPersonality.WARLORD;
 
             if (validBots.length > 0) {
                 // Filter to valid range first, then weight selection
@@ -248,13 +259,14 @@ export const processWarTick = (state: GameState, now: number): { stateUpdates: P
                             enemyId = w.bot.id;
                             enemyName = w.bot.name;
                             enemyScore = w.bot.stats[RankingCategory.DOMINION];
+                            enemyPersonality = w.bot.personality;
                             break;
                         }
                     }
                 }
             }
 
-            const fullPowerArmy = generateBotArmy(enemyScore, 1.0);
+            const fullPowerArmy = generateBotArmy(enemyScore, 1.0, enemyPersonality);
             const arrivalTime = now + PVP_TRAVEL_TIME_MS;
 
             const raidAttack: IncomingAttack = {
@@ -355,7 +367,7 @@ export const processWarTick = (state: GameState, now: number): { stateUpdates: P
                     const allies = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                     if (allies.length > 0 && Math.random() < REPUTATION_ALLY_DEFEND_CHANCE) {
                         const defender = allies[Math.floor(Math.random() * allies.length)];
-                        const allyReinforcement = generateBotArmy(defender.stats[RankingCategory.DOMINION] * 0.5, 1.0);
+                        const allyReinforcement = generateBotArmy(defender.stats[RankingCategory.DOMINION] * 0.5, 1.0, defender.personality);
                         const arrivalTime = now + (5 * 60 * 1000); // 5 minutes
                         
                         const allyAttack: IncomingAttack = {

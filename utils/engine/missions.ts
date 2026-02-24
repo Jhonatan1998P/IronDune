@@ -46,6 +46,29 @@ const UNITS_BY_TIER = {
     4: [UnitType.PHANTOM_SUB, UnitType.ACE_FIGHTER]
 };
 
+const UNIT_ByScore: UnitType[] = [
+    UnitType.CYBER_MARINE,
+    UnitType.HEAVY_COMMANDO,
+    UnitType.SCOUT_TANK,
+    UnitType.TITAN_MBT,
+    UnitType.WRAITH_GUNSHIP,
+    UnitType.ACE_FIGHTER,
+    UnitType.AEGIS_DESTROYER,
+    UnitType.PHANTOM_SUB
+];
+
+const getUnitsByScoreRange = (score: number): UnitType[] => {
+    if (score < 10000) {
+        return UNIT_ByScore.slice(0, 3);
+    } else if (score < 25000) {
+        return UNIT_ByScore.slice(0, 5);
+    } else if (score < 35000) {
+        return UNIT_ByScore.slice(0, 7);
+    } else {
+        return UNIT_ByScore;
+    }
+};
+
 const getAvailableUnitsForScore = (score: number): UnitType[] => {
     let pool: UnitType[] = [...UNITS_BY_TIER[1]];
     
@@ -62,86 +85,152 @@ const getAvailableUnitsForScore = (score: number): UnitType[] => {
     return pool;
 };
 
-const UNIT_POOLS = {
-    MASS: [UnitType.CYBER_MARINE, UnitType.SCOUT_TANK, UnitType.AEGIS_DESTROYER],
-    SUPPORT: [UnitType.HEAVY_COMMANDO, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP, UnitType.CYBER_MARINE],
-    DEFENSIVE: [UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.SCOUT_TANK, UnitType.HEAVY_COMMANDO],
-    ELITE: [UnitType.TITAN_MBT, UnitType.PHANTOM_SUB, UnitType.AEGIS_DESTROYER, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
-    ASSASSIN: [UnitType.HEAVY_COMMANDO, UnitType.PHANTOM_SUB, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
-    FAST: [UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER, UnitType.HEAVY_COMMANDO]
+const UNIT_COUNTERS: Record<UnitType, UnitType[]> = {
+    [UnitType.CYBER_MARINE]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO],
+    [UnitType.HEAVY_COMMANDO]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO, UnitType.SCOUT_TANK],
+    [UnitType.SCOUT_TANK]: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT],
+    [UnitType.TITAN_MBT]: [UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
+    [UnitType.WRAITH_GUNSHIP]: [UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
+    [UnitType.ACE_FIGHTER]: [UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER],
+    [UnitType.AEGIS_DESTROYER]: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB],
+    [UnitType.PHANTOM_SUB]: [UnitType.PHANTOM_SUB]
 };
 
-const spendBudgetOnPool = (
-    budget: number, 
-    pool: UnitType[], 
-    army: Partial<Record<UnitType, number>>
-) => {
-    if (pool.length === 0 || budget < 50) return;
+const UNIT_QUALITY_BY_PERSONALITY: Record<BotPersonality, { minTier: number; maxTier: number }> = {
+    [BotPersonality.WARLORD]: { minTier: 3, maxTier: 8 },
+    [BotPersonality.TURTLE]: { minTier: 1, maxTier: 4 },
+    [BotPersonality.TYCOON]: { minTier: 2, maxTier: 6 },
+    [BotPersonality.ROGUE]: { minTier: 2, maxTier: 7 }
+};
 
-    let remainingBudget = budget;
-    let safetyCounter = 0;
+const PERSONALITY_BUDGET_SPLIT: Record<BotPersonality, { attackRatio: number; defenseRatio: number }> = {
+    [BotPersonality.WARLORD]: { attackRatio: 0.70, defenseRatio: 0.30 },
+    [BotPersonality.TURTLE]: { attackRatio: 0.30, defenseRatio: 0.70 },
+    [BotPersonality.TYCOON]: { attackRatio: 0.50, defenseRatio: 0.50 },
+    [BotPersonality.ROGUE]: { attackRatio: 0.60, defenseRatio: 0.40 }
+};
 
-    while (remainingBudget > 50 && safetyCounter < 200) {
-        safetyCounter++;
-        
-        const uType = pool[Math.floor(Math.random() * pool.length)];
-        const unitCost = calculateUnitCP(uType);
-
-        if (unitCost > remainingBudget) continue;
-
-        const spendChunk = Math.max(unitCost, remainingBudget * (0.05 + Math.random() * 0.10));
-        const count = Math.max(1, Math.floor(spendChunk / unitCost));
-
-        army[uType] = (army[uType] || 0) + count;
-        remainingBudget -= (count * unitCost);
+const PERSONALITY_TACTICS: Record<BotPersonality, { offenseFocus: UnitType[]; defenseFocus: UnitType[] }> = {
+    [BotPersonality.WARLORD]: {
+        offenseFocus: [UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER, UnitType.PHANTOM_SUB],
+        defenseFocus: [UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.WRAITH_GUNSHIP]
+    },
+    [BotPersonality.TURTLE]: {
+        offenseFocus: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER],
+        defenseFocus: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP]
+    },
+    [BotPersonality.TYCOON]: {
+        offenseFocus: [UnitType.HEAVY_COMMANDO, UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP],
+        defenseFocus: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.ACE_FIGHTER]
+    },
+    [BotPersonality.ROGUE]: {
+        offenseFocus: [UnitType.HEAVY_COMMANDO, UnitType.ACE_FIGHTER, UnitType.PHANTOM_SUB, UnitType.WRAITH_GUNSHIP],
+        defenseFocus: [UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER]
     }
+};
+
+const getSmartUnitComposition = (
+    budget: number,
+    personality: BotPersonality,
+    isDefense: boolean,
+    availableUnits: UnitType[]
+): Partial<Record<UnitType, number>> => {
+    const army: Partial<Record<UnitType, number>> = {};
+    const quality = UNIT_QUALITY_BY_PERSONALITY[personality];
+    const tactics = PERSONALITY_TACTICS[personality];
+    const focusList = isDefense ? tactics.defenseFocus : tactics.offenseFocus;
+    
+    const filteredUnits = availableUnits.filter(u => {
+        const idx = UNIT_ByScore.indexOf(u);
+        return idx >= quality.minTier - 1 && idx <= quality.maxTier - 1;
+    });
+    
+    const prioritizedUnits = focusList.filter(u => filteredUnits.includes(u));
+    
+    const counterUnits = new Set<UnitType>();
+    prioritizedUnits.forEach(u => {
+        const counters = UNIT_COUNTERS[u] || [];
+        counters.forEach(c => {
+            if (filteredUnits.includes(c)) counterUnits.add(c);
+        });
+    });
+    
+    const finalPool = [...new Set([...prioritizedUnits, ...counterUnits])].filter(u => availableUnits.includes(u));
+    
+    if (finalPool.length === 0) {
+        return { [availableUnits[0]]: Math.floor(budget / calculateUnitCP(availableUnits[0])) };
+    }
+    
+    let remainingBudget = budget;
+    const safetyCounter = 0;
+    
+    const tierWeights = isDefense 
+        ? [0.1, 0.15, 0.25, 0.3, 0.15, 0.05, 0, 0]
+        : [0.05, 0.1, 0.2, 0.25, 0.2, 0.15, 0.05, 0];
+    
+    const shuffledPool = [...finalPool].sort(() => Math.random() - 0.5);
+    
+    for (const uType of shuffledPool) {
+        if (remainingBudget < 50) break;
+        
+        const unitCost = calculateUnitCP(uType);
+        const unitIdx = UNIT_ByScore.indexOf(uType);
+        const tierWeight = tierWeights[unitIdx] || 0.1;
+        
+        const allocation = remainingBudget * tierWeight;
+        const count = Math.max(1, Math.floor(allocation / unitCost));
+        const actualCost = count * unitCost;
+        
+        if (actualCost <= remainingBudget) {
+            army[uType] = (army[uType] || 0) + count;
+            remainingBudget -= actualCost;
+        }
+    }
+    
+    if (Object.keys(army).length === 0 && availableUnits.length > 0) {
+        army[availableUnits[0]] = Math.max(1, Math.floor(budget / calculateUnitCP(availableUnits[0])));
+    }
+    
+    return army;
 };
 
 export const generateBotArmy = (
     targetScore: number, 
-    budgetMultiplier: number = 1.0
+    budgetMultiplier: number = 1.0,
+    personality?: BotPersonality
 ): Partial<Record<UnitType, number>> => {
     
-    const totalBudget = targetScore * 1.250 * budgetMultiplier;
+    const totalBudget = targetScore * 2250 * budgetMultiplier;
 
-    const allowedUnits = getAvailableUnitsForScore(targetScore);
+    const availableUnits = getUnitsByScoreRange(targetScore);
+    const activePersonality = personality || BotPersonality.WARLORD;
+    const budgetSplit = PERSONALITY_BUDGET_SPLIT[activePersonality];
+
+    const attackBudget = totalBudget * budgetSplit.attackRatio;
+    const defenseBudget = totalBudget * budgetSplit.defenseRatio;
+
+    const attackArmy = getSmartUnitComposition(
+        attackBudget,
+        activePersonality,
+        false,
+        availableUnits
+    );
+
+    const defenseArmy = getSmartUnitComposition(
+        defenseBudget,
+        activePersonality,
+        true,
+        availableUnits
+    );
+
+    const combinedArmy: Partial<Record<UnitType, number>> = { ...attackArmy };
     
-    const army: Partial<Record<UnitType, number>> = {};
-
-    let buckets: { poolName: keyof typeof UNIT_POOLS | 'ALL', ratio: number }[] = [];
-
-    buckets = [
-        { poolName: 'ELITE', ratio: 1.0 }
-    ];
-
-    buckets.forEach(bucket => {
-        const bucketBudget = totalBudget * bucket.ratio;
-        
-        let poolUnits: UnitType[] = [];
-        
-        if (bucket.poolName === 'ALL') {
-            poolUnits = allowedUnits;
-        } else {
-            const definition = UNIT_POOLS[bucket.poolName];
-            poolUnits = allowedUnits.filter(u => definition.includes(u));
-        }
-
-        if (poolUnits.length === 0) {
-            poolUnits = allowedUnits;
-        }
-
-        poolUnits.sort((a, b) => calculateUnitCP(b) - calculateUnitCP(a));
-        const cutoff = Math.ceil(poolUnits.length * 0.5);
-        poolUnits = poolUnits.slice(0, cutoff);
-
-        spendBudgetOnPool(bucketBudget, poolUnits, army);
+    Object.entries(defenseArmy).forEach(([uType, count]) => {
+        const key = uType as UnitType;
+        combinedArmy[key] = (combinedArmy[key] || 0) + (count || 0);
     });
 
-    if (Object.keys(army).length === 0) {
-        army[UnitType.CYBER_MARINE] = Math.max(1, Math.floor(totalBudget / calculateUnitCP(UnitType.CYBER_MARINE)));
-    }
-
-    return army;
+    return combinedArmy;
 };
 
 export const generateBotBuildings = (score: number): Partial<Record<BuildingType, number>> => {
@@ -236,17 +325,19 @@ export const resolveMission = (
     if (mission.type === 'PVP_ATTACK' && mission.targetScore !== undefined) {
         let botArmy: Partial<Record<UnitType, number>> = {};
         const isWarAttack = mission.isWarAttack && activeWar && (activeWar.enemyId === mission.targetId);
+        const targetBot = rankingBots.find(b => b.id === mission.targetId);
+        const targetPersonality = targetBot?.personality || BotPersonality.WARLORD;
 
         if (isWarAttack && activeWar) {
             const attackNum = WAR_PLAYER_ATTACKS - activeWar.playerAttacksLeft + 1;
             if (attackNum === 6) {
                 const fullBudgetMultiplier = 1.0 / BOT_BUDGET_RATIO;
-                botArmy = generateBotArmy(mission.targetScore, fullBudgetMultiplier);
+                botArmy = generateBotArmy(mission.targetScore, fullBudgetMultiplier, targetPersonality);
             } else {
                 botArmy = activeWar.currentEnemyGarrison || {};
             }
         } else {
-            botArmy = generateBotArmy(mission.targetScore, 1.0);
+            botArmy = generateBotArmy(mission.targetScore, 1.0, targetPersonality);
         }
 
         const battleResult = simulateCombat(mission.units, botArmy, 1.0);

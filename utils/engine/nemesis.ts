@@ -21,8 +21,9 @@ export const calculateRetaliationTime = (personality: BotPersonality, now: numbe
             return now + shortBuffer;
         
         case BotPersonality.TURTLE:
-            // Defensive: Takes time to rebuild huge army, then strikes hard
-            return now + longBuffer;
+            // Defensive: Takes time to rebuild army, then strikes (reduced from 4-16h to 2-6h)
+            const turtleBuffer = (2 + Math.random() * 4) * 60 * 60 * 1000; // 2-6 hours
+            return now + turtleBuffer;
         
         case BotPersonality.TYCOON:
             // Economic: Hires mercenaries (simulated by standard attack) but delayed
@@ -46,7 +47,7 @@ const launchRetaliation = (grudge: Grudge, now: number): IncomingAttack => {
     if (grudge.botPersonality === BotPersonality.WARLORD) multiplier = 1.3;
     if (grudge.botPersonality === BotPersonality.TURTLE) multiplier = 1.5; // Turtles send massive "Deathballs"
 
-    const units = generateBotArmy(grudge.botScore, multiplier);
+    const units = generateBotArmy(grudge.botScore, multiplier, grudge.botPersonality);
 
     return {
         id: `retal-${grudge.id}-${now}`,

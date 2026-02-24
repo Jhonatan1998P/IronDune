@@ -12,6 +12,7 @@ import {
 import { simulateCombat } from './combat';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
+import { processNemesisTick } from './nemesis';
 
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -197,6 +198,16 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         bots: decayedBots
     };
     newState.lastReputationDecayTime = newLastDecayTime;
+
+    // Process Nemesis System (Grudges & Retaliation) Offline
+    const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(newState, now);
+    if (nemesisUpdates.grudges) {
+        newState.grudges = nemesisUpdates.grudges;
+    }
+    if (nemesisUpdates.incomingAttacks) {
+        newState.incomingAttacks = nemesisUpdates.incomingAttacks;
+    }
+    newLogs.push(...nemesisLogs);
 
     return { newState, report, newLogs };
 };
