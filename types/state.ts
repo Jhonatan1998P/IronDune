@@ -145,6 +145,7 @@ export interface WarState {
 export interface RankingData {
     bots: StaticBot[];
     lastUpdateTime: number;
+    lastPlayerRank?: number;
 }
 
 export interface DiplomaticActionRecord {

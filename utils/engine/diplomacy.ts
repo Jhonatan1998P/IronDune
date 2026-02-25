@@ -6,7 +6,6 @@ import {
     REPUTATION_MAX,
     REPUTATION_DECAY_INTERVAL_MS,
     REPUTATION_DECAY_AMOUNT,
-    REPUTATION_DECAY_NEUTRAL_ZONE,
     REPUTATION_DECAY_MIN_THRESHOLD,
     REPUTATION_DECAY_MAX_THRESHOLD,
     REPUTATION_DECAY_BOOST_THRESHOLD,
@@ -40,7 +39,7 @@ export interface ReputationDecayResult {
 }
 
 const calculateDecayMultiplier = (reputation: number): number => {
-    if (reputation > REPUTATION_DECAY_BOOST_THRESHOLD) {
+    if (reputation >= REPUTATION_DECAY_BOOST_THRESHOLD) {
         return 1.0;
     }
     const ratio = reputation / REPUTATION_DECAY_BOOST_THRESHOLD;
@@ -55,6 +54,7 @@ export const processReputationDecay = (
 ): ReputationDecayResult => {
     const elapsed = now - lastDecayTime;
     const cycles = Math.floor(elapsed / REPUTATION_DECAY_INTERVAL_MS);
+    const remainder = elapsed % REPUTATION_DECAY_INTERVAL_MS;
     
     if (cycles <= 0) {
         return {
@@ -67,29 +67,21 @@ export const processReputationDecay = (
     const updatedBots = bots.map(bot => {
         const currentRep = bot.reputation ?? 50;
         
+        // Reputation >= 75 is STABLE - no decay
         if (currentRep >= REPUTATION_DECAY_MAX_THRESHOLD) {
             return bot;
         }
         
-        if (currentRep <= REPUTATION_MIN) {
-            return bot;
-        }
-        
+        // Always decay when below 75
+        // Multiplier: 1x for rep >= 40, up to 2x for rep = 0
         const multiplier = calculateDecayMultiplier(currentRep);
-        const effectiveDecayAmount = REPUTATION_DECAY_AMOUNT * multiplier;
+        const decayPerCycle = Math.floor(REPUTATION_DECAY_AMOUNT * multiplier);
         
-        let newRep = currentRep;
-        
-        if (currentRep > 100 - REPUTATION_DECAY_NEUTRAL_ZONE) {
-            newRep = Math.max(100 - REPUTATION_DECAY_NEUTRAL_ZONE, currentRep - (effectiveDecayAmount * cycles));
-        }
-        else if (currentRep < REPUTATION_DECAY_NEUTRAL_ZONE) {
-            newRep = Math.min(REPUTATION_DECAY_NEUTRAL_ZONE, currentRep + (effectiveDecayAmount * cycles));
-        }
+        const newRep = currentRep - (decayPerCycle * cycles);
         
         return {
             ...bot,
-            reputation: Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, newRep))
+            reputation: Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, Math.floor(newRep)))
         };
     });
 
@@ -98,7 +90,7 @@ export const processReputationDecay = (
     return {
         updatedBots,
         decayLogs,
-        newLastDecayTime: lastDecayTime + (cycles * REPUTATION_DECAY_INTERVAL_MS)
+        newLastDecayTime: lastDecayTime + (cycles * REPUTATION_DECAY_INTERVAL_MS) + remainder
     };
 };
 

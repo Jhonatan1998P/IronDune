@@ -213,10 +213,11 @@ export const initializeRankingState = (): RankingData => ({
             currentEvent: BotEvent.PEACEFUL_PERIOD,
             eventTurnsRemaining: 0,
             growthModifier: 0,
-            reputation: 50 // Neutral starting reputation
+            reputation: 50
         };
     }),
-    lastUpdateTime: Date.now()
+    lastUpdateTime: Date.now(),
+    lastPlayerRank: TOTAL_BOTS + 1
 });
 
 const applyEvent = (bot: StaticBot): StaticBot => {
@@ -362,6 +363,8 @@ const getTier = (rank: number): RankingEntry['tier'] => {
 };
 
 export const getCurrentStandings = (state: GameState, bots: StaticBot[], category: RankingCategory): RankingEntry[] => {
+    const previousPlayerRank = state.rankingData.lastPlayerRank;
+    
     const entries: RankingEntry[] = bots.map(bot => {
         const score = bot.stats[category];
         const ratio = score / Math.max(1, state.empirePoints);
@@ -391,15 +394,27 @@ export const getCurrentStandings = (state: GameState, bots: StaticBot[], categor
         country: 'US',
         tier: 'D',
         trend: 0,
+        _rawLastRank: previousPlayerRank,
         personality: BotPersonality.WARLORD
     });
 
     entries.sort((a, b) => b.score - a.score);
 
-    return entries.map((entry, index) => ({
+    const result = entries.map((entry, index) => ({
         ...entry,
         rank: index + 1,
         tier: getTier(index + 1),
         trend: (entry._rawLastRank || 0) - (index + 1)
     }));
+
+    bots.forEach((bot, index) => {
+        bot.lastRank = index + 1;
+    });
+
+    const playerEntry = result.find(e => e.isPlayer);
+    if (playerEntry && state.rankingData) {
+        state.rankingData.lastPlayerRank = playerEntry.rank;
+    }
+
+    return result;
 };

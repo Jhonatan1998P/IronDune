@@ -99,10 +99,9 @@ export const REPUTATION_MAX = 100;
 // DIPLOMACY SYSTEM
 export const REPUTATION_DECAY_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 export const REPUTATION_DECAY_AMOUNT = 2; // Reputation loss per decay interval
-export const REPUTATION_DECAY_NEUTRAL_ZONE = 40; // Reputation between 30-70 doesn't decay
 export const REPUTATION_DECAY_MIN_THRESHOLD = 0; // Minimum reputation is 0 (no floor)
-export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // Above this, reputation doesn't decay
-export const REPUTATION_DECAY_BOOST_THRESHOLD = 30; // Below this, decay is accelerated
+export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // >= 75 doesn't decay
+export const REPUTATION_DECAY_BOOST_THRESHOLD = 40; // Below 40, decay accelerates
 export const REPUTATION_DECAY_MAX_MULTIPLIER = 2.0; // Maximum 2x decay when at 0 rep
 
 export const DIPLOMACY_GIFT_BASE_COST: Partial<Record<string, number>> = {
