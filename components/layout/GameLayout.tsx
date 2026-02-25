@@ -72,13 +72,6 @@ export const GameLayout: React.FC = () => {
           <ObjectiveTracker />
           <WarHUD />
           
-          {/* Floating Indicator (Mobile/Tablet Only) - Positioned below fixed header */}
-          <div className="xl:hidden fixed top-24 right-4 z-40 pointer-events-none">
-            <div className="pointer-events-auto">
-                <ActiveAttacksIndicator />
-            </div>
-          </div>
-          
           {/* 1. FIXED HEADER */}
           <div id="game-header" className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
               <GameHeader onToggleStatus={() => setIsStatusPanelOpen(true)} />
@@ -92,6 +85,9 @@ export const GameLayout: React.FC = () => {
 
             {/* Center Panel: Content */}
             <div className="flex-1 overflow-y-auto scroll-smooth relative flex flex-col custom-scrollbar" id="main-scroll-view">
+              <div className="xl:hidden">
+                  <ActiveAttacksIndicator />
+              </div>
               <div className="w-full min-h-full p-3 md:p-6 flex flex-col max-w-[1920px] mx-auto">
                 <div className="flex-1 flex flex-col min-h-0 pb-6">
                   <ViewRouter 
