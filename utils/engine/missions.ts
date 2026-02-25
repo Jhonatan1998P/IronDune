@@ -39,6 +39,144 @@ const calculateUnitCP = (uType: UnitType): number => {
     return moneyVal + oilVal + ammoVal + goldVal;
 };
 
+interface UnitMetrics {
+    type: UnitType;
+    cost: number;
+    dps: number;
+    hp: number;
+    effectiveHP: number;
+    attack: number;
+    defense: number;
+    tier: number;
+    category: string;
+    dpsPerCost: number;
+    hpPerCost: number;
+    synergyScore: number;
+}
+
+const calculateUnitMetrics = (uType: UnitType, tier: number): UnitMetrics => {
+    const def = UNIT_DEFS[uType];
+    const cost = calculateUnitCP(uType);
+    const dps = def.attack * (1 + (def.rapidFire ? Object.values(def.rapidFire).reduce((a, b) => a + b, 0) * 0.1 : 0));
+    const effectiveHP = def.hp + (def.defense * 2);
+    
+    return {
+        type: uType,
+        cost,
+        dps,
+        hp: def.hp,
+        effectiveHP,
+        attack: def.attack,
+        defense: def.defense,
+        tier,
+        category: def.category,
+        dpsPerCost: dps / cost,
+        hpPerCost: def.hp / cost,
+        synergyScore: 0
+    };
+};
+
+const PERSONALITY_STRATEGY = {
+    [BotPersonality.WARLORD]: {
+        offense: {
+            primaryRole: 'DAMAGE_DEALER',
+            tierFocus: [3, 4, 2, 1],
+            categories: ['AIR', 'TANK', 'NAVAL'],
+            ratio: { heavy: 0.50, medium: 0.30, light: 0.20 },
+            eliteThreshold: 0.15,
+            dpsWeight: 0.7,
+            tankWeight: 0.3
+        },
+        defense: {
+            primaryRole: 'TANK',
+            tierFocus: [2, 3, 1],
+            categories: ['TANK', 'NAVAL', 'GROUND'],
+            ratio: { heavy: 0.30, medium: 0.40, light: 0.30 },
+            eliteThreshold: 0.10,
+            dpsWeight: 0.4,
+            tankWeight: 0.6
+        }
+    },
+    [BotPersonality.TURTLE]: {
+        offense: {
+            primaryRole: 'COUNTER',
+            tierFocus: [2, 3, 1],
+            categories: ['TANK', 'NAVAL'],
+            ratio: { heavy: 0.40, medium: 0.40, light: 0.20 },
+            eliteThreshold: 0.08,
+            dpsWeight: 0.5,
+            tankWeight: 0.5
+        },
+        defense: {
+            primaryRole: 'FORTIFY',
+            tierFocus: [4, 3, 2],
+            categories: ['NAVAL', 'TANK'],
+            ratio: { heavy: 0.55, medium: 0.30, light: 0.15 },
+            eliteThreshold: 0.20,
+            dpsWeight: 0.3,
+            tankWeight: 0.7
+        }
+    },
+    [BotPersonality.TYCOON]: {
+        offense: {
+            primaryRole: 'EFFICIENCY',
+            tierFocus: [2, 3, 1],
+            categories: ['TANK', 'GROUND', 'AIR'],
+            ratio: { heavy: 0.25, medium: 0.45, light: 0.30 },
+            eliteThreshold: 0.05,
+            dpsWeight: 0.6,
+            tankWeight: 0.4
+        },
+        defense: {
+            primaryRole: 'BALANCED',
+            tierFocus: [2, 3, 1],
+            categories: ['TANK', 'NAVAL', 'AIR'],
+            ratio: { heavy: 0.35, medium: 0.40, light: 0.25 },
+            eliteThreshold: 0.10,
+            dpsWeight: 0.4,
+            tankWeight: 0.6
+        }
+    },
+    [BotPersonality.ROGUE]: {
+        offense: {
+            primaryRole: 'SURPRISE',
+            tierFocus: [3, 2, 1],
+            categories: ['AIR', 'GROUND'],
+            ratio: { heavy: 0.20, medium: 0.35, light: 0.45 },
+            eliteThreshold: 0.12,
+            dpsWeight: 0.75,
+            tankWeight: 0.25
+        },
+        defense: {
+            primaryRole: 'RESPONSE',
+            tierFocus: [2, 3, 1],
+            categories: ['TANK', 'AIR'],
+            ratio: { heavy: 0.25, medium: 0.35, light: 0.40 },
+            eliteThreshold: 0.08,
+            dpsWeight: 0.5,
+            tankWeight: 0.5
+        }
+    }
+};
+
+const UNIT_COUNTERS: Record<UnitType, UnitType[]> = {
+    [UnitType.CYBER_MARINE]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO],
+    [UnitType.HEAVY_COMMANDO]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO, UnitType.SCOUT_TANK],
+    [UnitType.SCOUT_TANK]: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT],
+    [UnitType.TITAN_MBT]: [UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
+    [UnitType.WRAITH_GUNSHIP]: [UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
+    [UnitType.ACE_FIGHTER]: [UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER],
+    [UnitType.AEGIS_DESTROYER]: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB],
+    [UnitType.PHANTOM_SUB]: [UnitType.PHANTOM_SUB]
+};
+
+const SYNERGY_BONUS: Record<string, UnitType[]> = {
+    'AIR+TANK': [UnitType.WRAITH_GUNSHIP, UnitType.TITAN_MBT],
+    'NAVAL+AIR': [UnitType.AEGIS_DESTROYER, UnitType.ACE_FIGHTER],
+    'TANK+GROUND': [UnitType.TITAN_MBT, UnitType.HEAVY_COMMANDO],
+    'GROUND+AIR': [UnitType.CYBER_MARINE, UnitType.ACE_FIGHTER]
+};
+
 const UNITS_BY_TIER = {
     1: [UnitType.CYBER_MARINE, UnitType.SCOUT_TANK, UnitType.AEGIS_DESTROYER],
     2: [UnitType.HEAVY_COMMANDO, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
@@ -58,11 +196,19 @@ const UNIT_ByScore: UnitType[] = [
 ];
 
 const getUnitsByScoreRange = (score: number): UnitType[] => {
-    if (score < 10000) {
+    if (score < 500) {
+        return UNIT_ByScore.slice(0, 1);
+    } else if (score < 1500) {
+        return UNIT_ByScore.slice(0, 2);
+    } else if (score < 3000) {
         return UNIT_ByScore.slice(0, 3);
-    } else if (score < 25000) {
+    } else if (score < 6000) {
+        return UNIT_ByScore.slice(0, 4);
+    } else if (score < 10000) {
         return UNIT_ByScore.slice(0, 5);
-    } else if (score < 35000) {
+    } else if (score < 18000) {
+        return UNIT_ByScore.slice(0, 6);
+    } else if (score < 25000) {
         return UNIT_ByScore.slice(0, 7);
     } else {
         return UNIT_ByScore;
@@ -85,48 +231,11 @@ const getAvailableUnitsForScore = (score: number): UnitType[] => {
     return pool;
 };
 
-const UNIT_COUNTERS: Record<UnitType, UnitType[]> = {
-    [UnitType.CYBER_MARINE]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO],
-    [UnitType.HEAVY_COMMANDO]: [UnitType.CYBER_MARINE, UnitType.HEAVY_COMMANDO, UnitType.SCOUT_TANK],
-    [UnitType.SCOUT_TANK]: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT],
-    [UnitType.TITAN_MBT]: [UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP],
-    [UnitType.WRAITH_GUNSHIP]: [UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
-    [UnitType.ACE_FIGHTER]: [UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER],
-    [UnitType.AEGIS_DESTROYER]: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB],
-    [UnitType.PHANTOM_SUB]: [UnitType.PHANTOM_SUB]
-};
-
-const UNIT_QUALITY_BY_PERSONALITY: Record<BotPersonality, { minTier: number; maxTier: number }> = {
-    [BotPersonality.WARLORD]: { minTier: 3, maxTier: 8 },
-    [BotPersonality.TURTLE]: { minTier: 1, maxTier: 4 },
-    [BotPersonality.TYCOON]: { minTier: 2, maxTier: 6 },
-    [BotPersonality.ROGUE]: { minTier: 2, maxTier: 7 }
-};
-
 const PERSONALITY_BUDGET_SPLIT: Record<BotPersonality, { attackRatio: number; defenseRatio: number }> = {
     [BotPersonality.WARLORD]: { attackRatio: 0.70, defenseRatio: 0.30 },
     [BotPersonality.TURTLE]: { attackRatio: 0.30, defenseRatio: 0.70 },
     [BotPersonality.TYCOON]: { attackRatio: 0.50, defenseRatio: 0.50 },
     [BotPersonality.ROGUE]: { attackRatio: 0.60, defenseRatio: 0.40 }
-};
-
-const PERSONALITY_TACTICS: Record<BotPersonality, { offenseFocus: UnitType[]; defenseFocus: UnitType[] }> = {
-    [BotPersonality.WARLORD]: {
-        offenseFocus: [UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER, UnitType.PHANTOM_SUB],
-        defenseFocus: [UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.WRAITH_GUNSHIP]
-    },
-    [BotPersonality.TURTLE]: {
-        offenseFocus: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER],
-        defenseFocus: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB, UnitType.TITAN_MBT, UnitType.WRAITH_GUNSHIP]
-    },
-    [BotPersonality.TYCOON]: {
-        offenseFocus: [UnitType.HEAVY_COMMANDO, UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP],
-        defenseFocus: [UnitType.SCOUT_TANK, UnitType.TITAN_MBT, UnitType.AEGIS_DESTROYER, UnitType.ACE_FIGHTER]
-    },
-    [BotPersonality.ROGUE]: {
-        offenseFocus: [UnitType.HEAVY_COMMANDO, UnitType.ACE_FIGHTER, UnitType.PHANTOM_SUB, UnitType.WRAITH_GUNSHIP],
-        defenseFocus: [UnitType.SCOUT_TANK, UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER]
-    }
 };
 
 const getSmartUnitComposition = (
@@ -136,61 +245,130 @@ const getSmartUnitComposition = (
     availableUnits: UnitType[]
 ): Partial<Record<UnitType, number>> => {
     const army: Partial<Record<UnitType, number>> = {};
-    const quality = UNIT_QUALITY_BY_PERSONALITY[personality];
-    const tactics = PERSONALITY_TACTICS[personality];
-    const focusList = isDefense ? tactics.defenseFocus : tactics.offenseFocus;
+    const strategy = PERSONALITY_STRATEGY[personality][isDefense ? 'defense' : 'offense'];
     
-    const filteredUnits = availableUnits.filter(u => {
-        const idx = UNIT_ByScore.indexOf(u);
-        return idx >= quality.minTier - 1 && idx <= quality.maxTier - 1;
+    const unitMetricsList: UnitMetrics[] = availableUnits.map((uType, idx) => {
+        return calculateUnitMetrics(uType, idx + 1);
     });
-    
-    const prioritizedUnits = focusList.filter(u => filteredUnits.includes(u));
-    
+
+    const getTierCategory = (tier: number): 'heavy' | 'medium' | 'light' => {
+        if (tier >= 4) return 'heavy';
+        if (tier >= 2) return 'medium';
+        return 'light';
+    };
+
+    unitMetricsList.forEach(metric => {
+        let score = 0;
+        
+        const tierIdx = strategy.tierFocus.indexOf(metric.tier);
+        if (tierIdx !== -1) {
+            score += (strategy.tierFocus.length - tierIdx) * 10;
+        }
+        
+        if (strategy.categories.includes(metric.category)) {
+            score += 15;
+        }
+        
+        if (isDefense) {
+            score += (metric.hpPerCost * 100);
+            score += (metric.defense * 0.5);
+        } else {
+            score += (metric.dpsPerCost * 100);
+            score += (metric.attack * 0.3);
+        }
+        
+        if (metric.tier === 4 && Math.random() < strategy.eliteThreshold) {
+            score += 20;
+        }
+        
+        metric.synergyScore = score;
+    });
+
+    const sortedUnits = [...unitMetricsList].sort((a, b) => b.synergyScore - a.synergyScore);
+
+    const tierRatios = strategy.ratio;
+    const budgetByTier = {
+        heavy: budget * tierRatios.heavy,
+        medium: budget * tierRatios.medium,
+        light: budget * tierRatios.light
+    };
+
+    const allocatedUnits: Set<UnitType> = new Set();
+
+    const allocateByTier = (tier: 'heavy' | 'medium' | 'light') => {
+        const tierBudget = budgetByTier[tier];
+        if (tierBudget < 100) return;
+
+        const tierUnits = sortedUnits.filter(u => 
+            getTierCategory(u.tier) === tier && 
+            !allocatedUnits.has(u.type) &&
+            strategy.categories.includes(u.category)
+        );
+
+        if (tierUnits.length === 0) return;
+
+        const primaryUnit = tierUnits[0];
+        const remainingBudget = tierBudget;
+
+        let count = Math.max(1, Math.floor(remainingBudget * 0.6 / primaryUnit.cost));
+        const cost = count * primaryUnit.cost;
+
+        if (cost <= remainingBudget) {
+            army[primaryUnit.type] = count;
+            allocatedUnits.add(primaryUnit.type);
+            budgetByTier[tier] -= cost;
+        }
+
+        if (tierBudget - cost > primaryUnit.cost * 5 && tierUnits.length > 1) {
+            const secondaryUnit = tierUnits[1];
+            const secondaryCount = Math.max(1, Math.floor((tierBudget - cost) * 0.4 / secondaryUnit.cost));
+            const secondaryCost = secondaryCount * secondaryUnit.cost;
+            
+            if (secondaryCost <= tierBudget - cost) {
+                army[secondaryUnit.type] = (army[secondaryUnit.type] || 0) + secondaryCount;
+                allocatedUnits.add(secondaryUnit.type);
+                budgetByTier[tier] -= secondaryCost;
+            }
+        }
+    };
+
+    allocateByTier('heavy');
+    allocateByTier('medium');
+    allocateByTier('light');
+
+    const leftoverBudget = Object.values(budgetByTier).reduce((a, b) => a + b, 0);
+    if (leftoverBudget > 500) {
+        const affordableUnits = sortedUnits
+            .filter(u => !allocatedUnits.has(u.type) && u.cost <= leftoverBudget)
+            .slice(0, 2);
+        
+        affordableUnits.forEach(u => {
+            const count = Math.max(1, Math.floor(leftoverBudget * 0.3 / u.cost));
+            army[u.type] = (army[u.type] || 0) + count;
+        });
+    }
+
     const counterUnits = new Set<UnitType>();
-    prioritizedUnits.forEach(u => {
-        const counters = UNIT_COUNTERS[u] || [];
+    Object.keys(army).forEach(uType => {
+        const counters = UNIT_COUNTERS[uType as UnitType] || [];
         counters.forEach(c => {
-            if (filteredUnits.includes(c)) counterUnits.add(c);
+            if (availableUnits.includes(c)) counterUnits.add(c);
         });
     });
-    
-    const finalPool = [...new Set([...prioritizedUnits, ...counterUnits])].filter(u => availableUnits.includes(u));
-    
-    if (finalPool.length === 0) {
-        return { [availableUnits[0]]: Math.floor(budget / calculateUnitCP(availableUnits[0])) };
-    }
-    
-    let remainingBudget = budget;
-    const safetyCounter = 0;
-    
-    const tierWeights = isDefense 
-        ? [0.1, 0.15, 0.25, 0.3, 0.15, 0.05, 0, 0]
-        : [0.05, 0.1, 0.2, 0.25, 0.2, 0.15, 0.05, 0];
-    
-    const shuffledPool = [...finalPool].sort(() => Math.random() - 0.5);
-    
-    for (const uType of shuffledPool) {
-        if (remainingBudget < 50) break;
-        
-        const unitCost = calculateUnitCP(uType);
-        const unitIdx = UNIT_ByScore.indexOf(uType);
-        const tierWeight = tierWeights[unitIdx] || 0.1;
-        
-        const allocation = remainingBudget * tierWeight;
-        const count = Math.max(1, Math.floor(allocation / unitCost));
-        const actualCost = count * unitCost;
-        
-        if (actualCost <= remainingBudget) {
-            army[uType] = (army[uType] || 0) + count;
-            remainingBudget -= actualCost;
+
+    counterUnits.forEach(cType => {
+        if (!army[cType] && availableUnits.includes(cType)) {
+            const cMetric = unitMetricsList.find(m => m.type === cType);
+            if (cMetric && cMetric.cost <= budget * 0.05) {
+                army[cType] = 1;
+            }
         }
-    }
-    
+    });
+
     if (Object.keys(army).length === 0 && availableUnits.length > 0) {
         army[availableUnits[0]] = Math.max(1, Math.floor(budget / calculateUnitCP(availableUnits[0])));
     }
-    
+
     return army;
 };
 
@@ -558,9 +736,10 @@ export const generateSpyReport = (
     bot: StaticBot,
     now: number
 ): SpyReport => {
-    const defenseBudget = bot.stats.DOMINION * 2250 * 0.7;
-    const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
     const personality = bot.personality || BotPersonality.WARLORD;
+    const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
+    const defenseBudget = bot.stats.DOMINION * 2250 * defenseRatio;
+    const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
     
     const defenseArmy = getSmartUnitComposition(
         defenseBudget,
