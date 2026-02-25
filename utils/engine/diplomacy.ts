@@ -38,7 +38,7 @@ export interface ReputationDecayResult {
     newLastDecayTime: number;
 }
 
-const calculateDecayMultiplier = (reputation: number): number => {
+export const calculateDecayMultiplier = (reputation: number): number => {
     if (reputation >= REPUTATION_DECAY_BOOST_THRESHOLD) {
         return 1.0;
     }

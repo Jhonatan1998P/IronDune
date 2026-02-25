@@ -5,7 +5,7 @@ import { BotPersonality, ResourceType } from '../../types/enums';
 import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Users, Skull, Crown, Info } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
-import { calculateGiftCost } from '../../utils/engine/diplomacy';
+import { calculateGiftCost, calculateDecayMultiplier } from '../../utils/engine/diplomacy';
 import { formatNumber } from '../../utils';
 
 const DiplomacyView: React.FC = () => {
@@ -152,13 +152,15 @@ const DiplomacyView: React.FC = () => {
                 </div>
             );
         }
-        if (rep <= 30) {
-            const multiplier = 1 + (1 - rep / 30) * 1;
+        if (rep < 40) {
+            const multiplier = calculateDecayMultiplier(rep);
+            const decayPerCycle = Math.floor(2 * multiplier);
             return (
                 <div className="space-y-1.5 text-xs">
                     <div className="font-bold text-red-400 flex items-center gap-1.5"><TrendingDown className="w-3.5 h-3.5" /> {t.common.ui.tooltip_accelerated_decay || 'Decaimiento Acelerado'}</div>
                     <div className="text-slate-400">{t.common.ui.tooltip_decay_multiplier || 'Multiplicador'}: x{multiplier.toFixed(1)}</div>
-                    <div className="text-slate-500">{t.common.ui.tooltip_decay_info || 'Bajo 30 de reputación, el decaimiento es más rápido'}</div>
+                    <div className="text-slate-400">{t.common.ui.tooltip_decay_loss || 'Pérdida por ciclo'}: -{decayPerCycle}</div>
+                    <div className="text-slate-500">{t.common.ui.tooltip_decay_info || 'Bajo 40 de reputación, el decaimiento es más rápido'}</div>
                 </div>
             );
         }
@@ -167,14 +169,14 @@ const DiplomacyView: React.FC = () => {
                 <div className="font-bold text-yellow-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {t.common.ui.tooltip_normal_decay || 'Decaimiento Normal'}</div>
                 <div className="text-slate-400">{t.common.ui.tooltip_decay_interval || 'Intervalo'}: 4 horas</div>
                 <div className="text-slate-400">{t.common.ui.tooltip_decay_amount || 'Pérdida'}: -2 por ciclo</div>
-                <div className="text-slate-500">{t.common.ui.tooltip_decay_neutral || 'Zona neutral (30-70): sin decaimiento'}</div>
+                <div className="text-slate-500">{t.common.ui.tooltip_decay_normal_desc || 'Zona estable (40-74): decaimiento normal'}</div>
             </div>
         );
     };
 
     const getDecayIcon = (rep: number) => {
         if (rep >= 75) return <TrendingUp className="w-3 h-3 text-green-400" />;
-        if (rep <= 30) return <TrendingDown className="w-3 h-3 text-red-400" />;
+        if (rep < 40) return <TrendingDown className="w-3 h-3 text-red-400" />;
         return <Clock className="w-3 h-3 text-yellow-400" />;
     };
 

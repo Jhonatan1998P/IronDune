@@ -380,8 +380,15 @@ export interface TranslationDictionary {
       diplomacy_propose_peace: string;
       diplomacy_peace: string;
       tooltip_no_decay: string;
+      tooltip_no_decay_desc: string;
       tooltip_accelerated_decay: string;
       tooltip_normal_decay: string;
+      tooltip_decay_multiplier: string;
+      tooltip_decay_loss: string;
+      tooltip_decay_info: string;
+      tooltip_decay_interval: string;
+      tooltip_decay_amount: string;
+      tooltip_decay_normal_desc: string;
       diplomacy_gift_cost_based: string;
       reputation_loyal_ally: string;
       reputation_friendly: string;
