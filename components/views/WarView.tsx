@@ -59,7 +59,7 @@ export const WarView: React.FC<WarViewProps> = ({ gameState, onSpy, onSimulate }
     // Find the next incoming wave for intelligence
     const nextWave = gameState.incomingAttacks.find(a => a.isWarWave && a.endTime > Date.now());
     const waveTimeLeft = nextWave ? Math.max(0, nextWave.endTime - Date.now()) : 0;
-    const espionageCost = war.enemyScore * 64;
+    const espionageCost = Math.floor((war.enemyScore / 25) * 64);
     const canAffordEspionage = gameState.resources[ResourceType.GOLD] >= espionageCost;
 
     const handleAttackSent = (newState: GameState) => {

@@ -26,7 +26,7 @@ export const TacticalInterceptModal: React.FC<TacticalInterceptModalProps> = ({ 
     }, [attack.endTime, onClose]);
 
     const isEncrypted = !attack.isScouted;
-    const espionageCost = Math.max(100, Math.floor(attack.attackerScore * 64));
+    const espionageCost = Math.max(100, Math.floor((attack.attackerScore / 25) * 64));
     const canAfford = gameState.resources[ResourceType.GOLD] >= espionageCost;
 
     const getSuggestedDefense = (enemyUnits: Partial<Record<UnitType, number>>) => {

@@ -549,8 +549,9 @@ export const resolveMission = (
 const SPY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 export const calculateSpyCost = (botScore: number): number => {
-    const baseCost = Math.floor(botScore * 0.5);
-    return Math.max(1000, Math.min(100000, baseCost));
+    const minCost = 5000;
+    const maxCost = botScore * 10;
+    return Math.floor(Math.random() * (maxCost - minCost) + minCost);
 };
 
 export const generateSpyReport = (
