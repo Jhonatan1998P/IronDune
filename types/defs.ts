@@ -402,6 +402,14 @@ export interface TranslationDictionary {
       bot_event_resources_crisis: string;
       bot_event_military_buildup: string;
       bot_event_peaceful_period: string;
+      spy_button: string;
+      spy_report_title: string;
+      spy_hide_report: string;
+      spy_view_report: string;
+      spy_detected_units: string;
+      spy_estimated_resources: string;
+      spy_buildings: string;
+      spy_time_remaining: string;
     };
     menu: {
       new_game: string;

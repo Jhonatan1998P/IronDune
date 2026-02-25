@@ -216,6 +216,76 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
                 {!isMe && (
                     <div className="p-4 border-t border-white/10 bg-black/40 shrink-0 space-y-3">
+                        {!isMe && !activeSpyReport && (
+                            <GlassButton 
+                                onClick={handleSpy} 
+                                disabled={!canAffordSpy || isSpying} 
+                                variant="neutral" 
+                                className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20"
+                            >
+                                {isSpying ? '...' : t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}
+                            </GlassButton>
+                        )}
+
+                        {activeSpyReport && (
+                            <button 
+                                onClick={() => setShowSpyReport(!showSpyReport)}
+                                className="w-full py-2 text-xs font-bold tracking-widest uppercase border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20 rounded-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Radar className="w-4 h-4" />
+                                {showSpyReport ? t.common.ui.spy_hide_report : t.common.ui.spy_view_report}
+                            </button>
+                        )}
+
+                        {showSpyReport && activeSpyReport && (
+                            <div className="glass-panel rounded-xl border border-cyan-500/30 bg-cyan-950/20 text-xs max-h-64 overflow-y-auto custom-scrollbar">
+                                <div className="p-3 border-b border-cyan-500/20 flex items-center justify-between text-cyan-300 font-bold">
+                                    <span>{t.common.ui.spy_report_title}</span>
+                                    <span className="text-[10px] text-slate-400">
+                                        {Math.max(0, Math.ceil((activeSpyReport.expiresAt - now) / 60000))} {t.common.ui.spy_time_remaining}
+                                    </span>
+                                </div>
+                                
+                                <div className="p-3 space-y-3">
+                                    <div>
+                                        <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_detected_units}</div>
+                                        <div className="space-y-1 mt-1">
+                                            {Object.entries(activeSpyReport.units).map(([unitType, count]) => (
+                                                <div key={unitType} className="flex justify-between text-slate-300">
+                                                    <span>{t.common.resources[unitType] || unitType.replace(/_/g, ' ').toLowerCase()}</span>
+                                                    <span className="font-mono text-white">{formatNumber(count || 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_estimated_resources}</div>
+                                        <div className="space-y-1 mt-1">
+                                            {Object.entries(activeSpyReport.resources).map(([resType, amount]) => (
+                                                <div key={resType} className="flex justify-between text-slate-300">
+                                                    <span>{t.common.resources[resType] || resType}</span>
+                                                    <span className="font-mono text-white">{formatNumber(amount || 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_buildings}</div>
+                                        <div className="space-y-1 mt-1">
+                                            {Object.entries(activeSpyReport.buildings).slice(0, 4).map(([bType, count]) => (
+                                                <div key={bType} className="flex justify-between text-slate-300">
+                                                    <span className="text-[10px]">{t.common.resources[bType] || bType.replace(/_/g, ' ').toLowerCase()}</span>
+                                                    <span className="font-mono text-white">{formatNumber(count || 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <GlassButton 
                             onClick={onAttack} 
                             disabled={!inRange || isNewbie} 
@@ -234,68 +304,6 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             >
                                 {t.common.war.declare_title}
                             </GlassButton>
-                        )}
-
-                        {!isMe && !activeSpyReport && (
-                            <GlassButton 
-                                onClick={handleSpy} 
-                                disabled={!canAffordSpy || isSpying} 
-                                variant="neutral" 
-                                className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20"
-                            >
-                                {isSpying ? '...' : `Espiar (${formatNumber(spyCost)} 💰)`}
-                            </GlassButton>
-                        )}
-
-                        {activeSpyReport && (
-                            <button 
-                                onClick={() => setShowSpyReport(!showSpyReport)}
-                                className="w-full py-2 text-xs font-bold tracking-widest uppercase border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20 rounded-lg flex items-center justify-center gap-2"
-                            >
-                                <Icons.Radar className="w-4 h-4" />
-                                {showSpyReport ? 'Ocultar Informe' : 'Ver Informe de Espionaje'}
-                            </button>
-                        )}
-
-                        {showSpyReport && activeSpyReport && (
-                            <div className="glass-panel p-3 rounded-xl border border-cyan-500/30 bg-cyan-950/20 space-y-2 text-xs">
-                                <div className="flex items-center justify-between text-cyan-300 font-bold">
-                                    <span>INFORME DE INTELIGENCIA</span>
-                                    <span className="text-[10px] text-slate-400">
-                                        {Math.max(0, Math.ceil((activeSpyReport.expiresAt - now) / 60000))}m
-                                    </span>
-                                </div>
-                                
-                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Tropas Detectadas</div>
-                                <div className="space-y-1">
-                                    {Object.entries(activeSpyReport.units).map(([unitType, count]) => (
-                                        <div key={unitType} className="flex justify-between text-slate-300">
-                                            <span className="capitalize">{(unitType as UnitType).replace(/_/g, ' ').toLowerCase()}</span>
-                                            <span className="font-mono text-white">{formatNumber(count || 0)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Recursos Estimados</div>
-                                <div className="space-y-1">
-                                    {Object.entries(activeSpyReport.resources).map(([resType, amount]) => (
-                                        <div key={resType} className="flex justify-between text-slate-300">
-                                            <span className="capitalize">{(resType as ResourceType).toLowerCase()}</span>
-                                            <span className="font-mono text-white">{formatNumber(amount || 0)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Edificios</div>
-                                <div className="space-y-1">
-                                    {Object.entries(activeSpyReport.buildings).slice(0, 4).map(([bType, count]) => (
-                                        <div key={bType} className="flex justify-between text-slate-300">
-                                            <span className="capitalize text-[10px]">{(bType as string).replace(/_/g, ' ').toLowerCase()}</span>
-                                            <span className="font-mono text-white">{formatNumber(count || 0)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
                         )}
 
                         <div className="flex flex-col items-center gap-1">
