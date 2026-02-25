@@ -60,6 +60,7 @@ export const INITIAL_GAME_STATE: GameState = {
   incomingAttacks: [],
   activeWar: null,
   grudges: [],
+  spyReports: [],
   targetAttackCounts: {},
   lastAttackResetTime: Date.now(),
   rankingData: initializeRankingState(),

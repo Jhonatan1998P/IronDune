@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { GameState, TranslationDictionary } from '../../types';
-import { RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
+import { GameState, TranslationDictionary, SpyReport, ResourceType, UnitType } from '../../types';
+import { RankingEntry, getFlagEmoji, StaticBot } from '../../utils/engine/rankings';
 import { Icons, GlassButton } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { PVP_RANGE_MAX, PVP_RANGE_MIN, NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { BotPersonality } from '../../types/enums';
+import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions';
 
 interface ProfileModalProps {
     entry: RankingEntry;
@@ -13,6 +14,7 @@ interface ProfileModalProps {
     onClose: () => void;
     onDeclareWar: () => void;
     onAttack: () => void;
+    onUpdateState?: (updates: Partial<GameState>) => void;
 }
 
 const getTierInfo = (tier: string) => {
@@ -25,9 +27,50 @@ const getTierInfo = (tier: string) => {
     }
 };
 
-export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, gameState, t, onClose, onDeclareWar, onAttack }) => {
+export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, gameState, t, onClose, onDeclareWar, onAttack, onUpdateState }) => {
     const [topBarHeight, setTopBarHeight] = useState(70);
     const [bottomBarHeight, setBottomBarHeight] = useState(70);
+    const [showSpyReport, setShowSpyReport] = useState(false);
+    const [isSpying, setIsSpying] = useState(false);
+
+    const now = Date.now();
+    const activeSpyReport = gameState.spyReports?.find(r => r.botId === entry.id && r.expiresAt > now);
+    const spyCost = calculateSpyCost(entry.score);
+    const canAffordSpy = gameState.resources[ResourceType.GOLD] >= spyCost;
+
+    const handleSpy = () => {
+        if (!canAffordSpy || isSpying) return;
+        
+        const targetBot = gameState.rankingData.bots.find(b => b.id === entry.id);
+        if (!targetBot) return;
+        
+        setIsSpying(true);
+        
+        const newReport = generateSpyReport(targetBot, now);
+        
+        const newSpyReports = [...(gameState.spyReports || []), newReport];
+        
+        if (onUpdateState) {
+            onUpdateState({
+                resources: {
+                    ...gameState.resources,
+                    [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
+                },
+                spyReports: newSpyReports
+            });
+        } else if (typeof (window as any)._updateGameState === 'function') {
+            (window as any)._updateGameState({
+                resources: {
+                    ...gameState.resources,
+                    [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
+                },
+                spyReports: newSpyReports
+            });
+        }
+        
+        setShowSpyReport(true);
+        setIsSpying(false);
+    };
 
     useEffect(() => {
         const updateBarHeights = () => {
@@ -191,6 +234,68 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             >
                                 {t.common.war.declare_title}
                             </GlassButton>
+                        )}
+
+                        {!isMe && !activeSpyReport && (
+                            <GlassButton 
+                                onClick={handleSpy} 
+                                disabled={!canAffordSpy || isSpying} 
+                                variant="neutral" 
+                                className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20"
+                            >
+                                {isSpying ? '...' : `Espiar (${formatNumber(spyCost)} 💰)`}
+                            </GlassButton>
+                        )}
+
+                        {activeSpyReport && (
+                            <button 
+                                onClick={() => setShowSpyReport(!showSpyReport)}
+                                className="w-full py-2 text-xs font-bold tracking-widest uppercase border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20 rounded-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Radar className="w-4 h-4" />
+                                {showSpyReport ? 'Ocultar Informe' : 'Ver Informe de Espionaje'}
+                            </button>
+                        )}
+
+                        {showSpyReport && activeSpyReport && (
+                            <div className="glass-panel p-3 rounded-xl border border-cyan-500/30 bg-cyan-950/20 space-y-2 text-xs">
+                                <div className="flex items-center justify-between text-cyan-300 font-bold">
+                                    <span>INFORME DE INTELIGENCIA</span>
+                                    <span className="text-[10px] text-slate-400">
+                                        {Math.max(0, Math.ceil((activeSpyReport.expiresAt - now) / 60000))}m
+                                    </span>
+                                </div>
+                                
+                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Tropas Detectadas</div>
+                                <div className="space-y-1">
+                                    {Object.entries(activeSpyReport.units).map(([unitType, count]) => (
+                                        <div key={unitType} className="flex justify-between text-slate-300">
+                                            <span className="capitalize">{(unitType as UnitType).replace(/_/g, ' ').toLowerCase()}</span>
+                                            <span className="font-mono text-white">{formatNumber(count || 0)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Recursos Estimados</div>
+                                <div className="space-y-1">
+                                    {Object.entries(activeSpyReport.resources).map(([resType, amount]) => (
+                                        <div key={resType} className="flex justify-between text-slate-300">
+                                            <span className="capitalize">{(resType as ResourceType).toLowerCase()}</span>
+                                            <span className="font-mono text-white">{formatNumber(amount || 0)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-2">Edificios</div>
+                                <div className="space-y-1">
+                                    {Object.entries(activeSpyReport.buildings).slice(0, 4).map(([bType, count]) => (
+                                        <div key={bType} className="flex justify-between text-slate-300">
+                                            <span className="capitalize text-[10px]">{(bType as string).replace(/_/g, ' ').toLowerCase()}</span>
+                                            <span className="font-mono text-white">{formatNumber(count || 0)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
 
                         <div className="flex flex-col items-center gap-1">

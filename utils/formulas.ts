@@ -180,5 +180,5 @@ export const calculateResearchCost = (
 };
 
 export const calculateEspionageCost = (targetScore: number, playerLevel: number): number => {
-    return Math.floor((5000 + (targetScore * 2)) / 5);
+    return Math.floor(Math.random() * (targetScore * 5)) + 5000
 };

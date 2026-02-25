@@ -1,5 +1,5 @@
 
-import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, UnitPerformanceStats, BuildingType } from '../../types';
+import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, UnitPerformanceStats, BuildingType, SpyReport } from '../../types';
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
@@ -234,7 +234,7 @@ export const generateBotArmy = (
 };
 
 export const generateBotBuildings = (score: number): Partial<Record<BuildingType, number>> => {
-    const totalBuildings = Math.max(10, Math.floor(score / 10));
+    const totalBuildings = Math.max(10, Math.floor(score / 40));
     
     const weights = {
         [BuildingType.HOUSE]: 50,
@@ -292,7 +292,8 @@ export const resolveMission = (
     rankingBots: StaticBot[] = [],
     empirePoints: number = 0,
     buildings: Record<BuildingType, { level: number }> = {} as any,
-    attackCounts: Record<string, number> = {}
+    attackCounts: Record<string, number> = {},
+    spyReports: SpyReport[] = []
 ): { 
     resources: Record<ResourceType, number>, 
     unitsToAdd: Partial<Record<UnitType, number>>,
@@ -337,7 +338,12 @@ export const resolveMission = (
                 botArmy = activeWar.currentEnemyGarrison || {};
             }
         } else {
-            botArmy = generateBotArmy(mission.targetScore, 1.0, targetPersonality);
+            const spyReport = spyReports.find(r => r.botId === mission.targetId && r.expiresAt > now);
+            if (spyReport) {
+                botArmy = spyReport.units;
+            } else {
+                botArmy = generateBotArmy(mission.targetScore, 1.0, targetPersonality);
+            }
         }
 
         const battleResult = simulateCombat(mission.units, botArmy, 1.0);
@@ -538,4 +544,83 @@ export const resolveMission = (
     }
 
     return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
+};
+
+const SPY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
+export const calculateSpyCost = (botScore: number): number => {
+    const baseCost = Math.floor(botScore * 0.5);
+    return Math.max(1000, Math.min(100000, baseCost));
+};
+
+export const generateSpyReport = (
+    bot: StaticBot,
+    now: number
+): SpyReport => {
+    const defenseBudget = bot.stats.DOMINION * 2250 * 0.7;
+    const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
+    const personality = bot.personality || BotPersonality.WARLORD;
+    
+    const defenseArmy = getSmartUnitComposition(
+        defenseBudget,
+        personality,
+        true,
+        availableUnits
+    );
+
+    const estimatedResources: Partial<Record<ResourceType, number>> = {
+        [ResourceType.MONEY]: Math.floor(bot.stats.DOMINION * 100 + Math.random() * bot.stats.DOMINION * 50),
+        [ResourceType.OIL]: Math.floor(bot.stats.DOMINION * 20 + Math.random() * bot.stats.DOMINION * 10),
+        [ResourceType.AMMO]: Math.floor(bot.stats.DOMINION * 15 + Math.random() * bot.stats.DOMINION * 8),
+        [ResourceType.GOLD]: Math.floor(bot.stats.DOMINION * 2 + Math.random() * bot.stats.DOMINION * 1),
+        [ResourceType.DIAMOND]: Math.floor(bot.stats.DOMINION * 0.1 + Math.random() * bot.stats.DOMINION * 0.05)
+    };
+
+    const totalBuildings = Math.max(10, Math.floor(bot.stats.DOMINION / 10));
+    const buildingWeights: Partial<Record<BuildingType, number>> = {
+        [BuildingType.HOUSE]: 50,
+        [BuildingType.FACTORY]: 20,
+        [BuildingType.OIL_RIG]: 10,
+        [BuildingType.MUNITIONS_FACTORY]: 10,
+        [BuildingType.GOLD_MINE]: 8,
+        [BuildingType.SKYSCRAPER]: 2
+    };
+    const totalWeight = Object.values(buildingWeights).reduce((a, b) => a + b, 0);
+    const estimatedBuildings: Partial<Record<BuildingType, number>> = {};
+    Object.entries(buildingWeights).forEach(([bType, weight]) => {
+        estimatedBuildings[bType as BuildingType] = Math.floor(totalBuildings * (weight / totalWeight));
+    });
+
+    return {
+        id: `spy-${bot.id}-${now}`,
+        botId: bot.id,
+        botName: bot.name,
+        botScore: bot.stats.DOMINION,
+        botPersonality: personality,
+        createdAt: now,
+        expiresAt: now + SPY_EXPIRY_MS,
+        units: defenseArmy,
+        resources: estimatedResources,
+        buildings: estimatedBuildings
+    };
+};
+
+export const getSpyReportForBot = (
+    botId: string,
+    spyReports: SpyReport[],
+    now: number
+): SpyReport | undefined => {
+    return spyReports.find(r => r.botId === botId && r.expiresAt > now);
+};
+
+export const getBotDefensiveArmy = (
+    bot: StaticBot,
+    spyReports: SpyReport[],
+    now: number
+): Partial<Record<UnitType, number>> => {
+    const activeReport = getSpyReportForBot(bot.id, spyReports, now);
+    if (activeReport) {
+        return activeReport.units;
+    }
+    return generateBotArmy(bot.stats.DOMINION, 1.0, bot.personality || BotPersonality.WARLORD);
 };

@@ -131,7 +131,8 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
                 newState.rankingData.bots,
                 newState.empirePoints,
                 newState.buildings,
-                newState.targetAttackCounts
+                newState.targetAttackCounts,
+                newState.spyReports || []
             );
             
             Object.assign(newState.resources, outcome.resources);

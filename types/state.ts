@@ -157,6 +157,19 @@ export interface DiplomaticActions {
     [botId: string]: DiplomaticActionRecord;
 }
 
+export interface SpyReport {
+    id: string;
+    botId: string;
+    botName: string;
+    botScore: number;
+    botPersonality: BotPersonality;
+    createdAt: number;
+    expiresAt: number; // 10 minutes after spy
+    units: Partial<Record<UnitType, number>>;
+    resources: Partial<Record<ResourceType, number>>;
+    buildings: Partial<Record<BuildingType, number>>;
+}
+
 export interface GameState {
   saveVersion: number; 
   playerName: string;
@@ -197,6 +210,9 @@ export interface GameState {
   
   // Grudge System (New)
   grudges: Grudge[];
+
+  // Spy System (New)
+  spyReports: SpyReport[];
 
   // PvP Limits
   targetAttackCounts: Record<string, number>; // TargetID -> Count

@@ -207,6 +207,12 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                     onClose={() => setProfileEntry(null)}
                     onDeclareWar={handleDeclareWar}
                     onAttack={handlePrepareAttack}
+                    onUpdateState={(updates) => {
+                        if (onAttack) {
+                            const newState = { ...gameState, ...updates };
+                            onAttack(profileEntry, newState);
+                        }
+                    }}
                 />
             )}
 

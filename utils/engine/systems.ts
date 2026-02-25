@@ -62,7 +62,10 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 activeWar, 
                 now, 
                 state.rankingData.bots,
-                state.empirePoints
+                state.empirePoints,
+                state.buildings,
+                state.targetAttackCounts,
+                state.spyReports || []
             );
             
             // Apply outcome to local resources
