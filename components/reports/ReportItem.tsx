@@ -27,7 +27,7 @@ const getResourceIcon = (res: string) => {
     }
 };
 
-export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelected, onSelect, onDelete, onArchive, onViewDetails, onSimulate, t }) => {
+export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelected, onSelect: _onSelect, onDelete, onArchive, onViewDetails, onSimulate, t }) => {
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 

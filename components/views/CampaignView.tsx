@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { CAMPAIGN_TRAVEL_TIME } from '../../constants';
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { GameState, ResourceType, TechType, UnitType } from '../../types';

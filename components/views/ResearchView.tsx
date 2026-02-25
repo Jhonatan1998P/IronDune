@@ -10,11 +10,6 @@ import { formatDuration } from '../../utils';
 import { calculateResearchCost } from '../../utils/formulas';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 
-interface ViewProps {
-  gameState: GameState;
-  onAction: (id: any) => void;
-}
-
 const getTechComplexityScore = (def: TechDef): number => {
     let score = 0;
     score += def.reqUniversityLevel * 1000000;
@@ -25,7 +20,7 @@ const getTechComplexityScore = (def: TechDef): number => {
     return score;
 };
 
-export const ResearchView: React.FC<{ gameState: GameState; onAction: (techId: any) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = ({ gameState, onAction, onSpeedUp }) => {
+export const ResearchView: React.FC<{ gameState: GameState; onAction: (techId: any) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = ({ gameState, onAction, onSpeedUp: _onSpeedUp }) => {
   const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<TechCategory | 'ALL'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);

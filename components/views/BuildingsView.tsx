@@ -145,7 +145,7 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
     );
 };
 
-export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = ({ gameState, onAction, onSpeedUp, onRepair }) => {
+export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = ({ gameState, onAction, onSpeedUp: _onSpeedUp, onRepair }) => {
   const { t } = useLanguage();
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);

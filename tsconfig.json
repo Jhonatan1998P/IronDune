@@ -16,11 +16,11 @@
 
     /* Strictness & Linting */
     "strict": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true

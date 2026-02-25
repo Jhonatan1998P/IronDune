@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';

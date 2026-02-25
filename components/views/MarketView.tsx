@@ -39,10 +39,6 @@ const DiamondLiquidationCard: React.FC<{
                         // REFACTORED: Use shared SSOT function
                         const rate = calculateDiamondExchangeRate(res, gameState.empirePoints, gameState.activeMarketEvent);
                         
-                        const Icon = res === ResourceType.MONEY ? Icons.Resources.Money :
-                                     res === ResourceType.OIL ? Icons.Resources.Oil :
-                                     res === ResourceType.AMMO ? Icons.Resources.Ammo : Icons.Resources.Gold;
-                        
                         const color = res === ResourceType.MONEY ? 'text-emerald-400' :
                                       res === ResourceType.OIL ? 'text-purple-400' :
                                       res === ResourceType.AMMO ? 'text-orange-400' : 'text-yellow-400';
@@ -78,7 +74,7 @@ const MarketOfferCard: React.FC<{
     currentAmount: number;
     onAmountChange: (id: string, val: number) => void;
     onTrade: (id: string, amount: number) => void;
-}> = ({ offer, playerResources, maxResources, currentAmount, onAmountChange, onTrade }) => {
+}> = ({ offer, playerResources, maxResources: _maxResources, currentAmount, onAmountChange, onTrade }) => {
     const { t } = useLanguage();
     
     const isBuy = offer.type === 'BUY'; // Player Buys

@@ -171,34 +171,28 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ activeTab }) =
     
     const spaceTop = targetRect.top;
     const spaceBottom = screenH - targetRect.bottom;
-    const spaceLeft = targetRect.left;
     const spaceRight = screenW - targetRect.right;
 
     let arrowRot = 0; 
     let arrowTop = 0;
     let arrowLeft = 0;
-    let textPosClass = "";
 
     if (spaceBottom > 150) {
         arrowRot = 180;
         arrowTop = targetRect.bottom + 10;
         arrowLeft = targetRect.left + (targetRect.width / 2) - 20; 
-        textPosClass = "top-4"; 
     } else if (spaceTop > 150) {
         arrowRot = 0;
         arrowTop = targetRect.top - 50; 
         arrowLeft = targetRect.left + (targetRect.width / 2) - 20;
-        textPosClass = "bottom-4";
     } else if (spaceRight > 150) {
         arrowRot = -90;
         arrowTop = targetRect.top + (targetRect.height / 2) - 20;
         arrowLeft = targetRect.right + 10;
-        textPosClass = "left-4";
     } else {
         arrowRot = 90;
         arrowTop = targetRect.top + (targetRect.height / 2) - 20;
         arrowLeft = targetRect.left - 50;
-        textPosClass = "right-4";
     }
 
     return (

@@ -131,9 +131,9 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                                 {nameChangeCost}
                             </button>
                          </div>
-                         {nameError && (
-                            <p className="text-red-400 text-xs mt-2">{t.common.ui[nameError] || nameError}</p>
-                         )}
+                          {nameError && (
+                             <p className="text-red-400 text-xs mt-2">{(t.common.ui as Record<string, string>)[nameError] || nameError}</p>
+                          )}
                          {nameSuccess && (
                             <p className="text-emerald-400 text-xs mt-2">{t.common.ui.name_changed_success}</p>
                          )}

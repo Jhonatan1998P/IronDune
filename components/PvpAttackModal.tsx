@@ -60,7 +60,8 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
             onAttackSent(result.newState);
             onClose();
         } else {
-            alert(t.errors[result.errorKey || 'invalid_mission']);
+            const errorKey = (result.errorKey || 'invalid_mission') as keyof typeof t.errors;
+            alert(t.errors[errorKey] || t.errors.insufficient_funds);
         }
     };
 

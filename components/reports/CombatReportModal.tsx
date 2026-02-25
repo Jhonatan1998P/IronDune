@@ -74,9 +74,6 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
 
         const isWin = log.messageKey.includes('PLAYER') || (log.params?.winner === 'PLAYER');
     
-    // Translation fallback for missing keys to avoid LSP errors
-    const t_ui = t.common.ui as any;
-    
     return (
         <div className={`flex flex-col flex-1 w-full bg-slate-950 ${embedded ? '' : 'md:rounded-2xl overflow-hidden relative'} ${!embedded && (isWin ? 'md:border-2 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.1)]' : 'md:border-2 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.1)]')}`}>
                 <div className={`p-6 md:p-8 text-center border-b border-white/10 ${isWin ? 'bg-gradient-to-b from-emerald-900/40 to-transparent' : 'bg-gradient-to-b from-red-900/40 to-transparent'}`}>

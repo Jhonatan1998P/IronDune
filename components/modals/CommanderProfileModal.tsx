@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { GameState, TranslationDictionary, SpyReport, ResourceType, UnitType } from '../../types';
-import { RankingEntry, getFlagEmoji, StaticBot } from '../../utils/engine/rankings';
+import { GameState, TranslationDictionary, ResourceType, UnitType } from '../../types';
+import { RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { Icons, GlassButton } from '../UIComponents';
 import { formatNumber } from '../../utils';
-import { PVP_RANGE_MAX, PVP_RANGE_MIN, NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
+import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { BotPersonality } from '../../types/enums';
 import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions';
+import { UNIT_DEFS } from '../../data/units';
 
 interface ProfileModalProps {
     entry: RankingEntry;
@@ -94,7 +95,6 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     }, []);
 
     const modalHeight = `calc(100vh - ${topBarHeight}px - ${bottomBarHeight}px - 24px)`;
-    const modalTop = `${topBarHeight + 12}px`;
     const ratio = entry.score / Math.max(1, gameState.empirePoints);
     const inRange = ratio >= 0.5 && ratio <= 1.5;
     const percentage = Math.round(ratio * 100);
@@ -250,12 +250,16 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                     <div>
                                         <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_detected_units}</div>
                                         <div className="space-y-1 mt-1">
-                                            {Object.entries(activeSpyReport.units).map(([unitType, count]) => (
-                                                <div key={unitType} className="flex justify-between text-slate-300">
-                                                    <span>{t.common.resources[unitType] || unitType.replace(/_/g, ' ').toLowerCase()}</span>
-                                                    <span className="font-mono text-white">{formatNumber(count || 0)}</span>
-                                                </div>
-                                            ))}
+                                            {Object.entries(activeSpyReport.units).map(([unitType, count]) => {
+                                                const def = UNIT_DEFS[unitType as UnitType];
+                                                const name = def ? t.units[def.translationKey]?.name : unitType.replace(/_/g, ' ').toLowerCase();
+                                                return (
+                                                    <div key={unitType} className="flex justify-between text-slate-300">
+                                                        <span>{name}</span>
+                                                        <span className="font-mono text-white">{formatNumber(count || 0)}</span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 

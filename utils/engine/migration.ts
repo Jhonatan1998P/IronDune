@@ -260,13 +260,31 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
             if (saved.buildings[k] && typeof saved.buildings[k].level === 'number') {
                 cleanState.buildings[k].level = saved.buildings[k].level;
             }
+            if (saved.buildings[k] && typeof saved.buildings[k].isDamaged === 'boolean') {
+                cleanState.buildings[k].isDamaged = saved.buildings[k].isDamaged;
+            }
         });
     }
 
     // --- CRITICAL FIX: Ensure Diamond Mine is at least Level 1 ---
     if (!cleanState.buildings[BuildingType.DIAMOND_MINE] || cleanState.buildings[BuildingType.DIAMOND_MINE].level < 1) {
-        cleanState.buildings[BuildingType.DIAMOND_MINE] = { level: 1 };
+        const existingDiamondMine = cleanState.buildings[BuildingType.DIAMOND_MINE];
+        cleanState.buildings[BuildingType.DIAMOND_MINE] = {
+            level: 1,
+            isDamaged: existingDiamondMine?.isDamaged ?? false
+        };
     }
+
+    // Ensure all building states have proper structure with isDamaged
+    Object.keys(cleanState.buildings).forEach((key) => {
+        const k = key as BuildingType;
+        if (cleanState.buildings[k]) {
+            const building = cleanState.buildings[k];
+            if (typeof building.isDamaged !== 'boolean') {
+                cleanState.buildings[k] = { ...building, isDamaged: false };
+            }
+        }
+    });
 
     // 7. Migrate Missions
     if (Array.isArray(saved.activeMissions)) {

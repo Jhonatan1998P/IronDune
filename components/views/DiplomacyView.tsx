@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { RankingCategory, getFlagEmoji, BotEvent } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
-import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Users, Skull, Crown, Info } from 'lucide-react';
+import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
 import { calculateGiftCost, calculateDecayMultiplier } from '../../utils/engine/diplomacy';
@@ -17,8 +17,6 @@ const DiplomacyView: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [isMobile, setIsMobile] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
-    
-    const ui = t.common.ui as any;
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -412,10 +410,10 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="text-green-400">+8 {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_cost || 'Costo'}:</div>
                                                 <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                                                    {giftCost.MONEY > 0 && <span className="flex items-center gap-0.5">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> </span>}
-                                                    {giftCost.OIL > 0 && <span className="flex items-center gap-0.5">{giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> </span>}
-                                                    {giftCost.AMMO > 0 && <span className="flex items-center gap-0.5">{giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> </span>}
-                                                    {giftCost.GOLD > 0 && <span className="flex items-center gap-0.5">{giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </span>}
+                                                    {giftCost?.MONEY && giftCost.MONEY > 0 && <span className="flex items-center gap-0.5">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> </span>}
+                                                    {giftCost?.OIL && giftCost.OIL > 0 && <span className="flex items-center gap-0.5">{giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> </span>}
+                                                    {giftCost?.AMMO && giftCost.AMMO > 0 && <span className="flex items-center gap-0.5">{giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> </span>}
+                                                    {giftCost?.GOLD && giftCost.GOLD > 0 && <span className="flex items-center gap-0.5">{giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </span>}
                                                 </div>
                                                 <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_gift_cooldown || 'Cooldown: 1 hora'}</div>
                                             </div>

@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useGame } from '../context/GameContext';
-import { ResourceType, BuildingType } from '../types';
+import { ResourceType } from '../types';
 import { ResourceDisplay, SmartTooltip, Icons } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
 import { useLanguage } from '../context/LanguageContext';
