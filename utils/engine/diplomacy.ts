@@ -55,8 +55,8 @@ export const processReputationDecay = (
     const elapsed = now - lastDecayTime;
     const cycles = elapsed / REPUTATION_DECAY_INTERVAL_MS;
     
-    if (cycles < 0.01) {
-        return { updatedBots: bots, decayLogs: [], newLastDecayTime: lastDecayTime };
+    if (elapsed < 0) {
+        return { updatedBots: bots, decayLogs: [], newLastDecayTime: now };
     }
 
     const updatedBots = bots.map(bot => {
