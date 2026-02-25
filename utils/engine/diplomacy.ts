@@ -53,44 +53,33 @@ export const processReputationDecay = (
     now: number
 ): ReputationDecayResult => {
     const elapsed = now - lastDecayTime;
-    const cycles = Math.floor(elapsed / REPUTATION_DECAY_INTERVAL_MS);
-    const remainder = elapsed % REPUTATION_DECAY_INTERVAL_MS;
+    const cycles = elapsed / REPUTATION_DECAY_INTERVAL_MS;
     
-    if (cycles <= 0) {
-        return {
-            updatedBots: bots,
-            decayLogs: [],
-            newLastDecayTime: lastDecayTime
-        };
+    if (cycles < 0.01) {
+        return { updatedBots: bots, decayLogs: [], newLastDecayTime: lastDecayTime };
     }
 
     const updatedBots = bots.map(bot => {
         const currentRep = bot.reputation ?? 50;
         
-        // Reputation >= 75 is STABLE - no decay
         if (currentRep >= REPUTATION_DECAY_MAX_THRESHOLD) {
             return bot;
         }
         
-        // Always decay when below 75
-        // Multiplier: 1x for rep >= 40, up to 2x for rep = 0
         const multiplier = calculateDecayMultiplier(currentRep);
-        const decayPerCycle = Math.floor(REPUTATION_DECAY_AMOUNT * multiplier);
-        
-        const newRep = currentRep - (decayPerCycle * cycles);
+        const decayPerCycle = REPUTATION_DECAY_AMOUNT * multiplier;
+        const totalDecay = decayPerCycle * cycles;
         
         return {
             ...bot,
-            reputation: Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, Math.floor(newRep)))
+            reputation: Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, currentRep - totalDecay))
         };
     });
 
-    const decayLogs: LogEntry[] = [];
-    
     return {
         updatedBots,
-        decayLogs,
-        newLastDecayTime: lastDecayTime + (cycles * REPUTATION_DECAY_INTERVAL_MS) + remainder
+        decayLogs: [],
+        newLastDecayTime: now
     };
 };
 
