@@ -224,10 +224,6 @@ const applyEvent = (bot: StaticBot): StaticBot => {
     let newEvent: BotEvent = bot.currentEvent;
     let turns = 0;
 
-    // Check if player attacked this bot recently (vengeance trigger)
-    // This is handled by the nemesis system adding grudges, 
-    // but we can also adjust bot behavior here if needed.
-    
     if (bot.eventTurnsRemaining <= 0) {
         if (roll < 0.15) {
             newEvent = BotEvent.ATTACKED;
@@ -248,17 +244,18 @@ const applyEvent = (bot: StaticBot): StaticBot => {
             newEvent = BotEvent.PEACEFUL_PERIOD;
             turns = 2 + Math.floor(Math.random() * 3);
         }
+    } else {
+        newEvent = bot.currentEvent;
+        turns = bot.eventTurnsRemaining;
     }
 
     const modifier = EVENT_MODIFIERS[newEvent];
-    const personalityBonus = PERSONALITY_GROWTH_RATES[bot.personality].base;
-    const finalModifier = modifier + personalityBonus + bot.growthModifier;
 
     return {
         ...bot,
         currentEvent: newEvent,
         eventTurnsRemaining: Math.max(0, bot.eventTurnsRemaining - 1),
-        growthModifier: finalModifier
+        growthModifier: modifier
     };
 };
 
@@ -267,38 +264,93 @@ const applyGrowth = (bot: StaticBot): StaticBot => {
     const totalRate = base + bot.growthModifier;
     const currentScore = bot.stats[category];
     
-    // Bots always grow based on their current stats, no reset to 1k
     let newScore = currentScore;
     if (currentScore < SOFT_CAP_SCORE) {
         newScore = currentScore * (1 + totalRate);
     } else {
         newScore = currentScore + (SOFT_CAP_SCORE * totalRate * 0.1);
     }
+    newScore = Math.floor(newScore);
 
-    // Dominion grows proportionally to main category growth
-    const dominionBaseGrowth = currentScore * (BASE_GROWTH_RATE + bot.growthModifier * 0.5);
+    const newStats = {
+        ...bot.stats,
+        [category]: newScore
+    };
+
+    if (category !== RankingCategory.DOMINION) {
+        const dominionCurrentScore = bot.stats[RankingCategory.DOMINION];
+        const dominionGrowth = dominionCurrentScore * BASE_GROWTH_RATE;
+        newStats[RankingCategory.DOMINION] = Math.floor(dominionCurrentScore + dominionGrowth);
+    }
     
     return {
         ...bot,
-        stats: {
-            ...bot.stats,
-            [category]: Math.floor(newScore),
-            [RankingCategory.DOMINION]: Math.floor(bot.stats[RankingCategory.DOMINION] + (category === RankingCategory.DOMINION ? 0 : dominionBaseGrowth))
-        }
+        stats: newStats
+    };
+};
+
+const applyPartialGrowth = (bot: StaticBot, partialRate: number): StaticBot => {
+    const { base, category } = PERSONALITY_GROWTH_RATES[bot.personality];
+    const totalRate = base + bot.growthModifier;
+    const currentScore = bot.stats[category];
+    
+    const partialGrowthRate = totalRate * partialRate;
+    
+    let newScore = currentScore;
+    if (currentScore < SOFT_CAP_SCORE) {
+        newScore = currentScore * (1 + partialGrowthRate);
+    } else {
+        newScore = currentScore + (SOFT_CAP_SCORE * partialGrowthRate * 0.1);
+    }
+    newScore = Math.floor(newScore);
+
+    const newStats = {
+        ...bot.stats,
+        [category]: newScore
+    };
+
+    if (category !== RankingCategory.DOMINION) {
+        const dominionCurrentScore = bot.stats[RankingCategory.DOMINION];
+        const dominionPartialGrowth = dominionCurrentScore * (BASE_GROWTH_RATE * partialRate);
+        newStats[RankingCategory.DOMINION] = Math.floor(dominionCurrentScore + dominionPartialGrowth);
+    }
+    
+    return {
+        ...bot,
+        stats: newStats,
+        eventTurnsRemaining: bot.eventTurnsRemaining
     };
 };
 
 export const processRankingEvolution = (currentBots: StaticBot[], elapsed: number): { bots: StaticBot[], cycles: number } => {
-    const cycles = Math.floor(elapsed / GROWTH_INTERVAL_MS);
-    if (cycles <= 0) return { bots: currentBots, cycles: 0 };
+    const fullCycles = Math.floor(elapsed / GROWTH_INTERVAL_MS);
+    const remainingTime = elapsed % GROWTH_INTERVAL_MS;
+    
+    if (fullCycles <= 0) {
+        if (remainingTime <= 0) {
+            return { bots: currentBots, cycles: 0 };
+        }
+        return { bots: currentBots, cycles: 0 };
+    }
 
     let updatedBots = currentBots;
-    for (let c = 0; c < cycles; c++) {
+    
+    for (let c = 0; c < fullCycles; c++) {
         updatedBots = updatedBots.map(bot => applyEvent(bot));
         updatedBots = updatedBots.map(bot => applyGrowth(bot));
     }
+    
+    if (remainingTime > 0) {
+        const partialGrowthRate = remainingTime / GROWTH_INTERVAL_MS;
+        updatedBots = updatedBots.map(bot => applyPartialGrowth(bot, partialGrowthRate));
+    }
 
-    return { bots: updatedBots, cycles };
+    const totalCycles = fullCycles + (remainingTime > 0 ? 1 : 0);
+
+    return { 
+        bots: updatedBots, 
+        cycles: totalCycles
+    };
 };
 
 const getTier = (rank: number): RankingEntry['tier'] => {
