@@ -205,8 +205,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const isDefenseWin = log.messageKey === 'log_defense_win';
     const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
     
-    // Ensure we handle names for bots and players correctly
-    const attackerName = log.params?.attackerName || (log.messageKey.includes('defense') ? (log.params?.targetName || t.reports.hostile_force) : t.reports.you_label);
+    const attackerName = log.params?.attackerName || log.params?.attacker || (log.messageKey.includes('defense') ? t.reports.hostile_force : t.reports.you_label);
     const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
 
     const playerHpPercent = result.playerTotalHpStart > 0 ? ((result.playerTotalHpStart - result.playerTotalHpLost) / result.playerTotalHpStart) * 100 : 0;
@@ -487,11 +486,11 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="bg-cyan-900/20 border border-cyan-500/30 p-4 rounded-xl flex flex-col items-center">
                                 <span className="text-[10px] text-cyan-400 uppercase tracking-widest mb-1 font-bold">{t.reports.friendly}</span>
-                                <span className="text-white font-tech text-lg uppercase tracking-wider">{attackerName === t.common.ui.you || attackerName === 'You' ? attackerName : defenderName === t.common.ui.you || defenderName === 'You' ? defenderName : t.common.ui.you}</span>
+                                <span className="text-white font-tech text-lg uppercase tracking-wider">{t.reports.you_label}</span>
                             </div>
                             <div className="bg-red-900/20 border border-red-500/30 p-4 rounded-xl flex flex-col items-center">
                                 <span className="text-[10px] text-red-400 uppercase tracking-widest mb-1 font-bold">{t.reports.hostile}</span>
-                                <span className="text-white font-tech text-lg uppercase tracking-wider">{(attackerName === t.common.ui.you || attackerName === 'You') ? defenderName : attackerName}</span>
+                                <span className="text-white font-tech text-lg uppercase tracking-wider">{attackerName === t.reports.you_label ? defenderName : attackerName}</span>
                             </div>
                         </div>
 
