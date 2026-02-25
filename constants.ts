@@ -1,5 +1,5 @@
 
-import { BuildingType } from "./types/enums";
+import { BuildingType, BotPersonality } from "./types/enums";
 
 // --- CONFIGURATION CONSTANTS ---
 // Data definitions have been moved to the 'data/' directory to respect SRP.
@@ -54,6 +54,15 @@ export const OFFLINE_PRODUCTION_LIMIT_MS = 4 * 60 * 60 * 1000; // 4 Hours Cap fo
 // RVE & BALANCING CONSTANTS (V1.2.2)
 export const SCORE_TO_RESOURCE_VALUE = 9000; // 1 Point = $9,000 Resource Value (Attack Budget Formula)
 export const BOT_BUDGET_RATIO = 1.0; // Bots invest 100% of Total Value into Army
+
+// SPY RESOURCE RATIOS - How military budget is divided into resources when spying
+// Each personality has different resource allocation preferences
+export const SPY_RESOURCE_RATIOS: Record<BotPersonality, { money: number; oil: number; gold: number; ammo: number }> = {
+    [BotPersonality.WARLORD]: { money: 0.40, oil: 0.35, gold: 0.10, ammo: 0.15 },    // Focus on oil & ammo for war
+    [BotPersonality.TURTLE]: { money: 0.35, oil: 0.30, gold: 0.25, ammo: 0.10 },    // More gold for defense/building
+    [BotPersonality.TYCOON]: { money: 0.50, oil: 0.20, gold: 0.20, ammo: 0.10 },    // More money for economy
+    [BotPersonality.ROGUE]: { money: 0.30, oil: 0.30, gold: 0.15, ammo: 0.25 }      // More ammo for raids
+};
 
 export const TIER_THRESHOLDS = {
     TIER_1: 15000,

@@ -3,7 +3,7 @@ import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, Un
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
-import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS } from '../../constants';
+import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS, SPY_RESOURCE_RATIOS } from '../../constants';
 import { BASE_PRICES, calculateTotalUnitCost } from './market';
 import { calculateRetaliationTime } from './nemesis';
 import { BotPersonality } from '../../types/enums';
@@ -739,6 +739,22 @@ export const generateSpyReport = (
     const personality = bot.personality || BotPersonality.WARLORD;
     const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
     const defenseBudget = bot.stats.DOMINION * 2250 * defenseRatio;
+    
+    const fullMilitaryBudget = bot.stats.DOMINION * 2250;
+    const resourceRatios = SPY_RESOURCE_RATIOS[personality];
+    const moneyBudget = fullMilitaryBudget * resourceRatios.money;
+    const oilBudget = fullMilitaryBudget * resourceRatios.oil;
+    const goldBudget = fullMilitaryBudget * resourceRatios.gold;
+    const ammoBudget = fullMilitaryBudget * resourceRatios.ammo;
+    
+    const estimatedResources: Partial<Record<ResourceType, number>> = {
+        [ResourceType.MONEY]: Math.floor(moneyBudget),
+        [ResourceType.OIL]: Math.floor(oilBudget / BASE_PRICES[ResourceType.OIL]),
+        [ResourceType.GOLD]: Math.floor(goldBudget / BASE_PRICES[ResourceType.GOLD]),
+        [ResourceType.AMMO]: Math.floor(ammoBudget / BASE_PRICES[ResourceType.AMMO]),
+        [ResourceType.DIAMOND]: Math.floor(bot.stats.DOMINION * 0.1 + Math.random() * bot.stats.DOMINION * 0.05)
+    };
+    
     const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
     
     const defenseArmy = getSmartUnitComposition(
@@ -747,14 +763,6 @@ export const generateSpyReport = (
         true,
         availableUnits
     );
-
-    const estimatedResources: Partial<Record<ResourceType, number>> = {
-        [ResourceType.MONEY]: Math.floor(bot.stats.DOMINION * 100 + Math.random() * bot.stats.DOMINION * 50),
-        [ResourceType.OIL]: Math.floor(bot.stats.DOMINION * 20 + Math.random() * bot.stats.DOMINION * 10),
-        [ResourceType.AMMO]: Math.floor(bot.stats.DOMINION * 15 + Math.random() * bot.stats.DOMINION * 8),
-        [ResourceType.GOLD]: Math.floor(bot.stats.DOMINION * 2 + Math.random() * bot.stats.DOMINION * 1),
-        [ResourceType.DIAMOND]: Math.floor(bot.stats.DOMINION * 0.1 + Math.random() * bot.stats.DOMINION * 0.05)
-    };
 
     const totalBuildings = Math.max(10, Math.floor(bot.stats.DOMINION / 10));
     const buildingWeights: Partial<Record<BuildingType, number>> = {
