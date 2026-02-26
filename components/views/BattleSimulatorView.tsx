@@ -179,7 +179,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
     } : null;
 
     return (
-        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] relative">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] relative w-full">
             
             {showHistory && (
                 <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
@@ -262,7 +262,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                 </div>
             </div>
 
-            <div className="flex flex-col p-2 md:p-4 gap-4">
+            <div className="flex flex-col p-2 md:p-4 gap-4 w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <div className={`flex flex-col gap-2 ${activeTab === 'player' ? 'block' : 'hidden md:flex'}`}>

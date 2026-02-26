@@ -220,7 +220,7 @@ export const MarketView: React.FC<MarketViewProps> = ({ gameState, onExecuteTrad
     const eventInfo = getEventInfo();
 
     return (
-        <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+        <div className="space-y-6 animate-[fadeIn_0.3s_ease-out] min-h-full w-full">
             
             {/* Header Status / Ticker */}
             <div className="glass-panel p-0 rounded-xl border border-white/10 relative overflow-hidden bg-slate-900/80">

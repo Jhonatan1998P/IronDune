@@ -98,7 +98,7 @@ export const FinanceView: React.FC<{ gameState: GameState; onBankAction: (amount
     const netFlow = financialReport.totalIncome - financialReport.totalExpenses;
 
     return (
-        <div className="space-y-4 md:space-y-6 animate-[fadeIn_0.3s_ease-out]">
+        <div className="space-y-4 md:space-y-6 animate-[fadeIn_0.3s_ease-out] min-h-full w-full">
             {/* --- SECCIÓN 1: CONTROL BANCARIO (Compacto) --- */}
             <Card title={t.common.ui.bank_balance} className={!hasBank ? "opacity-75" : ""}>
                 {!hasBank ? (
