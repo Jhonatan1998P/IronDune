@@ -63,7 +63,7 @@ export const simulateCombat = (
 
     const playerEntities = createArmyEntities(initialPlayerArmy, 'PLAYER', 0);
     const enemyEntities = createArmyEntities(initialEnemyArmy, 'ENEMY', playerEntities.length);
-    let allUnits: BattleEntity[] = [...playerEntities, ...enemyEntities];
+    const allUnits: BattleEntity[] = [...playerEntities, ...enemyEntities];
 
     const playerTotalHpStart = playerEntities.reduce((acc, u) => acc + u.maxHp, 0);
     const enemyTotalHpStart = enemyEntities.reduce((acc, u) => acc + u.maxHp, 0);
@@ -85,24 +85,32 @@ export const simulateCombat = (
     // --- BUCLE DE RONDAS ---
     for (let round = 1; round <= MAX_ROUNDS; round++) {
 
-        // 1. Restaurar Escudos y Limpiar estados temporales
+        // 1. Restaurar Escudos e inicializar arrays de vivos para la ronda
+        const playerTargets: BattleEntity[] = [];
+        const enemyTargets: BattleEntity[] = [];
+
         allUnits.forEach(u => {
             if (!u.isDead) {
                 u.defense = u.maxDefense;
-                u.markedForDeath = false; 
+                u.markedForDeath = false;
+                if (u.side === 'PLAYER') {
+                    playerTargets.push(u);
+                } else {
+                    enemyTargets.push(u);
+                }
             }
         });
 
-        // 2. Verificar si la batalla continúa
-        const activePlayerUnits = allUnits.filter(u => u.side === 'PLAYER' && !u.isDead);
-        const activeEnemyUnits = allUnits.filter(u => u.side === 'ENEMY' && !u.isDead);
+        let pTargetCount = playerTargets.length;
+        let eTargetCount = enemyTargets.length;
 
-        if (activePlayerUnits.length === 0 || activeEnemyUnits.length === 0) break;
+        // 2. Verificar si la batalla continúa
+        if (pTargetCount === 0 || eTargetCount === 0) break;
 
         const roundLog: BattleRoundLog = {
             round,
-            playerUnitsStart: activePlayerUnits.length,
-            enemyUnitsStart: activeEnemyUnits.length,
+            playerUnitsStart: pTargetCount,
+            enemyUnitsStart: eTargetCount,
             playerUnitsLost: 0,
             enemyUnitsLost: 0,
             details: []
@@ -110,39 +118,47 @@ export const simulateCombat = (
 
         // 3. Fase de Fuego Simultáneo
         // Todas las unidades vivas al inicio disparan, incluso si mueren durante el proceso.
-        const shooters = [...activePlayerUnits, ...activeEnemyUnits];
-        shooters.sort(() => Math.random() - 0.5); 
+        const shooters = [...playerTargets, ...enemyTargets];
+        
+        // Fisher-Yates Shuffle para mezclar shooters en O(N) de forma impecable
+        for (let i = shooters.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shooters[i], shooters[j]] = [shooters[j], shooters[i]];
+        }
 
         for (const attacker of shooters) {
-
             let keepShooting = true;
+            const isPlayer = attacker.side === 'PLAYER';
 
             while (keepShooting) {
                 keepShooting = false;
 
-                // Seleccionar Objetivo (que no esté ya marcado como muerto en esta ronda)
-                const potentialTargets = allUnits.filter(u => 
-                    u.side !== attacker.side && 
-                    !u.isDead && 
-                    !u.markedForDeath 
-                );
+                // Seleccionar Objetivo (O(1) usando los arrays locales)
+                let targetIndex = -1;
+                let target: BattleEntity;
 
-                if (potentialTargets.length === 0) break; 
-
-                const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+                if (isPlayer) {
+                    if (eTargetCount === 0) break; // Fin de posibles objetivos enemigos
+                    targetIndex = Math.floor(Math.random() * eTargetCount);
+                    target = enemyTargets[targetIndex];
+                } else {
+                    if (pTargetCount === 0) break; // Fin de posibles objetivos aliados
+                    targetIndex = Math.floor(Math.random() * pTargetCount);
+                    target = playerTargets[targetIndex];
+                }
 
                 // Calcular Daño
                 let damage = attacker.def.attack;
-                if (attacker.side === 'PLAYER') {
+                if (isPlayer) {
                     damage = Math.floor(damage * playerDamageMultiplier);
                 }
 
                 // Registro Stats
-                const attackerPerf = attacker.side === 'PLAYER' ? playerPerformance : enemyPerformance;
+                const attackerPerf = isPlayer ? playerPerformance : enemyPerformance;
                 initPerformance(attackerPerf, attacker.type);
                 attackerPerf[attacker.type]!.damageDealt += damage;
 
-                if (attacker.side === 'PLAYER') playerDamageDealt += damage;
+                if (isPlayer) playerDamageDealt += damage;
                 else enemyDamageDealt += damage;
 
                 // Lógica de Impacto
@@ -168,7 +184,7 @@ export const simulateCombat = (
                         const hpBeforeHit = target.hp; // Guardamos HP actual para la fórmula
                         target.hp -= hullDamage;
 
-                        const killerPerf = attacker.side === 'PLAYER' ? playerPerformance : enemyPerformance;
+                        const killerPerf = isPlayer ? playerPerformance : enemyPerformance;
                         const victimPerf = target.side === 'PLAYER' ? playerPerformance : enemyPerformance;
 
                         let died = false;
@@ -184,11 +200,7 @@ export const simulateCombat = (
                             victimPerf[target.type]!.deathsBy[attacker.type] = (victimPerf[target.type]!.deathsBy[attacker.type] || 0) + 1;
                         } 
                         // CASO B: Tirada de Explosión / Desangrado
-                        // Se activa si la HP restante es < 70% del MaxHP
                         else if (target.hp < target.maxHp * EXPLOSION_THRESHOLD_PCT) {
-
-                            // NUEVA FÓRMULA: Probabilidad = Daño Recibido / Vida Actual (antes del golpe)
-                            // Ejemplo: 25 daño / 1750 vida = 0.014 (1.4%)
                             const explosionChance = hullDamage / hpBeforeHit;
 
                             if (Math.random() < explosionChance) {
@@ -198,18 +210,24 @@ export const simulateCombat = (
                                 initPerformance(killerPerf, attacker.type);
                                 initPerformance(victimPerf, target.type);
 
-                                // Registrar Kill
                                 killerPerf[attacker.type]!.kills[target.type] = (killerPerf[attacker.type]!.kills[target.type] || 0) + 1;
                                 killerPerf[attacker.type]!.criticalKills++;
 
-                                // Registrar Death
                                 victimPerf[target.type]!.deathsBy[attacker.type] = (victimPerf[target.type]!.deathsBy[attacker.type] || 0) + 1;
                                 victimPerf[target.type]!.criticalDeaths++;
                             }
                         }
 
+                        // Optimización vital: Swap and Pop en O(1)
                         if (died) {
                             target.markedForDeath = true;
+                            if (isPlayer) {
+                                enemyTargets[targetIndex] = enemyTargets[eTargetCount - 1];
+                                eTargetCount--;
+                            } else {
+                                playerTargets[targetIndex] = playerTargets[pTargetCount - 1];
+                                pTargetCount--;
+                            }
                         }
                     }
                 }
@@ -229,7 +247,7 @@ export const simulateCombat = (
         let eLostThisRound = 0;
 
         allUnits.forEach(u => {
-            if (u.markedForDeath) {
+            if (u.markedForDeath && !u.isDead) {
                 u.isDead = true; // Confirmar muerte
                 if (u.side === 'PLAYER') pLostThisRound++;
                 else eLostThisRound++;
@@ -242,7 +260,6 @@ export const simulateCombat = (
     }
 
     // --- RESULTADOS ---
-
     const finalPlayerArmy = compileArmy(allUnits, 'PLAYER');
     const finalEnemyArmy = compileArmy(allUnits, 'ENEMY');
     const totalPlayerCasualties = calculateCasualties(initialPlayerArmy, finalPlayerArmy);
