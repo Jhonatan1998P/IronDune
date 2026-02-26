@@ -378,7 +378,7 @@ export const generateBotArmy = (
     personality?: BotPersonality
 ): Partial<Record<UnitType, number>> => {
     
-    const totalBudget = targetScore * 2250 * budgetMultiplier;
+    const totalBudget = targetScore * 5000 * budgetMultiplier;
 
     const availableUnits = getUnitsByScoreRange(targetScore);
     const activePersonality = personality || BotPersonality.WARLORD;
