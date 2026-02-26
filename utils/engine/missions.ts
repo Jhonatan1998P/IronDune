@@ -744,9 +744,9 @@ export const generateSpyReport = (
 ): SpyReport => {
     const personality = bot.personality || BotPersonality.WARLORD;
     const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
-    const defenseBudget = bot.stats.DOMINION * 2250 * defenseRatio;
+    const defenseBudget = bot.stats.DOMINION * 6000 * defenseRatio;
     
-    const fullMilitaryBudget = bot.stats.DOMINION * 2250;
+    const fullMilitaryBudget = bot.stats.DOMINION * 6000;
     const resourceRatios = SPY_RESOURCE_RATIOS[personality];
     const moneyBudget = fullMilitaryBudget * resourceRatios.money;
     const oilBudget = fullMilitaryBudget * resourceRatios.oil;
