@@ -73,18 +73,18 @@ export const GameLayout: React.FC = () => {
           <WarHUD />
           
           {/* 1. FIXED HEADER */}
-          <div id="game-header" className="fixed top-0 left-0 right-0 z-40 md:relative md:z-30 shrink-0">
+          <div id="game-header" className="fixed top-0 left-0 right-0 z-40 shrink-0">
               <GameHeader onToggleStatus={() => setIsStatusPanelOpen(true)} />
           </div>
 
           {/* 2. MAIN SCROLLABLE AREA */}
-          <main className="flex-1 flex overflow-hidden relative pt-[70px] pb-[70px] md:pt-0 md:pb-0 h-full">
+          <main className="flex-1 flex md:overflow-hidden relative pt-[70px] pb-[70px] md:pt-0 md:pb-0 h-full overflow-y-auto">
             
             {/* Left Panel: Navigation (Desktop Only) */}
             <GameSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
             {/* Center Panel: Content */}
-            <div className="flex-1 overflow-y-auto scroll-smooth relative flex flex-col custom-scrollbar" id="main-scroll-view">
+            <div className="flex-1 relative flex flex-col" id="main-scroll-view">
               <div className="xl:hidden">
                   <ActiveAttacksIndicator />
               </div>

@@ -80,7 +80,7 @@ export const WarView: React.FC<WarViewProps> = ({ gameState, onSpy, onSimulate }
     const hasLoot = Object.values(payout).some(v => v > 0);
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] gap-4 pb-20 relative">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] gap-4 relative">
             
             {showAttackModal && (
                 <PvpAttackModal 

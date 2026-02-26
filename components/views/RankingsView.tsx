@@ -197,7 +197,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     };
 
     return (
-        <div className="flex flex-col min-h-full relative animate-[fadeIn_0.3s_ease-out] overflow-y-auto custom-scrollbar pb-24">
+        <div className="flex flex-col min-h-full relative animate-[fadeIn_0.3s_ease-out]">
             
             {profileEntry && (
                 <CommanderProfileModal 
@@ -325,7 +325,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                 </div>
             )}
 
-            <div className="flex-1 min-h-0 custom-scrollbar pb-24 pr-1">
+            <div className="flex-1 min-h-0 custom-scrollbar pr-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 md:p-2">
                     {paginatedData.map((entry) => (
                         <RankingCard key={entry.id} entry={entry} />

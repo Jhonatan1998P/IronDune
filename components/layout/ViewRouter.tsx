@@ -90,7 +90,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
             const canAfford = isFreeChange || gameState.resources.DIAMOND >= 20;
             
             return (
-                <div className="overflow-y-auto custom-scrollbar pb-24">
+                <div className="overflow-y-auto custom-scrollbar">
                     <Card title={t.common.ui.settings} className="max-w-md mx-auto mt-4">
                        <div className="space-y-6">
                       <div className="flex justify-between items-center pb-4 border-b border-white/10">

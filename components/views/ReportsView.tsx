@@ -130,7 +130,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
      const hasSelection = selectedIds.size > 0;
 
     return (
-        <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out] gap-4 overflow-hidden">
+        <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] gap-4">
              
              <div className={`md:hidden`}>
                 {selectedLog && (

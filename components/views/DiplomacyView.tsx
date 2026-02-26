@@ -207,7 +207,7 @@ const DiplomacyView: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col min-h-full text-white pb-4">
+        <div className="flex flex-col min-h-full relative">
             <div className="bg-gray-800 p-3 md:p-4 rounded-lg border border-gray-700 shadow-lg">
                 <div className="flex items-center justify-between mb-2 md:mb-3">
                     <h1 className="text-lg md:text-2xl font-bold flex items-center gap-2">

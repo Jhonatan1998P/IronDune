@@ -61,7 +61,7 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
     const totalSelected = Object.values(selectedUnits).reduce((a: number, b) => a + ((b as number) || 0), 0);
 
     return (
-        <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] pb-24 min-h-full">
+        <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] min-h-full">
             
             {/* LEFT: SQUAD SELECTION */}
             <div className="w-full lg:w-1/3 flex flex-col gap-4">

@@ -186,7 +186,7 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
   }, [isMobile, currentPage, allBuildings]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col min-h-full relative">
         
         {/* COMPACT TOP PAGINATION (Solo Móviles) */}
         {isMobile && totalPages > 1 && (
@@ -218,8 +218,8 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
             </div>
         )}
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pb-24 pr-1">
+        {/* Content */}
+        <div className="flex-1 min-h-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 md:p-2">
               {displayedBuildings.map((def) => (
                   <BuildingCard 

@@ -228,7 +228,7 @@ export const ResearchView: React.FC<{ gameState: GameState; onAction: (techId: a
       </div>
 
       {/* Tech Grid */}
-      <div className="pb-24">
+      <div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6 md:p-2">
             {paginatedTechs.map(def => {
                 const info = t.techs[def.translationKey] || { name: def.id, description: 'Loading...' };
