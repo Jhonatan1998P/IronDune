@@ -69,112 +69,119 @@ export const MainMenu: React.FC = () => {
     };
 
     return (
-        <div className="relative w-full h-screen flex items-center justify-center p-4 overflow-hidden">
+        <div className="relative w-full min-h-screen flex items-center justify-center p-3 sm:p-4 overflow-hidden">
             {/* Ambient Background Effects */}
             <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/5 rounded-full blur-[100px]"></div>
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[100px]"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[400px] md:w-[500px] h-[300px] sm:h-[400px] md:h-[500px] bg-cyan-500/10 rounded-full blur-[100px] sm:blur-[120px] animate-pulse"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-blue-600/5 rounded-full blur-[80px] sm:blur-[100px]"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 sm:w-72 sm:h-72 md:w-96 md:h-96 bg-purple-600/5 rounded-full blur-[80px] sm:blur-[100px]"></div>
             </div>
 
-            <div className="glass-panel w-full max-w-md p-8 md:p-10 rounded-2xl border border-white/10 shadow-[0_0_60px_rgba(6,182,212,0.15)] relative z-10 flex flex-col items-center gap-8 backdrop-blur-xl">
-                
-                <div className="text-center space-y-4">
-                    <div className="relative w-20 h-20 mx-auto mb-6 group">
-                        <div className="absolute inset-0 bg-cyan-500 blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
-                        <div className="relative w-full h-full bg-gradient-to-br from-cyan-400 to-blue-700 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-white/20">
-                            <span className="font-tech text-3xl font-bold text-white drop-shadow-md">ID</span>
+            <div className="glass-panel w-full max-w-sm sm:max-w-md p-5 sm:p-6 md:p-8 lg:p-10 rounded-xl sm:rounded-2xl border border-white/10 shadow-[0_0_40px_rgba(6,182,212,0.1)] sm:shadow-[0_0_60px_rgba(6,182,212,0.15)] relative z-10 flex flex-col items-center gap-6 sm:gap-8 backdrop-blur-xl">
+
+                {/* Logo y Título */}
+                <div className="text-center space-y-3 sm:space-y-4 w-full">
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto group">
+                        <div className="absolute inset-0 bg-cyan-500 blur-lg sm:blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500"></div>
+                        <div className="relative w-full h-full bg-gradient-to-br from-cyan-400 to-blue-700 rounded-lg sm:rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)] sm:shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-white/20">
+                            <span className="font-tech text-2xl sm:text-3xl font-bold text-white drop-shadow-md">ID</span>
                         </div>
                     </div>
-                    
+
                     <div>
-                        <h1 className="font-tech text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-200 via-white to-cyan-200 tracking-wider uppercase drop-shadow-sm">
+                        <h1 className="font-tech text-3xl sm:text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-200 via-white to-cyan-200 tracking-wider uppercase drop-shadow-sm">
                             Iron Dune
                         </h1>
-                        <p className="font-mono text-xs text-cyan-400/80 tracking-[0.4em] uppercase mt-2">Operations Command</p>
+                        <p className="font-mono text-[10px] sm:text-xs text-cyan-400/80 tracking-[0.3em] sm:tracking-[0.4em] uppercase mt-1 sm:mt-2">Operations Command</p>
                     </div>
                 </div>
 
-                <div className="w-full space-y-4">
+                {/* Botones de acción */}
+                <div className="w-full space-y-3 sm:space-y-4">
+                    {/* Nuevo Juego */}
                     <button
                         onClick={handleNewGameClick}
                         disabled={isTransitioning}
-                        className={`w-full group relative overflow-hidden p-4 rounded-lg border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.1)\] hover:shadow-[0_0_25px_rgba(6,182,212,0.25)\] ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
+                        className={`w-full group relative overflow-hidden p-3 sm:p-4 rounded-lg border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.2)] ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity transform -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] duration-1000"></div>
-                        <span className="relative z-10 font-tech text-lg uppercase tracking-[0.2em] text-cyan-100 group-hover:text-white transition-colors flex items-center justify-center gap-3">
-                            <Icons.Radar className="w-5 h-5 text-cyan-400" />
+                        <span className="relative z-10 font-tech text-base sm:text-lg uppercase tracking-[0.15em] sm:tracking-[0.2em] text-cyan-100 group-hover:text-white transition-colors flex items-center justify-center gap-2 sm:gap-3">
+                            <Icons.Radar className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
                             {t.common.menu.new_game}
                         </span>
                     </button>
 
+                    {/* Continuar Juego */}
                     <button
                         onClick={handleContinueClick}
                         disabled={!hasSave || isTransitioning}
-                        className={`w-full group relative overflow-hidden p-4 rounded-lg border transition-all duration-300 ${
-                            hasSave 
-                            ? 'border-emerald-500/20 bg-emerald-950/20 hover:bg-emerald-900/30 hover:border-emerald-500/40 cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.05)]' 
+                        className={`w-full group relative overflow-hidden p-3 sm:p-4 rounded-lg border transition-all duration-300 ${
+                            hasSave
+                            ? 'border-emerald-500/20 bg-emerald-950/20 hover:bg-emerald-900/30 hover:border-emerald-500/40 cursor-pointer shadow-[0_0_8px_rgba(16,185,129,0.05)]'
                             : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
                         } ${isTransitioning ? 'opacity-50 pointer-events-none' : ''}`}
                     >
-                        <span className={`relative z-10 font-tech text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-2 ${hasSave ? 'text-emerald-300 group-hover:text-emerald-100' : 'text-slate-500'}`}>
-                            {hasSave && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>}
+                        <span className={`relative z-10 font-tech text-xs sm:text-sm uppercase tracking-[0.15em] sm:tracking-[0.2em] flex items-center justify-center gap-2 ${hasSave ? 'text-emerald-300 group-hover:text-emerald-100' : 'text-slate-500'}`}>
+                            {hasSave && <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.8)]"></span>}
                             {t.common.menu.continue_game}
                         </span>
                     </button>
 
-                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                        <GlassButton onClick={handleImportClick} className="text-xs py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30">
+                    {/* Importar/Exportar */}
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 pt-3 sm:pt-4 border-t border-white/5">
+                        <GlassButton onClick={handleImportClick} className="text-[10px] sm:text-xs py-2.5 sm:py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30">
                             {t.common.menu.import_save}
                         </GlassButton>
-                        <GlassButton onClick={exportSave} disabled={!hasSave} className="text-xs py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30 disabled:opacity-30">
+                        <GlassButton onClick={exportSave} disabled={!hasSave} className="text-[10px] sm:text-xs py-2.5 sm:py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30 disabled:opacity-30">
                             {t.common.menu.export_save}
                         </GlassButton>
                     </div>
 
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        className="hidden" 
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
                         accept=".ids,.json"
                     />
                 </div>
 
+                {/* Mensajes */}
                 {message && (
-                    <div className={`absolute bottom-20 left-0 right-0 mx-auto w-max px-6 py-2 rounded-full text-xs font-bold shadow-xl animate-[fadeIn_0.3s_ease-out] backdrop-blur-md ${message.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/50' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'}`}>
+                    <div className={`absolute bottom-16 sm:bottom-20 left-0 right-0 mx-auto w-max px-4 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold shadow-xl animate-[fadeIn_0.3s_ease-out] backdrop-blur-md ${message.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/50' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'}`}>
                         {message.text}
                     </div>
                 )}
 
-                <div className="flex flex-col items-center gap-2 pt-2">
-                    <div className="flex gap-4 text-xs font-mono text-slate-500">
+                {/* Footer: Idioma y versión */}
+                <div className="flex flex-col items-center gap-1.5 sm:gap-2 pt-2">
+                    <div className="flex gap-3 sm:gap-4 text-[10px] sm:text-xs font-mono text-slate-500">
                         <button onClick={() => setLanguage('en')} className={`transition-colors ${language === 'en' ? 'text-cyan-400 font-bold glow' : 'hover:text-slate-300'}`}>ENG</button>
                         <span className="opacity-30">|</span>
                         <button onClick={() => setLanguage('es')} className={`transition-colors ${language === 'es' ? 'text-cyan-400 font-bold glow' : 'hover:text-slate-300'}`}>ESP</button>
                     </div>
-                    <div className="text-[9px] text-slate-700 font-mono">SYS.VER.1.2.2 // SECURE CONNECTION</div>
+                    <div className="text-[8px] sm:text-[9px] text-slate-700 font-mono tracking-wider">SYS.VER.1.2.2 // SECURE CONNECTION</div>
                 </div>
             </div>
 
             {/* Transition Overlay */}
             {isTransitioning && (
-                <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-in fade-in duration-300">
-                    <div className="relative w-48 h-48 mb-8">
+                <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-in fade-in duration-300 p-4">
+                    <div className="relative w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 mb-6 sm:mb-8">
                         <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full"></div>
                         <div className="absolute inset-0 border-t-2 border-cyan-400 rounded-full animate-spin"></div>
                         <div className="absolute inset-4 border border-cyan-500/10 rounded-full animate-pulse"></div>
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <Icons.Radar className="w-12 h-12 text-cyan-400 animate-pulse" />
+                            <Icons.Radar className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-cyan-400 animate-pulse" />
                         </div>
                     </div>
-                    <div className="w-64 h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                        <div 
+                    <div className="w-48 sm:w-56 md:w-64 h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+                        <div
                             className="h-full bg-gradient-to-r from-cyan-600 to-blue-400 transition-all duration-300 ease-out"
                             style={{ width: `${loadingProgress}%` }}
                         ></div>
                     </div>
-                    <p className="mt-4 font-tech text-xs text-cyan-400 tracking-[0.3em] uppercase animate-pulse">
+                    <p className="mt-3 sm:mt-4 font-tech text-[10px] sm:text-xs text-cyan-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase animate-pulse">
                         {loadingProgress < 100 ? t.common.menu.initializing : t.common.menu.access_granted}
                     </p>
                 </div>

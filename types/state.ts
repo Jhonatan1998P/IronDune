@@ -208,9 +208,14 @@ export interface GameState {
   nextAttackTime: number; // Timestamp for the next scheduled bot attack
   incomingAttacks: IncomingAttack[];
   activeWar: WarState | null; // New War System
-  
+
   // Grudge System (New)
   grudges: Grudge[];
+
+  // Enemy Attack System (New)
+  enemyAttackCounts: Record<string, { count: number; lastAttackTime: number }>; // BotID -> attack count & last attack
+  lastEnemyAttackCheckTime: number; // Last time we checked for enemy attacks (30min interval)
+  lastEnemyAttackResetTime: number; // 24h reset timestamp for attack counts
 
   // Spy System (New)
   spyReports: SpyReport[];

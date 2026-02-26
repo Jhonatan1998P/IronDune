@@ -1,8 +1,8 @@
-# Iron Dune: Operations
+# Iron Dune: Operations - Technical Documentation
 
 ## Overview
 
-Iron Dune: Operations is a browser-based military strategy game built as a single-page application. Players build bases, manage resources (Money, Oil, Ammo, Gold, Diamonds), recruit military units, research technologies, and engage in PvP/PvE combat. The game features offline progression, a banking system with variable interest rates, a procedural market, a campaign mode, a war system, and a tutorial/objective tracker. It runs entirely client-side with state persisted to localStorage.
+Iron Dune: Operations is a browser-based military strategy game built as a single-page application. Players build bases, manage resources (Money, Oil, Ammo, Gold, Diamonds), recruit military units, research technologies, and engage in PvP/PvE combat against AI bots in an evolving world.
 
 ## User Preferences
 
@@ -25,15 +25,21 @@ Preferred communication style: Simple, everyday language.
 - **Custom game loop** running at 1-second tick rate (`TICK_RATE_MS = 1000`). Implemented in `hooks/useGameLoop.ts` using `setInterval`.
 - Delta-time based calculations ensure accuracy regardless of timing drift.
 - Engine logic is split into modular files under `utils/engine/`:
-  - `loop.ts` — tick calculation
+  - `loop.ts` — tick calculation and system orchestration
   - `actions.ts` — player actions (build, recruit, research, trade, etc.)
   - `combat.ts` — battle simulation with rapid-fire mechanics
-  - `finance.ts` — bank transactions
+  - `economy.ts` — resource production and consumption
+  - `finance.ts` — bank transactions and interest
   - `offline.ts` — offline progress simulation (Time Warp)
   - `migration.ts` — save version migration
   - `security.ts` — save file encoding/hashing
-  - `rankings.ts` — bot-based ranking system
+  - `rankings.ts` — bot-based ranking system with evolution
   - `selectors.ts` — derived state calculations (income stats, etc.)
+  - `war.ts` — war system and wave management
+  - `nemesis.ts` — retaliation/grudge system
+  - `enemyAttack.ts` — enemy periodic attack system
+  - `diplomacy.ts` — reputation decay and diplomatic actions
+  - `missions.ts` — mission resolution and grudge creation
 
 ### Data Layer
 - All game definitions are static data objects in `data/`:
@@ -70,6 +76,7 @@ Preferred communication style: Simple, everyday language.
 ### Combat System
 - Round-based simulation with rapid-fire mechanics (units get bonus attacks against specific targets).
 - Unit priority system for target selection.
+- Critical hit system (70% HP threshold for instant kills).
 - Supports PvP attacks, defensive battles, campaign missions, patrols, and war waves.
 
 ### Type System
@@ -82,6 +89,78 @@ Preferred communication style: Simple, everyday language.
 - Dictionary-based translation with nested keys accessed via `t.category.key` pattern.
 - Default language is Spanish (`es`).
 
+## Enemy Attack System (v1.4)
+
+### Architecture
+The enemy attack system consists of two main components:
+
+1. **Periodic Enemy Attacks** (`utils/engine/enemyAttack.ts`)
+   - Runs every 30 minutes to check if enemy bots should attack
+   - Only bots with reputation ≤ 30 are eligible
+   - Attack chance scales with lower reputation
+   - Enforces 3 attacks per bot per 24 hours, 2-hour cooldown
+
+2. **Retaliation System** (`utils/engine/nemesis.ts`)
+   - Triggered when player attacks a bot
+   - Immediate roll determines if bot seeks revenge
+   - Random 15-45 minute delay before retaliation
+   - Personality-based army strength multipliers
+
+### Key Functions
+
+```typescript
+// Enemy Attack System
+calculateEnemyAttackChance(reputation, personality): number
+processEnemyAttackCheck(state, now): { stateUpdates, logs }
+initializeEnemyAttackState(now): object
+
+// Retaliation System
+calculateRetaliationTime(now): number  // 15-45 min random
+getRetaliationChance(personality): number
+getRetaliationMultiplier(personality): number
+createGrudge(state, botId, botName, botScore, botPersonality, now): object
+processNemesisTick(state, now): { stateUpdates, logs }
+```
+
+### State Structure
+```typescript
+interface GameState {
+  // Enemy Attack System
+  enemyAttackCounts: Record<string, { count: number; lastAttackTime: number }>;
+  lastEnemyAttackCheckTime: number;
+  lastEnemyAttackResetTime: number;
+  
+  // Retaliation System
+  grudges: Grudge[];
+  
+  // Shared
+  incomingAttacks: IncomingAttack[];
+  rankingData: { bots: StaticBot[] };
+}
+```
+
+### Game Loop Integration
+The enemy attack system is integrated into the main game loop in `utils/engine/loop.ts`:
+
+```typescript
+// 4. Nemesis System (Grudges & Retaliation)
+const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);
+
+// 4b. Enemy Attack System (30min checks)
+const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(state, now);
+```
+
+### Personality System
+
+Four bot personalities affect both attack and retaliation behavior:
+
+| Personality | Attack Modifier | Retaliation Chance | Army Multiplier | Description |
+|-------------|-----------------|-------------------|-----------------|-------------|
+| WARLORD | 1.5x | 95% | 1.3x | Aggressive, vengeful |
+| TURTLE | 0.5x | 85% | 1.5x | Defensive, holds grudges |
+| TYCOON | 1.0x | 70% | 1.0x | Economic, less vengeful |
+| ROGUE | 1.2x | 90% | 1.0x | Unpredictable, opportunistic |
+
 ## External Dependencies
 
 ### Runtime Dependencies
@@ -93,9 +172,39 @@ Preferred communication style: Simple, everyday language.
 - **Vite 5.4** — Build tool and dev server (configured on port 5000, host 0.0.0.0)
 - **TypeScript 5.5** — Type checking
 - **@vitejs/plugin-react** — React fast refresh for Vite
+- **Vitest** — Testing framework
 
 ### External Services
 - **Tailwind CSS CDN** — Loaded at runtime via script tag (not a build dependency)
 - **Google Gemini API** — AI integration requiring `GEMINI_API_KEY` in `.env.local`
 - **localStorage** — Browser storage for game saves and preferences
 - No database, no backend server, no authentication system
+
+## Testing
+
+Run tests with:
+```bash
+npm test
+```
+
+Key test files:
+- `tests/bot-reputation-reaction.test.ts` — Retaliation system and reputation mechanics
+- `tests/bot-growth.test.ts` — Bot evolution and growth rates
+- `tests/bot-military.test.ts` — Bot army generation
+- `tests/bot-2.5k-profile.test.ts` — Bot profiles at different power levels
+- `tests/reputation-decay.test.ts` — Reputation decay mechanics
+
+## Build & Deploy
+
+```bash
+# Development
+npm run dev
+
+# Production build
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+The build output is in the `dist/` directory and can be deployed to any static hosting service.

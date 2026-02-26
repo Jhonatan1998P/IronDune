@@ -1,6 +1,6 @@
 # Iron Dune: Operations - Especificación Técnica de Mecánicas
 
-**Versión del Motor:** 1.2.0
+**Versión del Motor:** 1.4.0
 **Arquitectura:** React + Vite (SPA), Estado Inmutable, Event-Driven UI.
 
 ---
@@ -64,55 +64,177 @@ La capacidad máxima de recursos no es estática; escala con el poder del jugado
 ## 4. Sistema Militar y Combate
 
 ### Roster de Unidades
-15 tipos de unidades divididos en 5 categorías (Tierra, Artillería, Tanques, Naval, Aire).
-*   **Piedra-Papel-Tijera:** Cada unidad tiene bonificadores de daño específicos (ej. *Helicóptero* hace +50% daño a *Tanques*, pero recibe +50% daño de *Cazas*).
+8 tipos de unidades divididos en 5 categorías (Tierra, Artillería, Tanques, Naval, Aire):
+- **Cyber Marine**: Infantería básica
+- **Heavy Commando**: Especialista anti-tanque
+- **Scout Tank**: Tanque ligero rápido
+- **Titan MBT**: Tanque de batalla principal
+- **Wraith Gunship**: Helicóptero de ataque
+- **Ace Fighter**: Caza de superioridad aérea
+- **Aegis Destroyer**: Destructor naval
+- **Phantom Sub**: Submarino sigiloso
 
-### Motor de Simulación de Combate
-El combate se resuelve en hasta 12 rondas simuladas:
+### Sistema de Combate
+El combate se resuelve en hasta 6 rondas simuladas:
 1.  **Fase de Fuego:** Cada unidad elige un objetivo aleatorio vivo del ejército enemigo.
 2.  **Cálculo de Daño:** `Daño = (Ataque * Multiplicador Tech * Bonus Contra Tipo) - Defensa Enemiga`. Mínimo 1 daño.
 3.  **Resolución de Bajas:** Si el HP de una unidad llega a 0, se elimina permanentemente.
-4.  **Botín (Loot):** Si el jugador gana, obtiene recursos basados en el valor monetario del ejército enemigo destruido (~7.5%) y bonificaciones tecnológicas (Saqueo).
+4.  **Críticos (70% HP):** Si el daño recibido supera el 70% del HP actual, hay probabilidad de muerte crítica instantánea.
+5.  **Fuego Rápido:** Algunas unidades tienen probabilidad de atacar múltiples veces por ronda.
 
-### Amenaza Global (Threat System)
-Sistema de equilibrio que castiga el crecimiento descontrolado.
-*   **Generación Pasiva:** Si un recurso supera el 70% de capacidad, genera amenaza por minuto (Acaparamiento).
-*   **Generación Activa:** Acciones como Construir, Reclutar o Investigar generan amenaza instantánea. Los ataques generan amenaza masiva.
-*   **Decaimiento:** La amenaza baja lentamente con el tiempo (1% / min).
-*   **Consecuencia (100%):** Se genera un ataque inmediato de un Bot del Ranking contra el jugador.
+### Botín (Loot)
+Si el jugador gana, obtiene recursos basados en:
+- **Valor del ejército enemigo destruido** (~15%)
+- **Bonificaciones tecnológicas** (Saqueo +1%/nivel)
+- **Edificios saqueables**: Casas, Fábricas, Rascacielos, Pozos Petrolíferos, Minas de Oro, Fábricas de Municiones
 
 ---
 
-## 5. Operaciones y Meta-Juego
+## 5. Sistema de Reputación y Diplomacia
+
+### Rangos de Reputación
+| Rango | Reputación | Efecto |
+|-------|------------|--------|
+| Aliado | 70-100 | 40% chance de defender, menos probable de atacar |
+| Neutral | 31-69 | Sin efectos especiales |
+| Enemigo | 0-30 | Puede atacar periódicamente, más probable de retaliar |
+
+### Modificadores de Reputación
+- **Atacar bot**: -15 reputación
+- **Derrotar bot**: -10 reputación
+- **Bot te derrota**: +5 reputación (respetan la fuerza)
+- **Defender con éxito**: +8 reputación
+- **Enviar regalo**: +8 reputación
+- **Proponer alianza**: +5 reputación
+- **Proponer paz**: +10 reputación
+
+### Decaimiento de Reputación
+- **Intervalo:** Cada 4 horas
+- **Base:** -2 reputación por ciclo
+- **Acelerado:** Debajo de 40 reputación, el decaimiento aumenta hasta 2x
+- **Estable:** Reputación ≥75 no decae
+
+---
+
+## 6. Sistema de Ataques Enemigos
+
+### Mecánica de Ataque Periódico
+Los bots con baja reputación pueden atacar al jugador automáticamente.
+
+**Configuración:**
+- **Intervalo de verificación:** Cada 30 minutos
+- **Umbral de reputación:** ≤30 (solo enemigos pueden atacar)
+- **Máximo de ataques:** 3 ataques por bot cada 24 horas
+- **Cooldown entre ataques:** 2 horas mínimo del mismo bot
+- **Reset de contadores:** Cada 24 horas
+
+### Cálculo de Probabilidad de Ataque
+```
+Chance Base = 20% (en reputación 30)
+Chance por punto debajo de 30 = +2.5%
+Chance Máxima = 100%
+
+Chance Final = min(100%, Chance Base * Multiplicador Personalidad)
+```
+
+**Ejemplo:** Bot con 10 de reputación:
+- Diferencia: 30 - 10 = 20 puntos
+- Chance base: 20% + (20 * 2.5%) = 70%
+- Si es Warlord: 70% * 1.5 = 105% → 100%
+
+### Modificadores por Personalidad
+| Personalidad | Multiplicador | Descripción |
+|--------------|---------------|-------------|
+| Warlord | 1.5x | 50% más probable de atacar |
+| Turtle | 0.5x | 50% menos probable de atacar |
+| Tycoon | 1.0x | Probabilidad normal |
+| Rogue | 1.2x | 20% más probable (oportunista) |
+
+### Múltiples Atacantes
+Varios bots pueden atacar simultáneamente. Cada bot realiza su propia tirada independiente.
+
+---
+
+## 7. Sistema de Retaliación (Venganza)
+
+### Activación de Retaliación
+Cuando el jugador ataca a un bot, se realiza una tirada **inmediata** para determinar si buscará venganza.
+
+**Probabilidad por Personalidad:**
+| Personalidad | Chance de Retaliación | Descripción |
+|--------------|----------------------|-------------|
+| Warlord | 95% | Muy vengativo |
+| Turtle | 85% | Guarda rencores |
+| Rogue | 90% | Impredecible pero vengativo |
+| Tycoon | 70% | Ocupado haciendo dinero |
+
+### Tiempo de Retaliación
+- **Rango:** 15-45 minutos aleatorios (todas las personalidades)
+- **Duración del rencor:** 48 horas máximo
+- **Notificación:** 10 minutos antes del ataque inminente
+
+### Fuerza del Ejército de Retaliación
+| Personalidad | Multiplicador de Ejército |
+|--------------|--------------------------|
+| Warlord | 1.3x (30% más fuerte) |
+| Turtle | 1.5x (50% más fuerte - "Deathball") |
+| Tycoon | 1.0x (fuerza normal) |
+| Rogue | 1.0x (fuerza normal) |
+
+### Protección para Principiantes
+- Los ataques de retaliación se retrasan si el jugador está bajo protección
+- La protección dura hasta alcanzar 1000 Puntos de Imperio
+- Después de esta protección, no hay más protección permanente
+
+---
+
+## 8. Operaciones y Meta-Juego
 
 ### Misiones de Patrulla
 Misiones temporizadas con resolución probabilística al finalizar:
-*   **50% Nada:** Retorno seguro.
-*   **30% Contrabando:** Obtención de recursos sin combate.
-*   **15% Batalla:** Combate contra fuerza generada procedimentalmente (80-120% de la fuerza enviada).
-*   **5% Emboscada:** Pérdida total de la flota enviada (Wipeout).
+*   **45% Sin incidente:** Retorno seguro sin recompensa
+*   **30% Contrabando:** Obtención de recursos sin combate
+*   **15% Batalla:** Combate contra fuerza generada procedimentalmente
+*   **5% Emboscada:** Combate desfavorable (enemigo más fuerte)
+*   **5% Aniquilación:** Pérdida total de la flota enviada
 
 ### Ataques PvP (Asíncronos)
 *   **Objetivos:** Bots del ranking simulados.
 *   **Rango de Ataque:** Solo se puede atacar objetivos que tengan entre el 50% y 200% de los Puntos de Imperio del jugador.
+*   **Límite de ataques:** Máximo 3 ataques al mismo objetivo por día
 *   **Logística:** Tiempo de viaje real (15 min ida + 15 min vuelta). Las unidades no están disponibles durante el viaje.
+*   **Aceleración:** Se puede usar 1 Diamante para reducir el tiempo de viaje en 80%
 
 ### Campaña PvE
 *   25 Niveles de dificultad progresiva.
 *   **Enemigos Estáticos:** Composiciones diseñadas manualmente para requerir "counters" específicos.
-*   **Cooldown:** Tiempo de reabastecimiento (15 min) entre misiones exitosas o fallidas para evitar granjeo excesivo.
+*   **Slots de misión:** 1 slot base + 1 por nivel de Strategic Command (máximo 6)
+*   **Cooldown:** Tiempo de reabastecimiento (15 min) entre misiones exitosas o fallidas.
+
+### Sistema de Guerra
+*   **Declaración:** Costo de 1000 Puntos de Imperio o mediante acción diplomática
+*   **Duración:** 2 horas 10 minutos base + 20 minutos si hay empate
+*   **Olas:** 8 olas enemigas (puede aumentar en tiempo extra)
+*   **Ataques del jugador:** 8 ataques disponibles
+*   **Botín:** 50% de los recursos perdidos por ambos bandos van a un pool común
+*   **Victoria:** El ganador se lleva el pool de recursos
 
 ---
 
-## 6. Sistema de Ranking Evolutivo
+## 9. Sistema de Ranking Evolutivo
 
 *   **Entorno Vivo:** 199 Bots simulados con nombres, países y avatares generados.
-*   **Evolución:** Cada 6 horas, el motor simula el crecimiento de los bots basándose en un factor de "Ambición" oculto. Sus puntuaciones (Dominio, Militar, Economía) crecen exponencialmente, obligando al jugador a mantenerse activo para no perder rango.
+*   **Evolución:** Cada 6 horas, el motor simula el crecimiento de los bots basándose en su personalidad:
+    *   **Warlord:** +8% Militar por ciclo
+    *   **Turtle:** +3% Economía por ciclo
+    *   **Tycoon:** +6% Economía por ciclo
+    *   **Rogue:** +5% Dominio por ciclo
+*   **Eventos Aleatorios:** Los bots pueden sufrir eventos que modifican su crecimiento (ataques, crisis, bonanzas)
 *   **Sistema de Tiers:** Clasificación visual (S, A, B, C, D) basada en el percentil del ranking.
 
 ---
 
-## 7. Tecnología (Tech Tree)
+## 10. Tecnología (Tech Tree)
 
 Árbol de dependencias multinivel:
 *   **Requisitos:** Nivel de Universidad + Edificios Específicos + Tecnologías Previas.
@@ -120,3 +242,55 @@ Misiones temporizadas con resolución probabilística al finalizar:
     *   **Desbloqueo:** Permite reclutar nuevas unidades.
     *   **Pasivos:** Multiplicadores globales de producción (ej. +5% Dinero/Nivel).
     *   **Capacidad:** Aumenta límites de almacenamiento y eficiencia de saqueo.
+    *   **Slots:** Aumenta slots de misión de campaña (+1 por nivel de Strategic Command).
+
+### Categorías de Tecnología
+1.  **Productivo:** Mejora producción de recursos (+5%/nivel)
+2.  **Logística:** Mejora capacidad de almacenamiento y saqueo
+3.  **Militar - Tierra:** Desbloquea y mejora infantería
+4.  **Militar - Tanques:** Desbloquea y mejora vehículos blindados
+5.  **Militar - Naval:** Desbloquea y mejora barcos
+6.  **Militar - Aire:** Desbloquea y mejora aeronaves
+
+---
+
+## 11. Sistema de Espionaje
+
+### Adquirir Inteligencia
+- **Costo:** `(EnemyScore * 64) / 5` de Oro
+- **Duración:** 10 minutos antes de expirar
+- **Información revelada:** Composición del ejército enemigo, recursos, edificios
+
+### Uso de Inteligencia
+- Permite ver la composición de ataques entrantes
+- Facilita la preparación de defensas adecuadas
+- Los aliados pueden compartir inteligencia automáticamente
+
+---
+
+## 12. Configuración y Constantes
+
+### Constantes Principales
+```typescript
+// Protección principiante
+NEWBIE_PROTECTION_THRESHOLD = 1000  // Puntos de Imperio
+
+// Sistema de ataques enemigos
+ENEMY_ATTACK_CHECK_INTERVAL_MS = 30 * 60 * 1000  // 30 minutos
+ENEMY_ATTACK_COOLDOWN_MS = 2 * 60 * 60 * 1000    // 2 horas
+ENEMY_ATTACK_MAX_PER_BOT = 3                      // Máximo ataques
+ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000      // 24 horas reset
+ENEMY_ATTACK_BASE_CHANCE = 0.20                   // 20% base
+ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.025            // +2.5% por punto
+
+// Retaliación
+RETALIATION_TIME_MIN_MS = 15 * 60 * 1000         // 15 minutos
+RETALIATION_TIME_MAX_MS = 45 * 60 * 1000         // 45 minutos
+RETALIATION_GRUDGE_DURATION_MS = 48 * 60 * 60 * 1000  // 48 horas
+
+// Umbrales de reputación
+REPUTATION_ALLY_THRESHOLD = 70    // Aliado ≥ 70
+REPUTATION_ENEMY_THRESHOLD = 30   // Enemigo ≤ 30
+REPUTATION_MIN = 0
+REPUTATION_MAX = 100
+```

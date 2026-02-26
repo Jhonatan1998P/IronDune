@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { GameState, TranslationDictionary, ResourceType, UnitType } from '../../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { GameState, TranslationDictionary, ResourceType, UnitType, LogEntry } from '../../types';
 import { RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { Icons, GlassButton } from '../UIComponents';
 import { formatNumber } from '../../utils';
@@ -66,13 +66,28 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
         const newSpyReports = [...(gameState.spyReports || []), newReport];
 
+        // Crear informe de combate para la vista de informes
+        const combatLog: LogEntry = {
+            id: `intel-${now}-${entry.id}`,
+            messageKey: 'log_intel_acquired',
+            type: 'intel',
+            timestamp: now,
+            params: {
+                targetName: entry.name,
+                units: newReport.units,
+                score: entry.score,
+                botId: entry.id
+            }
+        };
+
         if (onUpdateState) {
             onUpdateState({
                 resources: {
                     ...gameState.resources,
                     [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
                 },
-                spyReports: newSpyReports
+                spyReports: newSpyReports,
+                logs: [combatLog, ...gameState.logs].slice(0, 100)
             });
         } else if (typeof (window as any)._updateGameState === 'function') {
             (window as any)._updateGameState({
@@ -80,7 +95,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     ...gameState.resources,
                     [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
                 },
-                spyReports: newSpyReports
+                spyReports: newSpyReports,
+                logs: [combatLog, ...(gameState.logs || [])].slice(0, 100)
             });
         }
 

@@ -105,6 +105,37 @@ export const REPUTATION_ALLY_BONUS = 3; // Reputation bonus from allied bots
 export const REPUTATION_MIN = 0;
 export const REPUTATION_MAX = 100;
 
+// ENEMY ATTACK SYSTEM (NEW)
+export const ENEMY_ATTACK_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes - check if enemies attack
+export const ENEMY_ATTACK_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours - min time between attacks from same bot
+export const ENEMY_ATTACK_MAX_PER_BOT = 3; // Max attacks per bot per 24h cycle
+export const ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000; // 24 hours - reset attack counter
+export const ENEMY_ATTACK_BASE_CHANCE = 0.20; // 20% base chance to attack at rep 30
+export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.025; // +2.5% chance per rep point below 30
+
+// Personality-based attack chance modifiers (for enemy attack system)
+export const ENEMY_ATTACK_CHANCE_WARLORD = 1.5; // 50% more likely to attack
+export const ENEMY_ATTACK_CHANCE_TURTLE = 0.5; // 50% less likely to attack
+export const ENEMY_ATTACK_CHANCE_TYCOON = 1.0; // Normal chance
+export const ENEMY_ATTACK_CHANCE_ROGUE = 1.2; // 20% more likely (opportunistic)
+
+// RETALIATION SYSTEM (UPDATED)
+export const RETALIATION_TIME_MIN_MS = 15 * 60 * 1000; // 15 minutes minimum
+export const RETALIATION_TIME_MAX_MS = 45 * 60 * 1000; // 45 minutes maximum
+export const RETALIATION_GRUDGE_DURATION_MS = 48 * 60 * 60 * 1000; // 48 hours to hold a grudge
+
+// Personality-based retaliation multipliers (affects army strength)
+export const RETALIATION_MULTIPLIER_WARLORD = 1.3; // 30% stronger
+export const RETALIATION_MULTIPLIER_TURTLE = 1.5; // 50% stronger (deathball)
+export const RETALIATION_MULTIPLIER_TYCOON = 1.0; // Normal strength
+export const RETALIATION_MULTIPLIER_ROGUE = 1.0; // Normal strength
+
+// Personality-based retaliation chance (probability bot will actually retaliate when time comes)
+export const RETALIATION_CHANCE_WARLORD = 0.95; // 95% chance - very vengeful
+export const RETALIATION_CHANCE_TURTLE = 0.85; // 85% chance - holds grudges
+export const RETALIATION_CHANCE_TYCOON = 0.70; // 70% chance - busy making money
+export const RETALIATION_CHANCE_ROGUE = 0.90; // 90% chance - unpredictable but vengeful
+
 // DIPLOMACY SYSTEM
 export const REPUTATION_DECAY_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 export const REPUTATION_DECAY_AMOUNT = 2; // Reputation loss per decay interval

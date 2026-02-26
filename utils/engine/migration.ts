@@ -164,7 +164,7 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
             id: g.id || `grudge-${Date.now()}`,
             botId: g.botId || '',
             botName: g.botName || 'Unknown',
-            botPersonality: g.botPersonality && VALID_PERSONALITIES.includes(g.botPersonality) 
+            botPersonality: g.botPersonality && VALID_PERSONALITIES.includes(g.botPersonality)
                 ? g.botPersonality : BotPersonality.WARLORD,
             botScore: typeof g.botScore === 'number' && !isNaN(g.botScore) ? g.botScore : 1000,
             createdAt: typeof g.createdAt === 'number' && !isNaN(g.createdAt) ? g.createdAt : Date.now(),
@@ -172,7 +172,12 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
             notified: typeof g.notified === 'boolean' ? g.notified : false
         }));
     }
-    
+
+    // Enemy Attack System Migration
+    if (saved.enemyAttackCounts) cleanState.enemyAttackCounts = saved.enemyAttackCounts;
+    if (saved.lastEnemyAttackCheckTime) cleanState.lastEnemyAttackCheckTime = saved.lastEnemyAttackCheckTime;
+    if (saved.lastEnemyAttackResetTime) cleanState.lastEnemyAttackResetTime = saved.lastEnemyAttackResetTime;
+
     // Attack Counts Migration
     if (saved.targetAttackCounts) cleanState.targetAttackCounts = saved.targetAttackCounts;
     if (saved.lastAttackResetTime) cleanState.lastAttackResetTime = saved.lastAttackResetTime;

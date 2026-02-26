@@ -5,7 +5,7 @@ import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
 import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS, SPY_RESOURCE_RATIOS } from '../../constants';
 import { BASE_PRICES, calculateTotalUnitCost } from './market';
-import { calculateRetaliationTime } from './nemesis';
+import { calculateRetaliationTime, getRetaliationChance } from './nemesis';
 import { BotPersonality } from '../../types/enums';
 import { StaticBot } from './rankings';
 
@@ -590,16 +590,22 @@ export const resolveMission = (
 
                 const targetBot = rankingBots.find(b => b.id === mission.targetId);
                 if (targetBot) {
-                    newGrudge = {
-                        id: `grudge-${now}`,
-                        botId: targetBot.id,
-                        botName: targetBot.name,
-                        botPersonality: targetBot.personality,
-                        botScore: targetBot.stats.DOMINION,
-                        createdAt: now,
-                        retaliationTime: calculateRetaliationTime(targetBot.personality, now),
-                        notified: false
-                    };
+                    // Roll for retaliation based on personality
+                    const retaliationChance = getRetaliationChance(targetBot.personality);
+                    const willRetaliate = Math.random() < retaliationChance;
+
+                    if (willRetaliate) {
+                        newGrudge = {
+                            id: `grudge-${now}`,
+                            botId: targetBot.id,
+                            botName: targetBot.name,
+                            botPersonality: targetBot.personality,
+                            botScore: targetBot.stats.DOMINION,
+                            createdAt: now,
+                            retaliationTime: calculateRetaliationTime(now),
+                            notified: false
+                        };
+                    }
                     reputationChanges.push({ botId: targetBot.id, change: REPUTATION_ATTACK_PENALTY });
                 }
             }

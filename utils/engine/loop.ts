@@ -4,6 +4,7 @@ import { processEconomyTick } from './economy';
 import { processSystemTick, recalculateProgression } from './systems';
 import { processWarTick } from './war';
 import { processNemesisTick } from './nemesis';
+import { processEnemyAttackCheck, initializeEnemyAttackState } from './enemyAttack';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
 
@@ -30,6 +31,11 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);
     state = { ...state, ...nemesisUpdates };
     currentLogs = [...currentLogs, ...nemesisLogs];
+
+    // 4b. Enemy Attack System (30min checks for low reputation bots)
+    const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(state, now);
+    state = { ...state, ...enemyAttackUpdates };
+    currentLogs = [...currentLogs, ...enemyAttackLogs];
 
     // 5. Ranking Evolution (Every 6H of gameplay)
     const rankingElapsed = now - state.rankingData.lastUpdateTime;
