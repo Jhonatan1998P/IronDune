@@ -1,4 +1,19 @@
 
+/**
+ * BuildingsView - Vista de Edificios
+ * 
+ * Componentes principales:
+ * - BuildingCard: Tarjeta individual de cada edificio
+ * - Pagination: Navegación entre páginas en móvil
+ * - Grid de edificios: Muestra todos los edificios disponibles
+ * 
+ * Características:
+ * - Construcción y mejora de edificios
+ * - Reparación de edificios dañados
+ * - Selección de cantidad para edificios construibles
+ * - Soporte para tutorial interactivo
+ */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { GameState, ResourceType, BuildingType, BuildingDef, TranslationDictionary } from '../../types';
@@ -16,7 +31,17 @@ interface ViewProps {
   onRepair?: (id: BuildingType) => void;
 }
 
-// --- SUB-COMPONENT: BUILDING CARD ---
+/**
+ * BuildingCard - Tarjeta de Edificio
+ * 
+ * Subcomponente que representa una tarjeta individual de edificio.
+ * Muestra:
+ * - Nombre y descripción del edificio
+ * - Nivel actual y cantidad en cola
+ * - Estado de daño
+ * - Costos de construcción/mejora
+ * - Botón de acción (construir/mejorar/reparar)
+ */
 const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction: (id: BuildingType, amount: number) => void, onRepair?: (id: BuildingType) => void, t: TranslationDictionary }> = ({ def, gameState, onAction, onRepair, t }) => {
     const buildingState = gameState.buildings[def.id];
     const qty = buildingState?.level || 0;
@@ -145,6 +170,15 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
     );
 };
 
+/**
+ * BuildingsView - Componente Principal
+ * 
+ * Vista principal para gestionar todos los edificios del juego.
+ * Incluye:
+ * - Grid responsivo de tarjetas de edificios
+ * - Paginación en dispositivos móviles
+ * - Integración con el sistema de tutorial
+ */
 export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = ({ gameState, onAction, onSpeedUp: _onSpeedUp, onRepair }) => {
   const { t } = useLanguage();
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,6 +195,7 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
   const totalPages = Math.ceil(allBuildings.length / ITEMS_PER_PAGE_MOBILE);
 
   // --- TUTORIAL NAVIGATION LOGIC ---
+  // Gestiona la navegación automática del tutorial hacia el edificio objetivo
   const activeTutorialStep = TUTORIAL_STEPS.find(s => s.id === gameState.currentTutorialId);
   let hijackNextButtonId: string | undefined = undefined;
   let hijackPrevButtonId: string | undefined = undefined;
@@ -179,6 +214,7 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
       }
   }
 
+  // Calcula los edificios a mostrar según la página actual
   const displayedBuildings = useMemo(() => {
       if (!isMobile) return allBuildings;
       const start = (currentPage - 1) * ITEMS_PER_PAGE_MOBILE;
@@ -188,7 +224,11 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
   return (
     <div className="flex flex-col min-h-full relative">
         
-        {/* COMPACT TOP PAGINATION (Solo Móviles) */}
+        {/* ============================================================
+            COMPACT TOP PAGINATION (Solo Móviles)
+            Barra de navegación entre páginas de edificios
+            Solo visible cuando hay más de una página
+        ============================================================ */}
         {isMobile && totalPages > 1 && (
             <div className="flex justify-between items-center shrink-0 p-1.5 mb-3 bg-slate-900/50 rounded-xl border border-white/10 shadow-sm">
                 <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold ml-3">
@@ -218,7 +258,11 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
             </div>
         )}
 
-        {/* Content */}
+        {/* ============================================================
+            CONTENT - Grid de Edificios
+            Muestra las tarjetas de edificios en un grid responsivo
+            1 columna móvil, 2 sm, 3 lg, 4 xl, 5 2xl
+        ============================================================ */}
         <div className="flex-1 min-h-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6 md:p-2">
               {displayedBuildings.map((def) => (

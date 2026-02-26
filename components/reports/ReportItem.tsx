@@ -147,157 +147,156 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     }
 
     return (
-        <div className={`p-4 rounded-xl border-y border-r border-l-4 mb-3 transition-all duration-300 group relative flex items-start gap-4 active:scale-[0.99] ${styleClass} ${isSelected ? 'ring-2 ring-cyan-500 bg-cyan-900/10' : 'hover:scale-[1.01]'}`}>
-             {/* Checkbox Wrapper */}
-             <div className="flex flex-col items-center justify-center pt-1" onClick={(e) => e.stopPropagation()}>
-                 <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isSelected ? 'bg-cyan-500 border-cyan-400 text-black' : 'bg-black/40 border-white/20'}`}>
-                     {isSelected && <Icons.Check className="w-3 h-3" />}
+        <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border-y border-r border-l-[3px] transition-all duration-200 group relative flex items-start gap-3 active:scale-[0.99] ${styleClass} ${isSelected ? 'ring-2 ring-cyan-500 bg-cyan-900/10' : ''}`}>
+             <div className="flex flex-col items-center justify-start pt-0.5" onClick={(e) => e.stopPropagation()}>
+                 <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isSelected ? 'bg-cyan-500 border-cyan-400 text-black' : 'bg-black/40 border-white/20'}`}>
+                     {isSelected && <Icons.Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
                  </div>
              </div>
 
              <div className="flex-1 min-w-0">
-                 <div className="flex justify-between items-start mb-2">
-                     <div className="flex items-center gap-3">
-                         <div className={`p-2.5 rounded-lg border ${iconColor} shadow-inner flex items-center justify-center shrink-0`}>
+                 <div className="flex justify-between items-start gap-2 mb-1.5 sm:mb-2">
+                     <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                         <div className={`p-2 rounded-lg border ${iconColor} shadow-inner flex items-center justify-center shrink-0`}>
                              {iconSymbol}
                          </div>
                          <div className="flex flex-col min-w-0">
-                             <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-0.5">{typeLabel}</span>
-                             <span className={`font-tech font-bold text-sm md:text-base leading-tight break-words ${log.type === 'combat' ? 'text-white' : log.type === 'intel' ? 'text-indigo-200' : log.type === 'war' ? 'text-red-300' : 'text-slate-200'}`}>
+                             <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-widest font-bold">{typeLabel}</span>
+                             <span className={`font-tech font-bold text-xs sm:text-sm leading-tight break-words ${log.type === 'combat' ? 'text-white' : log.type === 'intel' ? 'text-indigo-200' : log.type === 'war' ? 'text-red-300' : 'text-slate-200'}`}>
                                  {msg}
                              </span>
                          </div>
                      </div>
                      
-                     <div className="flex flex-col items-end shrink-0 gap-2">
-                         <span className="text-[10px] text-slate-500 font-mono tracking-widest">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                         <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                     <div className="flex flex-col items-end shrink-0 gap-1 sm:gap-2">
+                         <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                         <div className="flex gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                              {!log.archived ? (
-                                <button onClick={(e) => { e.stopPropagation(); onArchive(log.id, true); }} className="p-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors" title={t.common.actions.archive}>
-                                    <Icons.Settings className="w-4 h-4" />
+                                <button onClick={(e) => { e.stopPropagation(); onArchive(log.id, true); }} className="p-1 sm:p-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors" title={t.common.actions.archive}>
+                                    <Icons.Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </button>
                              ) : (
-                                <button onClick={(e) => { e.stopPropagation(); onArchive(log.id, false); }} className="p-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-emerald-400 transition-colors" title={t.common.actions.unarchive}>
-                                    <Icons.Settings className="w-4 h-4 rotate-180" />
+                                <button onClick={(e) => { e.stopPropagation(); onArchive(log.id, false); }} className="p-1 sm:p-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-emerald-400 transition-colors" title={t.common.actions.unarchive}>
+                                    <Icons.Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-180" />
                                 </button>
                              )}
-                             <button onClick={(e) => { e.stopPropagation(); onDelete(log.id); }} className="p-1.5 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors" title={t.common.actions.delete}>
-                                 <Icons.Close className="w-4 h-4" />
+                             <button onClick={(e) => { e.stopPropagation(); onDelete(log.id); }} className="p-1 sm:p-1.5 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors" title={t.common.actions.delete}>
+                                 <Icons.Close className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                              </button>
                          </div>
                      </div>
                  </div>
                  
-                 <div className="space-y-3 mt-3 pl-[3.25rem]">
-                    {isIntel && log.params && (
-                        <div className="text-xs bg-indigo-950/40 rounded-lg p-3 border border-indigo-500/20 shadow-inner">
-                            {log.messageKey === 'log_intel_acquired' ? (
-                                <>
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 border-b border-indigo-500/20 pb-2 gap-2">
-                                        <span className="text-indigo-300 font-bold uppercase tracking-widest">{t.reports.intel_target}: {log.params.targetName}</span>
-                                        <span className="font-mono text-indigo-400 text-[10px] bg-indigo-900/30 px-2 py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params?.score ?? 0)}</span>
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                        <div className="text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.reports.intel_composition}</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {log.params.units && Object.entries(log.params.units).map(([uType, count]) => {
-                                                const def = UNIT_DEFS[uType as UnitType];
-                                                const name = t.units[def?.translationKey]?.name || uType;
-                                                return (
-                                                    <span key={uType} className="bg-black/40 px-2.5 py-1.5 rounded-md text-slate-300 border border-indigo-500/10 flex gap-2 items-center text-[10px] font-bold">
-                                                        <span>{name}</span>
-                                                        <span className="text-white font-mono">{count as number}</span>
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
+                 <div className="space-y-2 mt-2 pl-0">
+                     {isIntel && log.params && (
+                         <div className="text-xs bg-indigo-950/40 rounded-lg p-2 sm:p-3 border border-indigo-500/20 shadow-inner">
+                             {log.messageKey === 'log_intel_acquired' ? (
+                                 <>
+                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 sm:mb-3 border-b border-indigo-500/20 pb-2 gap-1.5 sm:gap-2">
+                                         <span className="text-indigo-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">{t.reports.intel_target}: {log.params.targetName}</span>
+                                         <span className="font-mono text-indigo-400 text-[9px] sm:text-[10px] bg-indigo-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params?.score ?? 0)}</span>
+                                     </div>
+                                     
+                                     <div className="space-y-1.5 sm:space-y-2">
+                                         <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.reports.intel_composition}</div>
+                                         <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                             {log.params.units && Object.entries(log.params.units).map(([uType, count]) => {
+                                                 const def = UNIT_DEFS[uType as UnitType];
+                                                 const name = t.units[def?.translationKey]?.name || uType;
+                                                 return (
+                                                     <span key={uType} className="bg-black/40 px-2 py-1 rounded-md text-slate-300 border border-indigo-500/10 flex gap-1.5 items-center text-[9px] sm:text-[10px] font-bold">
+                                                         <span className="truncate max-w-[60px] sm:max-w-none">{name}</span>
+                                                         <span className="text-white font-mono">{count as number}</span>
+                                                     </span>
+                                                 );
+                                             })}
+                                         </div>
+                                     </div>
 
-                                    {onSimulate && log.params?.units && (
-                                        <button
-                                            onClick={() => onSimulate(log.params?.units ?? {})}
-                                            className="w-full mt-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98]"
-                                        >
-                                            <Icons.Simulate className="w-4 h-4" />
-                                            {t.common.actions.simulate}
-                                        </button>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="text-indigo-300 italic">{msg}</div>
-                            )}
-                        </div>
-                    )}
-
-                    {hasBuildingLoot && (
-                        <div className={`p-3 rounded-lg text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-yellow-950/40 border-yellow-500/20'}`}>
-                            <div className={`${isDefenseLoss ? 'text-red-400' : 'text-yellow-400'} font-bold mb-2 text-[10px] uppercase tracking-wider`}>
-                                {isDefenseLoss ? t.reports.buildings_lost?.toUpperCase() || "BUILDINGS LOST" : t.reports.buildings_seized?.toUpperCase() || "BUILDINGS SEIZED"}
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                                {Object.entries(log.params?.buildingLoot ?? {}).map(([k,v]) => (
-                                    <span key={k} className={`px-2.5 py-1.5 rounded-md border text-[10px] font-mono font-bold flex items-center gap-1.5 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/30' : 'text-yellow-300 border-yellow-500/30 bg-yellow-900/30'}`}>
-                                        <Icons.Base className="w-3.5 h-3.5" />
-                                        <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {hasLoot && log.params?.loot && (
-                        <div className={`p-3 rounded-lg text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-black/30 border-white/5'}`}>
-                            <div className={`${isDefenseLoss ? 'text-red-400' : 'text-emerald-400'} font-bold mb-2 text-[10px] uppercase tracking-wider`}>
-                                {isDefenseLoss ? t.reports.details_stolen : isCampaign ? t.campaign.rewards : t.reports.details_loot}
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                                {Object.entries(log.params.loot).map(([k,v]) => (
-                                    <span key={k} className={`px-2.5 py-1.5 rounded-md border text-[10px] font-mono font-bold flex items-center gap-1.5 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/30' : 'text-slate-200 border-emerald-500/20 bg-emerald-950/20'}`}>
-                                        {getResourceIcon(k)}
-                                        <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
-                    {hasCombatParams && (
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onViewDetails(log); }}
-                            className={`w-full sm:w-auto px-6 py-2.5 rounded-lg border text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 active:scale-[0.98] shadow-md
-                            ${isDefenseLoss ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30' : 
-                              isDefenseWin ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/30' :
-                              isCampaign ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/30' :
-                              isPatrol ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 hover:bg-purple-500/30' :
-                              isAttackWin ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30' :
-                              'bg-orange-500/20 border-orange-500/50 text-orange-300 hover:bg-orange-500/30'}`}
-                        >
-                            <Icons.Report className="w-4 h-4" />
-                            {t.reports.view_report}
-                        </button>
-                    )}
-
-                    {isTrade && log.params && (
-                        <div className="text-xs font-mono font-bold text-orange-300 flex items-center gap-2 bg-orange-950/20 p-2 rounded-md border border-orange-500/20 w-max">
-                            {log.params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(log.params.amount ?? 0)}
-                            {getResourceIcon(log.params.resource ?? '')}
-                        </div>
-                    )}
-                    
-                    {log.type === 'war' && log.params?.result && (
-                         <div className="text-xs text-red-200 bg-red-950/40 p-3 rounded-lg border border-red-500/30">
-                             {log.params.result}
-                             {log.params.warSummary && (
-                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); onViewDetails(log); }}
-                                    className="flex items-center gap-2 mt-3 text-[10px] text-red-400 hover:text-white font-bold uppercase tracking-widest bg-red-900/30 px-3 py-1.5 rounded-md border border-red-500/20 transition-colors w-max"
-                                 >
-                                     <Icons.Report className="w-3 h-3" /> {t.features.war.losses_report}
-                                 </button>
+                                     {onSimulate && log.params?.units && (
+                                         <button
+                                             onClick={() => onSimulate(log.params?.units ?? {})}
+                                             className="w-full mt-2 sm:mt-3 py-1.5 sm:py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"
+                                         >
+                                             <Icons.Simulate className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                             {t.common.actions.simulate}
+                                         </button>
+                                     )}
+                                 </>
+                             ) : (
+                                 <div className="text-indigo-300 italic text-[10px] sm:text-xs">{msg}</div>
                              )}
                          </div>
-                    )}
+                     )}
+
+                     {hasBuildingLoot && (
+                         <div className={`p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-yellow-950/40 border-yellow-500/20'}`}>
+                             <div className={`${isDefenseLoss ? 'text-red-400' : 'text-yellow-400'} font-bold mb-1.5 sm:mb-2 text-[9px] sm:text-[10px] uppercase tracking-wider`}>
+                                 {isDefenseLoss ? t.reports.buildings_lost?.toUpperCase() || "BUILDINGS LOST" : t.reports.buildings_seized?.toUpperCase() || "BUILDINGS SEIZED"}
+                             </div>
+                             <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                                 {Object.entries(log.params?.buildingLoot ?? {}).map(([k,v]) => (
+                                     <span key={k} className={`px-2 py-1 rounded-md border text-[9px] sm:text-[10px] font-mono font-bold flex items-center gap-1 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/30' : 'text-yellow-300 border-yellow-500/30 bg-yellow-900/30'}`}>
+                                         <Icons.Base className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                         <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
+                                     </span>
+                                 ))}
+                             </div>
+                         </div>
+                     )}
+
+                     {hasLoot && log.params?.loot && (
+                         <div className={`p-2 sm:p-3 rounded-lg text-[10px] sm:text-xs border ${isDefenseLoss ? 'bg-red-950/40 border-red-500/20' : 'bg-black/30 border-white/5'}`}>
+                             <div className={`${isDefenseLoss ? 'text-red-400' : 'text-emerald-400'} font-bold mb-1.5 sm:mb-2 text-[9px] sm:text-[10px] uppercase tracking-wider`}>
+                                 {isDefenseLoss ? t.reports.details_stolen : isCampaign ? t.campaign.rewards : t.reports.details_loot}
+                             </div>
+                             <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                                 {Object.entries(log.params.loot).map(([k,v]) => (
+                                     <span key={k} className={`px-2 py-1 rounded-md border text-[9px] sm:text-[10px] font-mono font-bold flex items-center gap-1 ${isDefenseLoss ? 'text-red-300 border-red-500/30 bg-red-950/30' : 'text-slate-200 border-emerald-500/20 bg-emerald-950/20'}`}>
+                                         {getResourceIcon(k)}
+                                         <span>{isDefenseLoss ? '-' : '+'}{formatNumber(v as number)}</span>
+                                     </span>
+                                 ))}
+                             </div>
+                         </div>
+                     )}
+                     
+                     {hasCombatParams && (
+                         <button 
+                             onClick={(e) => { e.stopPropagation(); onViewDetails(log); }}
+                             className={`w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg border text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98] shadow-md
+                             ${isDefenseLoss ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30' : 
+                               isDefenseWin ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/30' :
+                               isCampaign ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/30' :
+                               isPatrol ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 hover:bg-purple-500/30' :
+                               isAttackWin ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30' :
+                               'bg-orange-500/20 border-orange-500/50 text-orange-300 hover:bg-orange-500/30'}`}
+                         >
+                             <Icons.Report className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                             {t.reports.view_report}
+                         </button>
+                     )}
+
+                     {isTrade && log.params && (
+                         <div className="text-[10px] sm:text-xs font-mono font-bold text-orange-300 flex items-center gap-1.5 sm:gap-2 bg-orange-950/20 p-1.5 sm:p-2 rounded-md border border-orange-500/20 w-max">
+                             {log.params.type === 'BUY' ? t.market.offer_buy : t.market.offer_sell} {formatNumber(log.params.amount ?? 0)}
+                             {getResourceIcon(log.params.resource ?? '')}
+                         </div>
+                     )}
+                     
+                     {log.type === 'war' && log.params?.result && (
+                          <div className="text-[10px] sm:text-xs text-red-200 bg-red-950/40 p-2 sm:p-3 rounded-lg border border-red-500/30">
+                              {log.params.result}
+                              {log.params.warSummary && (
+                                  <button 
+                                     onClick={(e) => { e.stopPropagation(); onViewDetails(log); }}
+                                     className="flex items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 text-[9px] sm:text-[10px] text-red-400 hover:text-white font-bold uppercase tracking-widest bg-red-900/30 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-red-500/20 transition-colors w-max"
+                                  >
+                                      <Icons.Report className="w-3 h-3" /> {t.features.war.losses_report}
+                                  </button>
+                              )}
+                          </div>
+                     )}
                  </div>
              </div>
         </div>

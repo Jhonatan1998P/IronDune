@@ -10,4 +10,5 @@ export * from './views/ResearchView';
 export * from './views/FinanceView';
 export * from './views/MarketView'; 
 export * from './views/RankingsView'; 
-export * from './views/WarView'; // Added
+export * from './views/WarView'; 
+export * from './views/SettingsView';

@@ -14,9 +14,13 @@ const DiplomacyView: React.FC = () => {
     const [search, setSearch] = useState('');
     const [personalityFilter, setPersonalityFilter] = useState<string>('ALL');
     const [sortBy, setSortBy] = useState<'REPUTATION' | 'SCORE' | 'NAME'>('REPUTATION');
+    const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
     const [currentPage, setCurrentPage] = useState(1);
     const [isMobile, setIsMobile] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [_cooldownTick, setCooldownTick] = useState(0);
+
+    const bots = state.rankingData.bots;
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -25,21 +29,49 @@ const DiplomacyView: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    const bots = state.rankingData.bots;
+    // Force re-render every minute to update cooldown timers display
+    useEffect(() => {
+        const hasActiveCooldowns = bots.some(bot => {
+            const actions = state.diplomaticActions[bot.id];
+            return actions?.lastGiftTime || actions?.lastAllianceTime || actions?.lastPeaceTime;
+        });
+
+        if (!hasActiveCooldowns) return;
+
+        const interval = setInterval(() => {
+            setCooldownTick(n => n + 1);
+        }, 60000); // Update every minute
+
+        return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bots.length, state.diplomaticActions]);
 
     const filteredBots = useMemo(() => {
-        return bots
+        return [...bots] // Crear copia para no mutar el original
             .filter(bot => {
                 const matchesSearch = bot.name.toLowerCase().includes(search.toLowerCase());
                 const matchesPersonality = personalityFilter === 'ALL' || bot.personality === personalityFilter;
                 return matchesSearch && matchesPersonality;
             })
             .sort((a, b) => {
-                if (sortBy === 'REPUTATION') return b.reputation - a.reputation;
-                if (sortBy === 'SCORE') return b.stats[RankingCategory.DOMINION] - a.stats[RankingCategory.DOMINION];
-                return a.name.localeCompare(b.name);
+                const dir = sortDir === 'DESC' ? -1 : 1;
+                
+                if (sortBy === 'REPUTATION') {
+                    const repA = a.reputation ?? 50;
+                    const repB = b.reputation ?? 50;
+                    return (repB - repA) * dir;
+                }
+                
+                if (sortBy === 'SCORE') {
+                    const scoreA = a.stats[RankingCategory.DOMINION] ?? 0;
+                    const scoreB = b.stats[RankingCategory.DOMINION] ?? 0;
+                    return (scoreB - scoreA) * dir;
+                }
+                
+                // NAME sorting
+                return a.name.localeCompare(b.name) * dir;
             });
-    }, [bots, search, personalityFilter, sortBy]);
+    }, [bots, search, personalityFilter, sortBy, sortDir]);
 
     const stats = useMemo(() => {
         const totalRep = bots.reduce((acc, b) => acc + (b.reputation || 50), 0);
@@ -56,7 +88,7 @@ const DiplomacyView: React.FC = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, personalityFilter, sortBy]);
+    }, [search, personalityFilter, sortBy, sortDir]);
 
     const displayedBots = useMemo(() => {
         const start = (currentPage - 1) * itemsPerPage;
@@ -262,9 +294,9 @@ const DiplomacyView: React.FC = () => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    <select 
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap"
+                <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    <select
+                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap min-w-[140px] md:min-w-[160px]"
                         value={personalityFilter}
                         onChange={(e) => setPersonalityFilter(e.target.value)}
                     >
@@ -273,8 +305,8 @@ const DiplomacyView: React.FC = () => {
                             <option key={p} value={p}>{getPersonalityLabel(p)}</option>
                         ))}
                     </select>
-                    <select 
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap"
+                    <select
+                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 md:py-1 text-xs md:text-sm focus:outline-none whitespace-nowrap min-w-[120px] md:min-w-[140px]"
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as any)}
                     >
@@ -282,6 +314,30 @@ const DiplomacyView: React.FC = () => {
                         <option value="SCORE">{t.common.ui.diplomacy_sort_score || 'Score'}</option>
                         <option value="NAME">{t.common.ui.diplomacy_sort_name || 'Name'}</option>
                     </select>
+                    <SmartTooltip
+                        content={
+                            <div className="text-xs">
+                                <div className="font-bold text-cyan-400">{t.common.ui.sort_order || 'Orden'}</div>
+                                <div className="text-slate-400 mt-1">
+                                    {sortDir === 'DESC' ? 'Mayor a menor' : 'Menor a mayor'}
+                                </div>
+                            </div>
+                        }
+                        triggerMode="hover"
+                        placement="top"
+                    >
+                        <button
+                            onClick={() => setSortDir(d => d === 'ASC' ? 'DESC' : 'ASC')}
+                            className="flex items-center justify-center gap-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 rounded-lg px-2.5 py-1.5 md:py-1 min-w-[40px] md:min-w-[44px] focus:outline-none whitespace-nowrap transition-colors active:scale-95"
+                            title={sortDir === 'DESC' ? 'Mayor a menor' : 'Menor a mayor'}
+                        >
+                            {sortDir === 'DESC' ? (
+                                <TrendingDown className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
+                            ) : (
+                                <TrendingUp className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
+                            )}
+                        </button>
+                    </SmartTooltip>
                 </div>
             </div>
 
@@ -478,7 +534,7 @@ const DiplomacyView: React.FC = () => {
                                     </button>
                                 </SmartTooltip>
                                 
-                                <SmartTooltip 
+                                <SmartTooltip
                                     content={
                                         !peaceCheck.allowed ? (
                                             <div className="space-y-1 text-xs">
@@ -493,14 +549,20 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="text-slate-400">{t.common.ui.tooltip_peace_desc || 'Ya no es hostil'}</div>
                                                 <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
                                             </div>
+                                        ) : (bot.reputation ?? 50) < 35 ? (
+                                            <div className="space-y-1 text-xs">
+                                                <div className="font-bold text-purple-400">{t.common.ui.diplomacy_propose_peace || 'Paz'}</div>
+                                                <div className="text-red-400">{t.common.ui.tooltip_reputation_low || 'Reputación muy baja'}</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: 35%+</div>
+                                                <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
+                                            </div>
                                         ) : (
                                             <div className="space-y-1 text-xs min-w-[180px]">
                                                 <div className="font-bold text-purple-400 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_propose_peace || 'Proponer Paz'}</div>
-                                                <div className="text-green-400">+5-10 {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-green-400">+10 {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_requirement || 'Requisito'}:</div>
-                                                <div className="text-slate-300">&lt;50% {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-300">35-49% {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_peace_cooldown || 'Cooldown: 4 horas'}</div>
-                                                <div className="text-slate-600 text-[10px]">{t.common.ui.tooltip_peace_bonus || 'Más bonus si el enemigo es muy hostil'}</div>
                                             </div>
                                         )
                                     }
@@ -509,7 +571,7 @@ const DiplomacyView: React.FC = () => {
                                 >
                                     <button
                                         onClick={() => handlePeace(bot.id)}
-                                        disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50}
+                                        disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50 || (bot.reputation ?? 50) < 35}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >
                                         {actionLoading === bot.id ? (
