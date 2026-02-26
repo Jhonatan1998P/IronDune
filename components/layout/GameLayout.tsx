@@ -67,7 +67,7 @@ export const GameLayout: React.FC = () => {
 
       {/* --- UI LAYER (Z-INDEX 10+) --- */}
       <div className="relative z-10 flex flex-col h-full">
-          {offlineReport && <OfflineWelcome report={offlineReport} onClose={clearOfflineReport} />}
+          {offlineReport && <OfflineWelcome report={offlineReport} gameState={gameState} onClose={clearOfflineReport} />}
           <TutorialOverlay activeTab={activeTab} gameState={gameState} />
           <ObjectiveTracker />
           <WarHUD />

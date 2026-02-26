@@ -169,6 +169,7 @@ export const features = {
     offline: {
       title: "Situation Report",
       welcome_back: "Welcome Back, Commander",
+      welcome_by_name: "Welcome Back", // Se usa con interpolación: "Welcome Back, {name}"
       time_away: "Time Offline",
       report_status: "Status Report",
       production_summary: "Offline Production",

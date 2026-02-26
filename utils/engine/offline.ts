@@ -13,6 +13,7 @@ import { simulateCombat } from './combat';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
 import { processNemesisTick } from './nemesis';
+import { processEnemyAttackCheck } from './enemyAttack';
 
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -209,6 +210,22 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         newState.incomingAttacks = nemesisUpdates.incomingAttacks;
     }
     newLogs.push(...nemesisLogs);
+
+    // Process Enemy Attack System Offline (30min checks)
+    const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(newState, now);
+    if (enemyAttackUpdates.enemyAttackCounts) {
+        newState.enemyAttackCounts = enemyAttackUpdates.enemyAttackCounts;
+    }
+    if (enemyAttackUpdates.lastEnemyAttackCheckTime) {
+        newState.lastEnemyAttackCheckTime = enemyAttackUpdates.lastEnemyAttackCheckTime;
+    }
+    if (enemyAttackUpdates.lastEnemyAttackResetTime) {
+        newState.lastEnemyAttackResetTime = enemyAttackUpdates.lastEnemyAttackResetTime;
+    }
+    if (enemyAttackUpdates.incomingAttacks) {
+        newState.incomingAttacks = enemyAttackUpdates.incomingAttacks;
+    }
+    newLogs.push(...enemyAttackLogs);
 
     return { newState, report, newLogs };
 };
