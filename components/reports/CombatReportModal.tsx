@@ -317,8 +317,8 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                     <div className="h-full bg-red-600 transition-all" style={{ width: `${lossWidth}%` }}></div>
                                 </div>
                                 <div className="flex gap-3 sm:gap-6 font-mono text-xs sm:text-sm shrink-0 w-20 sm:w-24 justify-end">
-                                    <div className="text-red-400 font-bold w-6 sm:w-8 text-right">-{lost}</div>
-                                    <div className={`w-6 sm:w-8 text-right ${end > 0 ? "text-white font-bold" : "text-slate-600"}`}>{end}</div>
+                                    <div className="text-red-400 font-bold w-6 sm:w-8 text-right">-{formatNumber(lost)}</div>
+                                    <div className={`w-6 sm:w-8 text-right ${end > 0 ? "text-white font-bold" : "text-slate-600"}`}>{formatNumber(end)}</div>
                                 </div>
                             </div>
                         </div>
@@ -379,7 +379,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                                     <span className="text-cyan-400 font-bold text-sm sm:text-base md:text-lg truncate">{unitName}</span>
                                     <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-mono whitespace-nowrap">
-                                        {t.reports.deployed}: <span className="text-white">{deployed}</span> | {t.reports.lost}: <span className="text-white">{myLosses}</span>
+                                        {t.reports.deployed}: <span className="text-white">{formatNumber(deployed)}</span> | {t.reports.lost}: <span className="text-white">{formatNumber(myLosses)}</span>
                                     </span>
                                 </div>
                                 <div className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border text-[10px] sm:text-xs font-mono font-bold whitespace-nowrap ${isEfficient ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'bg-red-950/40 border-red-500/50 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]'}`}>
@@ -398,7 +398,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                             {Object.entries(kills).map(([victim, count]) => {
                                                 const vDef = UNIT_DEFS[victim as UnitType];
                                                 const vName = t.units[vDef.translationKey]?.name || victim;
-                                                const text = (t.reports as any).analysis_kill_text?.replace('{count}', count.toString()).replace('{unit}', vName) || `${count} ${vName} neutralized`;
+                                                const text = (t.reports as any).analysis_kill_text?.replace('{count}', formatNumber(count)).replace('{unit}', vName) || `${formatNumber(count)} ${vName} neutralized`;
                                                 return (
                                                     <li key={victim} className="text-[10px] sm:text-xs md:text-sm text-emerald-100 flex items-start gap-2 bg-emerald-950/20 p-2 rounded-md border border-emerald-500/10">
                                                         <span className="text-emerald-500 font-bold">•</span>
@@ -422,7 +422,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                             {Object.entries(deathsBy).map(([killer, count]) => {
                                                 const kDef = UNIT_DEFS[killer as UnitType];
                                                 const kName = t.units[kDef.translationKey]?.name || killer;
-                                                const text = (t.reports as any).analysis_death_text?.replace('{count}', count.toString()).replace('{unit}', kName) || `Lost ${count} to ${kName}`;
+                                                const text = (t.reports as any).analysis_death_text?.replace('{count}', formatNumber(count)).replace('{unit}', kName) || `Lost ${formatNumber(count)} to ${kName}`;
                                                 return (
                                                     <li key={killer} className="text-[10px] sm:text-xs md:text-sm text-red-100 flex items-start gap-2 bg-red-950/20 p-2 rounded-md border border-red-500/10">
                                                         <span className="text-red-500 font-bold">•</span>
@@ -433,7 +433,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                             {criticalDeaths > 0 && (
                                                 <li className="text-[10px] sm:text-xs md:text-sm text-orange-200 flex items-start gap-2 p-2 mt-2 bg-orange-950/30 rounded-md border border-orange-500/30 shadow-inner">
                                                     <span className="text-orange-500 font-bold animate-pulse">⚠</span>
-                                                    {criticalDeaths} {criticalText}
+                                                    {formatNumber(criticalDeaths)} {criticalText}
                                                 </li>
                                             )}
                                         </ul>
