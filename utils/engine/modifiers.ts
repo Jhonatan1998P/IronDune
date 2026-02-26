@@ -49,20 +49,29 @@ export const calculateTechMultipliers = (researchedTechs: TechType[], techLevels
 // Base Constants for Formula
 const FORMULA_BASE_CAP: Record<ResourceType, number> = {
     [ResourceType.MONEY]: 1000000,
-    [ResourceType.AMMO]: 100000, 
+    [ResourceType.AMMO]: 100000,
     [ResourceType.OIL]: 50000,
     [ResourceType.GOLD]: 25000,
     [ResourceType.DIAMOND]: 50 // Base cap for diamonds
 };
 
+// Diamond Mine Production: 1 diamond per hour at level 1
+const DIAMOND_MINE_PRODUCTION_PER_LEVEL = 1; // 1 diamond/hour per level
+const DIAMOND_CAPACITY_MULTIPLIER = 10; // Capacity = 10x production
+
 // Calculates Wallet Storage (Resources)
 export const calculateMaxStorage = (
-    buildings: Record<BuildingType, { level: number }>, 
+    buildings: Record<BuildingType, { level: number }>,
     multipliers: Multipliers,
     empirePoints: number
 ): Record<ResourceType, number> => {
-    
+
     const bankLevel = buildings[BuildingType.BANK].level;
+    const diamondMineLevel = buildings[BuildingType.DIAMOND_MINE]?.level || 0;
+
+    // Diamond capacity is ALWAYS 10x the mine production (1 per level per hour)
+    // Level 1 = 10 capacity, Level 2 = 20 capacity, etc.
+    const diamondCapacity = diamondMineLevel * DIAMOND_MINE_PRODUCTION_PER_LEVEL * DIAMOND_CAPACITY_MULTIPLIER;
 
     // SCENARIO A: NO BANK (Starter Pack)
     if (bankLevel === 0) {
@@ -73,29 +82,31 @@ export const calculateMaxStorage = (
                 maxResources[r as ResourceType] = Math.floor(maxResources[r as ResourceType] * multipliers.storageMult);
             }
         });
+        // Diamond capacity still based on mine level even without bank
+        maxResources[ResourceType.DIAMOND] = Math.max(INITIAL_MAX_RESOURCES.DIAMOND, diamondCapacity);
         return maxResources;
     }
 
     // SCENARIO B: HAS BANK (Dynamic Formula for Wallet)
-    const maxResources = { ...INITIAL_MAX_RESOURCES }; 
-    
-    const pointsRatio = Math.max(1, empirePoints / 100); 
+    const maxResources = { ...INITIAL_MAX_RESOURCES };
+
+    const pointsRatio = Math.max(1, empirePoints / 100);
     const bankMultiplier = 1 + (0.05 * bankLevel);
 
     Object.values(ResourceType).forEach(res => {
         const base = FORMULA_BASE_CAP[res];
         let val = (pointsRatio * base) * bankMultiplier;
-        
+
         // Apply Tech Multiplier (After formula)
         if (res !== ResourceType.DIAMOND) {
             val *= multipliers.storageMult;
         } else {
-            // Special case for Diamonds: 
-            // Formula: Current Bank Capacity / 500,000
-            const currentBankCapacity = calculateMaxBankCapacity(empirePoints, bankLevel);
-            val = Math.max(INITIAL_MAX_RESOURCES.DIAMOND, Math.floor(currentBankCapacity / 500000));
+            // SPECIAL CASE FOR DIAMONDS:
+            // Capacity = 10x Diamond Mine Production
+            // Level 1 Mine = 10 capacity, Level 2 = 20, Level 3 = 30, etc.
+            val = Math.max(INITIAL_MAX_RESOURCES.DIAMOND, diamondCapacity);
         }
-        
+
         maxResources[res] = Math.floor(val);
     });
 
