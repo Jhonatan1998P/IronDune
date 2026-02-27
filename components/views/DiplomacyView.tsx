@@ -317,7 +317,7 @@ const DiplomacyView: React.FC = () => {
                     <SmartTooltip
                         content={
                             <div className="text-xs">
-                                <div className="font-bold text-cyan-400">{t.common.ui.sort_order || 'Orden'}</div>
+                                <div className="font-bold text-cyan-400">Orden</div>
                                 <div className="text-slate-400 mt-1">
                                     {sortDir === 'DESC' ? 'Mayor a menor' : 'Menor a mayor'}
                                 </div>

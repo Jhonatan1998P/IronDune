@@ -30,7 +30,7 @@ import { UNIT_PRIORITY } from '../../utils/engine/combat';
  * Muestra stats y controles de cantidad
  */
 const UnitRow = React.memo(({ def, count, side, onChange, onSet, t }: {
-    def: UnitType,
+    def: UnitDef,
     count: number,
     side: 'player' | 'enemy',
     onChange: (side: 'player' | 'enemy', uType: UnitType, delta: number) => void,
@@ -384,6 +384,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                         <div className="space-y-1.5">
                             {UNIT_PRIORITY.map(uType => {
                                 const def = UNIT_DEFS[uType];
+                                if (!def) return null;
                                 return (
                                     <UnitRow
                                         key={def.id}
@@ -409,6 +410,7 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
                         <div className="space-y-1.5">
                             {UNIT_PRIORITY.map(uType => {
                                 const def = UNIT_DEFS[uType];
+                                if (!def) return null;
                                 return (
                                     <UnitRow
                                         key={def.id}

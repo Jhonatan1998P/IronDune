@@ -1,7 +1,8 @@
-import { GameState, StaticBot, UnitType } from '../../types';
+import { GameState, UnitType } from '../../types';
 import { RankingCategory } from './rankings';
 import { REPUTATION_ALLY_THRESHOLD } from '../../constants';
 import { generateBotArmy } from './missions';
+import { UNIT_DEFS } from '../../data/units';
 
 export interface ReinforcementEntry {
     botId: string;
@@ -67,9 +68,8 @@ export const getPlayerGarrison = (gameState: GameState): {
 } => {
     const units = gameState.units;
     const totalUnits = Object.values(units).reduce((sum, count) => sum + (count || 0), 0);
-    
+
     // Calculate total power based on unit stats
-    const { UNIT_DEFS } = require('../../data/units');
     let totalPower = 0;
     
     Object.entries(units).forEach(([unitType, count]) => {

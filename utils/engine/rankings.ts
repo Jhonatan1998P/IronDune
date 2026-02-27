@@ -143,7 +143,7 @@ export interface StaticBot {
     stats: Record<RankingCategory, number>;
     ambition: number;
     personality: BotPersonality;
-    lastRank?: number;
+    lastRank: number | undefined;
     currentEvent: BotEvent;
     eventTurnsRemaining: number;
     growthModifier: number;
