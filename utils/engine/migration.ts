@@ -1,16 +1,23 @@
 
-import { BuildingType, GameState, ResourceType, TechType, UnitType } from '../../types';
+import { BuildingType, GameState, ResourceType, TechType, UnitType, LogEntry, SpyReport, IncomingAttack, Grudge, WarState, ActiveMission, ActiveRecruitment, ActiveConstruction, ActiveResearch, BuildingState, LifetimeStats, DiplomaticActions, GiftCodeRedeemed, RankingData } from '../../types';
 import { SAVE_VERSION, WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';
 import { INITIAL_GAME_STATE } from '../../data/initialState';
 import { initializeRankingState, RankingCategory, StaticBot, BotEvent } from './rankings';
 import { BotPersonality } from '../../types/enums';
+import { logMigrationError } from './errorLogger';
 
-// Key for old deprecated local storage ranking system
+// ============================================
+// CONFIGURACIÓN Y CONSTANTES DE VALIDACIÓN
+// ============================================
 const LEGACY_STORAGE_KEY = 'ironDune_static_rankings_v3';
-
 const VALID_PERSONALITIES = Object.values(BotPersonality);
 const VALID_BOT_EVENTS = Object.values(BotEvent);
 const REQUIRED_RANKING_CATEGORIES = Object.values(RankingCategory);
+const VALID_RESOURCE_TYPES = Object.values(ResourceType);
+const VALID_UNIT_TYPES = Object.values(UnitType);
+const VALID_BUILDING_TYPES = Object.values(BuildingType);
+const VALID_TECH_TYPES = Object.values(TechType);
+const VALID_LOG_TYPES = ['info', 'combat', 'build', 'research', 'finance', 'mission', 'market', 'tutorial', 'economy', 'war', 'intel'] as const;
 
 const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
     [RankingCategory.DOMINION]: 1000,
@@ -22,6 +29,147 @@ const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
 const BOT_SCORE_MIN = 1000;
 const BOT_SCORE_MAX = 2000000;
 const SUSPICIOUS_SCORE_THRESHOLD = 5000000;
+
+// ============================================
+// UTILIDADES DE VALIDACIÓN ROBUSTA
+// ============================================
+
+/**
+ * Valida que un valor sea un número válido (no NaN, no Infinity)
+ */
+const isValidNumber = (value: any, min?: number, max?: number): value is number => {
+    if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) return false;
+    if (min !== undefined && value < min) return false;
+    if (max !== undefined && value > max) return false;
+    return true;
+};
+
+/**
+ * Valida que un valor sea un string no vacío
+ */
+const isValidString = (value: any, minLength = 1, maxLength = Infinity): value is string => {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    return trimmed.length >= minLength && trimmed.length <= maxLength;
+};
+
+/**
+ * Valida que un valor sea un booleano
+ */
+const isValidBoolean = (value: any): value is boolean => {
+    return typeof value === 'boolean';
+};
+
+/**
+ * Valida que un valor sea un array
+ */
+const isValidArray = (value: any): value is any[] => {
+    return Array.isArray(value);
+};
+
+/**
+ * Valida que un valor sea un objeto plano (no null, no array)
+ */
+const isValidObject = (value: any): value is Record<string, any> => {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+};
+
+/**
+ * Valida que un enum sea válido
+ */
+const isValidEnum = <T extends string>(value: any, validValues: T[]): value is T => {
+    return validValues.includes(value);
+};
+
+/**
+ * Safe number con fallback
+ */
+const safeNumber = (value: any, fallback: number, min?: number, max?: number): number => {
+    return isValidNumber(value, min, max) ? value : fallback;
+};
+
+/**
+ * Safe string con fallback
+ */
+const safeString = (value: any, fallback: string, minLength = 1, maxLength = Infinity): string => {
+    return isValidString(value, minLength, maxLength) ? value.trim() : fallback;
+};
+
+/**
+ * Safe boolean con fallback
+ */
+const safeBoolean = (value: any, fallback: boolean): boolean => {
+    return isValidBoolean(value) ? value : fallback;
+};
+
+/**
+ * Safe array con fallback
+ */
+const safeArray = (value: any, fallback: any[]): any[] => {
+    return isValidArray(value) ? value : fallback;
+};
+
+/**
+ * Safe object con fallback
+ */
+const safeObject = (value: any, fallback: Record<string, any>): Record<string, any> => {
+    return isValidObject(value) ? value : fallback;
+};
+
+/**
+ * Genera un hash simple para validación de integridad
+ */
+const generateDataHash = (data: any): string => {
+    try {
+        return btoa(JSON.stringify(data)).slice(0, 20);
+    } catch {
+        return `hash-${Date.now()}`;
+    }
+};
+
+// ============================================
+// LOGGING DE MIGRACIÓN
+// ============================================
+const MIGRATION_LOG_PREFIX = '[Migration]';
+
+const logMigration = (level: 'info' | 'warn' | 'error', message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    const logFn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    logFn(`${MIGRATION_LOG_PREFIX} [${timestamp}] ${level.toUpperCase()}: ${message}`, data ?? '');
+};
+
+const logFieldMigration = (field: string, status: 'ok' | 'fixed' | 'default' | 'error', details?: string) => {
+    if (status === 'error') {
+        logMigration('warn', `Field "${field}" migration failed${details ? `: ${details}` : ''}`);
+    } else if (status !== 'ok') {
+        logMigration('info', `Field "${field}" ${status === 'fixed' ? 'fixed' : 'set to default'}${details ? `: ${details}` : ''}`);
+    }
+};
+
+// ============================================
+// VALIDACIÓN DE INTEGRIDAD DE DATOS
+// ============================================
+interface MigrationReport {
+    success: boolean;
+    fieldsFixed: number;
+    fieldsDefaulted: number;
+    fieldsError: number;
+    warnings: string[];
+    dataHash: string;
+}
+
+const createMigrationReport = (): MigrationReport => ({
+    success: true,
+    fieldsFixed: 0,
+    fieldsDefaulted: 0,
+    fieldsError: 0,
+    warnings: [],
+    dataHash: ''
+});
+
+// ============================================
+// SANITIZACIÓN DE DATOS ESPECÍFICOS
+// ============================================
 
 const isSuspiciousScore = (score: number): boolean => {
     return score > SUSPICIOUS_SCORE_THRESHOLD || score < 100;
@@ -36,418 +184,589 @@ const calculateProgressiveScore = (rank: number): number => {
 
 export const sanitizeBot = (bot: any, index: number): StaticBot => {
     const sanitizedStats = { ...DEFAULT_BOT_STATS };
-    
-    const rank = bot.lastRank || (index + 1);
+
+    const rank = safeNumber(bot.lastRank, index + 1, 1, 200);
     const progressiveScore = calculateProgressiveScore(rank);
 
-    if (bot.stats && typeof bot.stats === 'object') {
+    if (isValidObject(bot.stats)) {
         REQUIRED_RANKING_CATEGORIES.forEach(cat => {
-            if (typeof bot.stats[cat] === 'number' && !isNaN(bot.stats[cat])) {
-                const botScore = bot.stats[cat];
+            const botScore = bot.stats[cat];
+            if (isValidNumber(botScore)) {
                 if (cat === RankingCategory.DOMINION) {
                     if (botScore === 1000 && rank < 199) {
                         sanitizedStats[cat] = progressiveScore;
+                        logFieldMigration(`bot.stats.${cat}`, 'fixed', 'Score reset for low rank');
                     } else if (isSuspiciousScore(botScore)) {
                         sanitizedStats[cat] = progressiveScore;
+                        logFieldMigration(`bot.stats.${cat}`, 'fixed', 'Suspicious score detected');
                     } else {
                         sanitizedStats[cat] = botScore;
+                        logFieldMigration(`bot.stats.${cat}`, 'ok');
                     }
                 } else {
                     sanitizedStats[cat] = botScore;
+                    logFieldMigration(`bot.stats.${cat}`, 'ok');
                 }
             } else {
                 sanitizedStats[cat] = cat === RankingCategory.DOMINION ? progressiveScore : DEFAULT_BOT_STATS[cat];
+                logFieldMigration(`bot.stats.${cat}`, 'default', 'Invalid or missing value');
             }
         });
     } else {
         sanitizedStats[RankingCategory.DOMINION] = progressiveScore;
+        logFieldMigration('bot.stats', 'default', 'Missing or invalid stats object');
     }
-    
-    let personality = BotPersonality.WARLORD;
-    if (bot.personality && VALID_PERSONALITIES.includes(bot.personality)) {
-        personality = bot.personality;
+
+    const personality = isValidEnum(bot.personality, VALID_PERSONALITIES) 
+        ? bot.personality 
+        : BotPersonality.WARLORD;
+    if (personality !== bot.personality) {
+        logFieldMigration('bot.personality', 'default', `Invalid personality: ${bot.personality}`);
     }
-    
-    let currentEvent = BotEvent.PEACEFUL_PERIOD;
-    if (bot.currentEvent && VALID_BOT_EVENTS.includes(bot.currentEvent)) {
-        currentEvent = bot.currentEvent;
+
+    const currentEvent = isValidEnum(bot.currentEvent, VALID_BOT_EVENTS)
+        ? bot.currentEvent
+        : BotEvent.PEACEFUL_PERIOD;
+    if (currentEvent !== bot.currentEvent) {
+        logFieldMigration('bot.currentEvent', 'default', `Invalid event: ${bot.currentEvent}`);
     }
-    
+
     return {
-        id: bot.id || `bot-${index}`,
-        name: bot.name || `Bot_${index}`,
-        avatarId: typeof bot.avatarId === 'number' ? bot.avatarId : (index % 8) + 1,
-        country: bot.country || 'US',
+        id: safeString(bot.id, `bot-${index}`, 1, 50),
+        name: safeString(bot.name, `Bot_${index}`, 1, 50),
+        avatarId: safeNumber(bot.avatarId, (index % 8) + 1, 1, 100),
+        country: safeString(bot.country, 'US', 2, 3),
         stats: sanitizedStats,
-        ambition: typeof bot.ambition === 'number' && !isNaN(bot.ambition) ? bot.ambition : 1.0,
+        ambition: safeNumber(bot.ambition, 1.0, 0.1, 10.0),
         personality,
-        lastRank: typeof bot.lastRank === 'number' && !isNaN(bot.lastRank) ? bot.lastRank : index + 1,
+        lastRank: rank,
         currentEvent,
-        eventTurnsRemaining: typeof bot.eventTurnsRemaining === 'number' && !isNaN(bot.eventTurnsRemaining) 
-            ? Math.max(0, bot.eventTurnsRemaining) 
-            : 0,
-        growthModifier: typeof bot.growthModifier === 'number' && !isNaN(bot.growthModifier) 
-            ? bot.growthModifier 
-            : 0,
-        reputation: typeof bot.reputation === 'number' && !isNaN(bot.reputation)
-            ? bot.reputation
-            : 50
+        eventTurnsRemaining: Math.max(0, safeNumber(bot.eventTurnsRemaining, 0, 0, 1000)),
+        growthModifier: safeNumber(bot.growthModifier, 0, -100, 100),
+        reputation: safeNumber(bot.reputation, 50, 0, 100)
     };
 };
 
-export const sanitizeRankingData = (rankingData: any, saveVersion?: number): { bots: StaticBot[]; lastUpdateTime: number } => {
+export const sanitizeRankingData = (rankingData: any, saveVersion?: number): RankingData => {
     const now = Date.now();
-    
+
     const FORCE_RANKING_RESET_VERSION = 6;
     const needsReset = !saveVersion || saveVersion < FORCE_RANKING_RESET_VERSION;
-    
+
     if (needsReset) {
-        console.log(`[Migration] Resetting ranking data (save version: ${saveVersion || 'unknown'}, required: ${FORCE_RANKING_RESET_VERSION})`);
+        logMigration('info', `Resetting ranking data (save version: ${saveVersion || 'unknown'}, required: ${FORCE_RANKING_RESET_VERSION})`);
         return initializeRankingState();
     }
-    
-    if (!rankingData || typeof rankingData !== 'object') {
+
+    if (!isValidObject(rankingData)) {
+        logMigration('warn', 'Invalid ranking data object, initializing fresh');
         return initializeRankingState();
     }
-    
-    if (!Array.isArray(rankingData.bots) || rankingData.bots.length === 0) {
+
+    if (!isValidArray(rankingData.bots) || rankingData.bots.length === 0) {
+        logMigration('warn', 'Empty or invalid bots array, initializing fresh');
         return initializeRankingState();
     }
-    
+
     const sanitizedBots = rankingData.bots
-        .filter((bot: any) => bot && typeof bot === 'object')
+        .filter((bot: any) => isValidObject(bot))
         .map((bot: any, index: number) => sanitizeBot(bot, index));
-    
+
     if (sanitizedBots.length === 0) {
+        logMigration('warn', 'No valid bots after sanitization, initializing fresh');
         return initializeRankingState();
     }
-    
-    const lastUpdateTime = typeof rankingData.lastUpdateTime === 'number' && !isNaN(rankingData.lastUpdateTime)
-        ? rankingData.lastUpdateTime
-        : now;
-    
+
+    const lastUpdateTime = safeNumber(rankingData.lastUpdateTime, now, 0);
+
+    logMigration('info', `Successfully sanitized ${sanitizedBots.length} bots`);
+
     return {
         bots: sanitizedBots,
         lastUpdateTime
     };
 };
 
-export const sanitizeAndMigrateSave = (saved: any): GameState => {
-    // 1. Deep Clone Initial State to ensure full structure exists
-    const cleanState: GameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+// ============================================
+// MIGRACIÓN DE SISTEMAS ESPECÍFICOS
+// ============================================
 
-    if (!saved) return cleanState;
-
-    // 2. Migrate Primitives & Simple Arrays
-    if (typeof saved.playerName === 'string' && saved.playerName.trim().length >= 2) {
-        cleanState.playerName = saved.playerName.trim().substring(0, 20);
-    }
-    if (typeof saved.hasChangedName === 'boolean') cleanState.hasChangedName = saved.hasChangedName;
-    if (typeof saved.bankBalance === 'number' && !isNaN(saved.bankBalance)) cleanState.bankBalance = saved.bankBalance;
-    if (typeof saved.currentInterestRate === 'number') cleanState.currentInterestRate = saved.currentInterestRate;
-    if (typeof saved.nextRateChangeTime === 'number') cleanState.nextRateChangeTime = saved.nextRateChangeTime;
-    if (typeof saved.lastInterestPayoutTime === 'number') cleanState.lastInterestPayoutTime = saved.lastInterestPayoutTime;
-    if (typeof saved.empirePoints === 'number') cleanState.empirePoints = saved.empirePoints;
-    if (typeof saved.lastSaveTime === 'number') cleanState.lastSaveTime = saved.lastSaveTime;
-    if (typeof saved.lastReputationDecayTime === 'number') cleanState.lastReputationDecayTime = saved.lastReputationDecayTime;
-    if (typeof saved.campaignProgress === 'number') cleanState.campaignProgress = saved.campaignProgress;
-    if (typeof saved.lastCampaignMissionFinishedTime === 'number') cleanState.lastCampaignMissionFinishedTime = saved.lastCampaignMissionFinishedTime;
-    if (typeof saved.isTutorialMinimized === 'boolean') cleanState.isTutorialMinimized = saved.isTutorialMinimized;
-    if (typeof saved.tutorialAccepted === 'boolean') cleanState.tutorialAccepted = saved.tutorialAccepted;
+const migrateResources = (savedResources: any, defaultResources: Record<ResourceType, number>): Record<ResourceType, number> => {
+    const resources = { ...defaultResources };
     
-    // Attack System Persistence (V1.4 - Cooldown based)
-    if (typeof saved.nextAttackTime === 'number' && !isNaN(saved.nextAttackTime)) cleanState.nextAttackTime = saved.nextAttackTime;
-    // Incoming Attacks Migration (with sanitization)
-    if (Array.isArray(saved.incomingAttacks)) {
-        cleanState.incomingAttacks = saved.incomingAttacks.filter((a: any) => 
-            a && 
-            typeof a.id === 'string' && 
-            typeof a.endTime === 'number' &&
-            a.units
-        ).map((a: any) => ({
-            id: a.id || `atk-${Date.now()}-${Math.random()}`,
-            attackerName: a.attackerName || 'Unknown',
-            attackerScore: typeof a.attackerScore === 'number' && !isNaN(a.attackerScore) ? a.attackerScore : 1000,
-            units: a.units || {},
-            startTime: typeof a.startTime === 'number' ? a.startTime : Date.now(),
-            endTime: a.endTime,
-            delayCount: typeof a.delayCount === 'number' ? a.delayCount : 0,
-            isWarWave: !!a.isWarWave,
-            isScouted: !!a.isScouted
-        }));
-    }
-    
-    // Grudges Migration (with personality sanitization)
-    if (Array.isArray(saved.grudges)) {
-        cleanState.grudges = saved.grudges.filter((g: any) => g && typeof g === 'object').map((g: any) => ({
-            id: g.id || `grudge-${Date.now()}`,
-            botId: g.botId || '',
-            botName: g.botName || 'Unknown',
-            botPersonality: g.botPersonality && VALID_PERSONALITIES.includes(g.botPersonality)
-                ? g.botPersonality : BotPersonality.WARLORD,
-            botScore: typeof g.botScore === 'number' && !isNaN(g.botScore) ? g.botScore : 1000,
-            createdAt: typeof g.createdAt === 'number' && !isNaN(g.createdAt) ? g.createdAt : Date.now(),
-            retaliationTime: typeof g.retaliationTime === 'number' && !isNaN(g.retaliationTime) ? g.retaliationTime : Date.now(),
-            notified: typeof g.notified === 'boolean' ? g.notified : false
-        }));
+    if (!isValidObject(savedResources)) {
+        logFieldMigration('resources', 'default', 'Invalid or missing resources object');
+        return resources;
     }
 
-    // Enemy Attack System Migration
-    if (saved.enemyAttackCounts) cleanState.enemyAttackCounts = saved.enemyAttackCounts;
-    if (saved.lastEnemyAttackCheckTime) cleanState.lastEnemyAttackCheckTime = saved.lastEnemyAttackCheckTime;
-    if (saved.lastEnemyAttackResetTime) cleanState.lastEnemyAttackResetTime = saved.lastEnemyAttackResetTime;
-
-    // Spy Reports Migration (with sanitization)
-    if (Array.isArray(saved.spyReports)) {
-        cleanState.spyReports = saved.spyReports.filter((s: any) => 
-            s && 
-            typeof s.id === 'string' &&
-            typeof s.botId === 'string' &&
-            typeof s.expiresAt === 'number'
-        ).map((s: any) => ({
-            id: s.id || `spy-${Date.now()}-${Math.random()}`,
-            botId: s.botId || '',
-            botName: s.botName || 'Unknown',
-            botScore: typeof s.botScore === 'number' && !isNaN(s.botScore) ? s.botScore : 1000,
-            botPersonality: s.botPersonality && VALID_PERSONALITIES.includes(s.botPersonality)
-                ? s.botPersonality : BotPersonality.WARLORD,
-            createdAt: typeof s.createdAt === 'number' ? s.createdAt : Date.now(),
-            expiresAt: s.expiresAt,
-            units: s.units || {},
-            resources: s.resources || {},
-            buildings: s.buildings || {}
-        }));
-    }
-
-    // Attack Counts Migration
-    if (saved.targetAttackCounts) cleanState.targetAttackCounts = saved.targetAttackCounts;
-    if (saved.lastAttackResetTime) cleanState.lastAttackResetTime = saved.lastAttackResetTime;
-
-    // WAR MIGRATION: Ensure new fields exist if war is active
-    if (saved.activeWar && typeof saved.activeWar === 'object') {
-        const war = saved.activeWar;
-        
-        const sanitizeWarResources = (res: any): Record<ResourceType, number> => ({
-            [ResourceType.MONEY]: typeof res?.[ResourceType.MONEY] === 'number' && !isNaN(res[ResourceType.MONEY]) ? res[ResourceType.MONEY] : 0,
-            [ResourceType.OIL]: typeof res?.[ResourceType.OIL] === 'number' && !isNaN(res[ResourceType.OIL]) ? res[ResourceType.OIL] : 0,
-            [ResourceType.AMMO]: typeof res?.[ResourceType.AMMO] === 'number' && !isNaN(res[ResourceType.AMMO]) ? res[ResourceType.AMMO] : 0,
-            [ResourceType.GOLD]: typeof res?.[ResourceType.GOLD] === 'number' && !isNaN(res[ResourceType.GOLD]) ? res[ResourceType.GOLD] : 0,
-            [ResourceType.DIAMOND]: typeof res?.[ResourceType.DIAMOND] === 'number' && !isNaN(res[ResourceType.DIAMOND]) ? res[ResourceType.DIAMOND] : 0
-        });
-        
-        cleanState.activeWar = {
-            id: war.id || `war-${Date.now()}`,
-            enemyId: war.enemyId || '',
-            enemyName: war.enemyName || 'Unknown Enemy',
-            enemyScore: typeof war.enemyScore === 'number' && !isNaN(war.enemyScore) ? war.enemyScore : 1000,
-            startTime: typeof war.startTime === 'number' && !isNaN(war.startTime) ? war.startTime : Date.now(),
-            duration: typeof war.duration === 'number' && !isNaN(war.duration) && war.duration !== 110 * 60 * 1000 
-                ? war.duration : WAR_DURATION_MS,
-            nextWaveTime: typeof war.nextWaveTime === 'number' && !isNaN(war.nextWaveTime) ? war.nextWaveTime : Date.now(),
-            currentWave: typeof war.currentWave === 'number' && !isNaN(war.currentWave) ? war.currentWave : 1,
-            totalWaves: typeof war.totalWaves === 'number' && !isNaN(war.totalWaves) && war.totalWaves !== 7 
-                ? war.totalWaves : WAR_TOTAL_WAVES,
-            playerVictories: typeof war.playerVictories === 'number' && !isNaN(war.playerVictories) ? war.playerVictories : 0,
-            enemyVictories: typeof war.enemyVictories === 'number' && !isNaN(war.enemyVictories) ? war.enemyVictories : 0,
-            playerAttacksLeft: typeof war.playerAttacksLeft === 'number' && !isNaN(war.playerAttacksLeft) 
-                ? war.playerAttacksLeft : WAR_PLAYER_ATTACKS,
-            lootPool: sanitizeWarResources(war.lootPool),
-            playerResourceLosses: sanitizeWarResources(war.playerResourceLosses),
-            enemyResourceLosses: sanitizeWarResources(war.enemyResourceLosses),
-            playerUnitLosses: typeof war.playerUnitLosses === 'number' && !isNaN(war.playerUnitLosses) ? war.playerUnitLosses : 0,
-            enemyUnitLosses: typeof war.enemyUnitLosses === 'number' && !isNaN(war.enemyUnitLosses) ? war.enemyUnitLosses : 0,
-            currentEnemyGarrison: war.currentEnemyGarrison || {}
-        };
-    }
-
-    // 3. Migrate Techs
-    if (Array.isArray(saved.researchedTechs)) {
-        cleanState.researchedTechs = saved.researchedTechs.filter((id: string) => Object.values(TechType).includes(id as TechType));
-    }
-    
-    // Migrate Tech Levels (New in version 2 or this feature update)
-    if (saved.techLevels && typeof saved.techLevels === 'object') {
-        cleanState.techLevels = saved.techLevels;
-    }
-
-    // 4. Migrate Resources
-    if (saved.resources) {
-        Object.keys(cleanState.resources).forEach(key => {
-            const k = key as ResourceType;
-            if (typeof saved.resources[k] === 'number' && !isNaN(saved.resources[k])) {
-                cleanState.resources[k] = saved.resources[k];
-            }
-        });
-    }
-
-    if (saved.maxResources) {
-        Object.keys(cleanState.maxResources).forEach(key => {
-            const k = key as ResourceType;
-            if (typeof saved.maxResources[k] === 'number' && !isNaN(saved.maxResources[k])) {
-                cleanState.maxResources[k] = saved.maxResources[k];
-            }
-        });
-    }
-
-    // 5. Migrate Units
-    if (saved.units) {
-        Object.keys(cleanState.units).forEach(key => {
-            const k = key as UnitType;
-            if (typeof saved.units[k] === 'number' && !isNaN(saved.units[k])) {
-                cleanState.units[k] = saved.units[k];
-            }
-        });
-    }
-
-    // 6. Migrate Buildings
-    if (saved.buildings) {
-        Object.keys(cleanState.buildings).forEach(key => {
-            const k = key as BuildingType;
-            if (saved.buildings[k] && typeof saved.buildings[k].level === 'number') {
-                cleanState.buildings[k].level = saved.buildings[k].level;
-            }
-            if (saved.buildings[k] && typeof saved.buildings[k].isDamaged === 'boolean') {
-                cleanState.buildings[k].isDamaged = saved.buildings[k].isDamaged;
-            }
-        });
-    }
-
-    // --- CRITICAL FIX: Ensure Diamond Mine is at least Level 1 ---
-    if (!cleanState.buildings[BuildingType.DIAMOND_MINE] || cleanState.buildings[BuildingType.DIAMOND_MINE].level < 1) {
-        const existingDiamondMine = cleanState.buildings[BuildingType.DIAMOND_MINE];
-        cleanState.buildings[BuildingType.DIAMOND_MINE] = {
-            level: 1,
-            isDamaged: existingDiamondMine?.isDamaged ?? false
-        };
-    }
-
-    // Ensure all building states have proper structure with isDamaged
-    Object.keys(cleanState.buildings).forEach((key) => {
-        const k = key as BuildingType;
-        if (cleanState.buildings[k]) {
-            const building = cleanState.buildings[k];
-            if (typeof building.isDamaged !== 'boolean') {
-                cleanState.buildings[k] = { ...building, isDamaged: false };
-            }
+    VALID_RESOURCE_TYPES.forEach(type => {
+        const savedValue = savedResources[type];
+        if (isValidNumber(savedValue, 0)) {
+            resources[type] = savedValue;
+            logFieldMigration(`resources.${type}`, 'ok');
+        } else {
+            logFieldMigration(`resources.${type}`, 'default', `Invalid value: ${savedValue}`);
         }
     });
 
-    // 7. Migrate Missions
-    if (Array.isArray(saved.activeMissions)) {
-        cleanState.activeMissions = saved.activeMissions.filter((m: any) => 
-            m && 
-            typeof m.id === 'string' && 
-            typeof m.endTime === 'number' && 
-            m.units
-        );
-    }
+    return resources;
+};
 
-    if (saved.activeResearch) {
-        cleanState.activeResearch = saved.activeResearch;
-    }
+const migrateUnits = (savedUnits: any, defaultUnits: Record<UnitType, number>): Record<UnitType, number> => {
+    const units = { ...defaultUnits };
     
-    // Migrate Active Recruitments (NEW)
-    if (Array.isArray(saved.activeRecruitments)) {
-        cleanState.activeRecruitments = saved.activeRecruitments;
+    if (!isValidObject(savedUnits)) {
+        logFieldMigration('units', 'default', 'Invalid or missing units object');
+        return units;
     }
 
-    // Migrate Active Constructions (NEW for this request)
-    if (Array.isArray(saved.activeConstructions)) {
-        cleanState.activeConstructions = saved.activeConstructions;
-    }
-    
-    // Market Migration
-    if (Array.isArray(saved.marketOffers)) {
-        cleanState.marketOffers = saved.marketOffers;
-    }
-    if (saved.activeMarketEvent) {
-        cleanState.activeMarketEvent = saved.activeMarketEvent;
-    }
-    if (typeof saved.marketNextRefreshTime === 'number') {
-        cleanState.marketNextRefreshTime = saved.marketNextRefreshTime;
-    }
-
-    // Tutorial State
-    if (Array.isArray(saved.completedTutorials)) {
-        cleanState.completedTutorials = saved.completedTutorials;
-    }
-    if (typeof saved.currentTutorialId === 'string' || saved.currentTutorialId === null) {
-        cleanState.currentTutorialId = saved.currentTutorialId;
-    }
-    if (typeof saved.tutorialClaimable === 'boolean') {
-        cleanState.tutorialClaimable = saved.tutorialClaimable;
-    }
-
-    // Rankings Migration (IMPROVED V2.0 - Full sanitization) - Reset for old saves
-    const savedVersion = saved.saveVersion;
-    if (saved.rankingData) {
-        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion);
-    } else {
-        // LEGACY MIGRATION: Try to rescue data from localStorage if it exists
-        try {
-            const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
-            if (legacyData) {
-                const parsedLegacy = JSON.parse(legacyData);
-                cleanState.rankingData = sanitizeRankingData(parsedLegacy, savedVersion);
-                console.log("Migrated rankings from LocalStorage to GameState.");
-            } else {
-                cleanState.rankingData = initializeRankingState();
-            }
-        } catch (e) {
-            console.warn("Failed to migrate legacy rankings, initializing fresh:", e);
-            cleanState.rankingData = initializeRankingState();
+    VALID_UNIT_TYPES.forEach(type => {
+        const savedValue = savedUnits[type];
+        if (isValidNumber(savedValue, 0)) {
+            units[type] = savedValue;
+            logFieldMigration(`units.${type}`, 'ok');
+        } else {
+            logFieldMigration(`units.${type}`, 'default', `Invalid value: ${savedValue}`);
         }
+    });
+
+    return units;
+};
+
+const migrateBuildings = (savedBuildings: any, defaultBuildings: Record<BuildingType, BuildingState>): Record<BuildingType, BuildingState> => {
+    const buildings = JSON.parse(JSON.stringify(defaultBuildings));
+    
+    if (!isValidObject(savedBuildings)) {
+        logFieldMigration('buildings', 'default', 'Invalid or missing buildings object');
+        return buildings;
     }
 
-    // Migrate Lifetime Stats (with NaN protection)
-    if (saved.lifetimeStats && typeof saved.lifetimeStats === 'object') {
-        cleanState.lifetimeStats = {
-            enemiesKilled: typeof saved.lifetimeStats.enemiesKilled === 'number' && !isNaN(saved.lifetimeStats.enemiesKilled) 
-                ? saved.lifetimeStats.enemiesKilled : 0,
-            unitsLost: typeof saved.lifetimeStats.unitsLost === 'number' && !isNaN(saved.lifetimeStats.unitsLost) 
-                ? saved.lifetimeStats.unitsLost : 0,
-            resourcesMined: typeof saved.lifetimeStats.resourcesMined === 'number' && !isNaN(saved.lifetimeStats.resourcesMined) 
-                ? saved.lifetimeStats.resourcesMined : 0,
-            missionsCompleted: typeof saved.lifetimeStats.missionsCompleted === 'number' && !isNaN(saved.lifetimeStats.missionsCompleted) 
-                ? saved.lifetimeStats.missionsCompleted : 0,
-            highestRankAchieved: typeof saved.lifetimeStats.highestRankAchieved === 'number' && !isNaN(saved.lifetimeStats.highestRankAchieved) 
-                ? saved.lifetimeStats.highestRankAchieved : 9999
+    VALID_BUILDING_TYPES.forEach(type => {
+        const savedBuilding = savedBuildings[type];
+        
+        if (isValidObject(savedBuilding)) {
+            if (isValidNumber(savedBuilding.level, 0)) {
+                buildings[type].level = savedBuilding.level;
+                logFieldMigration(`buildings.${type}.level`, 'ok');
+            } else {
+                logFieldMigration(`buildings.${type}.level`, 'default', `Invalid level: ${savedBuilding.level}`);
+            }
+            
+            if (isValidBoolean(savedBuilding.isDamaged)) {
+                buildings[type].isDamaged = savedBuilding.isDamaged;
+                logFieldMigration(`buildings.${type}.isDamaged`, 'ok');
+            } else {
+                buildings[type].isDamaged = false;
+                logFieldMigration(`buildings.${type}.isDamaged`, 'default', 'Missing or invalid boolean');
+            }
+        } else {
+            logFieldMigration(`buildings.${type}`, 'default', 'Missing or invalid building object');
+        }
+    });
+
+    return buildings;
+};
+
+const migrateMaxResources = (savedMaxResources: any, defaultMaxResources: Record<ResourceType, number>): Record<ResourceType, number> => {
+    const maxResources = { ...defaultMaxResources };
+    
+    if (!isValidObject(savedMaxResources)) {
+        logFieldMigration('maxResources', 'default', 'Invalid or missing maxResources object');
+        return maxResources;
+    }
+
+    VALID_RESOURCE_TYPES.forEach(type => {
+        const savedValue = savedMaxResources[type];
+        if (isValidNumber(savedValue, 0)) {
+            maxResources[type] = savedValue;
+            logFieldMigration(`maxResources.${type}`, 'ok');
+        } else {
+            logFieldMigration(`maxResources.${type}`, 'default', `Invalid value: ${savedValue}`);
+        }
+    });
+
+    return maxResources;
+};
+
+const migrateIncomingAttacks = (savedAttacks: any): IncomingAttack[] => {
+    if (!isValidArray(savedAttacks)) {
+        logFieldMigration('incomingAttacks', 'default', 'Invalid or missing array');
+        return [];
+    }
+
+    const now = Date.now();
+    return savedAttacks
+        .filter((a: any) => isValidObject(a) && isValidString(a.id) && isValidNumber(a.endTime))
+        .map((a: any) => ({
+            id: safeString(a.id, `atk-${now}-${Math.random()}`, 1, 100),
+            attackerName: safeString(a.attackerName, 'Unknown', 1, 100),
+            attackerScore: safeNumber(a.attackerScore, 1000, 0),
+            units: isValidObject(a.units) ? a.units : {},
+            startTime: safeNumber(a.startTime, now, 0),
+            endTime: a.endTime,
+            delayCount: safeNumber(a.delayCount, 0, 0, 100),
+            isWarWave: safeBoolean(a.isWarWave, false),
+            isScouted: safeBoolean(a.isScouted, false)
+        }));
+};
+
+const migrateGrudges = (savedGrudges: any): Grudge[] => {
+    if (!isValidArray(savedGrudges)) {
+        logFieldMigration('grudges', 'default', 'Invalid or missing array');
+        return [];
+    }
+
+    const now = Date.now();
+    return savedGrudges
+        .filter((g: any) => isValidObject(g))
+        .map((g: any) => ({
+            id: safeString(g.id, `grudge-${now}`, 1, 100),
+            botId: safeString(g.botId, '', 0, 100),
+            botName: safeString(g.botName, 'Unknown', 1, 100),
+            botPersonality: isValidEnum(g.botPersonality, VALID_PERSONALITIES) 
+                ? g.botPersonality 
+                : BotPersonality.WARLORD,
+            botScore: safeNumber(g.botScore, 1000, 0),
+            createdAt: safeNumber(g.createdAt, now, 0),
+            retaliationTime: safeNumber(g.retaliationTime, now, 0),
+            notified: safeBoolean(g.notified, false)
+        }));
+};
+
+const migrateSpyReports = (savedReports: any): SpyReport[] => {
+    if (!isValidArray(savedReports)) {
+        logFieldMigration('spyReports', 'default', 'Invalid or missing array');
+        return [];
+    }
+
+    const now = Date.now();
+    return savedReports
+        .filter((s: any) => isValidObject(s) && isValidString(s.id) && isValidString(s.botId) && isValidNumber(s.expiresAt))
+        .map((s: any) => ({
+            id: safeString(s.id, `spy-${now}-${Math.random()}`, 1, 100),
+            botId: safeString(s.botId, '', 0, 100),
+            botName: safeString(s.botName, 'Unknown', 1, 100),
+            botScore: safeNumber(s.botScore, 1000, 0),
+            botPersonality: isValidEnum(s.botPersonality, VALID_PERSONALITIES) 
+                ? s.botPersonality 
+                : BotPersonality.WARLORD,
+            createdAt: safeNumber(s.createdAt, now, 0),
+            expiresAt: s.expiresAt,
+            units: isValidObject(s.units) ? s.units : {},
+            resources: isValidObject(s.resources) ? s.resources : {},
+            buildings: isValidObject(s.buildings) ? s.buildings : {}
+        }));
+};
+
+const migrateActiveMissions = (savedMissions: any): ActiveMission[] => {
+    if (!isValidArray(savedMissions)) {
+        logFieldMigration('activeMissions', 'default', 'Invalid or missing array');
+        return [];
+    }
+
+    const now = Date.now();
+    return savedMissions
+        .filter((m: any) => isValidObject(m) && isValidString(m.id) && isValidNumber(m.endTime) && isValidObject(m.units))
+        .map((m: any) => ({
+            id: safeString(m.id, `mission-${now}-${Math.random()}`, 1, 100),
+            type: isValidEnum(m.type, ['PATROL', 'CAMPAIGN_ATTACK', 'PVP_ATTACK']) ? m.type : 'PATROL',
+            startTime: safeNumber(m.startTime, now, 0),
+            endTime: m.endTime,
+            duration: safeNumber(m.duration, 5, 1, 120),
+            units: m.units || {},
+            levelId: safeNumber(m.levelId, undefined as any, 1),
+            targetId: safeString(m.targetId, '', 0, 100),
+            targetName: safeString(m.targetName, '', 0, 100),
+            targetScore: safeNumber(m.targetScore, 1000, 0),
+            isWarAttack: safeBoolean(m.isWarAttack, false)
+        }));
+};
+
+const migrateWarState = (savedWar: any): WarState | null => {
+    if (!isValidObject(savedWar)) {
+        logFieldMigration('activeWar', 'default', 'Invalid or missing war object');
+        return null;
+    }
+
+    const now = Date.now();
+    const sanitizeWarResources = (res: any): Record<ResourceType, number> => {
+        if (!isValidObject(res)) return {
+            [ResourceType.MONEY]: 0,
+            [ResourceType.OIL]: 0,
+            [ResourceType.AMMO]: 0,
+            [ResourceType.GOLD]: 0,
+            [ResourceType.DIAMOND]: 0
         };
+        
+        return {
+            [ResourceType.MONEY]: safeNumber(res[ResourceType.MONEY], 0, 0),
+            [ResourceType.OIL]: safeNumber(res[ResourceType.OIL], 0, 0),
+            [ResourceType.AMMO]: safeNumber(res[ResourceType.AMMO], 0, 0),
+            [ResourceType.GOLD]: safeNumber(res[ResourceType.GOLD], 0, 0),
+            [ResourceType.DIAMOND]: safeNumber(res[ResourceType.DIAMOND], 0, 0)
+        };
+    };
+
+    const duration = safeNumber(savedWar.duration, WAR_DURATION_MS, 0);
+    const totalWaves = safeNumber(savedWar.totalWaves, WAR_TOTAL_WAVES, 1, 20);
+    const playerAttacksLeft = safeNumber(savedWar.playerAttacksLeft, WAR_PLAYER_ATTACKS, 0, 20);
+
+    return {
+        id: safeString(savedWar.id, `war-${now}`, 1, 100),
+        enemyId: safeString(savedWar.enemyId, '', 0, 100),
+        enemyName: safeString(savedWar.enemyName, 'Unknown Enemy', 1, 100),
+        enemyScore: safeNumber(savedWar.enemyScore, 1000, 0),
+        startTime: safeNumber(savedWar.startTime, now, 0),
+        duration: duration !== WAR_DURATION_MS ? duration : WAR_DURATION_MS,
+        nextWaveTime: safeNumber(savedWar.nextWaveTime, now, 0),
+        currentWave: safeNumber(savedWar.currentWave, 1, 1, 20),
+        totalWaves: totalWaves !== WAR_TOTAL_WAVES ? totalWaves : WAR_TOTAL_WAVES,
+        playerVictories: safeNumber(savedWar.playerVictories, 0, 0, 20),
+        enemyVictories: safeNumber(savedWar.enemyVictories, 0, 0, 20),
+        playerAttacksLeft: playerAttacksLeft !== WAR_PLAYER_ATTACKS ? playerAttacksLeft : WAR_PLAYER_ATTACKS,
+        lootPool: sanitizeWarResources(savedWar.lootPool),
+        playerResourceLosses: sanitizeWarResources(savedWar.playerResourceLosses),
+        enemyResourceLosses: sanitizeWarResources(savedWar.enemyResourceLosses),
+        playerUnitLosses: safeNumber(savedWar.playerUnitLosses, 0, 0),
+        enemyUnitLosses: safeNumber(savedWar.enemyUnitLosses, 0, 0),
+        currentEnemyGarrison: isValidObject(savedWar.currentEnemyGarrison) ? savedWar.currentEnemyGarrison : {}
+    };
+};
+
+const migrateLifetimeStats = (savedStats: any): LifetimeStats => {
+    const defaultStats: LifetimeStats = {
+        enemiesKilled: 0,
+        unitsLost: 0,
+        resourcesMined: 0,
+        missionsCompleted: 0,
+        highestRankAchieved: 9999
+    };
+
+    if (!isValidObject(savedStats)) {
+        logFieldMigration('lifetimeStats', 'default', 'Invalid or missing object');
+        return defaultStats;
     }
 
-    // Logs Migration (New)
-    if (Array.isArray(saved.logs)) {
-        cleanState.logs = saved.logs;
-    } else {
-        cleanState.logs = [];
+    return {
+        enemiesKilled: safeNumber(savedStats.enemiesKilled, 0, 0),
+        unitsLost: safeNumber(savedStats.unitsLost, 0, 0),
+        resourcesMined: safeNumber(savedStats.resourcesMined, 0, 0),
+        missionsCompleted: safeNumber(savedStats.missionsCompleted, 0, 0),
+        highestRankAchieved: safeNumber(savedStats.highestRankAchieved, 9999, 1, 99999)
+    };
+};
+
+const migrateDiplomaticActions = (savedActions: any): DiplomaticActions => {
+    if (!isValidObject(savedActions)) {
+        logFieldMigration('diplomaticActions', 'default', 'Invalid or missing object');
+        return {};
     }
 
-    // Diplomatic Actions Migration
-    if (saved.diplomaticActions && typeof saved.diplomaticActions === 'object') {
-        cleanState.diplomaticActions = {};
-        Object.entries(saved.diplomaticActions).forEach(([botId, actions]) => {
-            if (actions && typeof actions === 'object') {
-                cleanState.diplomaticActions[botId] = {
-                    lastGiftTime: typeof (actions as any).lastGiftTime === 'number' ? (actions as any).lastGiftTime : 0,
-                    lastAllianceTime: typeof (actions as any).lastAllianceTime === 'number' ? (actions as any).lastAllianceTime : 0,
-                    lastPeaceTime: typeof (actions as any).lastPeaceTime === 'number' ? (actions as any).lastPeaceTime : 0
-                };
+    const actions: DiplomaticActions = {};
+    const now = Date.now();
+
+    Object.entries(savedActions).forEach(([botId, data]) => {
+        if (isValidObject(data)) {
+            actions[botId] = {
+                lastGiftTime: safeNumber((data as any).lastGiftTime, 0, 0),
+                lastAllianceTime: safeNumber((data as any).lastAllianceTime, 0, 0),
+                lastPeaceTime: safeNumber((data as any).lastPeaceTime, 0, 0)
+            };
+        }
+    });
+
+    return actions;
+};
+
+const migrateLogs = (savedLogs: any): LogEntry[] => {
+    if (!isValidArray(savedLogs)) {
+        logFieldMigration('logs', 'default', 'Invalid or missing array');
+        return [];
+    }
+
+    const now = Date.now();
+    return savedLogs
+        .filter((log: any) => isValidObject(log) && isValidString(log.id) && isValidNumber(log.timestamp))
+        .map((log: any) => ({
+            id: safeString(log.id, `log-${now}-${Math.random()}`, 1, 100),
+            messageKey: safeString(log.messageKey, 'unknown', 1, 200),
+            params: isValidObject(log.params) ? log.params : {},
+            timestamp: log.timestamp,
+            type: isValidEnum(log.type, VALID_LOG_TYPES) ? log.type : 'info',
+            archived: safeBoolean(log.archived, false)
+        }));
+};
+
+export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): GameState => {
+    const report = createMigrationReport();
+    const now = Date.now();
+    
+    // 1. Deep Clone Initial State to ensure full structure exists
+    const cleanState: GameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+
+    if (!saved) {
+        logMigration('info', 'No saved data found, returning initial state');
+        cleanState.saveVersion = SAVE_VERSION;
+        return cleanState;
+    }
+
+    try {
+        // 2. Migrate Save Version
+        const savedVersion = safeNumber(saved.saveVersion, 0, 0);
+        logMigration('info', `Migrating from save version: ${savedVersion}`);
+
+        // 3. Migrate Primitives
+        cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);
+        cleanState.hasChangedName = safeBoolean(saved.hasChangedName, false);
+        cleanState.bankBalance = safeNumber(saved.bankBalance, 0, 0);
+        cleanState.currentInterestRate = safeNumber(saved.currentInterestRate, 0.05, 0, 1);
+        cleanState.nextRateChangeTime = safeNumber(saved.nextRateChangeTime, now, 0);
+        cleanState.lastInterestPayoutTime = safeNumber(saved.lastInterestPayoutTime, now, 0);
+        cleanState.empirePoints = safeNumber(saved.empirePoints, 0, 0);
+        cleanState.lastSaveTime = safeNumber(saved.lastSaveTime, now, 0);
+        cleanState.lastReputationDecayTime = safeNumber(saved.lastReputationDecayTime, now, 0);
+        cleanState.campaignProgress = safeNumber(saved.campaignProgress, 1, 1);
+        cleanState.lastCampaignMissionFinishedTime = safeNumber(saved.lastCampaignMissionFinishedTime, 0, 0);
+        cleanState.isTutorialMinimized = safeBoolean(saved.isTutorialMinimized, false);
+        cleanState.tutorialAccepted = safeBoolean(saved.tutorialAccepted, false);
+        cleanState.nextAttackTime = safeNumber(saved.nextAttackTime, now + (3 * 60 * 60 * 1000), 0);
+
+        // 4. Migrate Complex Systems using helper functions
+        cleanState.incomingAttacks = migrateIncomingAttacks(saved.incomingAttacks);
+        cleanState.grudges = migrateGrudges(saved.grudges);
+        cleanState.spyReports = migrateSpyReports(saved.spyReports);
+        cleanState.activeMissions = migrateActiveMissions(saved.activeMissions);
+        cleanState.activeWar = migrateWarState(saved.activeWar);
+        cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats);
+        cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions);
+        cleanState.logs = migrateLogs(saved.logs);
+
+        // 5. Migrate Resources, Units, Buildings
+        cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources);
+        cleanState.maxResources = migrateMaxResources(saved.maxResources, INITIAL_GAME_STATE.maxResources);
+        cleanState.units = migrateUnits(saved.units, INITIAL_GAME_STATE.units);
+        cleanState.buildings = migrateBuildings(saved.buildings, INITIAL_GAME_STATE.buildings);
+
+        // 6. Enemy Attack System
+        cleanState.enemyAttackCounts = isValidObject(saved.enemyAttackCounts) ? saved.enemyAttackCounts : {};
+        cleanState.lastEnemyAttackCheckTime = safeNumber(saved.lastEnemyAttackCheckTime, now, 0);
+        cleanState.lastEnemyAttackResetTime = safeNumber(saved.lastEnemyAttackResetTime, now, 0);
+
+        // 7. Attack Counts
+        cleanState.targetAttackCounts = isValidObject(saved.targetAttackCounts) ? saved.targetAttackCounts : {};
+        cleanState.lastAttackResetTime = safeNumber(saved.lastAttackResetTime, now, 0);
+
+        // 8. Techs
+        if (isValidArray(saved.researchedTechs)) {
+            cleanState.researchedTechs = saved.researchedTechs.filter((id: string) => 
+                VALID_TECH_TYPES.includes(id as TechType)
+            );
+        }
+        cleanState.techLevels = isValidObject(saved.techLevels) ? saved.techLevels : {};
+        cleanState.activeResearch = isValidObject(saved.activeResearch) ? saved.activeResearch : null;
+
+        // 9. Active Recruitments & Constructions
+        cleanState.activeRecruitments = isValidArray(saved.activeRecruitments) ? saved.activeRecruitments : [];
+        cleanState.activeConstructions = isValidArray(saved.activeConstructions) ? saved.activeConstructions : [];
+
+        // 10. Market
+        cleanState.marketOffers = isValidArray(saved.marketOffers) ? saved.marketOffers : [];
+        cleanState.activeMarketEvent = isValidObject(saved.activeMarketEvent) ? saved.activeMarketEvent : null;
+        cleanState.marketNextRefreshTime = safeNumber(saved.marketNextRefreshTime, now, 0);
+
+        // 11. Tutorial State
+        cleanState.completedTutorials = isValidArray(saved.completedTutorials) ? saved.completedTutorials : [];
+        cleanState.currentTutorialId = isValidString(saved.currentTutorialId) ? saved.currentTutorialId : null;
+        cleanState.tutorialClaimable = safeBoolean(saved.tutorialClaimable, false);
+
+        // 12. Rankings
+        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion);
+
+        // 13. Gift Codes
+        cleanState.redeemedGiftCodes = isValidArray(saved.redeemedGiftCodes) ? saved.redeemedGiftCodes : [];
+        cleanState.giftCodeCooldowns = isValidObject(saved.giftCodeCooldowns) ? saved.giftCodeCooldowns : {};
+
+        // 14. CRITICAL FIX: Ensure Diamond Mine is at least Level 1
+        if (cleanState.buildings[BuildingType.DIAMOND_MINE].level < 1) {
+            cleanState.buildings[BuildingType.DIAMOND_MINE] = {
+                level: 1,
+                isDamaged: cleanState.buildings[BuildingType.DIAMOND_MINE].isDamaged || false
+            };
+            logFieldMigration('buildings.DIAMOND_MINE.level', 'fixed', 'Ensured minimum level 1');
+        }
+
+        // 15. Ensure all building states have proper structure
+        Object.keys(cleanState.buildings).forEach((key) => {
+            const k = key as BuildingType;
+            if (typeof cleanState.buildings[k].isDamaged !== 'boolean') {
+                cleanState.buildings[k] = { ...cleanState.buildings[k], isDamaged: false };
             }
         });
-    } else {
-        cleanState.diplomaticActions = {};
-    }
 
-    // Gift Codes Migration
-    if (Array.isArray(saved.redeemedGiftCodes)) {
-        cleanState.redeemedGiftCodes = saved.redeemedGiftCodes;
-    }
-    if (saved.giftCodeCooldowns && typeof saved.giftCodeCooldowns === 'object') {
-        cleanState.giftCodeCooldowns = saved.giftCodeCooldowns;
-    }
+        // 16. Force update version
+        cleanState.saveVersion = SAVE_VERSION;
 
-    // Force update version
-    cleanState.saveVersion = SAVE_VERSION;
+        // 17. Generate data hash for integrity verification
+        report.dataHash = generateDataHash({
+            resources: cleanState.resources,
+            buildings: Object.keys(cleanState.buildings).length,
+            units: cleanState.units,
+            version: cleanState.saveVersion
+        });
+
+        logMigration('info', `Migration completed successfully. Hash: ${report.dataHash}`);
+
+    } catch (error) {
+        logMigration('error', `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        report.success = false;
+        report.fieldsError++;
+        
+        // Log detailed error information
+        logMigrationError({
+            error,
+            location: { file: 'utils/engine/migration.ts', function: 'sanitizeAndMigrateSave' },
+            saveVersion: saved?.saveVersion,
+            migrationStage: 'Full save migration',
+            savedData: savedDataForLogging || saved,
+            recoveryAction: 'Returned safe initial state to prevent application crash. All game data has been reset to default values.',
+            suggestions: [
+                'Try clearing browser localStorage using: localStorage.clear() in browser console, then start a new game',
+                'Check if the save file was manually modified or corrupted during export/import',
+                'Ensure your browser is up to date (Chrome, Firefox, Safari, Edge latest versions supported)',
+                'Try importing the save file again using the import function',
+                'If using a backup save, try an older backup from before the issue started',
+                'Disable browser extensions that might interfere with localStorage',
+                'Try a different browser to isolate the issue',
+                'Contact support with the attached err.log file for detailed analysis'
+            ]
+        });
+        
+        // Return safe initial state on critical error
+        return { ...INITIAL_GAME_STATE, saveVersion: SAVE_VERSION };
+    }
 
     return cleanState;
+};
+
+// ============================================
+// EXPORTS PARA TESTING
+// ============================================
+export {
+    isValidNumber,
+    isValidString,
+    isValidBoolean,
+    isValidArray,
+    isValidObject,
+    isValidEnum,
+    safeNumber,
+    safeString,
+    safeBoolean,
+    safeArray,
+    safeObject,
+    migrateResources,
+    migrateUnits,
+    migrateBuildings,
+    migrateLogs,
+    migrateWarState,
+    migrateLifetimeStats
 };

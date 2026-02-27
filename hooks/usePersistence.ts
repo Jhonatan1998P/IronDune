@@ -78,7 +78,9 @@ export const usePersistence = (
     if (savedStr) {
       try {
         const parsed = JSON.parse(savedStr);
-        const migratedState = sanitizeAndMigrateSave(parsed);
+        
+        // Pass parsed data for detailed error logging if migration fails
+        const migratedState = sanitizeAndMigrateSave(parsed, parsed);
         
         // Cargar spyReports desde localStorage (persistencia independiente)
         const storedSpyReports = loadSpyReportsFromStorage();
@@ -178,7 +180,8 @@ export const usePersistence = (
         const parsed = decodeSaveData(fileContent);
         if (!parsed || typeof parsed !== 'object' || !parsed.resources) return false;
 
-        const migratedState = sanitizeAndMigrateSave(parsed);
+        // Pass parsed data for detailed error logging if migration fails
+        const migratedState = sanitizeAndMigrateSave(parsed, parsed);
         
         // Cargar spyReports desde localStorage
         const storedSpyReports = loadSpyReportsFromStorage();
