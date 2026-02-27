@@ -251,26 +251,26 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                         <section className="pt-4 mt-4 border-t border-white/5">
                             <div className="flex justify-between items-center mb-2 px-1">
                                 <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> {t.common.ui.active_units}
+                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> {t.common.ui.garrison_title}
                                 </span>
                                 <span className="text-[9px] text-slate-500 font-mono">
-                                    {garrison.totalUnits} units
+                                    {garrison.totalUnits} {t.common.ui.allied_unit_count}
                                 </span>
                             </div>
                             <div className="bg-slate-800/30 border border-amber-500/20 rounded-lg p-2">
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="bg-black/30 rounded p-2 text-center">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">Total</div>
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">{t.common.ui.garrison_total}</div>
                                         <div className="text-lg font-mono font-bold text-amber-400">{formatNumber(garrison.totalUnits)}</div>
                                     </div>
                                     <div className="bg-black/30 rounded p-2 text-center">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">Power</div>
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">{t.common.ui.garrison_power}</div>
                                         <div className="text-lg font-mono font-bold text-amber-400">{formatNumber(garrison.totalPower)}</div>
                                     </div>
                                 </div>
                                 {garrison.totalUnits > 0 && (
                                     <div className="mt-2 pt-2 border-t border-white/5">
-                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Composition</div>
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">{t.common.ui.garrison_composition}</div>
                                         <div className="flex flex-wrap gap-1">
                                             {Object.entries(garrison.units)
                                                 .filter(([_, count]) => count && count > 0)
@@ -286,13 +286,13 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                                     );
                                                 })}
                                             {Object.entries(garrison.units).filter(([_, count]) => count && count > 0).length > 8 && (
-                                                <div className="bg-slate-700/50 rounded px-1.5 py-0.5 text-[8px] text-slate-400">+more</div>
+                                                <div className="bg-slate-700/50 rounded px-1.5 py-0.5 text-[8px] text-slate-400">{t.common.ui.garrison_more}</div>
                                             )}
                                         </div>
                                     </div>
                                 )}
                                 {garrison.totalUnits === 0 && (
-                                    <div className="text-[10px] text-slate-600 text-center py-2">No units garrisoned</div>
+                                    <div className="text-[10px] text-slate-600 text-center py-2">{t.common.ui.garrison_empty}</div>
                                 )}
                             </div>
                         </section>
@@ -301,16 +301,16 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                         <section className="pt-4 mt-4 border-t border-white/5">
                             <div className="flex justify-between items-center mb-2 px-1">
                                 <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold flex items-center gap-2">
-                                    <span className={`w-1.5 h-1.5 rounded-full ${underThreat ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`}></span> {t.common.ui.diplomacy_allies}
+                                    <span className={`w-1.5 h-1.5 rounded-full ${underThreat ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`}></span> {t.common.ui.allied_reinforcements}
                                 </span>
                                 <span className="text-[9px] text-slate-500 font-mono">
-                                    {reinforcements.length} allies
+                                    {reinforcements.length} {t.common.ui.allied_reinforcements_available}
                                 </span>
                             </div>
                             {reinforcements.length === 0 ? (
                                 <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-lg p-3 text-center">
-                                    <div className="text-[10px] text-slate-600">No allied bots available</div>
-                                    <div className="text-[9px] text-slate-700 mt-1">Build reputation (70+) to gain allies</div>
+                                    <div className="text-[10px] text-slate-600">{t.common.ui.allied_reinforcements_none}</div>
+                                    <div className="text-[9px] text-slate-700 mt-1">{t.common.ui.allied_reinforcements_hint}</div>
                                 </div>
                             ) : (
                                 <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
@@ -321,10 +321,10 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-0.5">
                                                         <span className="font-bold text-emerald-300 truncate max-w-[120px]">{reinforcement.botName}</span>
-                                                        <span className="text-[8px] bg-emerald-900/50 text-emerald-400 px-1 rounded font-mono">Rep: {reinforcement.reputation}</span>
+                                                        <span className="text-[8px] bg-emerald-900/50 text-emerald-400 px-1 rounded font-mono">{t.common.ui.allied_bot_reputation}: {reinforcement.reputation}</span>
                                                     </div>
                                                     <div className="text-[9px] text-slate-400 font-mono">
-                                                        {formatNumber(reinforcement.totalUnits)} units • ETA: {formatDuration(reinforcement.estimatedArrival - now)}
+                                                        {formatNumber(reinforcement.totalUnits)} {t.common.ui.allied_units} • {t.common.ui.allied_eta}: {formatDuration(reinforcement.estimatedArrival - now)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -351,7 +351,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                     ))}
                                     {reinforcements.length > 5 && (
                                         <div className="text-[9px] text-center text-slate-500 pt-1">
-                                            +{reinforcements.length - 5} more allies available
+                                            +{reinforcements.length - 5} {t.common.ui.allied_more}
                                         </div>
                                     )}
                                 </div>
