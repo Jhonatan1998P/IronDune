@@ -344,7 +344,7 @@ export const ActiveAttacksIndicator: React.FC = () => {
                 )}
             </TooltipModal>
 
-            <div className="fixed top-[72px] left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-4">
+            <div className="mx-auto mt-2 z-30 w-full max-w-md px-4">
                 <div className="flex flex-col gap-2">
                     {alertData.incoming.items.length > 0 && (
                         <AlertCard 
