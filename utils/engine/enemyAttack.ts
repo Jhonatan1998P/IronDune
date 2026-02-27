@@ -12,6 +12,8 @@ import {
     ENEMY_ATTACK_CHANCE_TURTLE,
     ENEMY_ATTACK_CHANCE_TYCOON,
     ENEMY_ATTACK_CHANCE_ROGUE,
+    ENEMY_ATTACK_POWER_RATIO_LIMIT,
+    ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS,
     RETALIATION_TIME_MIN_MS,
     RETALIATION_TIME_MAX_MS,
     RETALIATION_CHANCE_WARLORD,
@@ -201,6 +203,10 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
 
     const newIncomingAttacks = [...state.incomingAttacks];
     const bots = state.rankingData.bots;
+    const playerPower = state.empirePoints;
+
+    // Track simultaneous attacks for delay calculation
+    let pendingAttacks: { bot: typeof bots[0], arrivalTime: number }[] = [];
 
     // Check each bot for potential attack
     bots.forEach(bot => {
@@ -222,6 +228,13 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
             return;
         }
 
+        // NEW: Check power ratio - bot can only attack if <= 150% of player power
+        const botScore = bot.stats[RankingCategory.DOMINION];
+        const powerRatio = botScore / Math.max(1, playerPower);
+        if (powerRatio > ENEMY_ATTACK_POWER_RATIO_LIMIT) {
+            return; // Bot is too powerful to attack
+        }
+
         // Calculate attack chance based on reputation and personality
         const attackChance = calculateEnemyAttackChance(reputation, bot.personality);
 
@@ -231,9 +244,16 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         }
 
         // Bot attacks!
-        const botScore = bot.stats[RankingCategory.DOMINION];
         const army = generateBotArmy(botScore, 1.0, bot.personality);
-        const arrivalTime = now + PVP_TRAVEL_TIME_MS;
+        
+        // Calculate arrival time with delay for simultaneous attacks
+        let arrivalTime = now + PVP_TRAVEL_TIME_MS;
+        if (pendingAttacks.length > 0) {
+            // Add 5 minute delay for each previous pending attack
+            arrivalTime += ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS * pendingAttacks.length;
+        }
+        
+        pendingAttacks.push({ bot, arrivalTime });
 
         const attack: IncomingAttack = {
             id: `enemy-attack-${bot.id}-${now}`,

@@ -193,7 +193,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   },
 };
 
-export const INITIAL_BUILDINGS: Record<BuildingType, { level: number }> = Object.values(BuildingType).reduce((acc, type) => {
-  acc[type] = { level: 0 };
+export const INITIAL_BUILDINGS: Record<BuildingType, { level: number; isDamaged?: boolean }> = Object.values(BuildingType).reduce((acc, type) => {
+  acc[type] = { level: 0, isDamaged: false };
   return acc;
-}, {} as Record<BuildingType, { level: number }>);
+}, {} as Record<BuildingType, { level: number; isDamaged?: boolean }>);

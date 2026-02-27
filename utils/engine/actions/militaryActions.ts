@@ -48,8 +48,8 @@ export const executeStartMission = (state: GameState, units: Partial<Record<Unit
     if (!canAfford) return { success: false, errorKey: 'insufficient_units' };
 
     const missionId = Date.now().toString();
-    const startTime = Date.now();
-    const endTime = startTime + (duration * 60 * 1000);
+    const now = Date.now();
+    const endTime = now + (duration * 60 * 1000);
 
     const newUnits = { ...state.units };
     Object.entries(units).forEach(([uType, qty]) => newUnits[uType as UnitType] -= (qty as number));
@@ -57,7 +57,7 @@ export const executeStartMission = (state: GameState, units: Partial<Record<Unit
     const newState = {
         ...state,
         units: newUnits,
-        activeMissions: [ ...state.activeMissions, { id: missionId, type: 'PATROL' as const, startTime, endTime, duration, units } ]
+        activeMissions: [ ...state.activeMissions, { id: missionId, type: 'PATROL' as const, startTime: now, endTime, duration, units } ]
     };
     return { success: true, newState };
 };

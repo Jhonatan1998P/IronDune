@@ -6,6 +6,7 @@ import { formatNumber } from '../../utils';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { BotPersonality } from '../../types/enums';
 import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions';
+import { addSpyReport, addGameLog } from '../../utils';
 import { UNIT_DEFS } from '../../data/units';
 
 // Mapa persistente para almacenar costos de espionaje por bot (no se pierde al desmontar)
@@ -64,7 +65,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
         const newReport = generateSpyReport(targetBot, now);
 
-        const newSpyReports = [...(gameState.spyReports || []), newReport];
+        // Usar función con límites (max 20 informes, los más viejos se eliminan)
+        const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
 
         // Crear informe de combate para la vista de informes
         const combatLog: LogEntry = {
@@ -80,6 +82,9 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             }
         };
 
+        // Usar función con límites (max 20 informes, los más viejos se eliminan)
+        const newLogs = addGameLog(gameState.logs || [], combatLog);
+
         if (onUpdateState) {
             onUpdateState({
                 resources: {
@@ -87,7 +92,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
                 },
                 spyReports: newSpyReports,
-                logs: [combatLog, ...gameState.logs].slice(0, 100)
+                logs: newLogs
             });
         } else if (typeof (window as any)._updateGameState === 'function') {
             (window as any)._updateGameState({
@@ -96,7 +101,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
                 },
                 spyReports: newSpyReports,
-                logs: [combatLog, ...(gameState.logs || [])].slice(0, 100)
+                logs: newLogs
             });
         }
 

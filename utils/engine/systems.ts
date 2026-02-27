@@ -107,6 +107,17 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             // --- GRUDGE HANDLING ---
             if (outcome.newGrudge) {
                 updatedGrudges.push(outcome.newGrudge);
+                // Generar log de venganza creada
+                logs.push({
+                    id: `grudge-created-${now}-${outcome.newGrudge.id}`,
+                    messageKey: 'log_grudge_created',
+                    type: 'intel',
+                    timestamp: now,
+                    params: {
+                        attacker: outcome.newGrudge.botName,
+                        retaliationTime: new Date(outcome.newGrudge.retaliationTime).toLocaleTimeString()
+                    }
+                });
             }
 
             // --- REPUTATION HANDLING ---
@@ -123,12 +134,16 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 if (alliesAfter.length > alliesBefore.length) {
-                    logs.push({
-                        id: `rep-gain-${now}`,
-                        messageKey: 'log_new_ally',
-                        type: 'info',
-                        timestamp: now,
-                        params: {}
+                    // Encontrar los nuevos aliados
+                    const newAllies = alliesAfter.filter(a => !alliesBefore.some(b => b.id === a.id));
+                    newAllies.forEach(ally => {
+                        logs.push({
+                            id: `rep-gain-${now}-${ally.id}`,
+                            messageKey: 'log_new_ally',
+                            type: 'info',
+                            timestamp: now,
+                            params: { ally: ally.name }
+                        });
                     });
                 }
             }

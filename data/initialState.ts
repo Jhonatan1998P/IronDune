@@ -23,8 +23,8 @@ export const INITIAL_MAX_RESOURCES: Record<ResourceType, number> = {
 };
 
 const initBuildings = { ...INITIAL_BUILDINGS };
-initBuildings[BuildingType.DIAMOND_MINE] = { level: 1 };
-initBuildings[BuildingType.BANK] = { level: 1 };
+initBuildings[BuildingType.DIAMOND_MINE] = { level: 1, isDamaged: false };
+initBuildings[BuildingType.BANK] = { level: 1, isDamaged: false };
 
 export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,

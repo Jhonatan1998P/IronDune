@@ -743,5 +743,6 @@ export interface TranslationDictionary {
     war_active_lock: string;
     campaign_slots_full: string;
     req_score: string;
+    incoming_attack_prevents_mission: string;
   };
 }

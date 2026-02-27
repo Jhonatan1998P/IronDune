@@ -614,12 +614,21 @@ export const resolveMission = (
             logKey = 'log_battle_loss';
             const survivorsCount = Object.values(battleResult.finalPlayerArmy).reduce((a: number, b: number | undefined) => a + (b || 0), 0);
             if (survivorsCount === 0) logKey = 'log_wipeout';
-            if (isWarAttack) warDefeat = true; 
+            if (isWarAttack) warDefeat = true;
             logParams = { combatResult: battleResult, targetName: mission.targetName };
             if (!isWarAttack && mission.targetId) {
                 reputationChanges.push({ botId: mission.targetId, change: REPUTATION_WIN_BONUS });
             }
         }
+        
+        // Si se creó una venganza, agregar el log correspondiente
+        if (newGrudge) {
+            logParams.grudgeData = {
+                attacker: newGrudge.botName,
+                retaliationTime: newGrudge.retaliationTime
+            };
+        }
+        
         return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
     }
 

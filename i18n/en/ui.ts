@@ -323,6 +323,7 @@ export const ui = {
         log_enemy_attack: "ALERT: {attacker} (Rep: {reputation}) is attacking your base!",
         log_attack_reset: "ATTACK RESET: Enemy attack counters have been reset.",
         log_ally_reinforcement: "ALLIED REINFORCEMENTS: {allyName} is sending help!",
+        log_new_ally: "NEW ALLY: You have gained a new ally!",
         loot_estimated: "Estimated Loot Value",
         loot_reroll: "(Rerolls on mission)",
         system_status: "System Status",
@@ -591,7 +592,7 @@ export const ui = {
         hostile: "Hostile",
         unit_type: "Unit Type",
         enemy_suffix: "E",
-        log_desertion: "DESERCIÓN",
+        log_desertion: "DESERTION",
         log_intel_acquired: "INTEL ACQUIRED",
         intel_target: "Target",
         intel_strength: "Est. Strength",
@@ -611,7 +612,21 @@ export const ui = {
         no_casualties: "No Friendly Casualties",
         hostile_force: "Hostile Force",
         enemy_target: "Enemy Target",
-        you_label: "You"
+        you_label: "You",
+        log_defense_win: "DEFENSE SUCCESSFUL",
+        log_defense_loss: "DEFENSE FAILED",
+        status_repaired: "BUILDING REPAIRED",
+        log_war_ended: "WAR ENDED",
+        log_grudge_planning: "ALERT: {attacker} is planning a retaliation attack",
+        log_grudge_imminent: "ALERT: {attacker} fleet detected - IMMINENT ATTACK",
+        alert_incoming: "INCOMING ATTACK ALERT",
+        log_grudge_decayed: "A grudge has been abandoned due to lack of resources",
+        log_grudge_created: "New grudge registered against {attacker}",
+        log_attack_reset: "Attack counters have been reset",
+        log_enemy_attack: "Enemy attack detected from {attacker}",
+        log_ally_reinforcement: "Allied reinforcements received",
+        log_war_overtime: "WAR: OVERTIME",
+        log_new_ally: "New alliance formed with {ally}"
       },
     errors: {
         insufficient_funds: "Insufficient Resources",
@@ -631,6 +646,7 @@ export const ui = {
         protection_active: "Target is under Newbie Protection",
         war_active_lock: "Action locked during Active War",
         campaign_slots_full: "No available Command Slots.",
-        req_score: "Insufficient Empire Points."
+        req_score: "Insufficient Empire Points.",
+        incoming_attack_prevents_mission: "Cannot deploy: Incoming enemy attack arrives before mission completion"
     }
 };

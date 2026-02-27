@@ -40,11 +40,11 @@ interface ViewRouterProps {
  * Renderiza la vista correspondiente según la pestaña activa
  */
 export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy, onSimulateRequest }) => {
-    const { 
-        gameState, logs, 
-        build, recruit, research, handleBankTransaction, 
+    const {
+        gameState, logs,
+        build, recruit, research, handleBankTransaction,
         startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
-        speedUp, spyOnAttacker, 
+        speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs, markReportsRead,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     } = useGame();
@@ -56,7 +56,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
 
     switch (activeTab) {
         case 'buildings':
-            return <BuildingsView gameState={gameState} onAction={build} onSpeedUp={speedUp} />;
+            return <BuildingsView gameState={gameState} onAction={build} onSpeedUp={speedUp} onRepair={repair} />;
         case 'units':
             return <UnitsView gameState={gameState} onAction={recruit} onSpeedUp={speedUp} />;
         case 'missions':

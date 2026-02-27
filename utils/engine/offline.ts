@@ -153,9 +153,20 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
                 newState.lastCampaignMissionFinishedTime = Math.max(newState.lastCampaignMissionFinishedTime, mission.endTime);
                 if (outcome.newCampaignProgress) newState.campaignProgress = Math.max(newState.campaignProgress, outcome.newCampaignProgress);
             }
-            
+
             if (outcome.newGrudge) {
                 newState.grudges.push(outcome.newGrudge);
+                // Generar log de venganza creada
+                newLogs.push({
+                    id: `grudge-created-${mission.endTime}-${outcome.newGrudge.id}`,
+                    messageKey: 'log_grudge_created',
+                    type: 'intel',
+                    timestamp: mission.endTime,
+                    params: {
+                        attacker: outcome.newGrudge.botName,
+                        retaliationTime: new Date(outcome.newGrudge.retaliationTime).toLocaleTimeString()
+                    }
+                });
             }
             
             const isSuccess = outcome.logKey === 'log_battle_win' || outcome.logKey.includes('patrol_battle_win') || outcome.logKey.includes('contraband');

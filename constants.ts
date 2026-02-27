@@ -112,6 +112,8 @@ export const ENEMY_ATTACK_MAX_PER_BOT = 3; // Max attacks per bot per 24h cycle
 export const ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000; // 24 hours - reset attack counter
 export const ENEMY_ATTACK_BASE_CHANCE = 0.20; // 20% base chance to attack at rep 30
 export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.025; // +2.5% chance per rep point below 30
+export const ENEMY_ATTACK_POWER_RATIO_LIMIT = 1.5; // Bots can only attack if their power is <= 150% of player
+export const ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS = 5 * 60 * 1000; // 5 minutes between simultaneous attacks
 
 // Personality-based attack chance modifiers (for enemy attack system)
 export const ENEMY_ATTACK_CHANCE_WARLORD = 1.5; // 50% more likely to attack

@@ -323,6 +323,7 @@ export const ui = {
         log_enemy_attack: "¡ALERTA: {attacker} (Rep: {reputation}) está atacando tu base!",
         log_attack_reset: "REINICIO DE ATAQUES: Los contadores de ataques enemigos han sido reiniciados.",
         log_ally_reinforcement: "REFUERZOS ALIADOS: ¡{allyName} está enviando ayuda!",
+        log_new_ally: "NUEVO ALIADO: ¡Has ganado un nuevo aliado!",
         loot_estimated: "Valor Estimado del Botín",
         loot_reroll: "(Cambia en cada misión)",
         system_status: "Estado del Sistema",
@@ -611,7 +612,21 @@ export const ui = {
         no_casualties: "Sin Bajas Aliadas",
         hostile_force: "Fuerza Hostil",
         enemy_target: "Objetivo Enemigo",
-        you_label: "Tú"
+        you_label: "Tú",
+        log_defense_win: "DEFENSA EXITOSA",
+        log_defense_loss: "DEFENSA FALLIDA",
+        status_repaired: "EDIFICIO REPARADO",
+        log_war_ended: "GUERRA TERMINADA",
+        log_grudge_planning: "ALERTA: {attacker} está planeando un ataque de venganza",
+        log_grudge_imminent: "ALERTA: Flota de {attacker} detectada - ATAQUE INMINENTE",
+        alert_incoming: "ALERTA DE ATAQUE ENTRANTE",
+        log_grudge_decayed: "Una venganza ha sido abandonada por falta de recursos",
+        log_grudge_created: "Nueva venganza registrada contra {attacker}",
+        log_attack_reset: "Los contadores de ataque han sido reseteados",
+        log_enemy_attack: "Ataque enemigo detectado de {attacker}",
+        log_ally_reinforcement: "Refuerzos aliados recibidos",
+        log_war_overtime: "GUERRA: TIEMPO EXTRA",
+        log_new_ally: "Nueva alianza formada con {ally}"
       },
     errors: {
         insufficient_funds: "Recursos Insuficientes",
@@ -631,6 +646,7 @@ export const ui = {
         protection_active: "Objetivo bajo Protección de Novato",
         war_active_lock: "Acción bloqueada durante Guerra Activa",
         campaign_slots_full: "Sin ranuras de mando disponibles.",
-        req_score: "Puntos de Imperio insuficientes."
+        req_score: "Puntos de Imperio insuficientes.",
+        incoming_attack_prevents_mission: "No puedes desplegar: El ataque enemigo llega antes de que completes la misión"
     }
 };

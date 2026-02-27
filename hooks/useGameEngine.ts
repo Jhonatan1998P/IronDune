@@ -4,6 +4,7 @@ import { GameState, GameStatus, LogEntry, GameEventType, OfflineReport } from '.
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateCombatStats, simulateCombat } from '../utils/engine/combat';
 import { useEventSubscription } from './useEventSubscription';
+import { addGameLog } from '../utils';
 
 // Modular Hooks
 import { useGameLoop } from './useGameLoop';
@@ -30,20 +31,25 @@ export const useGameEngine = () => {
 
   // --- 2. LOGGING (Shared Dependency) ---
   const addLog = useCallback((messageKey: string, type: LogEntry['type'] = 'info', params?: any) => {
-    const newLog: LogEntry = { 
-      id: Date.now().toString() + Math.random().toString().slice(2, 5), 
-      messageKey, 
+    const newLog: LogEntry = {
+      id: Date.now().toString() + Math.random().toString().slice(2, 5),
+      messageKey,
       params,
-      timestamp: Date.now(), 
+      timestamp: Date.now(),
       type,
       archived: false
     };
 
-    setGameState(prev => ({
-        ...prev,
-        logs: [newLog, ...prev.logs].slice(0, 100)
-    }));
-    if (type === 'combat' || type === 'mission') {
+    setGameState(prev => {
+        // Usar función con persistencia y límites
+        const updatedLogs = addGameLog(prev.logs || [], newLog);
+        return {
+            ...prev,
+            logs: updatedLogs
+        };
+    });
+    
+    if (type === 'combat' || type === 'mission' || type === 'intel' || type === 'war') {
         setHasNewReports(true);
     }
   }, []);
