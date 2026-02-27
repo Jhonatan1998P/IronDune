@@ -1,13 +1,14 @@
 import React from 'react';
 import { useGame } from '../context/GameContext';
 import { useLanguage } from '../context/LanguageContext';
-import { formatDuration } from '../utils';
+import { formatDuration, formatNumber } from '../utils';
 import { Icons, SpeedUpButton } from './UIComponents';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { TECH_DEFS } from '../data/techs';
 import { BuildingType, TechType, UnitType } from '../types';
 import { TerminalLogs } from './ui/TerminalLogs';
+import { calculatePotentialReinforcements, getPlayerGarrison, isPlayerUnderThreat } from '../utils/engine/allianceReinforcements';
 
 interface RightStatusPanelProps {
     isOpen?: boolean;
@@ -17,6 +18,7 @@ interface RightStatusPanelProps {
 export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = false, onClose }) => {
     const { gameState, speedUp } = useGame();
     const { t } = useLanguage();
+    const now = Date.now();
 
     const incomingAttacks = gameState.incomingAttacks || [];
     const activeConstructions = gameState.activeConstructions;
@@ -24,6 +26,11 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
     const activeResearch = gameState.activeResearch;
     const activeMissions = gameState.activeMissions;
     const activeWar = gameState.activeWar;
+
+    // Calculate garrison and reinforcements
+    const garrison = getPlayerGarrison(gameState);
+    const reinforcements = calculatePotentialReinforcements(gameState, now);
+    const underThreat = isPlayerUnderThreat(gameState);
 
     const drawerClasses = `
         fixed inset-y-0 right-0 z-[60] 
@@ -238,6 +245,117 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                         {/* --- TERMINAL LOGS RENDERED IN SYSTEM MONITOR --- */}
                         <section className="pt-4 mt-4 border-t border-white/5">
                             <TerminalLogs logs={gameState.logs} />
+                        </section>
+
+                        {/* --- PLAYER GARRISON --- */}
+                        <section className="pt-4 mt-4 border-t border-white/5">
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> {t.common.ui.active_units}
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-mono">
+                                    {garrison.totalUnits} units
+                                </span>
+                            </div>
+                            <div className="bg-slate-800/30 border border-amber-500/20 rounded-lg p-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-black/30 rounded p-2 text-center">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">Total</div>
+                                        <div className="text-lg font-mono font-bold text-amber-400">{formatNumber(garrison.totalUnits)}</div>
+                                    </div>
+                                    <div className="bg-black/30 rounded p-2 text-center">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">Power</div>
+                                        <div className="text-lg font-mono font-bold text-amber-400">{formatNumber(garrison.totalPower)}</div>
+                                    </div>
+                                </div>
+                                {garrison.totalUnits > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-white/5">
+                                        <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Composition</div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {Object.entries(garrison.units)
+                                                .filter(([_, count]) => count && count > 0)
+                                                .slice(0, 8)
+                                                .map(([unitType, count]) => {
+                                                    const def = UNIT_DEFS[unitType as UnitType];
+                                                    const name = def ? t.units[def.translationKey]?.name.split(' ')[0] || unitType : unitType;
+                                                    return (
+                                                        <div key={unitType} className="bg-amber-950/30 border border-amber-500/20 rounded px-1.5 py-0.5 text-[8px] text-amber-300 font-mono flex items-center gap-1">
+                                                            <span>{name}</span>
+                                                            <span className="text-amber-400 font-bold">{formatNumber(count!)}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            {Object.entries(garrison.units).filter(([_, count]) => count && count > 0).length > 8 && (
+                                                <div className="bg-slate-700/50 rounded px-1.5 py-0.5 text-[8px] text-slate-400">+more</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {garrison.totalUnits === 0 && (
+                                    <div className="text-[10px] text-slate-600 text-center py-2">No units garrisoned</div>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* --- ALLIED REINFORCEMENTS --- */}
+                        <section className="pt-4 mt-4 border-t border-white/5">
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <span className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold flex items-center gap-2">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${underThreat ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`}></span> {t.common.ui.diplomacy_allies}
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-mono">
+                                    {reinforcements.length} allies
+                                </span>
+                            </div>
+                            {reinforcements.length === 0 ? (
+                                <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-lg p-3 text-center">
+                                    <div className="text-[10px] text-slate-600">No allied bots available</div>
+                                    <div className="text-[9px] text-slate-700 mt-1">Build reputation (70+) to gain allies</div>
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                                    {reinforcements.slice(0, 5).map((reinforcement) => (
+                                        <div key={reinforcement.botId} className={`bg-emerald-950/20 border ${underThreat ? 'border-emerald-500/40' : 'border-emerald-500/20'} rounded p-2 text-xs relative overflow-hidden`}>
+                                            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-500/50"></div>
+                                            <div className="flex justify-between items-start pl-2">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="font-bold text-emerald-300 truncate max-w-[120px]">{reinforcement.botName}</span>
+                                                        <span className="text-[8px] bg-emerald-900/50 text-emerald-400 px-1 rounded font-mono">Rep: {reinforcement.reputation}</span>
+                                                    </div>
+                                                    <div className="text-[9px] text-slate-400 font-mono">
+                                                        {formatNumber(reinforcement.totalUnits)} units • ETA: {formatDuration(reinforcement.estimatedArrival - now)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {reinforcement.totalUnits > 0 && (
+                                                <div className="pl-2 mt-1 flex flex-wrap gap-1">
+                                                    {Object.entries(reinforcement.units)
+                                                        .filter(([_, count]) => count && count > 0)
+                                                        .slice(0, 4)
+                                                        .map(([unitType, count]) => {
+                                                            const def = UNIT_DEFS[unitType as UnitType];
+                                                            const name = def ? t.units[def.translationKey]?.name.split(' ')[0] || unitType : unitType;
+                                                            return (
+                                                                <span key={unitType} className="text-[8px] bg-black/30 text-emerald-400/80 px-1 rounded font-mono">
+                                                                    {name} x{formatNumber(count!)}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    {Object.entries(reinforcement.units).filter(([_, count]) => count && count > 0).length > 4 && (
+                                                        <span className="text-[8px] text-slate-500">+more</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {reinforcements.length > 5 && (
+                                        <div className="text-[9px] text-center text-slate-500 pt-1">
+                                            +{reinforcements.length - 5} more allies available
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </section>
 
                         <div className="h-20 xl:h-10 shrink-0"></div>

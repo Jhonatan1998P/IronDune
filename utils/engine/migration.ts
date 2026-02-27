@@ -381,8 +381,24 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
         cleanState.logs = [];
     }
 
+    // Diplomatic Actions Migration
+    if (saved.diplomaticActions && typeof saved.diplomaticActions === 'object') {
+        cleanState.diplomaticActions = {};
+        Object.entries(saved.diplomaticActions).forEach(([botId, actions]) => {
+            if (actions && typeof actions === 'object') {
+                cleanState.diplomaticActions[botId] = {
+                    lastGiftTime: typeof (actions as any).lastGiftTime === 'number' ? (actions as any).lastGiftTime : 0,
+                    lastAllianceTime: typeof (actions as any).lastAllianceTime === 'number' ? (actions as any).lastAllianceTime : 0,
+                    lastPeaceTime: typeof (actions as any).lastPeaceTime === 'number' ? (actions as any).lastPeaceTime : 0
+                };
+            }
+        });
+    } else {
+        cleanState.diplomaticActions = {};
+    }
+
     // Force update version
     cleanState.saveVersion = SAVE_VERSION;
-    
+
     return cleanState;
 };

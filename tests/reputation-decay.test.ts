@@ -46,40 +46,40 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
     });
 
     describe('2. Always Decays Below 75', () => {
-        it('rep 74 decays by 2', () => {
+        it('rep 74 decays by 1', () => {
             const bot = { ...bots[0], reputation: 74 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            expect(result.updatedBots[0].reputation).toBe(72);
+            expect(result.updatedBots[0].reputation).toBe(73);
         });
 
-        it('rep 50 decays by 2', () => {
+        it('rep 50 decays by 1', () => {
             const bot = { ...bots[0], reputation: 50 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            expect(result.updatedBots[0].reputation).toBe(48);
+            expect(result.updatedBots[0].reputation).toBe(49);
         });
 
-        it('rep 30 decays by 2 (1.25x multiplier)', () => {
+        it('rep 30 decays by 1.25 (1.25x multiplier)', () => {
             const bot = { ...bots[0], reputation: 30 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
             // Multiplier: 1 + (2-1) * (1 - 30/40) = 1 + 0.25 = 1.25
-            // Decay: 2 * 1.25 = 2.5
-            // New: 30 - 2.5 = 27.5
-            expect(result.updatedBots[0].reputation).toBe(27.5);
+            // Decay: 1 * 1.25 = 1.25
+            // New: 30 - 1.25 = 28.75
+            expect(result.updatedBots[0].reputation).toBe(28.75);
         });
 
         it('rep 10 decays with multiplier (decimal precision)', () => {
             const bot = { ...bots[0], reputation: 10 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
             // Multiplier: 1 + (2-1) * (1 - 10/40) = 1 + 0.75 = 1.75
-            // Decay: 2 * 1.75 = 3.5
-            // New: 10 - 3.5 = 6.5
-            expect(result.updatedBots[0].reputation).toBe(6.5);
+            // Decay: 1 * 1.75 = 1.75
+            // New: 10 - 1.75 = 8.25
+            expect(result.updatedBots[0].reputation).toBe(8.25);
         });
 
         it('rep 0 decays with 2x multiplier', () => {
             const bot = { ...bots[0], reputation: 0 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            // Multiplier: 2x, Decay: 4, New: 0 - 4 = 0 (capped at min 0)
+            // Multiplier: 2x, Decay: 2, New: 0 - 2 = 0 (capped at min 0)
             expect(result.updatedBots[0].reputation).toBe(0);
         });
 
@@ -87,9 +87,9 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
             const bot = { ...bots[0], reputation: 20 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
             // Multiplier: 1 + (2-1) * (1 - 20/40) = 1 + 0.5 = 1.5
-            // Decay: 2 * 1.5 = 3
-            // New: 20 - 3 = 17
-            expect(result.updatedBots[0].reputation).toBe(17);
+            // Decay: 1 * 1.5 = 1.5
+            // New: 20 - 1.5 = 18.5
+            expect(result.updatedBots[0].reputation).toBe(18.5);
         });
     });
 
@@ -97,21 +97,21 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
         it('rep 41 has 1x multiplier', () => {
             const bot = { ...bots[0], reputation: 41 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            // > 40, so multiplier = 1x, decay = 2
-            expect(result.updatedBots[0].reputation).toBe(39);
+            // > 40, so multiplier = 1x, decay = 1
+            expect(result.updatedBots[0].reputation).toBe(40);
         });
 
         it('rep 40 has 1x multiplier', () => {
             const bot = { ...bots[0], reputation: 40 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
             // At threshold, multiplier = 1x
-            expect(result.updatedBots[0].reputation).toBe(38);
+            expect(result.updatedBots[0].reputation).toBe(39);
         });
 
         it('rep 20 has 1.5x multiplier', () => {
             const bot = { ...bots[0], reputation: 20 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            expect(result.updatedBots[0].reputation).toBe(17);
+            expect(result.updatedBots[0].reputation).toBe(18.5);
         });
 
         it('rep 0 has 2x multiplier', () => {
@@ -125,29 +125,30 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
         it('rep 74 after 5 cycles', () => {
             const bot = { ...bots[0], reputation: 74 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL * 5);
-            // 74 - (2 * 5) = 64
-            expect(result.updatedBots[0].reputation).toBe(64);
+            // 74 - (1 * 5) = 69
+            expect(result.updatedBots[0].reputation).toBe(69);
         });
 
-        it('rep 50 after 10 cycles reaches 30', () => {
+        it('rep 50 after 10 cycles reaches 40', () => {
             const bot = { ...bots[0], reputation: 50 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL * 10);
-            // 50 - (2 * 10) = 30
-            expect(result.updatedBots[0].reputation).toBe(30);
+            // 50 - (1 * 10) = 40
+            expect(result.updatedBots[0].reputation).toBe(40);
         });
 
         it('rep 10 with 2 cycles (decimal precision)', () => {
             const bot = { ...bots[0], reputation: 10 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL * 2);
-            // Multiplier: 1.75, Decay per cycle: 3.5
-            // Total: 10 - (3.5 * 2) = 10 - 7 = 3
-            expect(result.updatedBots[0].reputation).toBe(3);
+            // Multiplier: 1.75, Decay per cycle: 1.75
+            // Total: 10 - (1.75 * 2) = 10 - 3.5 = 6.5
+            expect(result.updatedBots[0].reputation).toBe(6.5);
         });
 
         it('rep 5 reaches 0 after multiple cycles', () => {
             const bot = { ...bots[0], reputation: 5 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL * 3);
-            // 5 - 3 - 2 - 0 = 0 (approximated)
+            // Multiplier at rep 5: ~1.875, Decay per cycle: ~1.875
+            // Total: 5 - (1.875 * 3) = 5 - 5.625 = -0.625 -> capped at 0
             expect(result.updatedBots[0].reputation).toBe(0);
         });
     });
@@ -156,14 +157,14 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
         it('rep 74 decays (below threshold)', () => {
             const bot = { ...bots[0], reputation: 74 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            expect(result.updatedBots[0].reputation).toBe(72);
+            expect(result.updatedBots[0].reputation).toBe(73);
         });
 
         it('rep 1 decays with high multiplier', () => {
             const bot = { ...bots[0], reputation: 1 };
             const result = processReputationDecay([bot], 0, DECAY_INTERVAL);
-            // Multiplier: ~1.975, Decay: ~3.95 -> floor = 3
-            // New: 1 - 3 = -2 -> capped at 0
+            // Multiplier: ~1.975, Decay: ~1.975
+            // New: 1 - 1.975 = -0.975 -> capped at 0
             expect(result.updatedBots[0].reputation).toBe(0);
         });
 
@@ -186,13 +187,13 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
                 { ...bots[2], id: 'bot3', reputation: 20 },
             ];
             const result = processReputationDecay(testBots, 0, DECAY_INTERVAL);
-            
+
             // 80 >= 75 -> no decay
             expect(result.updatedBots[0].reputation).toBe(80);
-            // 50 < 75 -> decays by 2
-            expect(result.updatedBots[1].reputation).toBe(48);
-            // 20 < 75 -> decays with 1.5x multiplier = 3
-            expect(result.updatedBots[2].reputation).toBe(17);
+            // 50 < 75 -> decays by 1
+            expect(result.updatedBots[1].reputation).toBe(49);
+            // 20 < 75 -> decays with 1.5x multiplier = 1.5
+            expect(result.updatedBots[2].reputation).toBe(18.5);
         });
     });
 
@@ -220,10 +221,10 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
             const bot = { ...bots[0], reputation: 50 };
             const initialTime = 5000;
             const result = processReputationDecay([bot], initialTime, DECAY_INTERVAL - 1);
-            // CASI 1 ciclo completo (0.99999...), decay ~2
-            // New: 50 - 2 = ~48
+            // CASI 1 ciclo completo (0.99999...), decay ~1
+            // New: 50 - 1 = ~49
             expect(result.newLastDecayTime).toBe(DECAY_INTERVAL - 1);
-            expect(result.updatedBots[0].reputation).toBeCloseTo(48.0, 2);
+            expect(result.updatedBots[0].reputation).toBeCloseTo(49.0, 2);
         });
     });
 
@@ -232,11 +233,11 @@ describe('Reputation Decay System - Always Decays Below 75', () => {
             const bot = { ...bots[0], reputation: 50 };
             const fiveHours = 5 * 60 * 60 * 1000;
             const result = processReputationDecay([bot], 0, fiveHours);
-            
-            // 5 horas = 1.25 ciclos
-            // Decay: 2 * 1.25 = 2.5
-            // New: 50 - 2.5 = 47.5
-            expect(result.updatedBots[0].reputation).toBe(47.5);
+
+            // 5 horas = 5 ciclos
+            // Decay: 1 * 5 = 5
+            // New: 50 - 5 = 45
+            expect(result.updatedBots[0].reputation).toBe(45);
             expect(result.newLastDecayTime).toBe(fiveHours);
         });
     });

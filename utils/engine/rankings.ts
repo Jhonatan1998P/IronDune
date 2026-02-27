@@ -154,7 +154,7 @@ const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
 const TOTAL_BOTS = 199;
 export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
-const SOFT_CAP_SCORE = 5000000;
+const SOFT_CAP_SCORE = Number.MAX_SAFE_INTEGER; // Removed growth cap - bots grow indefinitely
 
 export enum BotEvent {
     ATTACKED = 'ATTACKED',
@@ -192,24 +192,25 @@ const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersona
 export const initializeRankingState = (): RankingData => ({
     bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
         const personality = PERSONALITIES[i % PERSONALITIES.length];
-        const botRank = TOTAL_BOTS - i;
-        const basePoints = 1000 * Math.pow(1.04, TOTAL_BOTS - botRank);
+        // Higher index = higher rank (more points)
+        const basePoints = 1000 * Math.pow(1.04, i);
         const dominionScore = Math.round(basePoints / 50) * 50;
-        
+
         return {
             id: `bot-${i}`,
             name: generateBotName('en'),
             avatarId: (i % 8) + 1,
             country: COUNTRIES[i % COUNTRIES.length],
-            stats: { 
-                [RankingCategory.DOMINION]: dominionScore, 
-                [RankingCategory.MILITARY]: Math.floor(dominionScore * 0.5), 
-                [RankingCategory.ECONOMY]: dominionScore * 10, 
-                [RankingCategory.CAMPAIGN]: 1 
+            stats: {
+                [RankingCategory.DOMINION]: dominionScore,
+                [RankingCategory.MILITARY]: Math.floor(dominionScore * 0.5),
+                [RankingCategory.ECONOMY]: dominionScore * 10,
+                [RankingCategory.CAMPAIGN]: 1
             },
             ambition: 1.0,
             personality,
-            lastRank: i + 1,
+            // Higher score = better rank (lower number), so invert the index
+            lastRank: TOTAL_BOTS - i,
             currentEvent: BotEvent.PEACEFUL_PERIOD,
             eventTurnsRemaining: 0,
             growthModifier: 0,
@@ -264,14 +265,9 @@ const applyGrowth = (bot: StaticBot): StaticBot => {
     const { base, category } = PERSONALITY_GROWTH_RATES[bot.personality];
     const totalRate = base + bot.growthModifier;
     const currentScore = bot.stats[category];
-    
-    let newScore = currentScore;
-    if (currentScore < SOFT_CAP_SCORE) {
-        newScore = currentScore * (1 + totalRate);
-    } else {
-        newScore = currentScore + (SOFT_CAP_SCORE * totalRate * 0.1);
-    }
-    newScore = Math.floor(newScore);
+
+    // Apply growth rate directly - no cap
+    let newScore = Math.floor(currentScore * (1 + totalRate));
 
     const newStats = {
         ...bot.stats,
@@ -283,7 +279,7 @@ const applyGrowth = (bot: StaticBot): StaticBot => {
         const dominionGrowth = dominionCurrentScore * BASE_GROWTH_RATE;
         newStats[RankingCategory.DOMINION] = Math.floor(dominionCurrentScore + dominionGrowth);
     }
-    
+
     return {
         ...bot,
         stats: newStats
@@ -294,16 +290,10 @@ const applyPartialGrowth = (bot: StaticBot, partialRate: number): StaticBot => {
     const { base, category } = PERSONALITY_GROWTH_RATES[bot.personality];
     const totalRate = base + bot.growthModifier;
     const currentScore = bot.stats[category];
-    
+
+    // Apply partial growth rate directly - no cap
     const partialGrowthRate = totalRate * partialRate;
-    
-    let newScore = currentScore;
-    if (currentScore < SOFT_CAP_SCORE) {
-        newScore = currentScore * (1 + partialGrowthRate);
-    } else {
-        newScore = currentScore + (SOFT_CAP_SCORE * partialGrowthRate * 0.1);
-    }
-    newScore = Math.floor(newScore);
+    let newScore = Math.floor(currentScore * (1 + partialGrowthRate));
 
     const newStats = {
         ...bot.stats,
@@ -315,7 +305,7 @@ const applyPartialGrowth = (bot: StaticBot, partialRate: number): StaticBot => {
         const dominionPartialGrowth = dominionCurrentScore * (BASE_GROWTH_RATE * partialRate);
         newStats[RankingCategory.DOMINION] = Math.floor(dominionCurrentScore + dominionPartialGrowth);
     }
-    
+
     return {
         ...bot,
         stats: newStats,
@@ -326,7 +316,7 @@ const applyPartialGrowth = (bot: StaticBot, partialRate: number): StaticBot => {
 export const processRankingEvolution = (currentBots: StaticBot[], elapsed: number): { bots: StaticBot[], cycles: number } => {
     const fullCycles = Math.floor(elapsed / GROWTH_INTERVAL_MS);
     const remainingTime = elapsed % GROWTH_INTERVAL_MS;
-    
+
     if (fullCycles <= 0) {
         if (remainingTime <= 0) {
             return { bots: currentBots, cycles: 0 };
@@ -334,13 +324,27 @@ export const processRankingEvolution = (currentBots: StaticBot[], elapsed: numbe
         return { bots: currentBots, cycles: 0 };
     }
 
-    let updatedBots = currentBots;
+    // Before applying growth, update lastRank to current standings
+    // This captures the rank BEFORE the growth cycle for trend calculation
+    const preGrowthSorted = [...currentBots].sort((a, b) => 
+        b.stats[RankingCategory.DOMINION] - a.stats[RankingCategory.DOMINION]
+    );
     
+    const preGrowthRanks = new Map<string, number>();
+    preGrowthSorted.forEach((bot, index) => {
+        preGrowthRanks.set(bot.id, index + 1);
+    });
+
+    let updatedBots = currentBots.map(bot => ({
+        ...bot,
+        lastRank: preGrowthRanks.get(bot.id) || bot.lastRank
+    }));
+
     for (let c = 0; c < fullCycles; c++) {
         updatedBots = updatedBots.map(bot => applyEvent(bot));
         updatedBots = updatedBots.map(bot => applyGrowth(bot));
     }
-    
+
     if (remainingTime > 0) {
         const partialGrowthRate = remainingTime / GROWTH_INTERVAL_MS;
         updatedBots = updatedBots.map(bot => applyPartialGrowth(bot, partialGrowthRate));
@@ -348,8 +352,8 @@ export const processRankingEvolution = (currentBots: StaticBot[], elapsed: numbe
 
     const totalCycles = fullCycles + (remainingTime > 0 ? 1 : 0);
 
-    return { 
-        bots: updatedBots, 
+    return {
+        bots: updatedBots,
         cycles: totalCycles
     };
 };
@@ -364,7 +368,7 @@ const getTier = (rank: number): RankingEntry['tier'] => {
 
 export const getCurrentStandings = (state: GameState, bots: StaticBot[], category: RankingCategory): RankingEntry[] => {
     const previousPlayerRank = state.rankingData.lastPlayerRank;
-    
+
     const entries: RankingEntry[] = bots.map(bot => {
         const score = bot.stats[category];
         const ratio = score / Math.max(1, state.empirePoints);
@@ -406,10 +410,6 @@ export const getCurrentStandings = (state: GameState, bots: StaticBot[], categor
         tier: getTier(index + 1),
         trend: (entry._rawLastRank || 0) - (index + 1)
     }));
-
-    bots.forEach((bot, index) => {
-        bot.lastRank = index + 1;
-    });
 
     const playerEntry = result.find(e => e.isPlayer);
     if (playerEntry && state.rankingData) {

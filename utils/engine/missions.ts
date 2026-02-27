@@ -373,12 +373,13 @@ const getSmartUnitComposition = (
 };
 
 export const generateBotArmy = (
-    targetScore: number, 
+    targetScore: number,
     budgetMultiplier: number = 1.0,
     personality?: BotPersonality
 ): Partial<Record<UnitType, number>> => {
-    
-    const totalBudget = targetScore * 5000 * budgetMultiplier;
+
+    // Unified formula: score * 4000 * multiplier for all military calculations
+    const totalBudget = targetScore * 4000 * budgetMultiplier;
 
     const availableUnits = getUnitsByScoreRange(targetScore);
     const activePersonality = personality || BotPersonality.WARLORD;
@@ -402,7 +403,7 @@ export const generateBotArmy = (
     );
 
     const combinedArmy: Partial<Record<UnitType, number>> = { ...attackArmy };
-    
+
     Object.entries(defenseArmy).forEach(([uType, count]) => {
         const key = uType as UnitType;
         combinedArmy[key] = (combinedArmy[key] || 0) + (count || 0);
@@ -744,15 +745,17 @@ export const generateSpyReport = (
 ): SpyReport => {
     const personality = bot.personality || BotPersonality.WARLORD;
     const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
-    const defenseBudget = bot.stats.DOMINION * 6000 * defenseRatio;
     
-    const fullMilitaryBudget = bot.stats.DOMINION * 6000;
+    // Unified formula: score * 4000 for all military calculations
+    const defenseBudget = bot.stats.DOMINION * 4000 * defenseRatio;
+
+    const fullMilitaryBudget = bot.stats.DOMINION * 4000;
     const resourceRatios = SPY_RESOURCE_RATIOS[personality];
     const moneyBudget = fullMilitaryBudget * resourceRatios.money;
     const oilBudget = fullMilitaryBudget * resourceRatios.oil;
     const goldBudget = fullMilitaryBudget * resourceRatios.gold;
     const ammoBudget = fullMilitaryBudget * resourceRatios.ammo;
-    
+
     const estimatedResources: Partial<Record<ResourceType, number>> = {
         [ResourceType.MONEY]: Math.floor(moneyBudget),
         [ResourceType.OIL]: Math.floor(oilBudget / BASE_PRICES[ResourceType.OIL]),
@@ -760,9 +763,9 @@ export const generateSpyReport = (
         [ResourceType.AMMO]: Math.floor(ammoBudget / BASE_PRICES[ResourceType.AMMO]),
         [ResourceType.DIAMOND]: Math.floor(bot.stats.DOMINION * 0.1 + Math.random() * bot.stats.DOMINION * 0.05)
     };
-    
+
     const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
-    
+
     const defenseArmy = getSmartUnitComposition(
         defenseBudget,
         personality,

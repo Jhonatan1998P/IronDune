@@ -137,8 +137,8 @@ export const RETALIATION_CHANCE_TYCOON = 0.70; // 70% chance - busy making money
 export const RETALIATION_CHANCE_ROGUE = 0.90; // 90% chance - unpredictable but vengeful
 
 // DIPLOMACY SYSTEM
-export const REPUTATION_DECAY_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
-export const REPUTATION_DECAY_AMOUNT = 2; // Reputation loss per decay interval
+export const REPUTATION_DECAY_INTERVAL_MS = 1 * 60 * 60 * 1000; // 1 hour
+export const REPUTATION_DECAY_AMOUNT = 1; // Reputation loss per decay interval
 export const REPUTATION_DECAY_MIN_THRESHOLD = 0; // Minimum reputation is 0 (no floor)
 export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // >= 75 doesn't decay
 export const REPUTATION_DECAY_BOOST_THRESHOLD = 40; // Below 40, decay accelerates

@@ -351,24 +351,44 @@ describe('Bot Growth System', () => {
         });
     });
 
-    describe('8. Soft Cap', () => {
-        it('should reduce growth after 5M in category', () => {
+    describe('8. Unlimited Growth', () => {
+        it('should continue growing normally after 5M in category (no cap)', () => {
             const warlord = bots.find(b => b.personality === BotPersonality.WARLORD)!;
             warlord.stats[RankingCategory.MILITARY] = 5000000;
             warlord.currentEvent = BotEvent.PEACEFUL_PERIOD;
             warlord.eventTurnsRemaining = 10;
             warlord.growthModifier = 0;
-            
+
             const initial = warlord.stats[RankingCategory.MILITARY];
             const result = processRankingEvolution([warlord], GROWTH_INTERVAL);
             const final = result.bots[0].stats[RankingCategory.MILITARY];
-            
-            // With soft cap: current + (5000000 * totalRate * 0.1)
+
+            // No cap: full growth rate applies
             // Total rate: base 8% + modifier 1% = 9%
-            // = 5000000 + (5000000 * 0.09 * 0.1) = 5000000 + 45000 = 5045000
-            const expected = initial + (5000000 * 0.09 * 0.1);
-            
-            console.log(`Soft cap test (5M): ${initial} -> ${final} (expected ~${expected})`);
+            // = 5000000 * 1.09 = 5450000
+            const expected = initial * 1.09;
+
+            console.log(`Unlimited growth test (5M): ${initial} -> ${final} (expected ~${expected})`);
+            expect(final).toBe(Math.floor(expected));
+        });
+
+        it('should continue growing normally after 10M in category (no cap)', () => {
+            const warlord = bots.find(b => b.personality === BotPersonality.WARLORD)!;
+            warlord.stats[RankingCategory.MILITARY] = 10000000;
+            warlord.currentEvent = BotEvent.PEACEFUL_PERIOD;
+            warlord.eventTurnsRemaining = 10;
+            warlord.growthModifier = 0;
+
+            const initial = warlord.stats[RankingCategory.MILITARY];
+            const result = processRankingEvolution([warlord], GROWTH_INTERVAL);
+            const final = result.bots[0].stats[RankingCategory.MILITARY];
+
+            // No cap: full growth rate applies
+            // Total rate: base 8% + modifier 1% = 9%
+            // = 10000000 * 1.09 = 10900000
+            const expected = initial * 1.09;
+
+            console.log(`Unlimited growth test (10M): ${initial} -> ${final} (expected ~${expected})`);
             expect(final).toBe(Math.floor(expected));
         });
     });
