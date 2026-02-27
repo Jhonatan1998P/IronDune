@@ -465,6 +465,17 @@ export interface TranslationDictionary {
       spy_estimated_resources: string;
       spy_buildings: string;
       spy_time_remaining: string;
+      gift_codes: string;
+      gift_code_placeholder: string;
+      gift_code_redeem: string;
+      gift_code_invalid: string;
+      gift_code_success: string;
+      gift_code_already_redeemed: string;
+      gift_code_cooldown: string;
+      gift_code_daily: string;
+      gift_code_once: string;
+      gift_code_diario_rewards: string;
+      gift_code_manco_rewards: string;
     };
     menu: {
       new_game: string;

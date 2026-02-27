@@ -424,7 +424,18 @@ export const ui = {
         spy_detected_units: "Detected Units",
         spy_estimated_resources: "Estimated Resources",
         spy_buildings: "Buildings",
-        spy_time_remaining: "min remaining"
+        spy_time_remaining: "min remaining",
+        gift_codes: "Gift Codes",
+        gift_code_placeholder: "Enter code...",
+        gift_code_redeem: "Redeem",
+        gift_code_invalid: "Invalid code",
+        gift_code_success: "Rewards redeemed!",
+        gift_code_already_redeemed: "This code has already been redeemed",
+        gift_code_cooldown: "Code on cooldown. Wait {hours}h {minutes}m",
+        gift_code_daily: "Available every 24h",
+        gift_code_once: "One time",
+        gift_code_diario_rewards: "+10 Diamonds",
+        gift_code_manco_rewards: "+50M Money, +10 Diamonds"
       },
       menu: {
         new_game: "New Operation",

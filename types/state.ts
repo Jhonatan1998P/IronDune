@@ -171,6 +171,17 @@ export interface SpyReport {
     buildings: Partial<Record<BuildingType, number>>;
 }
 
+export interface GiftCode {
+  code: string;
+  rewards: Partial<Record<ResourceType, number>>;
+  cooldownHours: number; // 0 = one-time only
+}
+
+export interface GiftCodeRedeemed {
+  code: string;
+  redeemedAt: number;
+}
+
 export interface GameState {
   saveVersion: number; 
   playerName: string;
@@ -232,6 +243,10 @@ export interface GameState {
   lastReputationDecayTime: number;
 
   lifetimeStats: LifetimeStats; 
+
+  // Gift Code System
+  redeemedGiftCodes: GiftCodeRedeemed[];
+  giftCodeCooldowns: Record<string, number>; // code -> last redemption timestamp
 
   logs: LogEntry[]; 
 }

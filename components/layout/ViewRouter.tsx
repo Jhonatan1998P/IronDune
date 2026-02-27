@@ -46,7 +46,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
         startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, 
         deleteLogs, archiveLogs, markReportsRead,
-        resetGame, saveGame, exportSave, changePlayerName
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     } = useGame();
     
     // Effect to mark reports read when tab is opened
@@ -97,6 +97,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                 <SettingsView 
                     gameState={gameState}
                     changePlayerName={changePlayerName}
+                    redeemGiftCode={redeemGiftCode}
                     saveGame={saveGame}
                     resetGame={resetGame}
                     exportSave={exportSave}

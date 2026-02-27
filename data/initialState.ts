@@ -76,5 +76,7 @@ export const INITIAL_GAME_STATE: GameState = {
     missionsCompleted: 0,
     highestRankAchieved: 9999
   },
+  redeemedGiftCodes: [],
+  giftCodeCooldowns: {},
   logs: []
 };

@@ -204,11 +204,11 @@ const getUnitsByScoreRange = (score: number): UnitType[] => {
         return UNIT_ByScore.slice(0, 3);
     } else if (score < 6000) {
         return UNIT_ByScore.slice(0, 4);
-    } else if (score < 10000) {
+    } else if (score < 15000) {
         return UNIT_ByScore.slice(0, 5);
-    } else if (score < 18000) {
+    } else if (score < 30000) {
         return UNIT_ByScore.slice(0, 6);
-    } else if (score < 25000) {
+    } else if (score < 60000) {
         return UNIT_ByScore.slice(0, 7);
     } else {
         return UNIT_ByScore;

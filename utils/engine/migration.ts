@@ -438,6 +438,14 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
         cleanState.diplomaticActions = {};
     }
 
+    // Gift Codes Migration
+    if (Array.isArray(saved.redeemedGiftCodes)) {
+        cleanState.redeemedGiftCodes = saved.redeemedGiftCodes;
+    }
+    if (saved.giftCodeCooldowns && typeof saved.giftCodeCooldowns === 'object') {
+        cleanState.giftCodeCooldowns = saved.giftCodeCooldowns;
+    }
+
     // Force update version
     cleanState.saveVersion = SAVE_VERSION;
 

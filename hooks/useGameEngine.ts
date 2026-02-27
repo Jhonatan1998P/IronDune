@@ -140,6 +140,7 @@ export const useGameEngine = () => {
     sendDiplomaticGift: actions.sendDiplomaticGift,
     proposeDiplomaticAlliance: actions.proposeDiplomaticAlliance,
     proposeDiplomaticPeace: actions.proposeDiplomaticPeace,
+    redeemGiftCode: actions.redeemGiftCode,
 
     // Logs
     deleteLogs, 

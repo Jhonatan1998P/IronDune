@@ -1,6 +1,6 @@
 
 import React, { useCallback } from 'react';
-import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry, ResourceType } from '../types';
+import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry, ResourceType, GiftCode } from '../types';
 import { 
     executeBuild, 
     executeRecruit, 
@@ -400,11 +400,103 @@ export const useGameActions = (
       return { success: false, messageKey: result.messageKey, params: result.params };
   }, [gameState, addLog, setGameState]);
 
+  const GIFT_CODES: GiftCode[] = [
+      {
+          code: 'DIARIO',
+          rewards: { [ResourceType.DIAMOND]: 10 },
+          cooldownHours: 24
+      },
+      {
+          code: 'MANCO',
+          rewards: { [ResourceType.MONEY]: 50000000, [ResourceType.DIAMOND]: 10 },
+          cooldownHours: 0
+      }
+  ];
+
+  const redeemGiftCode = useCallback((code: string): { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number } => {
+      const normalizedCode = code.trim().toUpperCase();
+      const now = Date.now();
+      
+      const giftCode = GIFT_CODES.find(gc => gc.code === normalizedCode);
+      
+      if (!giftCode) {
+          return { success: false, messageKey: 'gift_code_invalid' };
+      }
+      
+      if (giftCode.cooldownHours === 0) {
+          const alreadyRedeemed = gameState.redeemedGiftCodes.some(
+              rc => rc.code === normalizedCode
+          );
+          
+          if (alreadyRedeemed) {
+              return { success: false, messageKey: 'gift_code_already_redeemed' };
+          }
+      } else {
+          const lastRedeemed = gameState.giftCodeCooldowns[normalizedCode];
+          if (lastRedeemed) {
+              const cooldownMs = giftCode.cooldownHours * 60 * 60 * 1000;
+              const timeSinceLastRedeemed = now - lastRedeemed;
+              
+              if (timeSinceLastRedeemed < cooldownMs) {
+                  const remainingMs = cooldownMs - timeSinceLastRedeemed;
+                  const hoursRemaining = Math.floor(remainingMs / (60 * 60 * 1000));
+                  const minutesRemaining = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+                  return { 
+                      success: false, 
+                      messageKey: 'gift_code_cooldown', 
+                      params: { hours: hoursRemaining, minutes: minutesRemaining },
+                      hoursRemaining,
+                      minutesRemaining
+                  };
+              }
+          }
+      }
+      
+      setGameState(prev => {
+          const newResources = { ...prev.resources };
+          
+          Object.entries(giftCode.rewards).forEach(([resource, amount]) => {
+              const resType = resource as ResourceType;
+              const currentAmount = newResources[resType] || 0;
+              const maxAmount = prev.maxResources[resType] || currentAmount;
+              newResources[resType] = Math.min(maxAmount, currentAmount + (amount || 0));
+          });
+          
+          let newRedeemedCodes = [...prev.redeemedGiftCodes];
+          let newCooldowns = { ...prev.giftCodeCooldowns };
+          
+          if (giftCode.cooldownHours === 0) {
+              newRedeemedCodes.push({ code: normalizedCode, redeemedAt: now });
+          } else {
+              newCooldowns[normalizedCode] = now;
+          }
+          
+          const newLog: LogEntry = {
+              id: `gift-${now}`,
+              messageKey: 'gift_code_success',
+              type: 'info',
+              timestamp: now,
+              params: { code: normalizedCode, rewards: giftCode.rewards }
+          };
+          
+          return {
+              ...prev,
+              resources: newResources,
+              redeemedGiftCodes: newRedeemedCodes,
+              giftCodeCooldowns: newCooldowns,
+              logs: [newLog, ...prev.logs].slice(0, 100)
+          };
+      });
+      
+      return { success: true, messageKey: 'gift_code_success' };
+  }, [gameState, setGameState]);
+
   return {
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,
     acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,
     changePlayerName,
-    sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace
+    sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace,
+    redeemGiftCode
   };
 };

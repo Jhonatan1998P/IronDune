@@ -424,7 +424,18 @@ export const ui = {
         spy_detected_units: "Tropas Detectadas",
         spy_estimated_resources: "Recursos Estimados",
         spy_buildings: "Edificios",
-        spy_time_remaining: "min restantes"
+        spy_time_remaining: "min restantes",
+        gift_codes: "Códigos de Regalo",
+        gift_code_placeholder: "Ingresa código...",
+        gift_code_redeem: "Canjear",
+        gift_code_invalid: "Código inválido",
+        gift_code_success: "¡Recompensas canjeadas!",
+        gift_code_already_redeemed: "Este código ya fue canjeado",
+        gift_code_cooldown: "Código en enfriamiento. Espera {hours}h {minutes}m",
+        gift_code_daily: "Disponible cada 24h",
+        gift_code_once: "Una vez",
+        gift_code_diario_rewards: "+10 Diamantes",
+        gift_code_manco_rewards: "+50M Dinero, +10 Diamantes"
       },
       menu: {
         new_game: "Nueva Operación",

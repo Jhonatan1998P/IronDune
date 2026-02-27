@@ -6,6 +6,7 @@ import { Card, GlassButton } from '../UIComponents';
 interface SettingsViewProps {
     gameState: GameState;
     changePlayerName: (name: string) => { success: boolean; errorKey?: string };
+    redeemGiftCode: (code: string) => { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number };
     saveGame: () => void;
     resetGame: () => void;
     exportSave: () => void;
@@ -14,6 +15,7 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
     gameState, 
     changePlayerName, 
+    redeemGiftCode,
     saveGame, 
     resetGame, 
     exportSave 
@@ -22,6 +24,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [newName, setNewName] = useState('');
     const [nameError, setNameError] = useState<string | null>(null);
     const [nameSuccess, setNameSuccess] = useState(false);
+    const [giftCode, setGiftCode] = useState('');
+    const [giftCodeStatus, setGiftCodeStatus] = useState<{ type: 'success' | 'error' | 'cooldown' | null; message: string }>({ type: null, message: '' });
 
     const handleNameChange = () => {
         setNameError(null);
@@ -34,6 +38,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         } else if (result.errorKey) {
             setNameError(result.errorKey);
         }
+    };
+
+    const handleGiftCodeRedemption = () => {
+        if (!giftCode.trim()) return;
+        
+        const result = redeemGiftCode(giftCode);
+        
+        if (result.success) {
+            setGiftCodeStatus({ 
+                type: 'success', 
+                message: t.common.ui.gift_code_success 
+            });
+            setGiftCode('');
+        } else if (result.messageKey === 'gift_code_cooldown' && result.params) {
+            const hours = result.params.hours || 0;
+            const minutes = result.params.minutes || 0;
+            const message = t.common.ui.gift_code_cooldown
+                .replace('{hours}', hours.toString())
+                .replace('{minutes}', minutes.toString());
+            setGiftCodeStatus({ type: 'cooldown', message });
+        } else {
+            setGiftCodeStatus({ 
+                type: 'error', 
+                message: t.common.ui[result.messageKey as keyof typeof t.common.ui] || t.common.ui.gift_code_invalid 
+            });
+        }
+        
+        setTimeout(() => setGiftCodeStatus({ type: null, message: '' }), 4000);
     };
 
     const isFreeChange = !gameState.hasChangedName;
@@ -117,6 +149,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             {t.common.ui.name_changed_success}
                                         </p>
                                     )}
+                                </div>
+                            </div>
+
+                            <div className="border-t border-white/10 pt-3 sm:pt-4 mt-2">
+                                <p className="text-xs text-slate-400 font-mono italic mb-2">
+                                    {language === 'es' ? 'Códigos de Regalo' : 'Gift Codes'}
+                                </p>
+                                <div className="space-y-2 sm:space-y-3">
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+                                        <input
+                                            type="text"
+                                            value={giftCode}
+                                            onChange={(e) => { setGiftCode(e.target.value.toUpperCase()); setGiftCodeStatus({ type: null, message: '' }); }}
+                                            placeholder={t.common.ui.gift_code_placeholder}
+                                            maxLength={20}
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 transition-all font-mono uppercase"
+                                        />
+                                        <GlassButton
+                                            onClick={handleGiftCodeRedemption}
+                                            disabled={!giftCode.trim()}
+                                            className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3"
+                                            variant="primary"
+                                        >
+                                            <span className="text-xs sm:text-sm whitespace-nowrap">
+                                                {t.common.ui.gift_code_redeem}
+                                            </span>
+                                        </GlassButton>
+                                    </div>
+
+                                    {giftCodeStatus.type && (
+                                        <div className={`p-2 sm:p-3 rounded-lg text-xs sm:text-sm font-mono text-center animate-[fadeIn_0.2s_ease-out] ${
+                                            giftCodeStatus.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                            giftCodeStatus.type === 'error' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                            'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                        }`}>
+                                            {giftCodeStatus.message}
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
+                                        <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
+                                            <div className="flex flex-col">
+                                                <span className="text-cyan-400 font-bold text-sm">DIARIO</span>
+                                                <span className="text-[10px] text-slate-500">{t.common.ui.gift_code_diario_rewards}</span>
+                                            </div>
+                                            <span className="text-[10px] px-2 py-1 bg-amber-500/20 text-amber-400 rounded">
+                                                {t.common.ui.gift_code_daily}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
+                                            <div className="flex flex-col">
+                                                <span className="text-cyan-400 font-bold text-sm">MANCO</span>
+                                                <span className="text-[10px] text-slate-500">{t.common.ui.gift_code_manco_rewards}</span>
+                                            </div>
+                                            <span className="text-[10px] px-2 py-1 bg-purple-500/20 text-purple-400 rounded">
+                                                {t.common.ui.gift_code_once}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
