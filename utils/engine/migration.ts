@@ -149,6 +149,7 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     if (typeof saved.lastInterestPayoutTime === 'number') cleanState.lastInterestPayoutTime = saved.lastInterestPayoutTime;
     if (typeof saved.empirePoints === 'number') cleanState.empirePoints = saved.empirePoints;
     if (typeof saved.lastSaveTime === 'number') cleanState.lastSaveTime = saved.lastSaveTime;
+    if (typeof saved.lastReputationDecayTime === 'number') cleanState.lastReputationDecayTime = saved.lastReputationDecayTime;
     if (typeof saved.campaignProgress === 'number') cleanState.campaignProgress = saved.campaignProgress;
     if (typeof saved.lastCampaignMissionFinishedTime === 'number') cleanState.lastCampaignMissionFinishedTime = saved.lastCampaignMissionFinishedTime;
     if (typeof saved.isTutorialMinimized === 'boolean') cleanState.isTutorialMinimized = saved.isTutorialMinimized;
@@ -156,7 +157,25 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     
     // Attack System Persistence (V1.4 - Cooldown based)
     if (typeof saved.nextAttackTime === 'number' && !isNaN(saved.nextAttackTime)) cleanState.nextAttackTime = saved.nextAttackTime;
-    if (Array.isArray(saved.incomingAttacks)) cleanState.incomingAttacks = saved.incomingAttacks;
+    // Incoming Attacks Migration (with sanitization)
+    if (Array.isArray(saved.incomingAttacks)) {
+        cleanState.incomingAttacks = saved.incomingAttacks.filter((a: any) => 
+            a && 
+            typeof a.id === 'string' && 
+            typeof a.endTime === 'number' &&
+            a.units
+        ).map((a: any) => ({
+            id: a.id || `atk-${Date.now()}-${Math.random()}`,
+            attackerName: a.attackerName || 'Unknown',
+            attackerScore: typeof a.attackerScore === 'number' && !isNaN(a.attackerScore) ? a.attackerScore : 1000,
+            units: a.units || {},
+            startTime: typeof a.startTime === 'number' ? a.startTime : Date.now(),
+            endTime: a.endTime,
+            delayCount: typeof a.delayCount === 'number' ? a.delayCount : 0,
+            isWarWave: !!a.isWarWave,
+            isScouted: !!a.isScouted
+        }));
+    }
     
     // Grudges Migration (with personality sanitization)
     if (Array.isArray(saved.grudges)) {
@@ -177,6 +196,28 @@ export const sanitizeAndMigrateSave = (saved: any): GameState => {
     if (saved.enemyAttackCounts) cleanState.enemyAttackCounts = saved.enemyAttackCounts;
     if (saved.lastEnemyAttackCheckTime) cleanState.lastEnemyAttackCheckTime = saved.lastEnemyAttackCheckTime;
     if (saved.lastEnemyAttackResetTime) cleanState.lastEnemyAttackResetTime = saved.lastEnemyAttackResetTime;
+
+    // Spy Reports Migration (with sanitization)
+    if (Array.isArray(saved.spyReports)) {
+        cleanState.spyReports = saved.spyReports.filter((s: any) => 
+            s && 
+            typeof s.id === 'string' &&
+            typeof s.botId === 'string' &&
+            typeof s.expiresAt === 'number'
+        ).map((s: any) => ({
+            id: s.id || `spy-${Date.now()}-${Math.random()}`,
+            botId: s.botId || '',
+            botName: s.botName || 'Unknown',
+            botScore: typeof s.botScore === 'number' && !isNaN(s.botScore) ? s.botScore : 1000,
+            botPersonality: s.botPersonality && VALID_PERSONALITIES.includes(s.botPersonality)
+                ? s.botPersonality : BotPersonality.WARLORD,
+            createdAt: typeof s.createdAt === 'number' ? s.createdAt : Date.now(),
+            expiresAt: s.expiresAt,
+            units: s.units || {},
+            resources: s.resources || {},
+            buildings: s.buildings || {}
+        }));
+    }
 
     // Attack Counts Migration
     if (saved.targetAttackCounts) cleanState.targetAttackCounts = saved.targetAttackCounts;

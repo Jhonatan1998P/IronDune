@@ -7,6 +7,16 @@ import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
 import { calculateGiftCost, calculateDecayMultiplier } from '../../utils/engine/diplomacy';
 import { formatNumber } from '../../utils';
+import {
+    REPUTATION_DECAY_INTERVAL_MS,
+    REPUTATION_DECAY_AMOUNT,
+    REPUTATION_DECAY_BOOST_THRESHOLD,
+    REPUTATION_DECAY_MAX_MULTIPLIER,
+    REPUTATION_ALLY_THRESHOLD,
+    REPUTATION_ENEMY_THRESHOLD,
+    DIPLOMACY_ALLIANCE_REP_REQUIREMENT,
+    DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT
+} from '../../constants';
 
 const DiplomacyView: React.FC = () => {
     const { gameState: state, sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace } = useGame();
@@ -174,6 +184,8 @@ const DiplomacyView: React.FC = () => {
     };
 
     const getDecayTooltip = (rep: number): React.ReactNode => {
+        const hoursInterval = REPUTATION_DECAY_INTERVAL_MS / (1000 * 60 * 60);
+        
         if (rep >= 75) {
             return (
                 <div className="space-y-1.5 text-xs">
@@ -182,24 +194,24 @@ const DiplomacyView: React.FC = () => {
                 </div>
             );
         }
-        if (rep < 40) {
+        if (rep < REPUTATION_DECAY_BOOST_THRESHOLD) {
             const multiplier = calculateDecayMultiplier(rep);
-            const decayPerCycle = Math.floor(2 * multiplier);
+            const decayPerCycle = Math.floor(REPUTATION_DECAY_AMOUNT * multiplier);
             return (
                 <div className="space-y-1.5 text-xs">
                     <div className="font-bold text-red-400 flex items-center gap-1.5"><TrendingDown className="w-3.5 h-3.5" /> {t.common.ui.tooltip_accelerated_decay || 'Decaimiento Acelerado'}</div>
-                    <div className="text-slate-400">{t.common.ui.tooltip_decay_multiplier || 'Multiplicador'}: x{multiplier.toFixed(1)}</div>
+                    <div className="text-slate-400">{t.common.ui.tooltip_decay_multiplier || 'Multiplicador'}: x{multiplier.toFixed(1)} (max x{REPUTATION_DECAY_MAX_MULTIPLIER})</div>
                     <div className="text-slate-400">{t.common.ui.tooltip_decay_loss || 'Pérdida por ciclo'}: -{decayPerCycle}</div>
-                    <div className="text-slate-500">{t.common.ui.tooltip_decay_info || 'Bajo 40 de reputación, el decaimiento es más rápido'}</div>
+                    <div className="text-slate-500">{t.common.ui.tooltip_decay_info || `Bajo ${REPUTATION_DECAY_BOOST_THRESHOLD} de reputación, el decaimiento es más rápido`}</div>
                 </div>
             );
         }
         return (
             <div className="space-y-1.5 text-xs">
                 <div className="font-bold text-yellow-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {t.common.ui.tooltip_normal_decay || 'Decaimiento Normal'}</div>
-                <div className="text-slate-400">{t.common.ui.tooltip_decay_interval || 'Intervalo'}: 4 horas</div>
-                <div className="text-slate-400">{t.common.ui.tooltip_decay_amount || 'Pérdida'}: -2 por ciclo</div>
-                <div className="text-slate-500">{t.common.ui.tooltip_decay_normal_desc || 'Zona estable (40-74): decaimiento normal'}</div>
+                <div className="text-slate-400">{t.common.ui.tooltip_decay_interval || 'Intervalo'}: {hoursInterval} hora{hoursInterval > 1 ? 's' : ''}</div>
+                <div className="text-slate-400">{t.common.ui.tooltip_decay_amount || 'Pérdida'}: -{REPUTATION_DECAY_AMOUNT} por ciclo</div>
+                <div className="text-slate-500">{t.common.ui.tooltip_decay_normal_desc || `Zona estable (${REPUTATION_DECAY_BOOST_THRESHOLD}-74): decaimiento normal`}</div>
             </div>
         );
     };
@@ -232,8 +244,8 @@ const DiplomacyView: React.FC = () => {
         <div className="space-y-2 text-xs min-w-[200px]">
             <div className="font-bold text-cyan-400 border-b border-slate-700 pb-1.5 mb-1">{t.common.ui.diplomacy_stats || 'Estadísticas de Diplomacia'}</div>
             <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.performance || 'Promedio'}:</span><span className="text-blue-400 font-bold">{Math.floor(stats.avgRep)}%</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_allies || 'Aliados'} (&gt;70):</span><span className="text-green-400 font-bold">{stats.allies}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_enemies || 'Enemigos'} (&lt;30):</span><span className="text-red-400 font-bold">{stats.enemies}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_allies || 'Aliados'} (≥{REPUTATION_ALLY_THRESHOLD}):</span><span className="text-green-400 font-bold">{stats.allies}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">{t.common.ui.diplomacy_enemies || 'Enemigos'} (≤{REPUTATION_ENEMY_THRESHOLD}):</span><span className="text-red-400 font-bold">{stats.enemies}</span></div>
             <div className="text-slate-500 pt-1 border-t border-slate-700">{t.common.ui.diplomacy_stats_desc || 'Actualizado en tiempo real'}</div>
         </div>
     );
@@ -263,7 +275,7 @@ const DiplomacyView: React.FC = () => {
                         </div>
                     </SmartTooltip>
                     <SmartTooltip 
-                        content={<div className="text-xs"><span className="text-green-400 font-bold">{stats.allies}</span> {t.common.ui.tooltip_allies || 'comandantes'}<br/>{t.common.ui.tooltip_allies_desc || 'Con reputación mayor a 70%'}</div>}
+                        content={<div className="text-xs"><span className="text-green-400 font-bold">{stats.allies}</span> {t.common.ui.tooltip_allies || 'comandantes'}<br/>{t.common.ui.tooltip_allies_desc || `Con reputación mayor a ${REPUTATION_ALLY_THRESHOLD}%`}</div>}
                         triggerMode="hover"
                     >
                         <div className="bg-gray-700 p-2 rounded-lg cursor-help hover:bg-gray-600 transition-colors">
@@ -272,7 +284,7 @@ const DiplomacyView: React.FC = () => {
                         </div>
                     </SmartTooltip>
                     <SmartTooltip 
-                        content={<div className="text-xs"><span className="text-red-400 font-bold">{stats.enemies}</span> {t.common.ui.tooltip_enemies || 'comandantes'}<br/>{t.common.ui.tooltip_enemies_desc || 'Con reputación menor a 30%'}</div>}
+                        content={<div className="text-xs"><span className="text-red-400 font-bold">{stats.enemies}</span> {t.common.ui.tooltip_enemies || 'comandantes'}<br/>{t.common.ui.tooltip_enemies_desc || `Con reputación menor a ${REPUTATION_ENEMY_THRESHOLD}%`}</div>}
                         triggerMode="hover"
                     >
                         <div className="bg-gray-700 p-2 rounded-lg cursor-help hover:bg-gray-600 transition-colors">
@@ -500,11 +512,11 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="text-slate-400">{t.common.ui.tooltip_cooldown || 'En cooldown'}</div>
                                                 <div className="text-yellow-400">{getCooldownText(allianceCheck.remainingMs)}</div>
                                             </div>
-                                        ) : (bot.reputation ?? 50) < 50 ? (
+                                        ) : (bot.reputation ?? 50) < DIPLOMACY_ALLIANCE_REP_REQUIREMENT ? (
                                             <div className="space-y-1 text-xs">
                                                 <div className="font-bold text-green-400">{t.common.ui.diplomacy_propose_alliance || 'Alianza'}</div>
                                                 <div className="text-red-400">{t.common.ui.tooltip_reputation_low || 'Reputación muy baja'}</div>
-                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: 50%+</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: {DIPLOMACY_ALLIANCE_REP_REQUIREMENT}%+</div>
                                                 <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
                                             </div>
                                         ) : (
@@ -512,7 +524,7 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="font-bold text-green-400 flex items-center gap-1.5"><Handshake className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_propose_alliance || 'Proponer Alianza'}</div>
                                                 <div className="text-green-400">+5 {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_requirement || 'Requisito'}:</div>
-                                                <div className="text-slate-300">≥50% {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-300">≥{DIPLOMACY_ALLIANCE_REP_REQUIREMENT}% {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_alliance_cooldown || 'Cooldown: 4 horas'}</div>
                                             </div>
                                         )
@@ -522,7 +534,7 @@ const DiplomacyView: React.FC = () => {
                                 >
                                     <button
                                         onClick={() => handleAlliance(bot.id)}
-                                        disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < 50}
+                                        disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < DIPLOMACY_ALLIANCE_REP_REQUIREMENT}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >
                                         {actionLoading === bot.id ? (
@@ -542,18 +554,18 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="text-slate-400">{t.common.ui.tooltip_cooldown || 'En cooldown'}</div>
                                                 <div className="text-yellow-400">{getCooldownText(peaceCheck.remainingMs)}</div>
                                             </div>
-                                        ) : (bot.reputation ?? 50) >= 50 ? (
+                                        ) : (bot.reputation ?? 50) >= DIPLOMACY_ALLIANCE_REP_REQUIREMENT ? (
                                             <div className="space-y-1 text-xs">
                                                 <div className="font-bold text-purple-400">{t.common.ui.diplomacy_propose_peace || 'Paz'}</div>
                                                 <div className="text-yellow-400">{t.common.ui.tooltip_peace_unnecessary || 'No necesario'}</div>
                                                 <div className="text-slate-400">{t.common.ui.tooltip_peace_desc || 'Ya no es hostil'}</div>
                                                 <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
                                             </div>
-                                        ) : (bot.reputation ?? 50) < 35 ? (
+                                        ) : (bot.reputation ?? 50) < DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT ? (
                                             <div className="space-y-1 text-xs">
                                                 <div className="font-bold text-purple-400">{t.common.ui.diplomacy_propose_peace || 'Paz'}</div>
                                                 <div className="text-red-400">{t.common.ui.tooltip_reputation_low || 'Reputación muy baja'}</div>
-                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: 35%+</div>
+                                                <div className="text-slate-400">{t.common.ui.tooltip_alliance_req || 'Requiere'}: {DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT}%+</div>
                                                 <div className="text-slate-500">{t.common.ui.current || 'Actual'}: {(bot.reputation ?? 50).toFixed(0)}%</div>
                                             </div>
                                         ) : (
@@ -561,7 +573,7 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="font-bold text-purple-400 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" /> {t.common.ui.diplomacy_propose_peace || 'Proponer Paz'}</div>
                                                 <div className="text-green-400">+10 {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_requirement || 'Requisito'}:</div>
-                                                <div className="text-slate-300">35-49% {t.common.ui.reputation || 'reputación'}</div>
+                                                <div className="text-slate-300">{DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT}-{DIPLOMACY_ALLIANCE_REP_REQUIREMENT - 1}% {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_peace_cooldown || 'Cooldown: 4 horas'}</div>
                                             </div>
                                         )
@@ -571,7 +583,7 @@ const DiplomacyView: React.FC = () => {
                                 >
                                     <button
                                         onClick={() => handlePeace(bot.id)}
-                                        disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= 50 || (bot.reputation ?? 50) < 35}
+                                        disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= DIPLOMACY_ALLIANCE_REP_REQUIREMENT || (bot.reputation ?? 50) < DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >
                                         {actionLoading === bot.id ? (
