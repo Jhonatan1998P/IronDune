@@ -949,7 +949,10 @@ const processIncomingAttacks = (
                     messageKey: combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss',
                     type: 'combat',
                     timestamp: now,
-                    params: { combatResult: { winner: combat.winner }, attacker: attack.attackerName }
+                    params: { 
+                        combatResult: combat, // Full combat result with ally data
+                        attacker: attack.attackerName 
+                    }
                 });
             } else {
                 // Handle building plunder for raids
@@ -978,7 +981,7 @@ const processIncomingAttacks = (
                     type: 'combat',
                     timestamp: now,
                     params: {
-                        combatResult: { winner: combat.winner },
+                        combatResult: combat, // Full combat result with ally data
                         attacker: attack.attackerName,
                         buildingLoot: combat.stolenBuildings
                     }

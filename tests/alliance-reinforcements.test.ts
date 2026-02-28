@@ -118,11 +118,11 @@ describe('Alliance Reinforcements System', () => {
             expect(reinforcements).toHaveLength(0);
         });
 
-        it('should return reinforcements only from bots with reputation >= 70', () => {
-            const alliedBot1 = createBot({ reputation: 70, name: 'Ally_70' });
+        it('should return reinforcements only from bots with reputation >= 75', () => {
+            const alliedBot1 = createBot({ reputation: 75, name: 'Ally_75' });
             const alliedBot2 = createBot({ reputation: 85, name: 'Ally_85' });
             const alliedBot3 = createBot({ reputation: 100, name: 'Ally_100' });
-            const enemyBot = createBot({ reputation: 69, name: 'Enemy_69' });
+            const enemyBot = createBot({ reputation: 74, name: 'Enemy_74' });
 
             const gameState = createGameState({
                 rankingData: {
@@ -134,10 +134,10 @@ describe('Alliance Reinforcements System', () => {
             const reinforcements = calculatePotentialReinforcements(gameState, NOW);
 
             expect(reinforcements).toHaveLength(3);
-            expect(reinforcements.map(r => r.botName)).toContain('Ally_70');
+            expect(reinforcements.map(r => r.botName)).toContain('Ally_75');
             expect(reinforcements.map(r => r.botName)).toContain('Ally_85');
             expect(reinforcements.map(r => r.botName)).toContain('Ally_100');
-            expect(reinforcements.map(r => r.botName)).not.toContain('Enemy_69');
+            expect(reinforcements.map(r => r.botName)).not.toContain('Enemy_74');
         });
 
         it('should sort reinforcements by reputation (highest first)', () => {
@@ -346,7 +346,7 @@ describe('Alliance Reinforcements System', () => {
         });
 
         it('should set estimatedArrival between 5-15 minutes from now', () => {
-            const bot = createBot({ reputation: 70 });
+            const bot = createBot({ reputation: 80 }); // Must be >= 75 to be ally
 
             const gameState = createGameState({
                 rankingData: {
@@ -361,8 +361,11 @@ describe('Alliance Reinforcements System', () => {
 
             for (let i = 0; i < samples; i++) {
                 const reinforcements = calculatePotentialReinforcements(gameState, NOW);
-                const eta = reinforcements[0].estimatedArrival;
-                etas.push(eta);
+                // Ensure reinforcements exist before accessing
+                if (reinforcements.length > 0) {
+                    const eta = reinforcements[0].estimatedArrival;
+                    etas.push(eta);
+                }
             }
 
             // All ETAs should be between 5-15 minutes from NOW

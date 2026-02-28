@@ -201,26 +201,37 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     }
 
     const result = log.params.combatResult as BattleResult;
-    
+
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
     const isDefenseLoss = log.messageKey === 'log_defense_loss';
     const isDefenseWin = log.messageKey === 'log_defense_win';
     const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
-    
+
     const attackerName = log.params?.attackerName || log.params?.attacker || (log.messageKey.includes('defense') ? t.reports.hostile_force : t.reports.you_label);
     const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
 
-    const playerHpPercent = result.playerTotalHpStart > 0 ? ((result.playerTotalHpStart - result.playerTotalHpLost) / result.playerTotalHpStart) * 100 : 0;
-    const enemyHpPercent = result.enemyTotalHpStart > 0 ? ((result.enemyTotalHpStart - result.enemyTotalHpLost) / result.enemyTotalHpStart) * 100 : 0;
+    // Safe HP calculations with NaN prevention
+    const playerHpStart = result.playerTotalHpStart || 0;
+    const playerHpLost = result.playerTotalHpLost || 0;
+    const enemyHpStart = result.enemyTotalHpStart || 0;
+    const enemyHpLost = result.enemyTotalHpLost || 0;
     
+    const playerHpPercent = playerHpStart > 0 ? ((playerHpStart - playerHpLost) / playerHpStart) * 100 : 0;
+    const enemyHpPercent = enemyHpStart > 0 ? ((enemyHpStart - enemyHpLost) / enemyHpStart) * 100 : 0;
+
     const safePlayerArmy = result.initialPlayerArmy || {};
     const safeEnemyArmy = result.initialEnemyArmy || {};
+    const safeAllyArmies = result.initialAllyArmies || {};
 
+    // Include ally units in the unit type list
+    const allyUnitTypes = Object.values(safeAllyArmies).flatMap(army => Object.keys(army));
+    
     const allUnitTypes = Array.from(new Set([
         ...Object.keys(safePlayerArmy),
-        ...Object.keys(safeEnemyArmy)
+        ...Object.keys(safeEnemyArmy),
+        ...allyUnitTypes
     ])) as UnitType[];
 
     const sortedUnitTypes = sortUnitKeys(allUnitTypes);

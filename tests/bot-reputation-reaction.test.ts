@@ -217,10 +217,10 @@ describe('Bot Reaction to Low Reputation', () => {
             expect(enemyThreshold).toBe(30);
         });
 
-        it('bots with rep >= 70 are allies', () => {
+        it('bots with rep >= 75 are allies', () => {
             const allyThreshold = REPUTATION_ALLY_THRESHOLD;
             console.log(`Ally threshold: rep >= ${allyThreshold}`);
-            expect(allyThreshold).toBe(70);
+            expect(allyThreshold).toBe(75);
         });
     });
 });
