@@ -92,6 +92,17 @@ interface CombatResolution {
     enemyResourceLoss: Partial<Record<ResourceType, number>>;
     stolenBuildings: Partial<Record<BuildingType, number>>;
     diamondDamaged: boolean;
+    // Allied reinforcements data (V1.5)
+    initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
+    finalAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
+    totalAllyCasualties?: Record<string, Partial<Record<UnitType, number>>>;
+    allyDamageDealt?: Record<string, number>;
+    playerTotalHpStart?: number;
+    playerTotalHpLost?: number;
+    enemyTotalHpStart?: number;
+    enemyTotalHpLost?: number;
+    playerDamageDealt?: number;
+    enemyDamageDealt?: number;
 }
 
 // ============================================
@@ -516,6 +527,7 @@ const createDefeatResult = (
 
 /**
  * Resolves combat for war waves and regular attacks
+ * NOTE: Allies do NOT send reinforcements during WAR
  */
 const resolveWarCombat = (
     currentUnits: Record<UnitType, number>,
@@ -529,30 +541,12 @@ const resolveWarCombat = (
     console.error('[TRACE ERROR - war.ts] currentUnits:', JSON.stringify(currentUnits));
     console.error('[TRACE ERROR - war.ts] enemyUnits:', JSON.stringify(enemyUnits));
     
-    // Calculate allied reinforcements if gameState is provided
-    let allyArmies: Record<string, Partial<Record<UnitType, number>>> | undefined;
+    // NOTE: Allies do NOT send reinforcements during WAR
+    // Only use player's own units
+    const allyArmies: Record<string, Partial<Record<UnitType, number>>> | undefined = undefined;
     
-    if (gameState) {
-        console.error('[TRACE ERROR - war.ts] Calculando refuerzos aliados...');
-        const reinforcements = calculateActiveReinforcements(gameState);
-        console.error('[TRACE ERROR - war.ts] Refuerzos calculados:', reinforcements.length);
-        console.error('[TRACE ERROR - war.ts] Refuerzos:', JSON.stringify(reinforcements.map(r => ({
-            botId: r.botId,
-            botName: r.botName,
-            totalUnits: r.totalUnits,
-            units: r.units
-        }))));
-        
-        if (reinforcements.length > 0) {
-            allyArmies = {};
-            for (const ref of reinforcements) {
-                allyArmies[ref.botId] = ref.units;
-            }
-        }
-        console.error('[TRACE ERROR - war.ts] allyArmies:', JSON.stringify(allyArmies));
-    }
-    
-    console.error('[TRACE ERROR - war.ts] Llamando a simulateCombat con allyArmies:', !!allyArmies);
+    console.error('[TRACE ERROR - war.ts] NO hay refuerzos aliados (es GUERRA)');
+    console.error('[TRACE ERROR - war.ts] Llamando a simulateCombat SIN allyArmies');
     const result = simulateCombat(currentUnits, enemyUnits, playerDamageMultiplier, allyArmies);
     
     console.error('[TRACE ERROR - war.ts] simulateCombat result:', {
@@ -560,7 +554,6 @@ const resolveWarCombat = (
         initialAllyArmies: JSON.stringify(result.initialAllyArmies),
         finalAllyArmies: JSON.stringify(result.finalAllyArmies),
         totalAllyCasualties: JSON.stringify(result.totalAllyCasualties),
-        allyDamageDealt: JSON.stringify(result.allyDamageDealt),
         playerTotalHpStart: result.playerTotalHpStart,
         playerTotalHpLost: result.playerTotalHpLost
     });
@@ -576,6 +569,7 @@ const resolveWarCombat = (
         enemyResourceLoss,
         stolenBuildings: {},
         diamondDamaged: false
+        // NOTE: No ally data in WAR mode
     };
 };
 
@@ -659,7 +653,18 @@ const resolveRaidCombat = (
         playerResourceLoss: calculateResourceCost(result.totalPlayerCasualties),
         enemyResourceLoss: calculateResourceCost(result.totalEnemyCasualties),
         stolenBuildings,
-        diamondDamaged
+        diamondDamaged,
+        // Allied reinforcements data
+        initialAllyArmies: result.initialAllyArmies,
+        finalAllyArmies: result.finalAllyArmies,
+        totalAllyCasualties: result.totalAllyCasualties,
+        allyDamageDealt: result.allyDamageDealt,
+        playerTotalHpStart: result.playerTotalHpStart,
+        playerTotalHpLost: result.playerTotalHpLost,
+        enemyTotalHpStart: result.enemyTotalHpStart,
+        enemyTotalHpLost: result.enemyTotalHpLost,
+        playerDamageDealt: result.playerDamageDealt,
+        enemyDamageDealt: result.enemyDamageDealt
     };
 };
 
@@ -1009,9 +1014,7 @@ const processIncomingAttacks = (
                 // TRACE ERROR: Log de defensa generado
                 console.error('[TRACE ERROR - war.ts] === LOG DE DEFENSA GENERADO ===');
                 console.error('[TRACE ERROR - war.ts] id:', `war-def-${now}-${attack.id}`);
-                console.error('[TRACE ERROR - war.ts] messageKey:', combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss');
-                console.error('[TRACE ERROR - war.ts] winner:', combat.winner);
-                console.error('[TRACE ERROR - war.ts] combat existe:', !!combat);
+                console.error('[TRACE ERROR - war.ts] combatResult:', JSON.stringify(combat));
                 console.error('[TRACE ERROR - war.ts] combat.initialAllyArmies:', JSON.stringify(combat.initialAllyArmies));
                 console.error('[TRACE ERROR - war.ts] combat.finalAllyArmies:', JSON.stringify(combat.finalAllyArmies));
                 console.error('[TRACE ERROR - war.ts] combat.totalAllyCasualties:', JSON.stringify(combat.totalAllyCasualties));
@@ -1063,6 +1066,8 @@ const processIncomingAttacks = (
                 console.error('[TRACE ERROR - war.ts] combat.allyDamageDealt:', JSON.stringify(combat.allyDamageDealt));
                 console.error('[TRACE ERROR - war.ts] combat.playerTotalHpStart:', combat.playerTotalHpStart);
                 console.error('[TRACE ERROR - war.ts] combat.playerTotalHpLost:', combat.playerTotalHpLost);
+                console.error('[TRACE ERROR - war.ts] combat.enemyTotalHpStart:', combat.enemyTotalHpStart);
+                console.error('[TRACE ERROR - war.ts] combat.enemyTotalHpLost:', combat.enemyTotalHpLost);
             }
         } else {
             remainingAttacks.push(attack);
