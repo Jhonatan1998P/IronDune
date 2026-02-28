@@ -758,7 +758,18 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
             warnings
         };
     } catch (error) {
-        logError('war', 'Critical error in processWarTick', { error });
+        console.error('[WAR][ERROR] Critical error in processWarTick:', error);
+        console.error('[WAR][ERROR] Error stack:', error instanceof Error ? error.stack : 'No stack');
+        console.error('[WAR][ERROR] Active war state:', activeWar ? {
+            empire: activeWar.empire,
+            wave: activeWar.currentWave,
+            status: activeWar.status
+        } : 'No active war');
+        
+        logError('war', 'Critical error in processWarTick', { 
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+        });
         errors.push('Critical war processing error');
         
         // Return safe state
@@ -925,98 +936,120 @@ const processIncomingAttacks = (
     const remainingAttacks: IncomingAttack[] = [];
 
     for (const attack of attacks) {
-        if (now >= attack.endTime) {
-            // Resolve combat with allied reinforcements
-            const combat = attack.isWarWave && activeWar
-                ? resolveWarCombat(units, attack.units, 1.0, state)
-                : resolveRaidCombat(units, attack.units, buildings, 1.0, state);
-
-            // Update units
-            Object.keys(units).forEach(u => {
-                const unitType = u as UnitType;
-                units[unitType] = combat.winner === 'PLAYER' 
-                    ? (combat.winner === 'PLAYER' && attack.isWarWave ? units[unitType] : units[unitType])
-                    : units[unitType];
-            });
-
-            // Apply casualties
-            const playerCasualtyCount = Object.values(combat.playerCasualties).reduce((a, b) => a + (b || 0), 0);
-            const enemyCasualtyCount = Object.values(combat.enemyCasualties).reduce((a, b) => a + (b || 0), 0);
-            
-            lifetimeStats.unitsLost += playerCasualtyCount;
-            lifetimeStats.enemiesKilled += enemyCasualtyCount;
-
-            if (attack.isWarWave && activeWar) {
-                // Update war state
-                (Object.keys(combat.playerResourceLoss) as ResourceType[]).forEach(key => {
-                    const r = key as ResourceType;
-                    activeWar.playerResourceLosses[r] += combat.playerResourceLoss[r] || 0;
-                    activeWar.enemyResourceLosses[r] += combat.enemyResourceLoss[r] || 0;
-                    activeWar.lootPool[r] += (combat.playerResourceLoss[r] || 0) + (combat.enemyResourceLoss[r] || 0);
+        try {
+            if (now >= attack.endTime) {
+                console.error('[DEBUG] processIncomingAttacks: Processing attack', {
+                    attacker: attack.attackerName,
+                    isWarWave: attack.isWarWave,
+                    hasActiveWar: !!activeWar,
+                    attackUnits: attack.units
                 });
 
-                activeWar.playerUnitLosses += playerCasualtyCount;
-                activeWar.enemyUnitLosses += enemyCasualtyCount;
+                // Resolve combat with allied reinforcements
+                const combat = attack.isWarWave && activeWar
+                    ? resolveWarCombat(units, attack.units, 1.0, state)
+                    : resolveRaidCombat(units, attack.units, buildings, 1.0, state);
 
-                if (combat.winner === 'PLAYER') {
-                    activeWar.playerVictories++;
-                } else {
-                    activeWar.enemyVictories++;
-                }
-
-                logs.push({
-                    id: `war-def-${now}-${attack.id}`,
-                    messageKey: combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss',
-                    type: 'combat',
-                    timestamp: now,
-                    params: { 
-                        combatResult: combat,
-                        attacker: attack.attackerName 
-                    }
+                console.error('[DEBUG] processIncomingAttacks: Combat result', {
+                    winner: combat.winner,
+                    playerCasualties: combat.playerCasualties,
+                    enemyCasualties: combat.enemyCasualties,
+                    finalPlayerArmy: combat.finalPlayerArmy,
+                    finalEnemyArmy: combat.finalEnemyArmy
                 });
-            } else {
-                // Handle building plunder for raids
-                if (combat.winner !== 'PLAYER' && combat.stolenBuildings) {
-                    (Object.keys(combat.stolenBuildings) as BuildingType[]).forEach(bType => {
-                        const stolen = combat.stolenBuildings[bType] || 0;
-                        if (stolen > 0 && buildings[bType]) {
-                            buildings[bType] = {
-                                ...buildings[bType],
-                                level: Math.max(0, buildings[bType].level - stolen)
-                            };
+
+                // Apply casualties to player units
+                if (combat.playerCasualties) {
+                    (Object.keys(combat.playerCasualties) as UnitType[]).forEach(uType => {
+                        const casualties = combat.playerCasualties[uType] || 0;
+                        if (casualties > 0 && units[uType]) {
+                            units[uType] = Math.max(0, (units[uType] || 0) - casualties);
                         }
                     });
-
-                    if (combat.diamondDamaged) {
-                        buildings[BuildingType.DIAMOND_MINE] = {
-                            ...buildings[BuildingType.DIAMOND_MINE],
-                            isDamaged: true
-                        };
-                    }
                 }
 
-                logs.push({
-                    id: `raid-def-${now}-${attack.id}`,
-                    messageKey: combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss',
-                    type: 'combat',
-                    timestamp: now,
-                    params: {
-                        combatResult: combat,
-                        attacker: attack.attackerName,
-                        buildingLoot: combat.stolenBuildings,
-                        // Ally names for display
-                        allyNames: gameState && combat.initialAllyArmies 
-                            ? Object.keys(combat.initialAllyArmies).reduce((acc, botId) => {
-                                const bot = gameState.rankingData.bots.find(b => b.id === botId);
-                                if (bot) acc[botId] = bot.name;
-                                return acc;
-                            }, {} as Record<string, string>)
-                            : {}
+                // Apply casualties
+                const playerCasualtyCount = Object.values(combat.playerCasualties).reduce((a, b) => a + (b || 0), 0);
+                const enemyCasualtyCount = Object.values(combat.enemyCasualties).reduce((a, b) => a + (b || 0), 0);
+
+                lifetimeStats.unitsLost += playerCasualtyCount;
+                lifetimeStats.enemiesKilled += enemyCasualtyCount;
+
+                if (attack.isWarWave && activeWar) {
+                    // Update war state
+                    (Object.keys(combat.playerResourceLoss) as ResourceType[]).forEach(key => {
+                        const r = key as ResourceType;
+                        activeWar.playerResourceLosses[r] += combat.playerResourceLoss[r] || 0;
+                        activeWar.enemyResourceLosses[r] += combat.enemyResourceLoss[r] || 0;
+                        activeWar.lootPool[r] += (combat.playerResourceLoss[r] || 0) + (combat.enemyResourceLoss[r] || 0);
+                    });
+
+                    activeWar.playerUnitLosses += playerCasualtyCount;
+                    activeWar.enemyUnitLosses += enemyCasualtyCount;
+
+                    if (combat.winner === 'PLAYER') {
+                        activeWar.playerVictories++;
+                    } else {
+                        activeWar.enemyVictories++;
                     }
-                });
+
+                    logs.push({
+                        id: `war-def-${now}-${attack.id}`,
+                        messageKey: combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss',
+                        type: 'combat',
+                        timestamp: now,
+                        params: {
+                            combatResult: combat,
+                            attacker: attack.attackerName
+                        }
+                    });
+                } else {
+                    // Handle building plunder for raids
+                    if (combat.winner !== 'PLAYER' && combat.stolenBuildings) {
+                        (Object.keys(combat.stolenBuildings) as BuildingType[]).forEach(bType => {
+                            const stolen = combat.stolenBuildings[bType] || 0;
+                            if (stolen > 0 && buildings[bType]) {
+                                buildings[bType] = {
+                                    ...buildings[bType],
+                                    level: Math.max(0, buildings[bType].level - stolen)
+                                };
+                            }
+                        });
+
+                        if (combat.diamondDamaged) {
+                            buildings[BuildingType.DIAMOND_MINE] = {
+                                ...buildings[BuildingType.DIAMOND_MINE],
+                                isDamaged: true
+                            };
+                        }
+                    }
+
+                    logs.push({
+                        id: `raid-def-${now}-${attack.id}`,
+                        messageKey: combat.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss',
+                        type: 'combat',
+                        timestamp: now,
+                        params: {
+                            combatResult: combat,
+                            attacker: attack.attackerName,
+                            buildingLoot: combat.stolenBuildings,
+                            // Ally names for display
+                            allyNames: state && combat.initialAllyArmies
+                                ? Object.keys(combat.initialAllyArmies).reduce((acc, botId) => {
+                                    const bot = state.rankingData.bots.find(b => b.id === botId);
+                                    if (bot) acc[botId] = bot.name;
+                                    return acc;
+                                }, {} as Record<string, string>)
+                                : {}
+                        }
+                    });
+                }
+            } else {
+                remainingAttacks.push(attack);
             }
-        } else {
-            remainingAttacks.push(attack);
+        } catch (error) {
+            console.error('[WAR][ERROR] Error processing attack:', error);
+            console.error('[WAR][ERROR] Attack details:', attack);
         }
     }
 

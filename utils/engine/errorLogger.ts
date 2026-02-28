@@ -5,6 +5,23 @@
  */
 
 import { GameState, WarState, LogEntry, IncomingAttack } from '../types';
+import { appendFile, writeFile } from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
+
+// Configuración del archivo de log
+const LOG_DIR = './logs';
+const WAR_LOG_FILE = `${LOG_DIR}/war.log`;
+
+// Asegurar que existe el directorio de logs
+const ensureLogDir = (): void => {
+    try {
+        if (!existsSync(LOG_DIR)) {
+            mkdirSync(LOG_DIR, { recursive: true });
+        }
+    } catch (e) {
+        // Ignorar errores de directorio
+    }
+};
 
 // ============================================
 // TYPE DEFINITIONS
@@ -81,12 +98,12 @@ export const getPlayerId = (): string => playerId;
 /**
  * Core logging function
  */
-const log = (
+const log = async (
     category: LogCategory,
     level: LogLevel,
     message: string,
     data?: Record<string, any>
-): void => {
+): Promise<void> => {
     const timestamp = Date.now();
     const event: TelemetryEvent = {
         id: `log-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
@@ -129,6 +146,16 @@ const log = (
             telemetryBuffer.shift(); // Remove oldest
         }
         telemetryBuffer.push(event);
+    }
+
+    // Write to war.log file
+    try {
+        ensureLogDir();
+        const timestampISO = new Date().toISOString();
+        const logMessage = `[${timestampISO}] [${category.toUpperCase()}] [${level.toUpperCase()}] ${message} ${data ? JSON.stringify(data, null, 0)}\n`;
+        await appendFile(WAR_LOG_FILE, logMessage).catch(() => {});
+    } catch (e) {
+        // Silently ignore file write errors
     }
 };
 
