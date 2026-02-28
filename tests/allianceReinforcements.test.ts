@@ -103,8 +103,8 @@ describe('Alliance Reinforcements - Constants Validation', () => {
     });
 
     describe('REINFORCEMENT_CHANCE', () => {
-        it('should be exactly 0.15 (15%)', () => {
-            expect(REINFORCEMENT_CHANCE).toBe(0.15);
+        it('should be exactly 1.0 (100% - TEST MODE)', () => {
+            expect(REINFORCEMENT_CHANCE).toBe(1.0);
         });
 
         it('should be between 0 and 1', () => {
@@ -272,8 +272,8 @@ describe('Alliance Reinforcements - Probability System', () => {
             expect(typeof result).toBe('boolean');
         });
 
-        it('should have approximately 15% success rate over many trials', () => {
-            const trials = 10000;
+        it('should have approximately 100% success rate (TEST MODE)', () => {
+            const trials = 1000;
             let successes = 0;
             
             for (let i = 0; i < trials; i++) {
@@ -283,19 +283,15 @@ describe('Alliance Reinforcements - Probability System', () => {
             }
             
             const successRate = successes / trials;
-            // Allow 2% variance for randomness
-            expect(successRate).toBeGreaterThanOrEqual(0.13);
-            expect(successRate).toBeLessThanOrEqual(0.17);
+            // Should be 100% (or very close due to randomness edge cases)
+            expect(successRate).toBeGreaterThanOrEqual(0.99);
         });
 
-        it('should not always return the same value', () => {
-            const results = new Set();
+        it('should always return true in TEST MODE', () => {
+            // Test multiple calls to ensure consistency
             for (let i = 0; i < 100; i++) {
-                results.add(willSendReinforcements());
+                expect(willSendReinforcements()).toBe(true);
             }
-            
-            // Should have both true and false
-            expect(results.size).toBeGreaterThan(1);
         });
 
         it('should be independent between calls', () => {
@@ -303,10 +299,10 @@ describe('Alliance Reinforcements - Probability System', () => {
             const result2 = willSendReinforcements();
             const result3 = willSendReinforcements();
             
-            // Each call should be independent (not testing specific values, just independence)
-            expect(typeof result1).toBe('boolean');
-            expect(typeof result2).toBe('boolean');
-            expect(typeof result3).toBe('boolean');
+            // All should be true in TEST MODE
+            expect(result1).toBe(true);
+            expect(result2).toBe(true);
+            expect(result3).toBe(true);
         });
     });
 });

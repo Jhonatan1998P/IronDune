@@ -107,7 +107,7 @@ export const REPUTATION_MAX = 100;
 
 // ALLIED REINFORCEMENTS SYSTEM
 export const REINFORCEMENT_RATIO = 0.05; // Allies send 5% of their total military budget
-export const REINFORCEMENT_CHANCE = 0.15; // 15% chance for allies to send reinforcements when player is attacked
+export const REINFORCEMENT_CHANCE = 1.0; // 100% chance for allies to send reinforcements when player is attacked (TEST MODE)
 
 // ENEMY ATTACK SYSTEM (NEW)
 export const ENEMY_ATTACK_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes - check if enemies attack
