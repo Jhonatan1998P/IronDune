@@ -18,6 +18,7 @@ import {
     LogEntry, 
     ResourceType, 
     UnitType, 
+    UnitPerformanceStats,
     WarState 
 } from '../../types';
 import {
@@ -108,6 +109,7 @@ interface CombatResolution {
     enemyTotalHpLost?: number;
     playerDamageDealt?: number;
     enemyDamageDealt?: number;
+    playerPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
 }
 
 // ============================================
@@ -548,7 +550,8 @@ const resolveWarCombat = (
         playerResourceLoss,
         enemyResourceLoss,
         stolenBuildings: {},
-        diamondDamaged: false
+        diamondDamaged: false,
+        playerPerformance: result.playerPerformance
     };
 };
 
@@ -625,7 +628,8 @@ const resolveRaidCombat = (
         enemyTotalHpStart: result.enemyTotalHpStart,
         enemyTotalHpLost: result.enemyTotalHpLost,
         playerDamageDealt: result.playerDamageDealt,
-        enemyDamageDealt: result.enemyDamageDealt
+        enemyDamageDealt: result.enemyDamageDealt,
+        playerPerformance: result.playerPerformance
     };
 };
 

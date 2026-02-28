@@ -7,7 +7,7 @@ import { BuildingType, BotPersonality } from "./types/enums";
 export const TICK_RATE_MS = 1000;
 
 // NEWBIE PROTECTION
-export const NEWBIE_PROTECTION_THRESHOLD = 1000; // Points required to enable Threat and PvP
+export const NEWBIE_PROTECTION_THRESHOLD = 100000; // Points required to enable Threat and PvP
 
 // PVP SETTINGS
 export const PVP_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP and War
