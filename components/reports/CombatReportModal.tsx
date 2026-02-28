@@ -51,8 +51,15 @@ export const CombatReportModal: React.FC<CombatReportProps> = (props) => {
 export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClose, embedded = false }) => {
     const [activeTab, setActiveTab] = useState<TabType>('summary');
 
+    // TRACE ERROR: Inicio del renderizado del reporte de combate
+    console.error('[TRACE ERROR - CombatReportModal] === INICIO DEL RENDERIZADO ===');
+    console.error('[TRACE ERROR - CombatReportModal] Tipo de log:', log.type);
+    console.error('[TRACE ERROR - CombatReportModal] MessageKey:', log.messageKey);
+    console.error('[TRACE ERROR - CombatReportModal] Timestamp:', new Date(log.timestamp).toLocaleString());
+
     // Reporte de GUERRA
     if (log.type === 'war') {
+        console.error('[TRACE ERROR - CombatReportModal] Renderizando reporte de GUERRA');
         const warSummary = log.params?.warSummary as (WarState & { convertedAmount?: number; bankedAmount?: number }) | undefined;
         let resultText = log.params?.result || "";
 
@@ -143,6 +150,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
 
     // Reporte de MISION/PATRULLA (sin combatResult)
     if (!log.params?.combatResult) {
+        console.error('[TRACE ERROR - CombatReportModal] Reporte SIN combatResult - es misión/patrulla');
         const msg = t.missions.patrol[log.messageKey as keyof typeof t.missions.patrol] || log.messageKey;
         const isGoodNews = log.messageKey.includes('win') || log.messageKey.includes('contraband') || log.messageKey.includes('success');
 
@@ -202,12 +210,40 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
 
     const result = log.params.combatResult as BattleResult;
 
+    // TRACE ERROR: Datos del resultado de combate
+    console.error('[TRACE ERROR - CombatReportModal] === PROCESANDO COMBATRESULT ===');
+    console.error('[TRACE ERROR - CombatReportModal] Result existe:', !!result);
+    console.error('[TRACE ERROR - CombatReportModal] Winner:', result?.winner);
+    console.error('[TRACE ERROR - CombatReportModal] initialPlayerArmy:', JSON.stringify(result?.initialPlayerArmy));
+    console.error('[TRACE ERROR - CombatReportModal] initialEnemyArmy:', JSON.stringify(result?.initialEnemyArmy));
+    console.error('[TRACE ERROR - CombatReportModal] initialAllyArmies:', JSON.stringify(result?.initialAllyArmies));
+    console.error('[TRACE ERROR - CombatReportModal] finalPlayerArmy:', JSON.stringify(result?.finalPlayerArmy));
+    console.error('[TRACE ERROR - CombatReportModal] finalEnemyArmy:', JSON.stringify(result?.finalEnemyArmy));
+    console.error('[TRACE ERROR - CombatReportModal] finalAllyArmies:', JSON.stringify(result?.finalAllyArmies));
+    console.error('[TRACE ERROR - CombatReportModal] totalPlayerCasualties:', JSON.stringify(result?.totalPlayerCasualties));
+    console.error('[TRACE ERROR - CombatReportModal] totalEnemyCasualties:', JSON.stringify(result?.totalEnemyCasualties));
+    console.error('[TRACE ERROR - CombatReportModal] totalAllyCasualties:', JSON.stringify(result?.totalAllyCasualties));
+    console.error('[TRACE ERROR - CombatReportModal] playerTotalHpStart:', result?.playerTotalHpStart);
+    console.error('[TRACE ERROR - CombatReportModal] playerTotalHpLost:', result?.playerTotalHpLost);
+    console.error('[TRACE ERROR - CombatReportModal] enemyTotalHpStart:', result?.enemyTotalHpStart);
+    console.error('[TRACE ERROR - CombatReportModal] enemyTotalHpLost:', result?.enemyTotalHpLost);
+    console.error('[TRACE ERROR - CombatReportModal] playerDamageDealt:', result?.playerDamageDealt);
+    console.error('[TRACE ERROR - CombatReportModal] enemyDamageDealt:', result?.enemyDamageDealt);
+    console.error('[TRACE ERROR - CombatReportModal] allyDamageDealt:', JSON.stringify(result?.allyDamageDealt));
+    console.error('[TRACE ERROR - CombatReportModal] playerPerformance:', JSON.stringify(result?.playerPerformance));
+    console.error('[TRACE ERROR - CombatReportModal] allyPerformance:', JSON.stringify(result?.allyPerformance));
+    console.error('[TRACE ERROR - CombatReportModal] allyNames en log.params:', JSON.stringify(log.params?.allyNames));
+
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
     const isDefenseLoss = log.messageKey === 'log_defense_loss';
     const isDefenseWin = log.messageKey === 'log_defense_win';
     const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
+
+    console.error('[TRACE ERROR - CombatReportModal] isDefenseLoss:', isDefenseLoss);
+    console.error('[TRACE ERROR - CombatReportModal] isDefenseWin:', isDefenseWin);
+    console.error('[TRACE ERROR - CombatReportModal] isAttackWin:', isAttackWin);
 
     const attackerName = log.params?.attackerName || log.params?.attacker || (log.messageKey.includes('defense') ? t.reports.hostile_force : t.reports.you_label);
     const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
@@ -218,15 +254,43 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const enemyHpStart = result.enemyTotalHpStart || 0;
     const enemyHpLost = result.enemyTotalHpLost || 0;
     
+    // TRACE ERROR: Cálculos de HP
+    console.error('[TRACE ERROR - CombatReportModal] === CÁLCULOS DE HP ===');
+    console.error('[TRACE ERROR - CombatReportModal] playerHpStart (raw):', result.playerTotalHpStart);
+    console.error('[TRACE ERROR - CombatReportModal] playerHpLost (raw):', result.playerTotalHpLost);
+    console.error('[TRACE ERROR - CombatReportModal] playerHpStart (safe):', playerHpStart);
+    console.error('[TRACE ERROR - CombatReportModal] playerHpLost (safe):', playerHpLost);
+    console.error('[TRACE ERROR - CombatReportModal] enemyHpStart (safe):', enemyHpStart);
+    console.error('[TRACE ERROR - CombatReportModal] enemyHpLost (safe):', enemyHpLost);
+    
     const playerHpPercent = playerHpStart > 0 ? ((playerHpStart - playerHpLost) / playerHpStart) * 100 : 0;
     const enemyHpPercent = enemyHpStart > 0 ? ((enemyHpStart - enemyHpLost) / enemyHpStart) * 100 : 0;
+    
+    console.error('[TRACE ERROR - CombatReportModal] playerHpPercent:', playerHpPercent);
+    console.error('[TRACE ERROR - CombatReportModal] enemyHpPercent:', enemyHpPercent);
+    console.error('[TRACE ERROR - CombatReportModal] playerHpPercent es NaN?:', Number.isNaN(playerHpPercent));
+    console.error('[TRACE ERROR - CombatReportModal] enemyHpPercent es NaN?:', Number.isNaN(enemyHpPercent));
 
     const safePlayerArmy = result.initialPlayerArmy || {};
     const safeEnemyArmy = result.initialEnemyArmy || {};
     const safeAllyArmies = result.initialAllyArmies || {};
 
+    // TRACE ERROR: Ejércitos
+    console.error('[TRACE ERROR - CombatReportModal] === EJÉRCITOS ===');
+    console.error('[TRACE ERROR - CombatReportModal] safePlayerArmy keys:', Object.keys(safePlayerArmy));
+    console.error('[TRACE ERROR - CombatReportModal] safeEnemyArmy keys:', Object.keys(safeEnemyArmy));
+    console.error('[TRACE ERROR - CombatReportModal] safeAllyArmies existe:', !!safeAllyArmies);
+    console.error('[TRACE ERROR - CombatReportModal] safeAllyArmies keys:', Object.keys(safeAllyArmies));
+    console.error('[TRACE ERROR - CombatReportModal] Cantidad de aliados:', Object.keys(safeAllyArmies).length);
+
     // Include ally units in the unit type list
-    const allyUnitTypes = Object.values(safeAllyArmies).flatMap(army => Object.keys(army));
+    const allyUnitTypes = Object.values(safeAllyArmies).flatMap(army => {
+        const types = Object.keys(army);
+        console.error('[TRACE ERROR - CombatReportModal] Ally army types:', types);
+        return types;
+    });
+    
+    console.error('[TRACE ERROR - CombatReportModal] allyUnitTypes:', allyUnitTypes);
     
     const allUnitTypes = Array.from(new Set([
         ...Object.keys(safePlayerArmy),
@@ -234,7 +298,12 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         ...allyUnitTypes
     ])) as UnitType[];
 
+    console.error('[TRACE ERROR - CombatReportModal] allUnitTypes:', allUnitTypes);
+    console.error('[TRACE ERROR - CombatReportModal] Total de tipos de unidades:', allUnitTypes.length);
+
     const sortedUnitTypes = sortUnitKeys(allUnitTypes);
+    
+    console.error('[TRACE ERROR - CombatReportModal] sortedUnitTypes:', sortedUnitTypes);
 
     let headerBg = 'bg-slate-900';
     let headerText = 'text-slate-200';
@@ -285,7 +354,22 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         const colorClass = isPlayer ? 'text-cyan-400' : 'text-red-400';
         const bgClass = isPlayer ? 'bg-cyan-950/20 border-cyan-500/20' : 'bg-red-950/20 border-red-500/20';
 
-        const activeUnits = sortedUnitTypes.filter(u => (initialArmy[u] || 0) > 0);
+        // TRACE ERROR: Renderizado de unidades
+        console.error('[TRACE ERROR - CombatReportModal] === renderUnitList:', side, '===');
+        console.error('[TRACE ERROR - CombatReportModal] initialArmy:', JSON.stringify(initialArmy));
+        console.error('[TRACE ERROR - CombatReportModal] casualties:', JSON.stringify(casualties));
+        console.error('[TRACE ERROR - CombatReportModal] finalArmy:', JSON.stringify(finalArmy));
+
+        const activeUnits = sortedUnitTypes.filter(u => {
+            const count = (initialArmy[u] || 0);
+            if (count > 0) {
+                console.error('[TRACE ERROR - CombatReportModal] Unidad activa:', u, 'count:', count);
+            }
+            return count > 0;
+        });
+
+        console.error('[TRACE ERROR - CombatReportModal] activeUnits:', activeUnits);
+        console.error('[TRACE ERROR - CombatReportModal] activeUnits.length:', activeUnits.length);
 
         if (activeUnits.length === 0) {
             return (
@@ -311,8 +395,17 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     const def = UNIT_DEFS[uType];
                     const name = t.units[def.translationKey]?.name || uType;
 
+                    // TRACE ERROR: Cálculos de unidad individual
+                    console.error('[TRACE ERROR - CombatReportModal] --- Unidad:', uType, '---');
+                    console.error('[TRACE ERROR - CombatReportModal] start:', start, 'lost:', lost, 'end:', end);
+                    console.error('[TRACE ERROR - CombatReportModal] def existe:', !!def);
+                    console.error('[TRACE ERROR - CombatReportModal] name:', name);
+
                     const safeWidth = start > 0 ? (end/start)*100 : 0;
                     const lossWidth = start > 0 ? (lost/start)*100 : 0;
+
+                    console.error('[TRACE ERROR - CombatReportModal] safeWidth:', safeWidth, 'es NaN?:', Number.isNaN(safeWidth));
+                    console.error('[TRACE ERROR - CombatReportModal] lossWidth:', lossWidth, 'es NaN?:', Number.isNaN(lossWidth));
 
                     return (
                         <div key={uType} className={`p-2.5 sm:p-4 rounded-xl border ${bgClass} flex flex-col gap-2 sm:gap-3 shadow-sm hover:bg-white/5 transition-colors`}>
@@ -344,7 +437,15 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         const allyCasualties = result.totalAllyCasualties || {};
         const finalAllyArmies = result.finalAllyArmies || {};
 
+        // TRACE ERROR: Renderizado de aliados
+        console.error('[TRACE ERROR - CombatReportModal] === renderAllyList ===');
+        console.error('[TRACE ERROR - CombatReportModal] allyArmies existe:', !!allyArmies);
+        console.error('[TRACE ERROR - CombatReportModal] allyArmies keys:', allyArmies ? Object.keys(allyArmies) : 'N/A');
+        console.error('[TRACE ERROR - CombatReportModal] allyCasualties:', JSON.stringify(allyCasualties));
+        console.error('[TRACE ERROR - CombatReportModal] finalAllyArmies:', JSON.stringify(finalAllyArmies));
+
         if (!allyArmies || Object.keys(allyArmies).length === 0) {
+            console.error('[TRACE ERROR - CombatReportModal] No hay aliados para mostrar');
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
                     <div className="text-5xl mb-4 opacity-50">🤝</div>
@@ -354,6 +455,8 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         }
 
         const allyIds = Object.keys(allyArmies);
+        console.error('[TRACE ERROR - CombatReportModal] allyIds:', allyIds);
+        console.error('[TRACE ERROR - CombatReportModal] allyNames en log.params:', log.params?.allyNames);
 
         return (
             <div className="space-y-6">
@@ -363,9 +466,22 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     const finalArmy = finalAllyArmies[allyId] || {};
                     const allyBotName = log.params?.allyNames?.[allyId] || allyId;
 
+                    // TRACE ERROR: Datos de cada aliado
+                    console.error('[TRACE ERROR - CombatReportModal] === Aliado:', allyId, '===');
+                    console.error('[TRACE ERROR - CombatReportModal] initialArmy:', JSON.stringify(initialArmy));
+                    console.error('[TRACE ERROR - CombatReportModal] casualties:', JSON.stringify(casualties));
+                    console.error('[TRACE ERROR - CombatReportModal] finalArmy:', JSON.stringify(finalArmy));
+                    console.error('[TRACE ERROR - CombatReportModal] allyBotName:', allyBotName);
+
                     const activeUnits = sortedUnitTypes.filter(u => (initialArmy[u] || 0) > 0);
 
-                    if (activeUnits.length === 0) return null;
+                    console.error('[TRACE ERROR - CombatReportModal] activeUnits para aliado:', activeUnits);
+                    console.error('[TRACE ERROR - CombatReportModal] activeUnits.length:', activeUnits.length);
+
+                    if (activeUnits.length === 0) {
+                        console.error('[TRACE ERROR - CombatReportModal] Aliado sin unidades activas, skip');
+                        return null;
+                    }
 
                     return (
                         <div key={allyId} className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4 sm:p-6">
@@ -398,8 +514,17 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                     const def = UNIT_DEFS[uType];
                                     const name = t.units[def.translationKey]?.name || uType;
 
+                                    // TRACE ERROR: Unidad de aliado
+                                    console.error('[TRACE ERROR - CombatReportModal] --- Unidad de aliado:', uType, '---');
+                                    console.error('[TRACE ERROR - CombatReportModal] start:', start, 'lost:', lost, 'end:', end);
+                                    console.error('[TRACE ERROR - CombatReportModal] def existe:', !!def);
+                                    console.error('[TRACE ERROR - CombatReportModal] name:', name);
+
                                     const safeWidth = start > 0 ? (end/start)*100 : 0;
                                     const lossWidth = start > 0 ? (lost/start)*100 : 0;
+
+                                    console.error('[TRACE ERROR - CombatReportModal] safeWidth:', safeWidth, 'es NaN?:', Number.isNaN(safeWidth));
+                                    console.error('[TRACE ERROR - CombatReportModal] lossWidth:', lossWidth, 'es NaN?:', Number.isNaN(lossWidth));
 
                                     return (
                                         <div key={uType} className="p-2.5 sm:p-4 rounded-xl border bg-emerald-900/10 border-emerald-500/10 flex flex-col gap-2 sm:gap-3 shadow-sm">
@@ -555,6 +680,11 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         <div className={`flex flex-col flex-1 w-full bg-slate-950 ${embedded ? '' : 'md:border border-white/10 md:rounded-2xl relative'}`}>
             {/* Header */}
             <div className={`p-3 sm:p-4 md:p-6 shrink-0 flex justify-between items-start gap-2 sm:gap-4 border-b border-white/10 ${headerBg}`}>
+                {/* TRACE ERROR: Renderizado del header */}
+                {console.error('[TRACE ERROR - CombatReportModal] === RENDERIZANDO HEADER ===')}
+                {console.error('[TRACE ERROR - CombatReportModal] headerBg:', headerBg)}
+                {console.error('[TRACE ERROR - CombatReportModal] headerText:', headerText)}
+                {console.error('[TRACE ERROR - CombatReportModal] title:', title)}
                 <div className="flex gap-2 sm:gap-4 items-start min-w-0 flex-1">
                     <div className={`p-2.5 sm:p-3 rounded-xl bg-black/40 border border-white/10 shadow-lg ${headerText} shrink-0`}>
                         {React.cloneElement(iconHeader, { className: 'w-5 h-5 sm:w-6 sm:h-6' })}
