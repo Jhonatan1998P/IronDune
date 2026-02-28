@@ -27,6 +27,9 @@ export const features = {
         wipeout: "ANIQUILACIÓN TOTAL",
         friendly: "Aliado",
         hostile: "Hostil",
+        allies: "Aliados",
+        allied_reinforcements: "Refuerzos Aliados",
+        no_allies: "Sin Refuerzos Aliados",
         unit_type: "Tipo de Unidad",
         enemy_suffix: "Enm",
         log_desertion: "DESERCIÓN",
@@ -50,7 +53,8 @@ export const features = {
         hostile_force: "Fuerza Hostil",
         enemy_target: "Objetivo Enemigo",
         you_label: "Tú",
-        buildings_lost: "Edificios Perdidos"
+        buildings_lost: "Edificios Perdidos",
+        units: "Unidades"
     },
     market: {
         title: "Mercado Global",

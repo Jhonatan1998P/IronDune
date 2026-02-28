@@ -1,8 +1,9 @@
 import { GameState, UnitType } from '../../types';
-import { RankingCategory } from './rankings';
-import { REPUTATION_ALLY_THRESHOLD } from '../../constants';
+import { RankingCategory, StaticBot } from './rankings';
+import { REPUTATION_ALLY_THRESHOLD, REINFORCEMENT_RATIO, REINFORCEMENT_CHANCE } from '../../constants';
 import { generateBotArmy } from './missions';
 import { UNIT_DEFS } from '../../data/units';
+import { BotPersonality } from '../../types/enums';
 
 export interface ReinforcementEntry {
     botId: string;
@@ -15,16 +16,41 @@ export interface ReinforcementEntry {
 }
 
 /**
+ * Calculate reinforcement army for an ally bot
+ * Allies send 5% of their total military budget (attack + defense = 100%)
+ */
+export const calculateReinforcementArmy = (
+    bot: StaticBot,
+    ratio: number = REINFORCEMENT_RATIO
+): Partial<Record<UnitType, number>> => {
+    // Generate army using the bot's full military budget, then apply reinforcement ratio
+    // generateBotArmy already combines attack + defense budgets (100% total)
+    const fullArmy = generateBotArmy(
+        bot.stats[RankingCategory.DOMINION],
+        ratio, // Use reinforcement ratio (5%) instead of full budget
+        bot.personality
+    );
+    return fullArmy;
+};
+
+/**
+ * Check if an ally bot will send reinforcements based on 15% chance
+ */
+export const willSendReinforcements = (): boolean => {
+    return Math.random() < REINFORCEMENT_CHANCE;
+};
+
+/**
  * Calculate potential reinforcement forces from allied bots
- * Allies are bots with reputation >= ALLY_THRESHOLD (70)
+ * Allies are bots with reputation >= ALLY_THRESHOLD (75)
  */
 export const calculatePotentialReinforcements = (
     gameState: GameState,
     now: number = Date.now()
 ): ReinforcementEntry[] => {
-    const { rankingData, empirePoints } = gameState;
-    
-    // Filter allied bots (reputation >= 70)
+    const { rankingData } = gameState;
+
+    // Filter allied bots (reputation >= 75)
     const alliedBots = rankingData.bots.filter(bot => {
         const rep = bot.reputation ?? 50;
         return rep >= REPUTATION_ALLY_THRESHOLD;
@@ -35,12 +61,10 @@ export const calculatePotentialReinforcements = (
 
     // Calculate reinforcement army for each ally
     const reinforcements: ReinforcementEntry[] = alliedBots.map(bot => {
-        // Allies send 30% of their military strength as reinforcements
-        const reinforcementRatio = 0.3;
-        const army = generateBotArmy(bot.stats[RankingCategory.DOMINION], reinforcementRatio, bot.personality);
-        
+        const army = calculateReinforcementArmy(bot);
+
         const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
-        
+
         // Estimated arrival: 5-15 minutes based on distance (simulated)
         const estimatedArrival = now + (5 + Math.random() * 10) * 60 * 1000;
 
@@ -59,6 +83,51 @@ export const calculatePotentialReinforcements = (
 };
 
 /**
+ * Calculate reinforcements when player is under attack
+ * Each ally has 15% chance to send help
+ */
+export const calculateActiveReinforcements = (
+    gameState: GameState,
+    now: number = Date.now()
+): ReinforcementEntry[] => {
+    const { rankingData } = gameState;
+
+    // Filter allied bots (reputation >= 75)
+    const alliedBots = rankingData.bots.filter(bot => {
+        const rep = bot.reputation ?? 50;
+        return rep >= REPUTATION_ALLY_THRESHOLD;
+    });
+
+    // Sort by reputation (highest first)
+    alliedBots.sort((a, b) => (b.reputation ?? 0) - (a.reputation ?? 0));
+
+    // Each ally has 15% chance to send reinforcements
+    const activeReinforcements: ReinforcementEntry[] = [];
+
+    for (const bot of alliedBots) {
+        if (willSendReinforcements()) {
+            const army = calculateReinforcementArmy(bot);
+            const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
+
+            // Reinforcements arrive almost instantly (1-3 minutes)
+            const estimatedArrival = now + (1 + Math.random() * 2) * 60 * 1000;
+
+            activeReinforcements.push({
+                botId: bot.id,
+                botName: bot.name,
+                botScore: bot.stats[RankingCategory.DOMINION],
+                reputation: bot.reputation ?? 50,
+                units: army,
+                totalUnits,
+                estimatedArrival
+            });
+        }
+    }
+
+    return activeReinforcements;
+};
+
+/**
  * Get total garrisoned units for the player
  */
 export const getPlayerGarrison = (gameState: GameState): {
@@ -67,13 +136,14 @@ export const getPlayerGarrison = (gameState: GameState): {
     totalPower: number;
 } => {
     const units = gameState.units;
-    const totalUnits = Object.values(units).reduce((sum, count) => sum + (count || 0), 0);
-
-    // Calculate total power based on unit stats
+    let totalUnits = 0;
     let totalPower = 0;
-    
+
     Object.entries(units).forEach(([unitType, count]) => {
+        // Only count positive unit counts
         if (count && count > 0) {
+            totalUnits += count;
+            
             const def = UNIT_DEFS[unitType as UnitType];
             if (def) {
                 // Power = HP * Attack * Defense (simplified)

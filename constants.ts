@@ -94,7 +94,7 @@ export const BANK_LEVEL_CAPACITIES = [
 export const SAVE_VERSION = 6;
 
 // REPUTATION SYSTEM
-export const REPUTATION_ALLY_THRESHOLD = 70; // Bots above this are allies
+export const REPUTATION_ALLY_THRESHOLD = 75; // Bots above this are allies (75+)
 export const REPUTATION_ENEMY_THRESHOLD = 30; // Bots below this are enemies
 export const REPUTATION_ATTACK_PENALTY = -15; // Reputation loss when player attacks bot
 export const REPUTATION_DEFEAT_PENALTY = -10; // Reputation loss when player defeats bot
@@ -104,6 +104,10 @@ export const REPUTATION_ALLY_DEFEND_CHANCE = 0.4; // 40% chance ally bots will h
 export const REPUTATION_ALLY_BONUS = 3; // Reputation bonus from allied bots
 export const REPUTATION_MIN = 0;
 export const REPUTATION_MAX = 100;
+
+// ALLIED REINFORCEMENTS SYSTEM
+export const REINFORCEMENT_RATIO = 0.05; // Allies send 5% of their total military budget
+export const REINFORCEMENT_CHANCE = 0.15; // 15% chance for allies to send reinforcements when player is attacked
 
 // ENEMY ATTACK SYSTEM (NEW)
 export const ENEMY_ATTACK_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes - check if enemies attack

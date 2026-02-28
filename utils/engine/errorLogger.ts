@@ -1,569 +1,578 @@
 /**
- * Error Logger Module
- * 
- * Captures detailed error information during migration and saves to err.log
- * All error messages and logs are in English for universal debugging
+ * ERROR LOGGER & TELEMETRY SYSTEM
+ * Centralized logging for war system and game events
+ * Provides debugging, analytics, and error tracking
  */
 
-// ============================================
-// ERROR LOG CONSTANTS
-// ============================================
-const ERROR_LOG_FILENAME = 'err.log';
-const MAX_ERROR_LOG_SIZE = 10; // Maximum number of errors to keep in log
+import { GameState, WarState, LogEntry, IncomingAttack } from '../types';
 
 // ============================================
-// ERROR LOG ENTRY INTERFACE
+// TYPE DEFINITIONS
 // ============================================
-export interface ErrorLogEntry {
-    timestamp: string;
-    isoTimestamp: string;
-    errorType: string;
-    errorMessage: string;
-    stackTrace: string;
-    location: {
-        file: string;
-        function: string;
-        line?: number;
-        column?: number;
-    };
-    context: {
-        saveVersion?: number;
-        migrationStage: string;
-        fieldName?: string;
-        expectedType?: string;
-        actualType?: string;
-        actualValue?: string;
-    };
-    systemInfo: {
-        userAgent: string;
-        language: string;
-        platform: string;
-        screenResolution: string;
-        memory?: string;
-    };
-    applicationState: {
-        url: string;
-        localStorageSize: number;
-        hasSave: boolean;
-        saveSize: number;
-    };
-    rawData: {
-        savedDataPreview: string;
-        corruptedFields: string[];
-        validationErrors: string[];
-    };
-    recoveryAction: string;
-    suggestions: string[];
+
+export type LogLevel = 'debug' | 'info' | 'warning' | 'error' | 'critical';
+
+export type LogCategory = 'war' | 'combat' | 'economy' | 'diplomacy' | 'system' | 'performance';
+
+export interface TelemetryEvent {
+    id: string;
+    timestamp: number;
+    category: LogCategory;
+    level: LogLevel;
+    event: string;
+    data: Record<string, any>;
+    sessionId?: string;
+    playerId?: string;
+}
+
+export interface WarTelemetryData {
+    warId: string;
+    enemyId: string;
+    enemyScore: number;
+    playerScore: number;
+    startTime: number;
+    endTime?: number;
+    totalWaves: number;
+    playerVictories: number;
+    enemyVictories: number;
+    playerUnitLosses: number;
+    enemyUnitLosses: number;
+    playerResourceLosses: Record<string, number>;
+    enemyResourceLosses: Record<string, number>;
+    lootPoolValue: number;
+    result: 'victory' | 'defeat' | 'draw';
+    duration: number;
+    overtimeWaves: number;
+    issues: string[];
 }
 
 // ============================================
-// ERROR LOGGER CLASS
+// SESSION MANAGEMENT
 // ============================================
-export class ErrorLogger {
-    private static instance: ErrorLogger;
-    private errorLog: ErrorLogEntry[] = [];
-    private readonly STORAGE_KEY = 'ironDuneErrorLog';
 
-    private constructor() {
-        this.loadFromStorage();
-    }
+let sessionId: string = '';
+let playerId: string = '';
+let telemetryBuffer: TelemetryEvent[] = [];
+const MAX_BUFFER_SIZE = 100;
 
-    public static getInstance(): ErrorLogger {
-        if (!ErrorLogger.instance) {
-            ErrorLogger.instance = new ErrorLogger();
-        }
-        return ErrorLogger.instance;
-    }
+/**
+ * Initializes telemetry system with session and player IDs
+ */
+export const initTelemetry = (pid: string): void => {
+    playerId = pid;
+    sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    telemetryBuffer = [];
+};
 
-    // ============================================
-    // LOAD/SAVE ERROR LOG FROM STORAGE
-    // ============================================
-    private loadFromStorage(): void {
-        try {
-            const stored = localStorage.getItem(this.STORAGE_KEY);
-            if (stored) {
-                this.errorLog = JSON.parse(stored);
-            }
-        } catch (e) {
-            console.error('[ErrorLogger] Failed to load error log from storage:', e);
-        }
-    }
+/**
+ * Gets current session ID
+ */
+export const getSessionId = (): string => sessionId;
 
-    private saveToStorage(): void {
-        try {
-            // Keep only the most recent errors
-            if (this.errorLog.length > MAX_ERROR_LOG_SIZE) {
-                this.errorLog = this.errorLog.slice(-MAX_ERROR_LOG_SIZE);
-            }
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.errorLog));
-        } catch (e) {
-            console.error('[ErrorLogger] Failed to save error log to storage:', e);
-        }
-    }
+/**
+ * Gets current player ID
+ */
+export const getPlayerId = (): string => playerId;
 
-    // ============================================
-    // LOG ERROR - MAIN METHOD
-    // ============================================
-    public logError(params: {
-        error: Error | unknown;
-        location: { file: string; function: string; line?: number; column?: number };
-        context: {
-            saveVersion?: number;
-            migrationStage: string;
-            fieldName?: string;
-            expectedType?: string;
-            actualType?: string;
-            actualValue?: any;
-        };
-        savedData?: any;
-        recoveryAction: string;
-        suggestions?: string[];
-    }): void {
-        const error = params.error instanceof Error ? params.error : new Error(String(params.error));
+// ============================================
+// LOGGING FUNCTIONS
+// ============================================
+
+/**
+ * Core logging function
+ */
+const log = (
+    category: LogCategory,
+    level: LogLevel,
+    message: string,
+    data?: Record<string, any>
+): void => {
+    const timestamp = Date.now();
+    const event: TelemetryEvent = {
+        id: `log-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp,
+        category,
+        level,
+        event: message,
+        data: data || {},
+        sessionId: sessionId || undefined,
+        playerId: playerId || undefined
+    };
+
+    // Console output for development
+    if (process.env.NODE_ENV !== 'production' || level !== 'debug') {
+        const prefix = `[${category.toUpperCase()}][${level.toUpperCase()}]`;
+        const dataStr = data ? JSON.stringify(data) : '';
         
-        const entry: ErrorLogEntry = {
-            timestamp: new Date().toLocaleString('en-US'),
-            isoTimestamp: new Date().toISOString(),
-            errorType: error.name || 'UnknownError',
-            errorMessage: error.message || 'Unknown error occurred',
-            stackTrace: error.stack || 'No stack trace available',
-            location: params.location,
-            context: {
-                saveVersion: params.context.saveVersion,
-                migrationStage: params.context.migrationStage,
-                fieldName: params.context.fieldName,
-                expectedType: params.context.expectedType,
-                actualType: params.context.actualType,
-                actualValue: this.sanitizeValue(params.context.actualValue)
-            },
-            systemInfo: this.captureSystemInfo(),
-            applicationState: this.captureApplicationState(params.savedData),
-            rawData: this.captureRawData(params.savedData),
-            recoveryAction: params.recoveryAction,
-            suggestions: params.suggestions || []
-        };
-
-        this.errorLog.push(entry);
-        this.saveToStorage();
-
-        // Also log to console for immediate visibility
-        this.logToConsole(entry);
-
-        // Trigger download of error log file
-        this.downloadErrorLogFile(entry);
-    }
-
-    // ============================================
-    // CAPTURE SYSTEM INFORMATION
-    // ============================================
-    private captureSystemInfo(): ErrorLogEntry['systemInfo'] {
-        return {
-            userAgent: navigator.userAgent,
-            language: navigator.language,
-            platform: navigator.platform,
-            screenResolution: `${screen.width}x${screen.height}`,
-            memory: (navigator as any).deviceMemory ? `${(navigator as any).deviceMemory}GB` : 'Unknown'
-        };
-    }
-
-    // ============================================
-    // CAPTURE APPLICATION STATE
-    // ============================================
-    private captureApplicationState(savedData: any): ErrorLogEntry['applicationState'] {
-        let saveSize = 0;
-        let hasSave = false;
-
-        try {
-            const saved = localStorage.getItem('ironDuneSave');
-            if (saved) {
-                hasSave = true;
-                saveSize = saved.length;
-            }
-        } catch (e) {
-            // Ignore errors in capturing state
-        }
-
-        try {
-            if (savedData) {
-                saveSize = JSON.stringify(savedData).length;
-                hasSave = true;
-            }
-        } catch (e) {
-            // Ignore
-        }
-
-        return {
-            url: window.location.href,
-            localStorageSize: this.getLocalStorageSize(),
-            hasSave,
-            saveSize
-        };
-    }
-
-    // ============================================
-    // CAPTURE RAW DATA
-    // ============================================
-    private captureRawData(savedData: any): ErrorLogEntry['rawData'] {
-        const corruptedFields: string[] = [];
-        const validationErrors: string[] = [];
-
-        // Analyze saved data for potential issues
-        if (savedData && typeof savedData === 'object') {
-            // Check for NaN values
-            this.checkForNaN(savedData, '', corruptedFields, validationErrors);
-            
-            // Check for Infinity values
-            this.checkForInfinity(savedData, '', corruptedFields, validationErrors);
-            
-            // Check for type mismatches
-            this.checkTypeMismatches(savedData, corruptedFields, validationErrors);
-        }
-
-        return {
-            savedDataPreview: this.createDataPreview(savedData),
-            corruptedFields,
-            validationErrors
-        };
-    }
-
-    // ============================================
-    // CHECK FOR NaN VALUES
-    // ============================================
-    private checkForNaN(obj: any, path: string, corruptedFields: string[], validationErrors: string[]): void {
-        if (typeof obj === 'number' && isNaN(obj)) {
-            corruptedFields.push(path || 'root');
-            validationErrors.push(`NaN value found at: ${path || 'root'}`);
-            return;
-        }
-
-        if (typeof obj === 'object' && obj !== null) {
-            Object.entries(obj).forEach(([key, value]) => {
-                this.checkForNaN(value, path ? `${path}.${key}` : key, corruptedFields, validationErrors);
-            });
+        switch (level) {
+            case 'debug':
+                console.debug(`${prefix} ${message}`, dataStr);
+                break;
+            case 'info':
+                console.info(`${prefix} ${message}`, dataStr);
+                break;
+            case 'warning':
+                console.warn(`${prefix} ${message}`, dataStr);
+                break;
+            case 'error':
+                console.error(`${prefix} ${message}`, dataStr);
+                break;
+            case 'critical':
+                console.error(`${prefix} CRITICAL: ${message}`, dataStr);
+                break;
         }
     }
 
-    // ============================================
-    // CHECK FOR Infinity VALUES
-    // ============================================
-    private checkForInfinity(obj: any, path: string, corruptedFields: string[], validationErrors: string[]): void {
-        if (typeof obj === 'number' && (obj === Infinity || obj === -Infinity)) {
-            corruptedFields.push(path || 'root');
-            validationErrors.push(`Infinity value found at: ${path || 'root'} (value: ${obj})`);
-            return;
+    // Buffer for analytics (only warnings and above in production)
+    if (level !== 'debug' && level !== 'info') {
+        if (telemetryBuffer.length >= MAX_BUFFER_SIZE) {
+            telemetryBuffer.shift(); // Remove oldest
         }
-
-        if (typeof obj === 'object' && obj !== null) {
-            Object.entries(obj).forEach(([key, value]) => {
-                this.checkForInfinity(value, path ? `${path}.${key}` : key, corruptedFields, validationErrors);
-            });
-        }
+        telemetryBuffer.push(event);
     }
+};
 
-    // ============================================
-    // CHECK TYPE MISMATCHES
-    // ============================================
-    private checkTypeMismatches(savedData: any, corruptedFields: string[], validationErrors: string[]): void {
-        const expectedTypes: Record<string, string> = {
-            'saveVersion': 'number',
-            'playerName': 'string',
-            'resources': 'object',
-            'buildings': 'object',
-            'units': 'object',
-            'logs': 'array',
-            'activeMissions': 'array',
-            'incomingAttacks': 'array',
-            'grudges': 'array',
-            'spyReports': 'array'
-        };
+/**
+ * Logs a debug message
+ */
+export const logDebug = (category: LogCategory, message: string, data?: Record<string, any>): void => {
+    log(category, 'debug', message, data);
+};
 
-        Object.entries(expectedTypes).forEach(([field, expectedType]) => {
-            const value = savedData[field];
-            if (value !== undefined) {
-                const actualType = Array.isArray(value) ? 'array' : typeof value;
-                if (actualType !== expectedType) {
-                    corruptedFields.push(field);
-                    validationErrors.push(`Type mismatch at "${field}": expected ${expectedType}, got ${actualType}`);
-                }
-            }
-        });
+/**
+ * Logs an info message
+ */
+export const logInfo = (category: LogCategory, message: string, data?: Record<string, any>): void => {
+    log(category, 'info', message, data);
+};
+
+/**
+ * Logs a warning
+ */
+export const logWarning = (category: LogCategory, message: string, data?: Record<string, any>): void => {
+    log(category, 'warning', message, data);
+};
+
+/**
+ * Logs an error
+ */
+export const logError = (category: LogCategory, message: string, data?: Record<string, any>): void => {
+    log(category, 'error', message, data);
+};
+
+/**
+ * Logs a critical error
+ */
+export const logCritical = (category: LogCategory, message: string, data?: Record<string, any>): void => {
+    log(category, 'critical', message, data);
+};
+
+/**
+ * Logs migration error (legacy compatibility)
+ */
+export const logMigrationError = (message: string, data?: Record<string, any>): void => {
+    logError('system', `Migration error: ${message}`, data);
+};
+
+// ============================================
+// WAR-SPECIFIC TELEMETRY
+// ============================================
+
+/**
+ * Logs war start event
+ */
+export const logWarStart = (war: WarState, playerScore: number): void => {
+    logInfo('war', 'War started', {
+        warId: war.id,
+        enemyId: war.enemyId,
+        enemyName: war.enemyName,
+        enemyScore: war.enemyScore,
+        playerScore,
+        scoreRatio: war.enemyScore / Math.max(1, playerScore),
+        totalWaves: war.totalWaves,
+        duration: war.duration
+    });
+};
+
+/**
+ * Logs war wave spawn
+ */
+export const logWarWave = (warId: string, waveNumber: number, enemyScore: number, armySize: number): void => {
+    logDebug('war', 'War wave spawned', {
+        warId,
+        waveNumber,
+        enemyScore,
+        armySize,
+        timestamp: Date.now()
+    });
+};
+
+/**
+ * Logs war combat resolution
+ */
+export const logWarCombat = (
+    warId: string,
+    waveNumber: number,
+    winner: 'PLAYER' | 'ENEMY' | 'DRAW',
+    playerCasualties: number,
+    enemyCasualties: number,
+    playerResourceLoss: number,
+    enemyResourceLoss: number
+): void => {
+    logInfo('war', 'War combat resolved', {
+        warId,
+        waveNumber,
+        winner,
+        playerCasualties,
+        enemyCasualties,
+        playerResourceLoss,
+        enemyResourceLoss,
+        casualtyRatio: enemyCasualties / Math.max(1, playerCasualties)
+    });
+};
+
+/**
+ * Logs war end event
+ */
+export const logWarEnd = (telemetry: WarTelemetryData): void => {
+    logInfo('war', 'War ended', {
+        warId: telemetry.warId,
+        enemyId: telemetry.enemyId,
+        result: telemetry.result,
+        duration: telemetry.duration,
+        totalWaves: telemetry.totalWaves,
+        playerVictories: telemetry.playerVictories,
+        enemyVictories: telemetry.enemyVictories,
+        playerUnitLosses: telemetry.playerUnitLosses,
+        enemyUnitLosses: telemetry.enemyUnitLosses,
+        lootPoolValue: telemetry.lootPoolValue,
+        overtimeWaves: telemetry.overtimeWaves,
+        issues: telemetry.issues
+    });
+
+    // Track in buffer for analytics
+    trackWarAnalytics(telemetry);
+};
+
+/**
+ * Logs war validation error
+ */
+export const logWarValidationError = (warId: string, errors: string[], warnings: string[]): void => {
+    if (errors.length > 0) {
+        logError('war', 'War validation failed', { warId, errors, warnings });
+    } else if (warnings.length > 0) {
+        logWarning('war', 'War validation warnings', { warId, warnings });
     }
+};
 
-    // ============================================
-    // SANITIZE VALUE FOR LOGGING
-    // ============================================
-    private sanitizeValue(value: any): string {
-        if (value === null) return 'null';
-        if (value === undefined) return 'undefined';
-        if (typeof value === 'number') {
-            if (isNaN(value)) return 'NaN';
-            if (value === Infinity) return 'Infinity';
-            if (value === -Infinity) return '-Infinity';
-            return value.toString();
-        }
-        if (typeof value === 'string') {
-            return value.length > 200 ? value.substring(0, 200) + '... (truncated)' : value;
-        }
-        if (typeof value === 'object') {
-            try {
-                return JSON.stringify(value).substring(0, 500) + '... (truncated)';
-            } catch {
-                return '[Object could not be stringified]';
-            }
-        }
-        return String(value);
-    }
+/**
+ * Logs war state sanitization
+ */
+export const logWarSanitization = (warId: string, before: any, after: any, changes: string[]): void => {
+    logWarning('war', 'War state sanitized', {
+        warId,
+        changes,
+        before: JSON.stringify(before),
+        after: JSON.stringify(after)
+    });
+};
 
-    // ============================================
-    // CREATE DATA PREVIEW
-    // ============================================
-    private createDataPreview(savedData: any): string {
-        if (!savedData) return '[No data available]';
-        
-        try {
-            const preview = {
-                saveVersion: savedData.saveVersion,
-                playerName: savedData.playerName,
-                resourcesCount: savedData.resources ? Object.keys(savedData.resources).length : 0,
-                buildingsCount: savedData.buildings ? Object.keys(savedData.buildings).length : 0,
-                unitsCount: savedData.units ? Object.keys(savedData.units).length : 0,
-                logsCount: Array.isArray(savedData.logs) ? savedData.logs.length : 0,
-                hasActiveWar: !!savedData.activeWar,
-                hasGrudges: Array.isArray(savedData.grudges) && savedData.grudges.length > 0,
-                hasSpyReports: Array.isArray(savedData.spyReports) && savedData.spyReports.length > 0
-            };
-            return JSON.stringify(preview, null, 2);
-        } catch {
-            return '[Could not create data preview]';
-        }
-    }
+// ============================================
+// COMBAT TELEMETRY
+// ============================================
 
-    // ============================================
-    // GET LOCAL STORAGE SIZE
-    // ============================================
-    private getLocalStorageSize(): number {
-        let total = 0;
-        for (const key in localStorage) {
-            if (localStorage.hasOwnProperty(key)) {
-                total += localStorage[key].length + key.length;
-            }
-        }
-        return total;
-    }
+/**
+ * Logs incoming attack
+ */
+export const logIncomingAttack = (attack: IncomingAttack, isWar: boolean): void => {
+    logInfo('combat', 'Incoming attack detected', {
+        attackId: attack.id,
+        attackerName: attack.attackerName,
+        attackerScore: attack.attackerScore,
+        isWarWave: isWar,
+        unitCount: Object.values(attack.units).reduce((a, b) => a + (b || 0), 0),
+        travelTime: attack.endTime - attack.startTime,
+        timestamp: Date.now()
+    });
+};
 
-    // ============================================
-    // LOG TO CONSOLE
-    // ============================================
-    private logToConsole(entry: ErrorLogEntry): void {
-        console.groupCollapsed(`[ErrorLogger] ${entry.errorType}: ${entry.errorMessage}`);
-        console.log('📅 Timestamp:', entry.timestamp);
-        console.log('📍 Location:', entry.location);
-        console.log('🔧 Context:', entry.context);
-        console.log('💻 System Info:', entry.systemInfo);
-        console.log('📊 Application State:', entry.applicationState);
-        console.log('📁 Raw Data:', entry.rawData);
-        console.log('✅ Recovery Action:', entry.recoveryAction);
-        console.log('💡 Suggestions:', entry.suggestions);
-        console.log('📋 Stack Trace:', entry.stackTrace);
-        console.groupEnd();
-    }
+/**
+ * Logs combat result
+ */
+export const logCombatResult = (
+    attackId: string,
+    winner: 'PLAYER' | 'ENEMY' | 'DRAW',
+    playerCasualties: number,
+    enemyCasualties: number,
+    buildingLoot?: Record<string, number>
+): void => {
+    logInfo('combat', 'Combat resolved', {
+        attackId,
+        winner,
+        playerCasualties,
+        enemyCasualties,
+        buildingLoot,
+        casualtyRatio: enemyCasualties / Math.max(1, playerCasualties)
+    });
+};
 
-    // ============================================
-    // DOWNLOAD ERROR LOG FILE
-    // ============================================
-    private downloadErrorLogFile(latestEntry: ErrorLogEntry): void {
-        try {
-            const logContent = this.formatErrorLog(latestEntry);
-            const blob = new Blob([logContent], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            link.download = `err_${timestamp}.log`;
-            link.href = url;
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error('[ErrorLogger] Failed to download error log file:', e);
-        }
-    }
+// ============================================
+// ANALYTICS TRACKING
+// ============================================
 
-    // ============================================
-    // FORMAT ERROR LOG CONTENT
-    // ============================================
-    private formatErrorLog(entry: ErrorLogEntry): string {
-        const separator = '='.repeat(80);
-        const sectionSeparator = '-'.repeat(80);
-
-        return `
-${separator}
-IRON DUNE OPERATIONS - ERROR LOG
-${separator}
-
-📅 ERROR OCCURRENCE INFORMATION
-${sectionSeparator}
-Timestamp: ${entry.timestamp}
-ISO Timestamp: ${entry.isoTimestamp}
-Error Type: ${entry.errorType}
-Error Message: ${entry.errorMessage}
-
-${sectionSeparator}
-📍 ERROR LOCATION
-${sectionSeparator}
-File: ${entry.location.file}
-Function: ${entry.location.function}
-Line: ${entry.location.line || 'Unknown'}
-Column: ${entry.location.column || 'Unknown'}
-
-${sectionSeparator}
-🔧 ERROR CONTEXT
-${sectionSeparator}
-Save Version: ${entry.context.saveVersion || 'Unknown'}
-Migration Stage: ${entry.context.migrationStage}
-Field Name: ${entry.context.fieldName || 'N/A'}
-Expected Type: ${entry.context.expectedType || 'N/A'}
-Actual Type: ${entry.context.actualType || 'N/A'}
-Actual Value: ${entry.context.actualValue || 'N/A'}
-
-${sectionSeparator}
-💻 SYSTEM INFORMATION
-${sectionSeparator}
-User Agent: ${entry.systemInfo.userAgent}
-Language: ${entry.systemInfo.language}
-Platform: ${entry.systemInfo.platform}
-Screen Resolution: ${entry.systemInfo.screenResolution}
-Memory: ${entry.systemInfo.memory || 'Unknown'}
-
-${sectionSeparator}
-📊 APPLICATION STATE
-${sectionSeparator}
-URL: ${entry.applicationState.url}
-Local Storage Size: ${entry.applicationState.localStorageSize} bytes
-Has Save: ${entry.applicationState.hasSave}
-Save Size: ${entry.applicationState.saveSize} bytes
-
-${sectionSeparator}
-📁 RAW DATA ANALYSIS
-${sectionSeparator}
-Saved Data Preview:
-${entry.rawData.savedDataPreview}
-
-Corrupted Fields (${entry.rawData.corruptedFields.length}):
-${entry.rawData.corruptedFields.map(f => `  - ${f}`).join('\n') || '  None detected'}
-
-Validation Errors (${entry.rawData.validationErrors.length}):
-${entry.rawData.validationErrors.map(e => `  - ${e}`).join('\n') || '  None detected'}
-
-${sectionSeparator}
-✅ RECOVERY ACTION TAKEN
-${sectionSeparator}
-${entry.recoveryAction}
-
-${sectionSeparator}
-💡 SUGGESTIONS FOR RESOLUTION
-${sectionSeparator}
-${entry.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n') || '  No suggestions available'}
-
-${sectionSeparator}
-📋 STACK TRACE
-${sectionSeparator}
-${entry.stackTrace}
-
-${separator}
-END OF ERROR LOG
-${separator}
-`;
-    }
-
-    // ============================================
-    // GET ALL ERRORS
-    // ============================================
-    public getAllErrors(): ErrorLogEntry[] {
-        return [...this.errorLog];
-    }
-
-    // ============================================
-    // CLEAR ERROR LOG
-    // ============================================
-    public clearErrorLog(): void {
-        this.errorLog = [];
-        this.saveToStorage();
-        console.log('[ErrorLogger] Error log cleared');
-    }
-
-    // ============================================
-    // EXPORT ERROR LOG AS FILE
-    // ============================================
-    public exportErrorLog(): void {
-        if (this.errorLog.length === 0) {
-            console.log('[ErrorLogger] No errors to export');
-            return;
-        }
-
-        const fullLog = this.errorLog.map(entry => this.formatErrorLog(entry)).join('\n\n');
-        const blob = new Blob([fullLog], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        link.download = `err_full_${timestamp}.log`;
-        link.href = url;
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
+interface WarAnalytics {
+    totalWars: number;
+    totalVictories: number;
+    totalDefeats: number;
+    totalDraws: number;
+    averageWarDuration: number;
+    averageWavesPerWar: number;
+    averageCasualtiesPerWar: number;
+    bestWinStreak: number;
+    currentWinStreak: number;
+    totalLootEarned: number;
+    totalResourcesLost: number;
 }
 
-// ============================================
-// CONVENIENCE FUNCTION FOR MIGRATION ERRORS
-// ============================================
-export const logMigrationError = (params: {
-    error: Error | unknown;
-    location: { file: string; function: string; line?: number; column?: number };
-    saveVersion?: number;
-    migrationStage: string;
-    fieldName?: string;
-    expectedType?: string;
-    actualType?: string;
-    actualValue?: any;
-    savedData?: any;
-    recoveryAction: string;
-    suggestions?: string[];
-}): void => {
-    ErrorLogger.getInstance().logError(params);
+let warAnalytics: WarAnalytics = {
+    totalWars: 0,
+    totalVictories: 0,
+    totalDefeats: 0,
+    totalDraws: 0,
+    averageWarDuration: 0,
+    averageWavesPerWar: 0,
+    averageCasualtiesPerWar: 0,
+    bestWinStreak: 0,
+    currentWinStreak: 0,
+    totalLootEarned: 0,
+    totalResourcesLost: 0
+};
+
+/**
+ * Tracks war analytics
+ */
+const trackWarAnalytics = (telemetry: WarTelemetryData): void => {
+    warAnalytics.totalWars++;
+    
+    if (telemetry.result === 'victory') {
+        warAnalytics.totalVictories++;
+        warAnalytics.currentWinStreak++;
+        if (warAnalytics.currentWinStreak > warAnalytics.bestWinStreak) {
+            warAnalytics.bestWinStreak = warAnalytics.currentWinStreak;
+        }
+        warAnalytics.totalLootEarned += telemetry.lootPoolValue;
+    } else if (telemetry.result === 'defeat') {
+        warAnalytics.totalDefeats++;
+        warAnalytics.currentWinStreak = 0;
+    } else {
+        warAnalytics.totalDraws++;
+    }
+
+    // Update averages
+    const total = warAnalytics.totalWars;
+    warAnalytics.averageWarDuration = 
+        ((warAnalytics.averageWarDuration * (total - 1)) + telemetry.duration) / total;
+    
+    warAnalytics.averageWavesPerWar = 
+        ((warAnalytics.averageWavesPerWar * (total - 1)) + telemetry.totalWaves) / total;
+    
+    warAnalytics.averageCasualtiesPerWar = 
+        ((warAnalytics.averageCasualtiesPerWar * (total - 1)) + telemetry.playerUnitLosses) / total;
+    
+    warAnalytics.totalResourcesLost += 
+        Object.values(telemetry.playerResourceLosses).reduce((a, b) => a + b, 0);
+};
+
+/**
+ * Gets current war analytics
+ */
+export const getWarAnalytics = (): WarAnalytics => ({ ...warAnalytics });
+
+/**
+ * Resets war analytics (for new game)
+ */
+export const resetWarAnalytics = (): void => {
+    warAnalytics = {
+        totalWars: 0,
+        totalVictories: 0,
+        totalDefeats: 0,
+        totalDraws: 0,
+        averageWarDuration: 0,
+        averageWavesPerWar: 0,
+        averageCasualtiesPerWar: 0,
+        bestWinStreak: 0,
+        currentWinStreak: 0,
+        totalLootEarned: 0,
+        totalResourcesLost: 0
+    };
 };
 
 // ============================================
-// WRAPPER FOR MIGRATION FUNCTION
+// BUFFER MANAGEMENT
 // ============================================
-export const withErrorLogging = <T extends (...args: any[]) => any>(
-    fn: T,
-    location: { file: string; function: string },
-    migrationStage: string
-): T => {
-    return ((...args: any[]) => {
-        try {
-            return fn(...args);
-        } catch (error) {
-            logMigrationError({
-                error,
-                location,
-                migrationStage,
-                recoveryAction: 'Returned safe initial state to prevent application crash',
-                suggestions: [
-                    'Try clearing browser localStorage and starting a new game',
-                    'Check if the save file was modified or corrupted',
-                    'Ensure browser is up to date',
-                    'Try importing the save file again',
-                    'Contact support with the attached error log file'
-                ]
-            });
-            throw error;
-        }
-    }) as T;
+
+/**
+ * Gets buffered telemetry events
+ */
+export const getTelemetryBuffer = (): TelemetryEvent[] => [...telemetryBuffer];
+
+/**
+ * Clears telemetry buffer
+ */
+export const clearTelemetryBuffer = (): void => {
+    telemetryBuffer = [];
 };
+
+/**
+ * Flushes telemetry buffer (for persistence)
+ */
+export const flushTelemetryBuffer = (): TelemetryEvent[] => {
+    const buffer = [...telemetryBuffer];
+    telemetryBuffer = [];
+    return buffer;
+};
+
+// ============================================
+// PERFORMANCE MONITORING
+// ============================================
+
+interface PerformanceMetrics {
+    warTickDuration: number[];
+    combatSimulationDuration: number[];
+    validationDuration: number[];
+    averageWarTickMs: number;
+    averageCombatMs: number;
+    averageValidationMs: number;
+    slowestWarTick: number;
+    slowestCombat: number;
+}
+
+const performanceMetrics: PerformanceMetrics = {
+    warTickDuration: [],
+    combatSimulationDuration: [],
+    validationDuration: [],
+    averageWarTickMs: 0,
+    averageCombatMs: 0,
+    averageValidationMs: 0,
+    slowestWarTick: 0,
+    slowestCombat: 0
+};
+
+const MAX_METRICS_SAMPLES = 100;
+
+/**
+ * Records war tick performance
+ */
+export const recordWarTickPerformance = (durationMs: number): void => {
+    performanceMetrics.warTickDuration.push(durationMs);
+    if (performanceMetrics.warTickDuration.length > MAX_METRICS_SAMPLES) {
+        performanceMetrics.warTickDuration.shift();
+    }
+    
+    performanceMetrics.averageWarTickMs = 
+        performanceMetrics.warTickDuration.reduce((a, b) => a + b, 0) / 
+        performanceMetrics.warTickDuration.length;
+    
+    if (durationMs > performanceMetrics.slowestWarTick) {
+        performanceMetrics.slowestWarTick = durationMs;
+    }
+
+    if (durationMs > 100) { // Log slow ticks
+        logWarning('performance', 'Slow war tick detected', { durationMs });
+    }
+};
+
+/**
+ * Records combat simulation performance
+ */
+export const recordCombatPerformance = (durationMs: number): void => {
+    performanceMetrics.combatSimulationDuration.push(durationMs);
+    if (performanceMetrics.combatSimulationDuration.length > MAX_METRICS_SAMPLES) {
+        performanceMetrics.combatSimulationDuration.shift();
+    }
+    
+    performanceMetrics.averageCombatMs = 
+        performanceMetrics.combatSimulationDuration.reduce((a, b) => a + b, 0) / 
+        performanceMetrics.combatSimulationDuration.length;
+    
+    if (durationMs > performanceMetrics.slowestCombat) {
+        performanceMetrics.slowestCombat = durationMs;
+    }
+
+    if (durationMs > 50) { // Log slow combats
+        logWarning('performance', 'Slow combat simulation detected', { durationMs });
+    }
+};
+
+/**
+ * Records validation performance
+ */
+export const recordValidationPerformance = (durationMs: number): void => {
+    performanceMetrics.validationDuration.push(durationMs);
+    if (performanceMetrics.validationDuration.length > MAX_METRICS_SAMPLES) {
+        performanceMetrics.validationDuration.shift();
+    }
+    
+    performanceMetrics.averageValidationMs = 
+        performanceMetrics.validationDuration.reduce((a, b) => a + b, 0) / 
+        performanceMetrics.validationDuration.length;
+};
+
+/**
+ * Gets performance metrics
+ */
+export const getPerformanceMetrics = (): PerformanceMetrics => ({ ...performanceMetrics });
+
+// ============================================
+// ERROR RECOVERY TRACKING
+// ============================================
+
+interface ErrorRecoveryStats {
+    totalErrors: number;
+    recoveredErrors: number;
+    criticalErrors: number;
+    warStatesRepaired: number;
+    warStatesTerminated: number;
+    attacksSanitized: number;
+}
+
+const errorRecoveryStats: ErrorRecoveryStats = {
+    totalErrors: 0,
+    recoveredErrors: 0,
+    criticalErrors: 0,
+    warStatesRepaired: 0,
+    warStatesTerminated: 0,
+    attacksSanitized: 0
+};
+
+/**
+ * Tracks error recovery
+ */
+export const trackErrorRecovery = (
+    type: 'recovered' | 'critical' | 'war_repaired' | 'war_terminated' | 'attack_sanitized'
+): void => {
+    errorRecoveryStats.totalErrors++;
+    
+    switch (type) {
+        case 'recovered':
+            errorRecoveryStats.recoveredErrors++;
+            break;
+        case 'critical':
+            errorRecoveryStats.criticalErrors++;
+            break;
+        case 'war_repaired':
+            errorRecoveryStats.warStatesRepaired++;
+            break;
+        case 'war_terminated':
+            errorRecoveryStats.warStatesTerminated++;
+            break;
+        case 'attack_sanitized':
+            errorRecoveryStats.attacksSanitized++;
+            break;
+    }
+};
+
+/**
+ * Gets error recovery stats
+ */
+export const getErrorRecoveryStats = (): ErrorRecoveryStats => ({ ...errorRecoveryStats });

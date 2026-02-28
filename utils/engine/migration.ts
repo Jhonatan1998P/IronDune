@@ -640,6 +640,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats);
         cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions);
         cleanState.logs = migrateLogs(saved.logs);
+        cleanState.allyReinforcements = isValidArray(saved.allyReinforcements) ? saved.allyReinforcements : [];
 
         // 5. Migrate Resources, Units, Buildings
         cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources);

@@ -38,6 +38,17 @@ export interface IncomingAttack {
   isScouted?: boolean; // Flag if player paid to reveal composition
 }
 
+export interface AllyReinforcement {
+  id: string;
+  botId: string;
+  botName: string;
+  botScore: number;
+  units: Partial<Record<UnitType, number>>;
+  totalUnits: number;
+  arrivalTime: number; // When reinforcements arrived
+  expiresAt: number; // When reinforcements expire (after battle ends)
+}
+
 export interface Grudge {
     id: string;
     botId: string;
@@ -220,6 +231,9 @@ export interface GameState {
   incomingAttacks: IncomingAttack[];
   activeWar: WarState | null; // New War System
 
+  // Allied Reinforcements System (New)
+  allyReinforcements: AllyReinforcement[]; // Active reinforcements from allies
+
   // Grudge System (New)
   grudges: Grudge[];
 
@@ -271,8 +285,8 @@ export interface UnitPerformanceStats {
 export interface BattleResult {
   winner: 'PLAYER' | 'ENEMY' | 'DRAW';
   rounds: BattleRoundLog[];
-  initialPlayerArmy: Partial<Record<UnitType, number>>; 
-  initialEnemyArmy: Partial<Record<UnitType, number>>; 
+  initialPlayerArmy: Partial<Record<UnitType, number>>;
+  initialEnemyArmy: Partial<Record<UnitType, number>>;
   finalPlayerArmy: Partial<Record<UnitType, number>>;
   finalEnemyArmy: Partial<Record<UnitType, number>>;
   totalPlayerCasualties: Partial<Record<UnitType, number>>;
@@ -283,10 +297,17 @@ export interface BattleResult {
   enemyTotalHpLost: number;
   playerDamageDealt: number;
   enemyDamageDealt: number;
-  
+
   // New: Detailed performance tracking
   playerPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
   enemyPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
+
+  // New: Allied Reinforcements (V1.5)
+  initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>; // botId -> army
+  finalAllyArmies?: Record<string, Partial<Record<UnitType, number>>>; // botId -> army
+  totalAllyCasualties?: Record<string, Partial<Record<UnitType, number>>>; // botId -> casualties
+  allyDamageDealt?: Record<string, number>; // botId -> damage
+  allyPerformance?: Record<string, Partial<Record<UnitType, UnitPerformanceStats>>>; // botId -> performance
 }
 
 export interface OfflineReport {

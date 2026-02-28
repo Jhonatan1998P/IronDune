@@ -59,6 +59,7 @@ export const INITIAL_GAME_STATE: GameState = {
   nextAttackTime: Date.now() + (3 * 60 * 60 * 1000),
   incomingAttacks: [],
   activeWar: null,
+  allyReinforcements: [],
   grudges: [],
   enemyAttackCounts: {},
   lastEnemyAttackCheckTime: Date.now(),

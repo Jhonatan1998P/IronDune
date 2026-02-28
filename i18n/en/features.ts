@@ -27,6 +27,9 @@ export const features = {
         wipeout: "TOTAL WIPEOUT",
         friendly: "Friendly",
         hostile: "Hostile",
+        allies: "Allies",
+        allied_reinforcements: "Allied Reinforcements",
+        no_allies: "No Allied Reinforcements",
         unit_type: "Unit Type",
         enemy_suffix: "E",
         log_desertion: "DESERTION",
@@ -50,7 +53,8 @@ export const features = {
         hostile_force: "Hostile Force",
         enemy_target: "Enemy Target",
         you_label: "You",
-        buildings_lost: "Buildings Lost"
+        buildings_lost: "Buildings Lost",
+        units: "Units"
     },
     market: {
         title: "Global Market",

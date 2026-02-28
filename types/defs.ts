@@ -543,13 +543,16 @@ export interface TranslationDictionary {
       damage_dealt: string; 
       unit_performance: string; 
       deployed: string; 
-      lost: string; 
-      survived: string; 
-      wipeout: string; 
-      friendly: string; 
-      hostile: string; 
-      unit_type: string; 
-      enemy_suffix: string; 
+      lost: string;
+      survived: string;
+      wipeout: string;
+      friendly: string;
+      hostile: string;
+      allies: string;
+      allied_reinforcements: string;
+      no_allies: string;
+      unit_type: string;
+      enemy_suffix: string;
       log_desertion: string;
       log_intel_acquired: string;
       intel_target: string;
@@ -571,6 +574,7 @@ export interface TranslationDictionary {
       hostile_force: string;
       enemy_target: string;
       you_label: string;
+      units: string;
   };
   market: { 
       title: string;

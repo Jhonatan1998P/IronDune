@@ -13,7 +13,7 @@ interface CombatReportProps {
     embedded?: boolean;
 }
 
-type TabType = 'summary' | 'player' | 'enemy' | 'analysis';
+type TabType = 'summary' | 'player' | 'allies' | 'enemy' | 'analysis';
 
 const getResourceIcon = (res: string) => {
     switch(res) {
@@ -328,6 +328,97 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         );
     };
 
+    const renderAllyList = () => {
+        const allyArmies = result.initialAllyArmies;
+        const allyCasualties = result.totalAllyCasualties || {};
+        const finalAllyArmies = result.finalAllyArmies || {};
+
+        if (!allyArmies || Object.keys(allyArmies).length === 0) {
+            return (
+                <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
+                    <div className="text-5xl mb-4 opacity-50">🤝</div>
+                    <span className="text-sm font-bold uppercase tracking-widest">{t.reports.no_allies}</span>
+                </div>
+            );
+        }
+
+        const allyIds = Object.keys(allyArmies);
+
+        return (
+            <div className="space-y-6">
+                {allyIds.map(allyId => {
+                    const initialArmy = allyArmies[allyId] || {};
+                    const casualties = allyCasualties[allyId] || {};
+                    const finalArmy = finalAllyArmies[allyId] || {};
+                    const allyBotName = log.params?.allyNames?.[allyId] || allyId;
+
+                    const activeUnits = sortedUnitTypes.filter(u => (initialArmy[u] || 0) > 0);
+
+                    if (activeUnits.length === 0) return null;
+
+                    return (
+                        <div key={allyId} className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4 sm:p-6">
+                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
+                                <div className="p-2 bg-emerald-500/20 rounded-lg">
+                                    <Icons.Shield className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-emerald-400 font-bold text-sm sm:text-base uppercase tracking-wider">{allyBotName}</h3>
+                                    <p className="text-[10px] text-emerald-500/70 font-mono">{t.reports.allied_reinforcements}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-emerald-300 font-mono">
+                                        {formatNumber(Object.values(initialArmy).reduce((a, b) => a + (b || 0), 0))} {t.reports.units}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="grid grid-cols-4 gap-1 sm:gap-2 text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold px-3 sm:px-4 mb-2">
+                                    <div className="col-span-2">{t.reports.unit_type}</div>
+                                    <div className="text-center">{t.reports.lost}</div>
+                                    <div className="text-right">{t.reports.survived}</div>
+                                </div>
+
+                                {activeUnits.map(uType => {
+                                    const start = initialArmy[uType] || 0;
+                                    const lost = casualties[uType] || 0;
+                                    const end = finalArmy[uType] || 0;
+                                    const def = UNIT_DEFS[uType];
+                                    const name = t.units[def.translationKey]?.name || uType;
+
+                                    const safeWidth = start > 0 ? (end/start)*100 : 0;
+                                    const lossWidth = start > 0 ? (lost/start)*100 : 0;
+
+                                    return (
+                                        <div key={uType} className="p-2.5 sm:p-4 rounded-xl border bg-emerald-900/10 border-emerald-500/10 flex flex-col gap-2 sm:gap-3 shadow-sm">
+                                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                                <span className="font-bold text-xs sm:text-sm text-emerald-300 truncate">{name}</span>
+                                                <span className="text-[10px] sm:text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                    {t.reports.deployed}: <span className="text-white font-bold">{formatNumber(start)}</span>
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 sm:gap-4">
+                                                <div className="flex-1 h-2 sm:h-3 bg-black/50 rounded-full overflow-hidden flex border border-white/5">
+                                                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${safeWidth}%` }}></div>
+                                                    <div className="h-full bg-red-600 transition-all" style={{ width: `${lossWidth}%` }}></div>
+                                                </div>
+                                                <div className="flex gap-3 sm:gap-6 font-mono text-xs sm:text-sm shrink-0 w-20 sm:w-24 justify-end">
+                                                    <div className="text-red-400 font-bold w-6 sm:w-8 text-right">-{formatNumber(lost)}</div>
+                                                    <div className={`w-6 sm:w-8 text-right ${end > 0 ? "text-white font-bold" : "text-slate-600"}`}>{formatNumber(end)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     const renderAnalysis = () => {
         const perf = result.playerPerformance;
         if (!perf || Object.keys(perf).length === 0) {
@@ -479,6 +570,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                 <button onClick={() => setActiveTab('summary')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'summary' ? 'border-white/20 bg-slate-900 text-white shadow-[0_-5px_10px_rgba(0,0,0,0.3)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.common.ui.summary}</button>
                 <button onClick={() => setActiveTab('analysis')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'analysis' ? 'border-yellow-500/30 bg-slate-900 text-yellow-400 shadow-[0_-5px_10px_rgba(234,179,8,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.combat_analysis}</button>
                 <button onClick={() => setActiveTab('player')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'player' ? 'border-cyan-500/30 bg-slate-900 text-cyan-400 shadow-[0_-5px_10px_rgba(6,182,212,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.friendly}</button>
+                <button onClick={() => setActiveTab('allies')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'allies' ? 'border-emerald-500/30 bg-slate-900 text-emerald-400 shadow-[0_-5px_10px_rgba(16,185,129,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.allies}</button>
                 <button onClick={() => setActiveTab('enemy')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'enemy' ? 'border-red-500/30 bg-slate-900 text-red-400 shadow-[0_-5px_10px_rgba(239,68,68,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.hostile}</button>
             </div>
 
@@ -595,6 +687,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                 )}
                 {activeTab === 'analysis' && <div className="animate-[fadeIn_0.2s_ease-out]">{renderAnalysis()}</div>}
                 {activeTab === 'player' && <div className="animate-[fadeIn_0.2s_ease-out]">{renderUnitList('player')}</div>}
+                {activeTab === 'allies' && <div className="animate-[fadeIn_0.2s_ease-out]">{renderAllyList()}</div>}
                 {activeTab === 'enemy' && <div className="animate-[fadeIn_0.2s_ease-out]">{renderUnitList('enemy')}</div>}
             </div>
 

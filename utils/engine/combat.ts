@@ -19,7 +19,8 @@ export const UNIT_PRIORITY: UnitType[] = [
 interface BattleEntity {
     id: number;
     type: UnitType;
-    side: 'PLAYER' | 'ENEMY';
+    side: 'PLAYER' | 'ENEMY' | 'ALLY'; // Added ALLY side
+    allyId?: string; // For tracking which ally sent this unit
     hp: number;
     maxHp: number;
     defense: number;
@@ -51,8 +52,9 @@ const getOrInitPerf = (
 
 const createArmyEntities = (
     army: Partial<Record<UnitType, number>>,
-    side: 'PLAYER' | 'ENEMY',
-    startId: number
+    side: 'PLAYER' | 'ENEMY' | 'ALLY',
+    startId: number,
+    allyId?: string // For tracking which ally sent these units
 ): BattleEntity[] => {
     const entities: BattleEntity[] = [];
     let idCounter = startId;
@@ -61,12 +63,16 @@ const createArmyEntities = (
         if (!count || count <= 0) continue;
         const uType = uKey as UnitType;
         const def = UNIT_DEFS[uType];
+        
+        // Skip invalid unit types
+        if (!def) continue;
 
         for (let i = 0; i < count; i++) {
             entities.push({
                 id: idCounter++,
                 type: uType,
                 side,
+                allyId: side === 'ALLY' ? allyId : undefined,
                 hp: def.hp,
                 maxHp: def.hp,
                 defense: def.defense,
@@ -85,36 +91,60 @@ const createArmyEntities = (
 export const simulateCombat = (
     initialPlayerArmy: Partial<Record<UnitType, number>>,
     initialEnemyArmy: Partial<Record<UnitType, number>>,
-    playerDamageMultiplier: number = 1.0
+    playerDamageMultiplier: number = 1.0,
+    initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>> // allyId -> army
 ): BattleResult => {
 
     const playerEntities = createArmyEntities(initialPlayerArmy, 'PLAYER', 0);
-    const enemyEntities  = createArmyEntities(initialEnemyArmy,  'ENEMY',  playerEntities.length);
+    
+    // Create ally entities if provided
+    let allyEntities: BattleEntity[] = [];
+    let currentId = playerEntities.length;
+    const allyArmiesMap: Record<string, BattleEntity[]> = {};
+    
+    if (initialAllyArmies) {
+        for (const [allyId, army] of Object.entries(initialAllyArmies)) {
+            const entities = createArmyEntities(army, 'ALLY', currentId, allyId);
+            allyArmiesMap[allyId] = entities;
+            allyEntities = allyEntities.concat(entities);
+            currentId += entities.length;
+        }
+    }
+    
+    const enemyEntities = createArmyEntities(initialEnemyArmy, 'ENEMY', currentId);
 
-    // Mantenemos dos arrays segregados como fuente de verdad permanente
-    // (no necesitamos allUnits para el combate, solo para resultados finales)
-    const allUnits: BattleEntity[] = [...playerEntities, ...enemyEntities];
+    // All units combined
+    const allUnits: BattleEntity[] = [...playerEntities, ...allyEntities, ...enemyEntities];
 
-    // HP totales iniciales — calculado UNA SOLA VEZ con un único recorrido
+    // HP totales iniciales
     let playerTotalHpStart = 0;
-    let enemyTotalHpStart  = 0;
+    let enemyTotalHpStart = 0;
     for (const u of allUnits) {
-        if (u.side === 'PLAYER') playerTotalHpStart += u.maxHp;
-        else                     enemyTotalHpStart  += u.maxHp;
+        if (u.side === 'PLAYER' || u.side === 'ALLY') playerTotalHpStart += u.maxHp;
+        else enemyTotalHpStart += u.maxHp;
     }
 
     let playerDamageDealt = 0;
-    let enemyDamageDealt  = 0;
+    let enemyDamageDealt = 0;
+    const allyDamageDealt: Record<string, number> = {};
 
     const playerPerformance: Partial<Record<UnitType, UnitPerformanceStats>> = {};
-    const enemyPerformance:  Partial<Record<UnitType, UnitPerformanceStats>> = {};
+    const enemyPerformance: Partial<Record<UnitType, UnitPerformanceStats>> = {};
+    const allyPerformance: Record<string, Partial<Record<UnitType, UnitPerformanceStats>>> = {};
+
+    // Initialize ally performance tracking
+    if (initialAllyArmies) {
+        for (const allyId of Object.keys(initialAllyArmies)) {
+            allyPerformance[allyId] = {};
+            allyDamageDealt[allyId] = 0;
+        }
+    }
 
     const rounds: BattleRoundLog[] = [];
 
-    // Arrays de trabajo reutilizables entre rondas (evita re-asignación de memoria)
-    // Se llenan al inicio de cada ronda y se gestionan con Swap-and-Pop
+    // Arrays de trabajo reutilizables entre rondas
     const playerTargets: BattleEntity[] = [];
-    const enemyTargets:  BattleEntity[] = [];
+    const enemyTargets: BattleEntity[] = [];
 
     // ─── BUCLE DE RONDAS ──────────────────────────────────────────────────────
     for (let round = 1; round <= MAX_ROUNDS; round++) {
@@ -128,7 +158,7 @@ export const simulateCombat = (
             // Restaurar escudo al inicio de la ronda
             u.defense        = u.maxDefense;
             u.markedForDeath = false;
-            if (u.side === 'PLAYER') playerTargets.push(u);
+            if (u.side === 'PLAYER' || u.side === 'ALLY') playerTargets.push(u);
             else                     enemyTargets.push(u);
         }
 
@@ -149,11 +179,9 @@ export const simulateCombat = (
 
         // 3. Fase de Fuego Simultáneo
         // Combinamos ambos bandos en un único array de disparadores y los mezclamos.
-        // Fisher-Yates en O(N) — garantiza imparcialidad de orden de disparo.
         const shooters: BattleEntity[] = [...playerTargets, ...enemyTargets];
         for (let i = shooters.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            // Destructuring swap — el motor V8 lo optimiza a un intercambio de punteros
             const tmp    = shooters[i];
             shooters[i]  = shooters[j];
             shooters[j]  = tmp;
@@ -161,37 +189,54 @@ export const simulateCombat = (
 
         for (const attacker of shooters) {
             const isPlayer = attacker.side === 'PLAYER';
+            const isAlly = attacker.side === 'ALLY';
+            const isFriendly = isPlayer || isAlly;
 
             // Cache de referencia al array enemigo y su contador
-            // (evita evaluar la condición isPlayer en cada iteración interna)
-            const targets     = isPlayer ? enemyTargets  : playerTargets;
-            let   targetCount = isPlayer ? eTargetCount  : pTargetCount;
+            const targets     = isFriendly ? enemyTargets  : playerTargets;
+            let   targetCount = isFriendly ? eTargetCount  : pTargetCount;
 
-            // Precalcular daño base del atacante (constante para toda su ráfaga)
-            const baseDamage  = isPlayer
+            // Precalcular daño base del atacante
+            const baseDamage  = isFriendly
                 ? Math.floor(attacker.def.attack * playerDamageMultiplier)
                 : attacker.def.attack;
 
             // Cache del slot de rendimiento del atacante
-            const attackerPerf  = isPlayer ? playerPerformance : enemyPerformance;
-            const aPerfSlot     = getOrInitPerf(attackerPerf, attacker.type);
+            let attackerPerf: Partial<Record<UnitType, UnitPerformanceStats>>;
+            if (isPlayer) {
+                attackerPerf = playerPerformance;
+            } else if (isAlly && attacker.allyId) {
+                attackerPerf = allyPerformance[attacker.allyId] || {};
+            } else {
+                attackerPerf = enemyPerformance;
+            }
+            const aPerfSlot = getOrInitPerf(attackerPerf, attacker.type);
 
-            // Mapa de rapidFire del atacante (undefined si no tiene)
+            // Mapa de rapidFire del atacante
             const rfMap = attacker.def.rapidFire;
 
             let keepShooting = true;
             while (keepShooting) {
                 keepShooting = false;
 
-                if (targetCount === 0) break;
-
-                // Seleccionar objetivo aleatorio en O(1)
-                const targetIndex = Math.floor(Math.random() * targetCount);
+                // Re-check target count on each iteration (may have changed due to concurrent attacks)
+                if (targetCount <= 0) break;
+                
+                // Safety: ensure targetCount matches actual array length
+                const actualCount = targets.length;
+                if (actualCount === 0) break;
+                
+                // Select target with bounds checking
+                const targetIndex = Math.floor(Math.random() * Math.min(targetCount, actualCount));
                 const target      = targets[targetIndex];
+                
+                // Safety check: skip if target is invalid
+                if (!target || target.isDead) break;
 
                 // ── Registrar daño ──────────────────────────────────────────
                 aPerfSlot.damageDealt += baseDamage;
                 if (isPlayer) playerDamageDealt += baseDamage;
+                else if (isAlly && attacker.allyId) allyDamageDealt[attacker.allyId] += baseDamage;
                 else          enemyDamageDealt  += baseDamage;
 
                 // ── Lógica de Impacto ───────────────────────────────────────
@@ -252,8 +297,12 @@ export const simulateCombat = (
 
                         // Swap-and-Pop O(1) si la unidad muere
                         if (died) {
-                            target.markedForDeath    = true;
-                            targets[targetIndex]     = targets[targetCount - 1];
+                            target.markedForDeath = true;
+                            
+                            // Safety check before swap
+                            if (targetCount > 0 && targetIndex < targets.length) {
+                                targets[targetIndex] = targets[targetCount - 1];
+                            }
                             targetCount--;
 
                             // Sincronizar el contador del bando correspondiente
@@ -292,18 +341,31 @@ export const simulateCombat = (
     }
 
     // ─── RESULTADOS ───────────────────────────────────────────────────────────
-    // Calcular HP final en un único recorrido (evita dos filter + reduce del original)
+    // Calcular HP final en un único recorrido
     let playerHpEnd = 0;
     let enemyHpEnd  = 0;
+    const allyHpEnd: Record<string, number> = {};
 
     const finalPlayerArmy: Partial<Record<UnitType, number>> = {};
     const finalEnemyArmy:  Partial<Record<UnitType, number>> = {};
+    const finalAllyArmies: Record<string, Partial<Record<UnitType, number>>> = {};
+
+    // Initialize ally HP tracking
+    if (initialAllyArmies) {
+        for (const allyId of Object.keys(initialAllyArmies)) {
+            allyHpEnd[allyId] = 0;
+            finalAllyArmies[allyId] = {};
+        }
+    }
 
     for (const u of allUnits) {
         if (u.isDead) continue;
         if (u.side === 'PLAYER') {
             playerHpEnd += u.hp;
             finalPlayerArmy[u.type] = (finalPlayerArmy[u.type] || 0) + 1;
+        } else if (u.side === 'ALLY' && u.allyId) {
+            allyHpEnd[u.allyId] += u.hp;
+            finalAllyArmies[u.allyId][u.type] = (finalAllyArmies[u.allyId][u.type] || 0) + 1;
         } else {
             enemyHpEnd += u.hp;
             finalEnemyArmy[u.type] = (finalEnemyArmy[u.type] || 0) + 1;
@@ -312,8 +374,26 @@ export const simulateCombat = (
 
     const totalPlayerCasualties = calculateCasualties(initialPlayerArmy, finalPlayerArmy);
     const totalEnemyCasualties  = calculateCasualties(initialEnemyArmy,  finalEnemyArmy);
+    const totalAllyCasualties: Record<string, Partial<Record<UnitType, number>>> = {};
 
-    const winner = determineWinner(initialPlayerArmy, initialEnemyArmy, finalPlayerArmy, finalEnemyArmy);
+    // Calculate ally casualties
+    if (initialAllyArmies) {
+        for (const [allyId, army] of Object.entries(initialAllyArmies)) {
+            totalAllyCasualties[allyId] = calculateCasualties(army, finalAllyArmies[allyId] || {});
+        }
+    }
+
+    // Combine player + allies for winner determination
+    const combinedFinalArmy: Partial<Record<UnitType, number>> = { ...finalPlayerArmy };
+    if (initialAllyArmies) {
+        for (const allyArmy of Object.values(finalAllyArmies)) {
+            for (const [uType, count] of Object.entries(allyArmy)) {
+                combinedFinalArmy[uType as UnitType] = (combinedFinalArmy[uType as UnitType] || 0) + (count || 0);
+            }
+        }
+    }
+
+    const winner = determineWinner(initialPlayerArmy, initialEnemyArmy, combinedFinalArmy, finalEnemyArmy);
 
     return {
         winner,
@@ -332,6 +412,12 @@ export const simulateCombat = (
         enemyDamageDealt,
         playerPerformance,
         enemyPerformance,
+        // Allied reinforcements data
+        initialAllyArmies: initialAllyArmies ? { ...initialAllyArmies } : undefined,
+        finalAllyArmies: initialAllyArmies ? finalAllyArmies : undefined,
+        totalAllyCasualties: initialAllyArmies ? totalAllyCasualties : undefined,
+        allyDamageDealt: initialAllyArmies ? allyDamageDealt : undefined,
+        allyPerformance: initialAllyArmies ? allyPerformance : undefined,
     };
 };
 
