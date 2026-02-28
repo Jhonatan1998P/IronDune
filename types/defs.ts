@@ -307,8 +307,18 @@ export interface TranslationDictionary {
       log_war_declared: string;
       log_war_overtime: string;
       log_war_ended: string;
+      war_system_error: string;
       log_intel_revenge: string;
       log_intel_fleet: string;
+      log_grudge_planning: string;
+      log_grudge_imminent: string;
+      log_grudge_created: string;
+      log_grudge_decayed: string;
+      log_grudge_forgiven: string;
+      log_enemy_attack: string;
+      log_attack_reset: string;
+      log_ally_reinforcement: string;
+      log_new_ally: string;
       loot_estimated: string;
       loot_reroll: string;
       system_status: string;

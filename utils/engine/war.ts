@@ -61,7 +61,6 @@ import {
     isValidResourceRecord,
     isValidUnitRecord
 } from './warValidation';
-import { logError, logWarning } from './errorLogger';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -86,12 +85,18 @@ interface LootDistributionResult {
 
 interface CombatResolution {
     winner: 'PLAYER' | 'ENEMY' | 'DRAW';
-    playerCasualties: Partial<Record<UnitType, number>>;
-    enemyCasualties: Partial<Record<UnitType, number>>;
+    playerCasualties?: Partial<Record<UnitType, number>>;
+    enemyCasualties?: Partial<Record<UnitType, number>>;
+    totalPlayerCasualties: Partial<Record<UnitType, number>>;
+    totalEnemyCasualties: Partial<Record<UnitType, number>>;
     playerResourceLoss: Partial<Record<ResourceType, number>>;
     enemyResourceLoss: Partial<Record<ResourceType, number>>;
     stolenBuildings: Partial<Record<BuildingType, number>>;
     diamondDamaged: boolean;
+    initialPlayerArmy?: Record<UnitType, number>;
+    initialEnemyArmy?: Partial<Record<UnitType, number>>;
+    finalPlayerArmy?: Record<UnitType, number>;
+    finalEnemyArmy?: Partial<Record<UnitType, number>>;
     // Allied reinforcements data (V1.5)
     initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
     finalAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
@@ -121,7 +126,6 @@ export const generateWarWave = (
     try {
         // Validate inputs
         if (waveNumber < 1 || waveNumber > 100) {
-            logWarning('war', `Invalid wave number: ${waveNumber}`, { waveNumber, warId: warState.id });
             waveNumber = Math.max(1, Math.min(100, waveNumber));
         }
 
@@ -146,7 +150,6 @@ export const generateWarWave = (
         
         // Validate generated army
         if (!isValidUnitRecord(enemyForce)) {
-            logError('war', 'Generated invalid enemy force', { waveNumber, enemyScore: warState.enemyScore });
             // Fallback to minimal army
             return createFallbackWave(state, waveNumber, warState, specificEndTime);
         }
@@ -156,7 +159,6 @@ export const generateWarWave = (
 
         // Validate end time
         if (endTime <= now || endTime > now + (60 * 60 * 1000)) {
-            logWarning('war', 'Invalid wave end time, correcting', { endTime, now });
             return createFallbackWave(state, waveNumber, warState, undefined);
         }
 
@@ -172,7 +174,6 @@ export const generateWarWave = (
             isScouted: false
         };
     } catch (error) {
-        logError('war', 'Failed to generate war wave', { waveNumber, error });
         return createFallbackWave(state, waveNumber, warState, specificEndTime);
     }
 };
@@ -243,7 +244,6 @@ export const startWar = (
                 // Validate score consistency
                 const scoreRatio = bot.stats[RankingCategory.DOMINION] / Math.max(1, enemyScore);
                 if (scoreRatio < 0.5 || scoreRatio > 2.0) {
-                    logWarning('war', 'Enemy score inconsistent with ranking data, using ranking score');
                     enemyScore = bot.stats[RankingCategory.DOMINION];
                 }
             }
@@ -251,7 +251,6 @@ export const startWar = (
 
         // Final validation
         if (!enemyId || enemyScore <= 0) {
-            logError('war', 'Failed to select valid enemy for war');
             return state; // Can't start war without valid enemy
         }
 
@@ -271,7 +270,6 @@ export const startWar = (
         const initialGarrison = generateBotArmy(enemyScore, fullBudgetMultiplier, enemyPersonality);
         
         if (!isValidUnitRecord(initialGarrison)) {
-            logError('war', 'Failed to generate valid initial garrison');
             return state;
         }
 
@@ -302,7 +300,6 @@ export const startWar = (
         // Validate war state before activation
         const validation = validateWarState(warState, state.empirePoints);
         if (!validation.valid) {
-            logError('war', 'Generated invalid war state', validation.errors);
             return state;
         }
 
@@ -310,7 +307,6 @@ export const startWar = (
 
         // Validate first wave
         if (!isValidIncomingAttack(firstWave)) {
-            logError('war', 'Generated invalid first wave');
             return state;
         }
 
@@ -320,7 +316,6 @@ export const startWar = (
             incomingAttacks: [...state.incomingAttacks, firstWave]
         };
     } catch (error) {
-        logError('war', 'Critical error starting war', { error });
         return state; // Return unchanged state on critical error
     }
 };
@@ -381,7 +376,6 @@ export const distributeWarLoot = (
 
     // Validate inputs
     if (!isValidResourceRecord(pool)) {
-        logError('war', 'Invalid loot pool received');
         pool = {
             [ResourceType.MONEY]: 0,
             [ResourceType.OIL]: 0,
@@ -392,7 +386,6 @@ export const distributeWarLoot = (
     }
 
     if (!isValidResourceRecord(currentResources) || !isValidResourceRecord(maxResources)) {
-        logError('war', 'Invalid resource state for loot distribution');
         return createDefeatResult(currentResources, currentBank);
     }
 
@@ -545,13 +538,17 @@ const resolveWarCombat = (
 
     return {
         winner: result.winner,
-        playerCasualties: result.totalPlayerCasualties,
-        enemyCasualties: result.totalEnemyCasualties,
+        rounds: result.rounds || [],
+        initialPlayerArmy: currentUnits,
+        initialEnemyArmy: enemyUnits,
+        finalPlayerArmy: result.finalPlayerArmy,
+        finalEnemyArmy: result.finalEnemyArmy,
+        totalPlayerCasualties: result.totalPlayerCasualties,
+        totalEnemyCasualties: result.totalEnemyCasualties,
         playerResourceLoss,
         enemyResourceLoss,
         stolenBuildings: {},
         diamondDamaged: false
-        // NOTE: No ally data in WAR mode
     };
 };
 
@@ -581,11 +578,6 @@ const resolveRaidCombat = (
     
     const result = simulateCombat(currentUnits, enemyUnits, playerDamageMultiplier, allyArmies);
     
-    console.error('[DEBUG] resolveRaidCombat:');
-    console.error('  initialEnemyArmy:', result.initialEnemyArmy);
-    console.error('  totalEnemyCasualties:', result.totalEnemyCasualties);
-    console.error('  finalEnemyArmy:', result.finalEnemyArmy);
-
     const stolenBuildings: Partial<Record<BuildingType, number>> = {};
     let diamondDamaged = false;
 
@@ -612,8 +604,13 @@ const resolveRaidCombat = (
 
     return {
         winner: result.winner,
-        playerCasualties: result.totalPlayerCasualties,
-        enemyCasualties: result.totalEnemyCasualties,
+        rounds: result.rounds || [],
+        initialPlayerArmy: currentUnits,
+        initialEnemyArmy: enemyUnits,
+        finalPlayerArmy: result.finalPlayerArmy,
+        finalEnemyArmy: result.finalEnemyArmy,
+        totalPlayerCasualties: result.totalPlayerCasualties,
+        totalEnemyCasualties: result.totalEnemyCasualties,
         playerResourceLoss: calculateResourceCost(result.totalPlayerCasualties),
         enemyResourceLoss: calculateResourceCost(result.totalEnemyCasualties),
         stolenBuildings,
@@ -650,7 +647,6 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
         const systemValidation = validateWarSystem(state);
         if (!systemValidation.valid) {
             errors.push(...systemValidation.errors);
-            logError('war', 'War system validation failed', systemValidation.errors);
         }
         warnings.push(...systemValidation.warnings);
 
@@ -660,7 +656,6 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
 
         // Validate nextAttackTime
         if (nextAttackTime <= 0 || nextAttackTime > now + (24 * 60 * 60 * 1000)) {
-            logWarning('war', 'Invalid nextAttackTime, resetting');
             nextAttackTime = now + (3 * 60 * 60 * 1000);
         }
 
@@ -673,10 +668,8 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
 
         // Validate active war
         if (activeWar && !isValidWarState(activeWar)) {
-            logError('war', 'Active war state invalid, attempting repair');
             activeWar = sanitizeWarState(activeWar, state.empirePoints);
             if (!activeWar) {
-                logError('war', 'War state beyond repair, terminating');
                 activeWar = null;
                 errors.push('War state corrupted and terminated');
             }
@@ -758,18 +751,6 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
             warnings
         };
     } catch (error) {
-        console.error('[WAR][ERROR] Critical error in processWarTick:', error);
-        console.error('[WAR][ERROR] Error stack:', error instanceof Error ? error.stack : 'No stack');
-        console.error('[WAR][ERROR] Active war state:', activeWar ? {
-            empire: activeWar.empire,
-            wave: activeWar.currentWave,
-            status: activeWar.status
-        } : 'No active war');
-        
-        logError('war', 'Critical error in processWarTick', { 
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined
-        });
         errors.push('Critical war processing error');
         
         // Return safe state
@@ -879,7 +860,6 @@ const handleRandomAttack = (
 
         // Validate next attack time
         if (newNextAttackTime <= now || newNextAttackTime > now + (24 * 60 * 60 * 1000)) {
-            logWarning('war', 'Invalid attack cooldown, using default');
             nextAttackTime = now + (3 * 60 * 60 * 1000);
         } else {
             nextAttackTime = newNextAttackTime;
@@ -938,30 +918,15 @@ const processIncomingAttacks = (
     for (const attack of attacks) {
         try {
             if (now >= attack.endTime) {
-                console.error('[DEBUG] processIncomingAttacks: Processing attack', {
-                    attacker: attack.attackerName,
-                    isWarWave: attack.isWarWave,
-                    hasActiveWar: !!activeWar,
-                    attackUnits: attack.units
-                });
-
                 // Resolve combat with allied reinforcements
                 const combat = attack.isWarWave && activeWar
                     ? resolveWarCombat(units, attack.units, 1.0, state)
                     : resolveRaidCombat(units, attack.units, buildings, 1.0, state);
 
-                console.error('[DEBUG] processIncomingAttacks: Combat result', {
-                    winner: combat.winner,
-                    playerCasualties: combat.playerCasualties,
-                    enemyCasualties: combat.enemyCasualties,
-                    finalPlayerArmy: combat.finalPlayerArmy,
-                    finalEnemyArmy: combat.finalEnemyArmy
-                });
-
                 // Apply casualties to player units
-                if (combat.playerCasualties) {
-                    (Object.keys(combat.playerCasualties) as UnitType[]).forEach(uType => {
-                        const casualties = combat.playerCasualties[uType] || 0;
+                if (combat.totalPlayerCasualties) {
+                    (Object.keys(combat.totalPlayerCasualties) as UnitType[]).forEach(uType => {
+                        const casualties = combat.totalPlayerCasualties[uType] || 0;
                         if (casualties > 0 && units[uType]) {
                             units[uType] = Math.max(0, (units[uType] || 0) - casualties);
                         }
@@ -969,8 +934,8 @@ const processIncomingAttacks = (
                 }
 
                 // Apply casualties
-                const playerCasualtyCount = Object.values(combat.playerCasualties).reduce((a, b) => a + (b || 0), 0);
-                const enemyCasualtyCount = Object.values(combat.enemyCasualties).reduce((a, b) => a + (b || 0), 0);
+                const playerCasualtyCount = Object.values(combat.totalPlayerCasualties).reduce((a, b) => a + (b || 0), 0);
+                const enemyCasualtyCount = Object.values(combat.totalEnemyCasualties).reduce((a, b) => a + (b || 0), 0);
 
                 lifetimeStats.unitsLost += playerCasualtyCount;
                 lifetimeStats.enemiesKilled += enemyCasualtyCount;
@@ -1048,8 +1013,6 @@ const processIncomingAttacks = (
                 remainingAttacks.push(attack);
             }
         } catch (error) {
-            console.error('[WAR][ERROR] Error processing attack:', error);
-            console.error('[WAR][ERROR] Attack details:', attack);
         }
     }
 

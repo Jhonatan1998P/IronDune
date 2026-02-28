@@ -52,9 +52,17 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     else if (log.messageKey === 'log_war_started') msg = t.common.ui.log_war_declared;
     else if (log.messageKey === 'log_war_overtime') msg = t.common.ui.log_war_overtime;
     else if (log.messageKey === 'log_war_ended') msg = `${t.common.ui.log_war_ended}: ${log.params?.winner === 'PLAYER' ? t.features.war.you : t.features.war.enemy}`;
-    else if (log.messageKey === 'log_grudge_planning') msg = t.common.ui.log_intel_revenge.replace('{attacker}', log.params?.attacker || 'Unknown');
-    else if (log.messageKey === 'log_grudge_imminent') msg = t.common.ui.log_intel_fleet.replace('{attacker}', log.params?.attacker || 'Unknown');
+    else if (log.messageKey === 'log_grudge_planning') msg = t.common.ui.log_grudge_planning.replace('{attacker}', log.params?.attacker || 'Unknown');
+    else if (log.messageKey === 'log_grudge_imminent') msg = t.common.ui.log_grudge_imminent.replace('{attacker}', log.params?.attacker || 'Unknown');
     else if (log.messageKey === 'alert_incoming') msg = t.common.ui.alert_incoming;
+    else if (log.messageKey === 'log_grudge_created' && log.params) msg = t.common.ui.log_grudge_created.replace('{attacker}', log.params.attacker || 'Unknown').replace('{retaliationTime}', log.params.retaliationTime || '?');
+    else if (log.messageKey === 'log_grudge_decayed') msg = t.common.ui.log_grudge_decayed.replace('{attacker}', log.params?.attacker || 'Unknown');
+    else if (log.messageKey === 'log_grudge_forgiven') msg = t.common.ui.log_grudge_forgiven.replace('{attacker}', log.params?.attacker || 'Unknown');
+    else if (log.messageKey === 'log_enemy_attack' && log.params) msg = t.common.ui.log_enemy_attack.replace('{attacker}', log.params.attacker || 'Unknown').replace('{reputation}', log.params.reputation || '?');
+    else if (log.messageKey === 'log_attack_reset') msg = t.common.ui.log_attack_reset;
+    else if (log.messageKey === 'log_ally_reinforcement') msg = t.common.ui.log_ally_reinforcement.replace('{allyName}', log.params?.allyName || 'Unknown');
+    else if (log.messageKey === 'log_new_ally') msg = t.common.ui.log_new_ally;
+    else if (log.messageKey === 'war_system_error') msg = t.common.ui.war_system_error;
     else if (log.type === 'research') {
         const name = t.techs[TECH_DEFS[log.messageKey as TechType]?.translationKey ?? '']?.name || log.messageKey;
         msg = `${t.common.actions.researched}: ${name}`;

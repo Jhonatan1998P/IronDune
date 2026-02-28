@@ -313,6 +313,7 @@ export const ui = {
         log_war_declared: "GUERRA TOTAL DECLARADA",
         log_war_overtime: "¡TIEMPO EXTRA!",
         log_war_ended: "GUERRA FINALIZADA",
+        war_system_error: "ERROR DEL SISTEMA DE GUERRA",
         log_intel_revenge: "INTEL: {attacker} está planeando venganza...",
         log_intel_fleet: "ALERTA: Firmas de flota de {attacker} detectadas cerca.",
         log_grudge_created: "INTEL: ¡{attacker} busca venganza! ETA: {retaliationTime}",

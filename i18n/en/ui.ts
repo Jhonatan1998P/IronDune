@@ -313,6 +313,7 @@ export const ui = {
         log_war_declared: "TOTAL WAR DECLARED",
         log_war_overtime: "WAR OVERTIME!",
         log_war_ended: "WAR ENDED",
+        war_system_error: "WAR SYSTEM ERROR",
         log_intel_revenge: "INTEL: {attacker} is plotting revenge...",
         log_intel_fleet: "WARNING: {attacker} fleet signatures detected nearby.",
         log_grudge_created: "INTEL: {attacker} is seeking revenge! ETA: {retaliationTime}",

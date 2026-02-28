@@ -202,6 +202,18 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
 
     const result = log.params.combatResult as BattleResult;
 
+    // DEBUG: Log the result data
+    console.log('[DEBUG] CombatReportModal - result:', {
+        winner: result.winner,
+        rounds: result.rounds,
+        initialPlayerArmy: result.initialPlayerArmy,
+        initialEnemyArmy: result.initialEnemyArmy,
+        totalPlayerCasualties: result.totalPlayerCasualties,
+        totalEnemyCasualties: result.totalEnemyCasualties,
+        finalPlayerArmy: result.finalPlayerArmy,
+        finalEnemyArmy: result.finalEnemyArmy
+    });
+
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
@@ -281,24 +293,14 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         const isPlayer = side === 'player';
         const initialArmy = isPlayer ? (result.initialPlayerArmy || {}) : (result.initialEnemyArmy || {});
         const casualties = isPlayer ? (result.totalPlayerCasualties || {}) : (result.totalEnemyCasualties || {});
-        const finalArmy = isPlayer ? (result.finalPlayerArmy || {}) : (result.finalEnemyArmy || {});
         const colorClass = isPlayer ? 'text-cyan-400' : 'text-red-400';
         const bgClass = isPlayer ? 'bg-cyan-950/20 border-cyan-500/20' : 'bg-red-950/20 border-red-500/20';
 
-        console.error(`[DEBUG] renderUnitList(${side}):`);
-        console.error(`  initialArmy keys:`, Object.keys(initialArmy));
-        console.error(`  initialArmy values:`, Object.values(initialArmy));
-        console.error(`  casualties:`, casualties);
-        console.error(`  sortedUnitTypes:`, sortedUnitTypes);
-
         const activeUnits = sortedUnitTypes.filter(u => {
             const count = initialArmy[u];
-            if (count > 0) console.error(`  Unidad ${u}: ${count}`);
-            return count > 0;
+            return (count || 0) > 0;
         });
         
-        console.error(`  activeUnits:`, activeUnits);
-
         if (activeUnits.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
@@ -309,40 +311,40 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         }
 
         return (
-            <div className="space-y-2 sm:space-y-3">
-                <div className="grid grid-cols-4 gap-1 sm:gap-2 text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold px-3 sm:px-4 mb-2">
-                    <div className="col-span-2">{t.reports.unit_type}</div>
-                    <div className="text-center">{t.reports.lost}</div>
-                    <div className="text-right">{t.reports.survived}</div>
+            <div className="space-y-1.5 sm:space-y-2">
+                <div className="grid grid-cols-[1fr_auto] gap-1 sm:gap-2 text-[8px] sm:text-[9px] md:text-[10px] uppercase tracking-wider text-slate-500 font-bold px-1 sm:px-2 mb-1.5">
+                    <div className="truncate">Unidad</div>
+                    <div className="text-right whitespace-nowrap">Bajas | Sobreviven</div>
                 </div>
 
                 {activeUnits.map(uType => {
-                    const start = initialArmy[uType] || 0;
+                    const initial = initialArmy[uType] || 0;
                     const lost = casualties[uType] || 0;
-                    const end = finalArmy[uType] || 0;
+                    const survived = initial - lost;
                     const def = UNIT_DEFS[uType];
                     const name = t.units[def.translationKey]?.name || uType;
-
-                    const safeWidth = start > 0 ? (end/start)*100 : 0;
-                    const lossWidth = start > 0 ? (lost/start)*100 : 0;
+                    const lostPercent = initial > 0 ? (lost / initial) * 100 : 0;
+                    const survivedPercent = initial > 0 ? (survived / initial) * 100 : 0;
 
                     return (
-                        <div key={uType} className={`p-2.5 sm:p-4 rounded-xl border ${bgClass} flex flex-col gap-2 sm:gap-3 shadow-sm hover:bg-white/5 transition-colors`}>
-                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                <span className={`font-bold text-xs sm:text-sm ${colorClass} truncate`}>{name}</span>
-                                <span className="text-[10px] sm:text-xs font-mono text-slate-400 whitespace-nowrap">
-                                    {t.reports.deployed}: <span className="text-white font-bold">{formatNumber(start)}</span>
-                                </span>
+                        <div key={uType} className={`p-1.5 sm:p-2.5 md:p-3 rounded-lg border ${bgClass} flex flex-col gap-1 sm:gap-1.5 shadow-sm hover:bg-white/5 transition-colors`}>
+                            <div className="flex justify-between items-center min-w-0">
+                                <span className={`font-bold text-[10px] sm:text-xs md:text-sm ${colorClass} truncate pr-2`}>{name}</span>
+                                <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[10px] md:text-xs font-mono whitespace-nowrap shrink-0">
+                                    <span className="text-red-400 font-bold">-{formatNumber(lost)}</span>
+                                    <span className="text-slate-500">|</span>
+                                    <span className="text-emerald-400 font-bold">{formatNumber(survived)}</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 sm:gap-4">
-                                <div className="flex-1 h-2 sm:h-3 bg-black/50 rounded-full overflow-hidden flex border border-white/5">
-                                    <div className={`h-full ${isPlayer ? 'bg-cyan-500' : 'bg-orange-500'} transition-all`} style={{ width: `${safeWidth}%` }}></div>
-                                    <div className="h-full bg-red-600 transition-all" style={{ width: `${lossWidth}%` }}></div>
-                                </div>
-                                <div className="flex gap-3 sm:gap-6 font-mono text-xs sm:text-sm shrink-0 w-20 sm:w-24 justify-end">
-                                    <div className="text-red-400 font-bold w-6 sm:w-8 text-right">-{formatNumber(lost)}</div>
-                                    <div className={`w-6 sm:w-8 text-right ${end > 0 ? "text-white font-bold" : "text-slate-600"}`}>{formatNumber(end)}</div>
-                                </div>
+                            <div className="w-full h-1.5 sm:h-2 md:h-2.5 bg-slate-900/80 rounded-full overflow-hidden border border-white/5">
+                                <div 
+                                    className="h-full bg-gradient-to-r from-red-500 to-red-600 transition-all duration-500" 
+                                    style={{ width: `${lostPercent}%` }}
+                                />
+                                <div 
+                                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 -mt-1.5 sm:-mt-2 md:-mt-2.5 transition-all duration-500" 
+                                    style={{ width: `${survivedPercent}%`, marginTop: lostPercent > 0 ? '-100%' : '0' }}
+                                />
                             </div>
                         </div>
                     );
@@ -354,7 +356,6 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const renderAllyList = () => {
         const allyArmies = result.initialAllyArmies;
         const allyCasualties = result.totalAllyCasualties || {};
-        const finalAllyArmies = result.finalAllyArmies || {};
 
         if (!allyArmies || Object.keys(allyArmies).length === 0) {
             return (
@@ -372,7 +373,6 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                 {allyIds.map(allyId => {
                     const initialArmy = allyArmies[allyId] || {};
                     const casualties = allyCasualties[allyId] || {};
-                    const finalArmy = finalAllyArmies[allyId] || {};
                     const allyBotName = log.params?.allyNames?.[allyId] || allyId;
 
                     const activeUnits = sortedUnitTypes.filter(u => (initialArmy[u] || 0) > 0);
@@ -389,47 +389,42 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                                     <h3 className="text-emerald-400 font-bold text-sm sm:text-base uppercase tracking-wider">{allyBotName}</h3>
                                     <p className="text-[10px] text-emerald-500/70 font-mono">{t.reports.allied_reinforcements}</p>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-xs text-emerald-300 font-mono">
-                                        {formatNumber(Object.values(initialArmy).reduce((a, b) => a + (b || 0), 0))} {t.reports.units}
-                                    </div>
-                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <div className="grid grid-cols-4 gap-1 sm:gap-2 text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold px-3 sm:px-4 mb-2">
-                                    <div className="col-span-2">{t.reports.unit_type}</div>
-                                    <div className="text-center">{t.reports.lost}</div>
-                                    <div className="text-right">{t.reports.survived}</div>
+                            <div className="space-y-1">
+                                <div className="grid grid-cols-[1fr_auto] gap-1 sm:gap-2 text-[8px] sm:text-[9px] md:text-[10px] uppercase tracking-wider text-slate-500 font-bold px-1 sm:px-2 mb-1.5">
+                                    <div className="truncate">Unidad</div>
+                                    <div className="text-right whitespace-nowrap">Bajas | Sobreviven</div>
                                 </div>
 
                                 {activeUnits.map(uType => {
-                                    const start = initialArmy[uType] || 0;
+                                    const initial = initialArmy[uType] || 0;
                                     const lost = casualties[uType] || 0;
-                                    const end = finalArmy[uType] || 0;
+                                    const survived = initial - lost;
                                     const def = UNIT_DEFS[uType];
                                     const name = t.units[def.translationKey]?.name || uType;
-
-                                    const safeWidth = start > 0 ? (end/start)*100 : 0;
-                                    const lossWidth = start > 0 ? (lost/start)*100 : 0;
+                                    const lostPercent = initial > 0 ? (lost / initial) * 100 : 0;
+                                    const survivedPercent = initial > 0 ? (survived / initial) * 100 : 0;
 
                                     return (
-                                        <div key={uType} className="p-2.5 sm:p-4 rounded-xl border bg-emerald-900/10 border-emerald-500/10 flex flex-col gap-2 sm:gap-3 shadow-sm">
-                                            <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                                <span className="font-bold text-xs sm:text-sm text-emerald-300 truncate">{name}</span>
-                                                <span className="text-[10px] sm:text-xs font-mono text-slate-400 whitespace-nowrap">
-                                                    {t.reports.deployed}: <span className="text-white font-bold">{formatNumber(start)}</span>
-                                                </span>
+                                        <div key={uType} className="p-1.5 sm:p-2.5 md:p-3 rounded-lg border bg-emerald-900/10 border-emerald-500/10 flex flex-col gap-1 sm:gap-1.5 shadow-sm">
+                                            <div className="flex justify-between items-center min-w-0">
+                                                <span className="font-bold text-[10px] sm:text-xs md:text-sm text-emerald-300 truncate pr-2">{name}</span>
+                                                <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[10px] md:text-xs font-mono whitespace-nowrap shrink-0">
+                                                    <span className="text-red-400 font-bold">-{formatNumber(lost)}</span>
+                                                    <span className="text-slate-500">|</span>
+                                                    <span className="text-emerald-400 font-bold">{formatNumber(survived)}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 sm:gap-4">
-                                                <div className="flex-1 h-2 sm:h-3 bg-black/50 rounded-full overflow-hidden flex border border-white/5">
-                                                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${safeWidth}%` }}></div>
-                                                    <div className="h-full bg-red-600 transition-all" style={{ width: `${lossWidth}%` }}></div>
-                                                </div>
-                                                <div className="flex gap-3 sm:gap-6 font-mono text-xs sm:text-sm shrink-0 w-20 sm:w-24 justify-end">
-                                                    <div className="text-red-400 font-bold w-6 sm:w-8 text-right">-{formatNumber(lost)}</div>
-                                                    <div className={`w-6 sm:w-8 text-right ${end > 0 ? "text-white font-bold" : "text-slate-600"}`}>{formatNumber(end)}</div>
-                                                </div>
+                                            <div className="w-full h-1.5 sm:h-2 md:h-2.5 bg-slate-900/80 rounded-full overflow-hidden border border-white/5">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-red-500 to-red-600 transition-all duration-500" 
+                                                    style={{ width: `${lostPercent}%` }}
+                                                />
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 -mt-1.5 sm:-mt-2 md:-mt-2.5 transition-all duration-500" 
+                                                    style={{ width: `${survivedPercent}%`, marginTop: lostPercent > 0 ? '-100%' : '0' }}
+                                                />
                                             </div>
                                         </div>
                                     );
@@ -592,9 +587,9 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
             <div className={`flex border-b border-white/10 bg-black/80 backdrop-blur-md shrink-0 overflow-x-auto no-scrollbar shadow-inner px-1.5 sm:px-2 pt-1.5 sm:pt-2 gap-1 ${embedded ? '' : 'sticky top-0 z-30'}`}>
                 <button onClick={() => setActiveTab('summary')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'summary' ? 'border-white/20 bg-slate-900 text-white shadow-[0_-5px_10px_rgba(0,0,0,0.3)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.common.ui.summary}</button>
                 <button onClick={() => setActiveTab('analysis')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'analysis' ? 'border-yellow-500/30 bg-slate-900 text-yellow-400 shadow-[0_-5px_10px_rgba(234,179,8,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.combat_analysis}</button>
-                <button onClick={() => setActiveTab('player')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'player' ? 'border-cyan-500/30 bg-slate-900 text-cyan-400 shadow-[0_-5px_10px_rgba(6,182,212,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.friendly}</button>
-                <button onClick={() => setActiveTab('allies')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'allies' ? 'border-emerald-500/30 bg-slate-900 text-emerald-400 shadow-[0_-5px_10px_rgba(16,185,129,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.allies}</button>
-                <button onClick={() => setActiveTab('enemy')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'enemy' ? 'border-red-500/30 bg-slate-900 text-red-400 shadow-[0_-5px_10px_rgba(239,68,68,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>{t.reports.hostile}</button>
+                <button onClick={() => setActiveTab('player')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'player' ? 'border-cyan-500/30 bg-slate-900 text-cyan-400 shadow-[0_-5px_10px_rgba(6,182,212,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>Propias</button>
+                <button onClick={() => setActiveTab('allies')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'allies' ? 'border-emerald-500/30 bg-slate-900 text-emerald-400 shadow-[0_-5px_10px_rgba(16,185,129,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>Aliados</button>
+                <button onClick={() => setActiveTab('enemy')} className={`px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all rounded-t-lg border-t border-x whitespace-nowrap ${activeTab === 'enemy' ? 'border-red-500/30 bg-slate-900 text-red-400 shadow-[0_-5px_10px_rgba(239,68,68,0.1)]' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}>Enemigos</button>
             </div>
 
             {/* Scrollable Content Area */}
@@ -605,11 +600,11 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                         {/* Combatants Info */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="bg-cyan-900/20 border border-cyan-500/30 p-3 sm:p-4 rounded-xl flex flex-col items-center">
-                                <span className="text-[9px] sm:text-[10px] text-cyan-400 uppercase tracking-widest mb-1 font-bold text-center">{t.reports.friendly}</span>
+                                <span className="text-[9px] sm:text-[10px] text-cyan-400 uppercase tracking-widest mb-1 font-bold text-center">Propias</span>
                                 <span className="text-white font-tech text-sm sm:text-lg uppercase tracking-wider text-center">{t.reports.you_label}</span>
                             </div>
                             <div className="bg-red-900/20 border border-red-500/30 p-3 sm:p-4 rounded-xl flex flex-col items-center">
-                                <span className="text-[9px] sm:text-[10px] text-red-400 uppercase tracking-widest mb-1 font-bold text-center">{t.reports.hostile}</span>
+                                <span className="text-[9px] sm:text-[10px] text-red-400 uppercase tracking-widest mb-1 font-bold text-center">Enemigos</span>
                                 <span className="text-white font-tech text-sm sm:text-lg uppercase tracking-wider text-center truncate w-full">{attackerName === t.reports.you_label ? defenderName : attackerName}</span>
                             </div>
                         </div>
@@ -678,7 +673,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                         <div className="space-y-3 sm:space-y-4">
                             <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex justify-between text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest mb-2 font-bold">
-                                    <span className="text-cyan-400 flex items-center gap-1.5 sm:gap-2"><Icons.Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t.reports.integrity} ({t.reports.friendly})</span>
+                                    <span className="text-cyan-400 flex items-center gap-1.5 sm:gap-2"><Icons.Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t.reports.integrity} (Propias)</span>
                                     <span className="text-white bg-black/50 px-2 py-0.5 rounded">{playerHpPercent.toFixed(0)}%</span>
                                 </div>
                                 <div className="h-2 sm:h-3 bg-slate-900 rounded-full overflow-hidden border border-white/5">
@@ -687,7 +682,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                             </div>
                             <div className="bg-black/30 p-3 sm:p-4 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex justify-between text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest mb-2 font-bold">
-                                    <span className="text-red-400 flex items-center gap-1.5 sm:gap-2"><Icons.Skull className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t.reports.integrity} ({t.reports.hostile})</span>
+                                    <span className="text-red-400 flex items-center gap-1.5 sm:gap-2"><Icons.Skull className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t.reports.integrity} (Enemigos)</span>
                                     <span className="text-white bg-black/50 px-2 py-0.5 rounded">{enemyHpPercent.toFixed(0)}%</span>
                                 </div>
                                 <div className="h-2 sm:h-3 bg-slate-900 rounded-full overflow-hidden border border-white/5">

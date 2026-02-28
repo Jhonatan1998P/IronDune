@@ -5,21 +5,30 @@
  */
 
 import { GameState, WarState, LogEntry, IncomingAttack } from '../types';
-import { appendFile, writeFile } from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
 
-// Configuración del archivo de log
-const LOG_DIR = './logs';
-const WAR_LOG_FILE = `${LOG_DIR}/war.log`;
+// Configuración del log en localStorage
+const WAR_LOG_KEY = 'war_log';
+const MAX_LOG_SIZE = 100000; // 100KB max en localStorage
 
-// Asegurar que existe el directorio de logs
-const ensureLogDir = (): void => {
+/**
+ * Clears the war log from localStorage
+ */
+export const clearWarLog = async (): Promise<void> => {
     try {
-        if (!existsSync(LOG_DIR)) {
-            mkdirSync(LOG_DIR, { recursive: true });
-        }
+        localStorage.removeItem(WAR_LOG_KEY);
     } catch (e) {
-        // Ignorar errores de directorio
+        // Silently ignore
+    }
+};
+
+/**
+ * Get current war log content
+ */
+export const getWarLog = (): string => {
+    try {
+        return localStorage.getItem(WAR_LOG_KEY) || '';
+    } catch (e) {
+        return '';
     }
 };
 
@@ -148,57 +157,65 @@ const log = async (
         telemetryBuffer.push(event);
     }
 
-    // Write to war.log file
+    // Write to localStorage for browser compatibility
     try {
-        ensureLogDir();
         const timestampISO = new Date().toISOString();
-        const logMessage = `[${timestampISO}] [${category.toUpperCase()}] [${level.toUpperCase()}] ${message} ${data ? JSON.stringify(data, null, 0)}\n`;
-        await appendFile(WAR_LOG_FILE, logMessage).catch(() => {});
+        const logMessage = `[${timestampISO}] [${category.toUpperCase()}] [${level.toUpperCase()}] ${message} ${data ? JSON.stringify(data) : ''}\n`;
+        
+        let currentLog = getWarLog();
+        currentLog += logMessage;
+        
+        // Trim if too large
+        if (currentLog.length > MAX_LOG_SIZE) {
+            currentLog = currentLog.slice(-MAX_LOG_SIZE);
+        }
+        
+        localStorage.setItem(WAR_LOG_KEY, currentLog);
     } catch (e) {
-        // Silently ignore file write errors
+        // Silently ignore localStorage errors
     }
 };
 
 /**
  * Logs a debug message
  */
-export const logDebug = (category: LogCategory, message: string, data?: Record<string, any>): void => {
-    log(category, 'debug', message, data);
+export const logDebug = async (category: LogCategory, message: string, data?: Record<string, any>): Promise<void> => {
+    await log(category, 'debug', message, data);
 };
 
 /**
  * Logs an info message
  */
-export const logInfo = (category: LogCategory, message: string, data?: Record<string, any>): void => {
-    log(category, 'info', message, data);
+export const logInfo = async (category: LogCategory, message: string, data?: Record<string, any>): Promise<void> => {
+    await log(category, 'info', message, data);
 };
 
 /**
  * Logs a warning
  */
-export const logWarning = (category: LogCategory, message: string, data?: Record<string, any>): void => {
-    log(category, 'warning', message, data);
+export const logWarning = async (category: LogCategory, message: string, data?: Record<string, any>): Promise<void> => {
+    await log(category, 'warning', message, data);
 };
 
 /**
  * Logs an error
  */
-export const logError = (category: LogCategory, message: string, data?: Record<string, any>): void => {
-    log(category, 'error', message, data);
+export const logError = async (category: LogCategory, message: string, data?: Record<string, any>): Promise<void> => {
+    await log(category, 'error', message, data);
 };
 
 /**
  * Logs a critical error
  */
-export const logCritical = (category: LogCategory, message: string, data?: Record<string, any>): void => {
-    log(category, 'critical', message, data);
+export const logCritical = async (category: LogCategory, message: string, data?: Record<string, any>): Promise<void> => {
+    await log(category, 'critical', message, data);
 };
 
 /**
  * Logs migration error (legacy compatibility)
  */
-export const logMigrationError = (message: string, data?: Record<string, any>): void => {
-    logError('system', `Migration error: ${message}`, data);
+export const logMigrationError = async (message: string, data?: Record<string, any>): Promise<void> => {
+    await logError('system', `Migration error: ${message}`, data);
 };
 
 // ============================================
@@ -208,8 +225,8 @@ export const logMigrationError = (message: string, data?: Record<string, any>): 
 /**
  * Logs war start event
  */
-export const logWarStart = (war: WarState, playerScore: number): void => {
-    logInfo('war', 'War started', {
+export const logWarStart = async (war: WarState, playerScore: number): Promise<void> => {
+    await logInfo('war', 'War started', {
         warId: war.id,
         enemyId: war.enemyId,
         enemyName: war.enemyName,
@@ -224,8 +241,8 @@ export const logWarStart = (war: WarState, playerScore: number): void => {
 /**
  * Logs war wave spawn
  */
-export const logWarWave = (warId: string, waveNumber: number, enemyScore: number, armySize: number): void => {
-    logDebug('war', 'War wave spawned', {
+export const logWarWave = async (warId: string, waveNumber: number, enemyScore: number, armySize: number): Promise<void> => {
+    await logDebug('war', 'War wave spawned', {
         warId,
         waveNumber,
         enemyScore,
@@ -237,7 +254,7 @@ export const logWarWave = (warId: string, waveNumber: number, enemyScore: number
 /**
  * Logs war combat resolution
  */
-export const logWarCombat = (
+export const logWarCombat = async (
     warId: string,
     waveNumber: number,
     winner: 'PLAYER' | 'ENEMY' | 'DRAW',
@@ -245,8 +262,8 @@ export const logWarCombat = (
     enemyCasualties: number,
     playerResourceLoss: number,
     enemyResourceLoss: number
-): void => {
-    logInfo('war', 'War combat resolved', {
+): Promise<void> => {
+    await logInfo('war', 'War combat resolved', {
         warId,
         waveNumber,
         winner,
@@ -261,8 +278,8 @@ export const logWarCombat = (
 /**
  * Logs war end event
  */
-export const logWarEnd = (telemetry: WarTelemetryData): void => {
-    logInfo('war', 'War ended', {
+export const logWarEnd = async (telemetry: WarTelemetryData): Promise<void> => {
+    await logInfo('war', 'War ended', {
         warId: telemetry.warId,
         enemyId: telemetry.enemyId,
         result: telemetry.result,
@@ -284,19 +301,19 @@ export const logWarEnd = (telemetry: WarTelemetryData): void => {
 /**
  * Logs war validation error
  */
-export const logWarValidationError = (warId: string, errors: string[], warnings: string[]): void => {
+export const logWarValidationError = async (warId: string, errors: string[], warnings: string[]): Promise<void> => {
     if (errors.length > 0) {
-        logError('war', 'War validation failed', { warId, errors, warnings });
+        await logError('war', 'War validation failed', { warId, errors, warnings });
     } else if (warnings.length > 0) {
-        logWarning('war', 'War validation warnings', { warId, warnings });
+        await logWarning('war', 'War validation warnings', { warId, warnings });
     }
 };
 
 /**
  * Logs war state sanitization
  */
-export const logWarSanitization = (warId: string, before: any, after: any, changes: string[]): void => {
-    logWarning('war', 'War state sanitized', {
+export const logWarSanitization = async (warId: string, before: any, after: any, changes: string[]): Promise<void> => {
+    await logWarning('war', 'War state sanitized', {
         warId,
         changes,
         before: JSON.stringify(before),
@@ -311,8 +328,8 @@ export const logWarSanitization = (warId: string, before: any, after: any, chang
 /**
  * Logs incoming attack
  */
-export const logIncomingAttack = (attack: IncomingAttack, isWar: boolean): void => {
-    logInfo('combat', 'Incoming attack detected', {
+export const logIncomingAttack = async (attack: IncomingAttack, isWar: boolean): Promise<void> => {
+    await logInfo('combat', 'Incoming attack detected', {
         attackId: attack.id,
         attackerName: attack.attackerName,
         attackerScore: attack.attackerScore,
@@ -326,14 +343,14 @@ export const logIncomingAttack = (attack: IncomingAttack, isWar: boolean): void 
 /**
  * Logs combat result
  */
-export const logCombatResult = (
+export const logCombatResult = async (
     attackId: string,
     winner: 'PLAYER' | 'ENEMY' | 'DRAW',
     playerCasualties: number,
     enemyCasualties: number,
     buildingLoot?: Record<string, number>
-): void => {
-    logInfo('combat', 'Combat resolved', {
+): Promise<void> => {
+    await logInfo('combat', 'Combat resolved', {
         attackId,
         winner,
         playerCasualties,

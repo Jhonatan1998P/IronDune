@@ -1,6 +1,6 @@
 import { GameState, UnitType } from '../../types';
 import { RankingCategory, StaticBot } from './rankings';
-import { REPUTATION_ALLY_THRESHOLD, REINFORCEMENT_RATIO, REINFORCEMENT_CHANCE } from '../../constants';
+import { REPUTATION_ALLY_THRESHOLD, REINFORCEMENT_RATIO, REINFORCEMENT_CHANCE, ALLY_REINFORCEMENT_MIN_SCORE, ALLY_REINFORCEMENT_MAX_RATIO } from '../../constants';
 import { generateBotArmy } from './missions';
 import { UNIT_DEFS } from '../../data/units';
 import { BotPersonality } from '../../types/enums';
@@ -50,10 +50,16 @@ export const calculatePotentialReinforcements = (
 ): ReinforcementEntry[] => {
     const { rankingData } = gameState;
 
-    // Filter allied bots (reputation >= 75)
+    // Filter allied bots (reputation >= 75) AND within score range
+    const playerScore = gameState.empirePoints || 0;
+    const maxAllyScore = Math.max(playerScore * ALLY_REINFORCEMENT_MAX_RATIO, ALLY_REINFORCEMENT_MIN_SCORE * ALLY_REINFORCEMENT_MAX_RATIO);
+    
     const alliedBots = rankingData.bots.filter(bot => {
         const rep = bot.reputation ?? 50;
-        return rep >= REPUTATION_ALLY_THRESHOLD;
+        const botScore = bot.stats[RankingCategory.DOMINION] || 0;
+        return rep >= REPUTATION_ALLY_THRESHOLD && 
+               botScore >= ALLY_REINFORCEMENT_MIN_SCORE && 
+               botScore <= maxAllyScore;
     });
 
     // Sort by reputation (highest first)
@@ -92,10 +98,16 @@ export const calculateActiveReinforcements = (
 ): ReinforcementEntry[] => {
     const { rankingData } = gameState;
 
-    // Filter allied bots (reputation >= 75)
+    // Filter allied bots (reputation >= 75) AND within score range
+    const playerScore = gameState.empirePoints || 0;
+    const maxAllyScore = Math.max(playerScore * ALLY_REINFORCEMENT_MAX_RATIO, ALLY_REINFORCEMENT_MIN_SCORE * ALLY_REINFORCEMENT_MAX_RATIO);
+    
     const alliedBots = rankingData.bots.filter(bot => {
         const rep = bot.reputation ?? 50;
-        return rep >= REPUTATION_ALLY_THRESHOLD;
+        const botScore = bot.stats[RankingCategory.DOMINION] || 0;
+        return rep >= REPUTATION_ALLY_THRESHOLD && 
+               botScore >= ALLY_REINFORCEMENT_MIN_SCORE && 
+               botScore <= maxAllyScore;
     });
 
     // Sort by reputation (highest first)
