@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, MutableRefObject, useRef } from 'react';
+import React, { useState, useEffect, useCallback, MutableRefObject } from 'react';
 import { GameState, GameStatus, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
@@ -15,10 +15,12 @@ import {
 
 const SPY_REPORTS_STORAGE_KEY = 'ironDuneSpyReports';
 const LOGS_STORAGE_KEY = 'ironDuneLogs';
+const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
 
 export const usePersistence = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
+  status: GameStatus,
   setStatus: React.Dispatch<React.SetStateAction<GameStatus>>,
   setOfflineReport: React.Dispatch<React.SetStateAction<OfflineReport | null>>,
   setHasNewReports: (has: boolean) => void,
@@ -64,6 +66,27 @@ export const usePersistence = (
 
     return () => clearInterval(cleanupInterval);
   }, [gameState.spyReports?.length, gameState.logs?.length, setGameState]);
+
+  // Save on page unload (when user closes tab/browser)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (status === 'PLAYING') {
+        const now = Date.now();
+        saveSpyReportsToStorage(gameState.spyReports || []);
+        saveLogsToStorage(gameState.logs || []);
+        const stateToSave = { ...gameState, lastSaveTime: now };
+        localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
+        setHasSave(true);
+        
+        // For modern browsers - show confirmation dialog
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [gameState, status]);
 
   const startNewGame = useCallback(() => {
     setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
@@ -126,7 +149,7 @@ export const usePersistence = (
   // Auto-save logic with throttle to improve performance
   const performAutoSave = useCallback(() => {
       const now = Date.now();
-      if (now - lastSaveTimeRef.current < 30000) return; // Save at most every 30s
+      if (now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return; // Save at most every 30s
       lastSaveTimeRef.current = now;
       
       // Guardar spyReports en localStorage con límites

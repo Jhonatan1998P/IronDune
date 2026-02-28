@@ -60,7 +60,8 @@ export const useGameEngine = () => {
   // --- 4. PERSISTENCE ---
   const persistence = usePersistence(
       gameState, 
-      setGameState, 
+      setGameState,
+      status,
       setStatus, 
       setOfflineReport, 
       setHasNewReports, 

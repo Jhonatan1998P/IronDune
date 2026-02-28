@@ -569,15 +569,57 @@ describe('Sanitize Bot', () => {
             id: 'bot-1',
             name: 'Test Bot',
             stats: {
-                [RankingCategory.DOMINION]: 10000000 // Suspiciously high
+                [RankingCategory.DOMINION]: 10000000 // High score - now allowed (no artificial cap)
             },
             lastRank: 50
         };
 
         const result = sanitizeBot(bot, 0);
 
-        // Should be recalculated based on rank
-        expect(result.stats[RankingCategory.DOMINION]).toBeLessThan(10000000);
+        // High scores are now preserved - bots can grow indefinitely
+        expect(result.stats[RankingCategory.DOMINION]).toBe(10000000);
+    });
+
+    it('should preserve very high scores (5M+ bug fix)', () => {
+        const bot = {
+            id: 'bot-1',
+            name: 'Test Bot',
+            stats: {
+                [RankingCategory.DOMINION]: 5000000, // 5M - previously flagged as suspicious
+                [RankingCategory.MILITARY]: 2500000,
+                [RankingCategory.ECONOMY]: 50000000
+            },
+            lastRank: 10,
+            personality: BotPersonality.WARLORD,
+            currentEvent: BotEvent.PEACEFUL_PERIOD
+        };
+
+        const result = sanitizeBot(bot, 0);
+
+        // All high scores should be preserved (bug fix: previously reduced to ~2M)
+        expect(result.stats[RankingCategory.DOMINION]).toBe(5000000);
+        expect(result.stats[RankingCategory.MILITARY]).toBe(2500000);
+        expect(result.stats[RankingCategory.ECONOMY]).toBe(50000000);
+    });
+
+    it('should preserve extremely high scores (100M+)', () => {
+        const bot = {
+            id: 'bot-1',
+            name: 'Test Bot',
+            stats: {
+                [RankingCategory.DOMINION]: 100000000, // 100M
+                [RankingCategory.ECONOMY]: 1000000000 // 1B
+            },
+            lastRank: 1,
+            personality: BotPersonality.TYCOON,
+            currentEvent: BotEvent.ECONOMIC_BOOM
+        };
+
+        const result = sanitizeBot(bot, 0);
+
+        // Extremely high scores should also be preserved
+        expect(result.stats[RankingCategory.DOMINION]).toBe(100000000);
+        expect(result.stats[RankingCategory.ECONOMY]).toBe(1000000000);
     });
 
     it('should handle missing stats', () => {
@@ -951,5 +993,383 @@ describe('Migration Stress Tests', () => {
         const result = sanitizeAndMigrateSave(saved);
 
         expect(result.saveVersion).toBe(SAVE_VERSION);
+    });
+});
+
+// ============================================
+// DATA LOSS PREVENTION TESTS
+// ============================================
+describe('Migration - Data Loss Prevention', () => {
+    describe('Resources Protection', () => {
+        it('should preserve valid resources even if some are corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                resources: {
+                    [ResourceType.MONEY]: 50000,
+                    [ResourceType.OIL]: 10000,
+                    [ResourceType.AMMO]: 'corrupted',
+                    [ResourceType.GOLD]: null,
+                    [ResourceType.DIAMOND]: 100
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.resources[ResourceType.MONEY]).toBe(50000);
+            expect(result.resources[ResourceType.OIL]).toBe(10000);
+            expect(result.resources[ResourceType.DIAMOND]).toBe(100);
+        });
+
+        it('should preserve resources with zero values', () => {
+            const saved = {
+                saveVersion: 10,
+                resources: {
+                    [ResourceType.MONEY]: 0,
+                    [ResourceType.OIL]: 0,
+                    [ResourceType.AMMO]: 0,
+                    [ResourceType.GOLD]: 0,
+                    [ResourceType.DIAMOND]: 0
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.resources[ResourceType.MONEY]).toBe(0);
+            expect(result.resources[ResourceType.OIL]).toBe(0);
+        });
+
+        it('should handle extremely large resource values', () => {
+            const saved = {
+                saveVersion: 10,
+                resources: {
+                    [ResourceType.MONEY]: Number.MAX_SAFE_INTEGER,
+                    [ResourceType.OIL]: 1000000
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.resources[ResourceType.MONEY]).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
+            expect(result.resources[ResourceType.MONEY]).toBeGreaterThan(0);
+        });
+    });
+
+    describe('Units Protection', () => {
+        it('should preserve valid units even if some are corrupted', () => {
+            const defaultUnits = INITIAL_GAME_STATE.units;
+            const firstUnit = Object.keys(defaultUnits)[0] as UnitType;
+            const secondUnit = Object.keys(defaultUnits)[1] as UnitType;
+            
+            const saved = {
+                saveVersion: 10,
+                units: {
+                    [firstUnit]: 100,
+                    [secondUnit]: 'corrupted'
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.units[firstUnit]).toBe(100);
+        });
+
+        it('should preserve zero-value units', () => {
+            const defaultUnits = INITIAL_GAME_STATE.units;
+            const firstUnit = Object.keys(defaultUnits)[0] as UnitType;
+            
+            const saved = {
+                saveVersion: 10,
+                units: {
+                    [firstUnit]: 0
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.units[firstUnit]).toBe(0);
+        });
+    });
+
+    describe('Logs Protection', () => {
+        it('should preserve valid logs when some are corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                logs: [
+                    { id: 'valid-1', messageKey: 'log_battle_win', timestamp: Date.now(), type: 'combat' },
+                    { id: 'valid-2', messageKey: 'log_mission_complete', timestamp: Date.now(), type: 'mission' },
+                    'corrupted',
+                    null,
+                    { id: 'valid-3', messageKey: 'log_war_start', timestamp: Date.now(), type: 'war' }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.logs.length).toBeGreaterThanOrEqual(2);
+            expect(result.logs.find(l => l.id === 'valid-1')).toBeTruthy();
+            expect(result.logs.find(l => l.id === 'valid-3')).toBeTruthy();
+        });
+
+        it('should preserve archived status of logs', () => {
+            const saved = {
+                saveVersion: 10,
+                logs: [
+                    { id: 'log-1', messageKey: 'test', timestamp: Date.now(), type: 'combat', archived: true },
+                    { id: 'log-2', messageKey: 'test', timestamp: Date.now(), type: 'combat', archived: false }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.logs.find(l => l.id === 'log-1')?.archived).toBe(true);
+            expect(result.logs.find(l => l.id === 'log-2')?.archived).toBe(false);
+        });
+    });
+
+    describe('Buildings Protection', () => {
+        it('should preserve valid buildings when some are corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                buildings: {
+                    [BuildingType.HOUSE]: { level: 10, isDamaged: false },
+                    [BuildingType.FACTORY]: 'corrupted',
+                    [BuildingType.DIAMOND_MINE]: { level: 5, isDamaged: true }
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.buildings[BuildingType.HOUSE].level).toBe(10);
+            expect(result.buildings[BuildingType.DIAMOND_MINE].level).toBe(5);
+            expect(result.buildings[BuildingType.DIAMOND_MINE].isDamaged).toBe(true);
+        });
+
+        it('should preserve all valid building types even if some are missing', () => {
+            const saved = {
+                saveVersion: 10,
+                buildings: {
+                    [BuildingType.HOUSE]: { level: 5 }
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.buildings[BuildingType.HOUSE].level).toBe(5);
+            expect(result.buildings[BuildingType.DIAMOND_MINE].level).toBeGreaterThanOrEqual(1);
+        });
+    });
+
+    describe('Spy Reports Protection', () => {
+        it('should preserve valid spy reports when some are corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                spyReports: [
+                    {
+                        id: 'spy-1',
+                        botId: 'bot-1',
+                        botName: 'Valid Bot',
+                        botScore: 5000,
+                        botPersonality: BotPersonality.WARLORD,
+                        createdAt: Date.now(),
+                        expiresAt: Date.now() + 600000,
+                        units: {},
+                        resources: {},
+                        buildings: {}
+                    },
+                    'corrupted',
+                    null,
+                    { id: 'spy-2', invalid: 'data' }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.spyReports.length).toBeGreaterThanOrEqual(1);
+            expect(result.spyReports.find(s => s.id === 'spy-1')).toBeTruthy();
+        });
+    });
+
+    describe('Active Missions Protection', () => {
+        it('should preserve valid missions when some are corrupted', () => {
+            const now = Date.now();
+            const saved = {
+                saveVersion: 10,
+                activeMissions: [
+                    {
+                        id: 'mission-1',
+                        type: 'PATROL',
+                        startTime: now,
+                        endTime: now + 300000,
+                        duration: 5,
+                        units: { [UnitType.CYBER_MARINE]: 10 }
+                    },
+                    'corrupted',
+                    { id: 'mission-2', invalid: 'data' }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.activeMissions.length).toBeGreaterThanOrEqual(1);
+            expect(result.activeMissions.find(m => m.id === 'mission-1')).toBeTruthy();
+        });
+    });
+
+    describe('Incoming Attacks Protection', () => {
+        it('should preserve valid attacks when some are corrupted', () => {
+            const now = Date.now();
+            const saved = {
+                saveVersion: 10,
+                incomingAttacks: [
+                    {
+                        id: 'attack-1',
+                        attackerName: 'Enemy Bot',
+                        attackerScore: 5000,
+                        units: {},
+                        startTime: now,
+                        endTime: now + 600000
+                    },
+                    'corrupted',
+                    { id: 'attack-2' }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.incomingAttacks.length).toBeGreaterThanOrEqual(1);
+            expect(result.incomingAttacks.find(a => a.id === 'attack-1')).toBeTruthy();
+        });
+
+        it('should remove expired attacks', () => {
+            const now = Date.now();
+            const saved = {
+                saveVersion: 10,
+                incomingAttacks: [
+                    { id: 'expired', attackerName: 'Bot', attackerScore: 1000, units: {}, startTime: now - 1000000, endTime: now - 500000 },
+                    { id: 'valid', attackerName: 'Bot', attackerScore: 1000, units: {}, startTime: now, endTime: now + 600000 }
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.incomingAttacks.find(a => a.id === 'valid')).toBeTruthy();
+        });
+    });
+
+    describe('Grudges Protection', () => {
+        it('should preserve valid grudges when some are corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                grudges: [
+                    {
+                        id: 'grudge-1',
+                        botId: 'bot-1',
+                        botName: 'Enemy Bot',
+                        botPersonality: BotPersonality.WARLORD,
+                        botScore: 5000,
+                        createdAt: Date.now(),
+                        retaliationTime: Date.now() + 1000000,
+                        notified: false
+                    },
+                    'corrupted'
+                ]
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.grudges.length).toBeGreaterThanOrEqual(1);
+            expect(result.grudges.find(g => g.id === 'grudge-1')).toBeTruthy();
+        });
+    });
+
+    describe('War State Protection', () => {
+        it('should preserve valid war state when partially corrupted', () => {
+            const saved = {
+                saveVersion: 10,
+                activeWar: {
+                    id: 'war-1',
+                    enemyId: 'bot-1',
+                    enemyName: 'War Enemy',
+                    enemyScore: 10000,
+                    startTime: Date.now(),
+                    duration: 'corrupted',
+                    lootPool: { [ResourceType.MONEY]: 1000 }
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.activeWar).not.toBeNull();
+            expect(result.activeWar?.id).toBe('war-1');
+            expect(result.activeWar?.lootPool[ResourceType.MONEY]).toBe(1000);
+        });
+
+        it('should handle null war state', () => {
+            const saved = {
+                saveVersion: 10,
+                activeWar: null
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.activeWar).toBeNull();
+        });
+    });
+
+    describe('Market Protection', () => {
+        it('should preserve valid market data', () => {
+            const saved = {
+                saveVersion: 10,
+                marketOffers: [
+                    { id: 'offer-1', type: 'SELL', resource: ResourceType.OIL, amount: 1000, pricePerUnit: 10 }
+                ],
+                marketNextRefreshTime: Date.now() + 3600000
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.marketOffers.length).toBe(1);
+            expect(result.marketNextRefreshTime).toBeGreaterThan(Date.now());
+        });
+    });
+
+    describe('Diplomatic Actions Protection', () => {
+        it('should preserve valid diplomatic actions', () => {
+            const saved = {
+                saveVersion: 10,
+                diplomaticActions: {
+                    'bot-1': {
+                        lastGiftTime: Date.now() - 3600000,
+                        lastAllianceTime: 0,
+                        lastPeaceTime: 0
+                    },
+                    'bot-2': 'corrupted'
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.diplomaticActions['bot-1']).toBeTruthy();
+            expect(result.diplomaticActions['bot-1'].lastGiftTime).toBeGreaterThan(0);
+        });
+    });
+
+    describe('Gift Codes Protection', () => {
+        it('should preserve redeemed gift codes', () => {
+            const saved = {
+                saveVersion: 10,
+                redeemedGiftCodes: [
+                    { code: 'CODE123', redeemedAt: Date.now() - 86400000 }
+                ],
+                giftCodeCooldowns: {
+                    'COOLDOWN1': Date.now() - 3600000
+                }
+            };
+
+            const result = sanitizeAndMigrateSave(saved);
+
+            expect(result.redeemedGiftCodes.length).toBe(1);
+            expect(result.giftCodeCooldowns['COOLDOWN1']).toBeTruthy();
+        });
     });
 });

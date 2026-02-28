@@ -26,9 +26,9 @@ const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
     [RankingCategory.CAMPAIGN]: 1
 };
 
-const BOT_SCORE_MIN = 1000;
-const BOT_SCORE_MAX = 2000000;
-const SUSPICIOUS_SCORE_THRESHOLD = 5000000;
+// Score limits - aligned with rankings.ts to allow unlimited growth
+const BOT_SCORE_MAX = Number.MAX_SAFE_INTEGER; // Allow unlimited growth
+const SUSPICIOUS_SCORE_THRESHOLD = Number.MAX_SAFE_INTEGER; // Disabled - scores are validated by number type only
 
 // ============================================
 // UTILIDADES DE VALIDACIÓN ROBUSTA
@@ -172,12 +172,14 @@ const createMigrationReport = (): MigrationReport => ({
 // ============================================
 
 const isSuspiciousScore = (score: number): boolean => {
-    return score > SUSPICIOUS_SCORE_THRESHOLD || score < 100;
+    // Only flag as suspicious if score is invalid (NaN, Infinity) or negative
+    // High scores are valid - bots can grow indefinitely
+    return !isValidNumber(score, 0);
 };
 
 const calculateProgressiveScore = (rank: number): number => {
     const minScore = 1000;
-    const maxScore = 2000000;
+    const maxScore = BOT_SCORE_MAX; // Now uses Number.MAX_SAFE_INTEGER for unlimited growth
     const posRatio = Math.max(0, Math.min(1, (199 - rank) / 198));
     return Math.floor(minScore + posRatio * (maxScore - minScore));
 };
@@ -191,24 +193,13 @@ export const sanitizeBot = (bot: any, index: number): StaticBot => {
     if (isValidObject(bot.stats)) {
         REQUIRED_RANKING_CATEGORIES.forEach(cat => {
             const botScore = bot.stats[cat];
-            if (isValidNumber(botScore)) {
-                if (cat === RankingCategory.DOMINION) {
-                    if (botScore === 1000 && rank < 199) {
-                        sanitizedStats[cat] = progressiveScore;
-                        logFieldMigration(`bot.stats.${cat}`, 'fixed', 'Score reset for low rank');
-                    } else if (isSuspiciousScore(botScore)) {
-                        sanitizedStats[cat] = progressiveScore;
-                        logFieldMigration(`bot.stats.${cat}`, 'fixed', 'Suspicious score detected');
-                    } else {
-                        sanitizedStats[cat] = botScore;
-                        logFieldMigration(`bot.stats.${cat}`, 'ok');
-                    }
-                } else {
-                    sanitizedStats[cat] = botScore;
-                    logFieldMigration(`bot.stats.${cat}`, 'ok');
-                }
+            if (isValidNumber(botScore, 0)) {
+                // Valid score - keep it as is (no artificial caps)
+                sanitizedStats[cat] = botScore;
+                logFieldMigration(`bot.stats.${cat}`, 'ok');
             } else {
-                sanitizedStats[cat] = cat === RankingCategory.DOMINION ? progressiveScore : DEFAULT_BOT_STATS[cat];
+                // Invalid score (NaN, negative, missing) - use progressive score based on rank
+                sanitizedStats[cat] = progressiveScore;
                 logFieldMigration(`bot.stats.${cat}`, 'default', 'Invalid or missing value');
             }
         });

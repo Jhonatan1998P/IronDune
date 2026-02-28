@@ -7,7 +7,7 @@ import { BuildingType, BotPersonality } from "./types/enums";
 export const TICK_RATE_MS = 1000;
 
 // NEWBIE PROTECTION
-export const NEWBIE_PROTECTION_THRESHOLD = 100000; // Points required to enable Threat and PvP
+export const NEWBIE_PROTECTION_THRESHOLD = 1200; // Points required to enable Threat and PvP
 
 // PVP SETTINGS
 export const PVP_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP and War
@@ -43,7 +43,7 @@ export const WAR_WAVE_INTERVAL_MS = PVP_TRAVEL_TIME_MS; // Waves arrive every 15
 export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wars
 
 // OFFLINE PROGRESSION LIMITS
-export const OFFLINE_PRODUCTION_LIMIT_MS = 8 * 60 * 60 * 1000; // 8 Hours Cap for Resources/Upkeep
+export const OFFLINE_PRODUCTION_LIMIT_MS = 6 * 60 * 60 * 1000; // 6 Hours Cap for Resources/Upkeep
 
 // RVE & BALANCING CONSTANTS (V1.2.2)
 export const SCORE_TO_RESOURCE_VALUE = 9000; // 1 Point = $9,000 Resource Value (Attack Budget Formula)
