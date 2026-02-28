@@ -3,7 +3,7 @@ import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, Un
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
-import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS, SPY_RESOURCE_RATIOS } from '../../constants';
+import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, BOT_BUILDINGS_PER_SCORE, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS, SPY_RESOURCE_RATIOS } from '../../constants';
 import { BASE_PRICES, calculateTotalUnitCost } from './market';
 import { calculateRetaliationTime, getRetaliationChance } from './nemesis';
 import { BotPersonality } from '../../types/enums';
@@ -413,8 +413,8 @@ export const generateBotArmy = (
 };
 
 export const generateBotBuildings = (score: number): Partial<Record<BuildingType, number>> => {
-    const totalBuildings = Math.max(10, Math.floor(score / 40));
-    
+    const totalBuildings = Math.max(10, Math.floor(score / BOT_BUILDINGS_PER_SCORE));
+
     const weights = {
         [BuildingType.HOUSE]: 50,
         [BuildingType.FACTORY]: 20,

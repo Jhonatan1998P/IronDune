@@ -18,7 +18,7 @@ export const MAX_ATTACKS_PER_TARGET = 3; // Limit attacks per target per day
 
 // BUILDING PLUNDER SETTINGS (NEW V1.3)
 export const PLUNDER_RATES = [0.33, 0.25, 0.15]; // 1st attack, 2nd, 3rd
-
+export const BOT_BUILDINGS_PER_SCORE = 20; // 1 building per 20 score points (score / 20)
 // Only Resource Producers can be stolen (Quantity Mode buildings + Skyscraper)
 // Diamond Mine is handled separately via Damage logic.
 export const PLUNDERABLE_BUILDINGS = [
@@ -113,7 +113,9 @@ export const ENEMY_ATTACK_MAX_PER_BOT = 3; // Max attacks per bot per 24h cycle
 export const ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000; // 24 hours - reset attack counter
 export const ENEMY_ATTACK_BASE_CHANCE = 0.20; // 20% base chance to attack at rep 30
 export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.015; // +1.5% chance per rep point below 30
+export const ENEMY_ATTACK_POWER_RATIO_MIN = 0.5; // Bots can only attack if their power is >= 50% of player
 export const ENEMY_ATTACK_POWER_RATIO_LIMIT = 1.5; // Bots can only attack if their power is <= 150% of player
+export const ENEMY_ATTACK_MAX_SIMULTANEOUS = 6; // Maximum number of simultaneous attacks the player can receive
 export const ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS = 5 * 60 * 1000; // 5 minutes between simultaneous attacks
 
 // Personality-based attack chance modifiers (for enemy attack system)

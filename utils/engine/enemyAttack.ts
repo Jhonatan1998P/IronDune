@@ -12,7 +12,9 @@ import {
     ENEMY_ATTACK_CHANCE_TURTLE,
     ENEMY_ATTACK_CHANCE_TYCOON,
     ENEMY_ATTACK_CHANCE_ROGUE,
+    ENEMY_ATTACK_POWER_RATIO_MIN,
     ENEMY_ATTACK_POWER_RATIO_LIMIT,
+    ENEMY_ATTACK_MAX_SIMULTANEOUS,
     ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS,
     RETALIATION_TIME_MIN_MS,
     RETALIATION_TIME_MAX_MS,
@@ -208,6 +210,10 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
     // Track simultaneous attacks for delay calculation
     let pendingAttacks: { bot: typeof bots[0], arrivalTime: number }[] = [];
 
+    // Check if player has reached maximum simultaneous attacks
+    const currentAttacks = state.incomingAttacks.filter(a => !a.isWarWave);
+    const maxSimultaneousReached = currentAttacks.length >= ENEMY_ATTACK_MAX_SIMULTANEOUS;
+
     // Check each bot for potential attack
     bots.forEach(bot => {
         const reputation = bot.reputation ?? 50;
@@ -215,6 +221,11 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         // Only bots with reputation <= 30 can attack
         if (reputation > REPUTATION_ENEMY_THRESHOLD) {
             return;
+        }
+
+        // Check if player has reached max simultaneous attacks
+        if (maxSimultaneousReached) {
+            return; // Player can't receive more than 6 attacks at once
         }
 
         // Check if bot has reached max attacks
@@ -228,11 +239,11 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
             return;
         }
 
-        // NEW: Check power ratio - bot can only attack if <= 150% of player power
+        // NEW: Check power ratio - bot can only attack if within 50%-150% of player power
         const botScore = bot.stats[RankingCategory.DOMINION];
         const powerRatio = botScore / Math.max(1, playerPower);
-        if (powerRatio > ENEMY_ATTACK_POWER_RATIO_LIMIT) {
-            return; // Bot is too powerful to attack
+        if (powerRatio < ENEMY_ATTACK_POWER_RATIO_MIN || powerRatio > ENEMY_ATTACK_POWER_RATIO_LIMIT) {
+            return; // Bot is too weak (<50%) or too powerful (>150%) to attack
         }
 
         // Calculate attack chance based on reputation and personality
