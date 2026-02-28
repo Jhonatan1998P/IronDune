@@ -61,6 +61,7 @@ const createMockGameState = (
 ): GameState => ({
     ...INITIAL_GAME_STATE,
     ...overrides,
+    empirePoints: 50000,
     rankingData: {
         bots: overrides.rankingData?.bots || [],
         lastUpdateTime: Date.now()
@@ -103,8 +104,8 @@ describe('Alliance Reinforcements - Constants Validation', () => {
     });
 
     describe('REINFORCEMENT_CHANCE', () => {
-        it('should be exactly 1.0 (100% - TEST MODE)', () => {
-            expect(REINFORCEMENT_CHANCE).toBe(1.0);
+        it('should be exactly 0.15 (15% chance)', () => {
+            expect(REINFORCEMENT_CHANCE).toBe(0.15);
         });
 
         it('should be between 0 and 1', () => {
@@ -272,7 +273,7 @@ describe('Alliance Reinforcements - Probability System', () => {
             expect(typeof result).toBe('boolean');
         });
 
-        it('should have approximately 100% success rate (TEST MODE)', () => {
+        it('should have approximately 15% success rate', () => {
             const trials = 1000;
             let successes = 0;
             
@@ -283,15 +284,24 @@ describe('Alliance Reinforcements - Probability System', () => {
             }
             
             const successRate = successes / trials;
-            // Should be 100% (or very close due to randomness edge cases)
-            expect(successRate).toBeGreaterThanOrEqual(0.99);
+            // Should be approximately 15% (allow some variance)
+            expect(successRate).toBeGreaterThanOrEqual(0.10);
+            expect(successRate).toBeLessThanOrEqual(0.20);
         });
 
-        it('should always return true in TEST MODE', () => {
-            // Test multiple calls to ensure consistency
-            for (let i = 0; i < 100; i++) {
-                expect(willSendReinforcements()).toBe(true);
+        it('should return true about 15% of the time', () => {
+            const trials = 1000;
+            let successes = 0;
+            
+            for (let i = 0; i < trials; i++) {
+                if (willSendReinforcements()) {
+                    successes++;
+                }
             }
+            
+            const successRate = successes / trials;
+            expect(successRate).toBeGreaterThanOrEqual(0.10);
+            expect(successRate).toBeLessThanOrEqual(0.20);
         });
 
         it('should be independent between calls', () => {
@@ -299,10 +309,10 @@ describe('Alliance Reinforcements - Probability System', () => {
             const result2 = willSendReinforcements();
             const result3 = willSendReinforcements();
             
-            // All should be true in TEST MODE
-            expect(result1).toBe(true);
-            expect(result2).toBe(true);
-            expect(result3).toBe(true);
+            // Results should be boolean (not guaranteed to be true with 15% chance)
+            expect(typeof result1).toBe('boolean');
+            expect(typeof result2).toBe('boolean');
+            expect(typeof result3).toBe('boolean');
         });
     });
 });

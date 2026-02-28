@@ -4,7 +4,7 @@
  */
 
 import { GameState, WarState, IncomingAttack, ResourceType, UnitType, BuildingType } from '../../types';
-import { WAR_DURATION_MS, WAR_TOTAL_WAVES, WAR_PLAYER_ATTACKS, WAR_OVERTIME_MS, WAR_WAVE_INTERVAL_MS, SCORE_TO_RESOURCE_VALUE, WAR_WAVE_BASE_STRENGTH, WAR_WAVE_SCALING } from '../../constants';
+import { WAR_DURATION_MS, WAR_TOTAL_WAVES, WAR_PLAYER_ATTACKS, WAR_OVERTIME_MS, WAR_WAVE_INTERVAL_MS, SCORE_TO_RESOURCE_VALUE } from '../../constants';
 
 // ============================================
 // EXPLOIT DETECTION

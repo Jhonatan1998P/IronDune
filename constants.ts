@@ -9,14 +9,10 @@ export const TICK_RATE_MS = 1000;
 // NEWBIE PROTECTION
 export const NEWBIE_PROTECTION_THRESHOLD = 1000; // Points required to enable Threat and PvP
 
-// CAMPAIGN SETTINGS
-export const CAMPAIGN_TRAVEL_TIME = 7.5 * 60 * 1000; // 7.5 Minutes
-export const CAMPAIGN_COOLDOWN = 15 * 60 * 1000; // 15 Minutes
-
 // PVP SETTINGS
 export const PVP_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP and War
 export const PVP_RANGE_MIN = 0.5; // 50%
-export const PVP_RANGE_MAX = 2.0; // 200%
+export const PVP_RANGE_MAX = 1.5 // 150%
 export const PVP_LOOT_FACTOR = 0.15; // Legacy Factor (Kept for compatibility)
 export const MAX_ATTACKS_PER_TARGET = 3; // Limit attacks per target per day
 
@@ -43,13 +39,11 @@ export const WAR_DURATION_MS = 130 * 60 * 1000; // 2 Hours 10 Minutes Base
 export const WAR_OVERTIME_MS = 20 * 60 * 1000; // 20 Minutes added on Tie
 export const WAR_TOTAL_WAVES = 8; // 8 Waves Base
 export const WAR_PLAYER_ATTACKS = 8; // Matches waves
-export const WAR_WAVE_BASE_STRENGTH = 0.95; // 95%
-export const WAR_WAVE_SCALING = 0.05; // +5% per wave
 export const WAR_WAVE_INTERVAL_MS = PVP_TRAVEL_TIME_MS; // Waves arrive every 15 mins (if simulated offline)
 export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wars
 
 // OFFLINE PROGRESSION LIMITS
-export const OFFLINE_PRODUCTION_LIMIT_MS = 4 * 60 * 60 * 1000; // 4 Hours Cap for Resources/Upkeep
+export const OFFLINE_PRODUCTION_LIMIT_MS = 8 * 60 * 60 * 1000; // 8 Hours Cap for Resources/Upkeep
 
 // RVE & BALANCING CONSTANTS (V1.2.2)
 export const SCORE_TO_RESOURCE_VALUE = 9000; // 1 Point = $9,000 Resource Value (Attack Budget Formula)
@@ -96,12 +90,11 @@ export const SAVE_VERSION = 6;
 // REPUTATION SYSTEM
 export const REPUTATION_ALLY_THRESHOLD = 75; // Bots above this are allies (75+)
 export const REPUTATION_ENEMY_THRESHOLD = 30; // Bots below this are enemies
-export const REPUTATION_ATTACK_PENALTY = -15; // Reputation loss when player attacks bot
-export const REPUTATION_DEFEAT_PENALTY = -10; // Reputation loss when player defeats bot
+export const REPUTATION_ATTACK_PENALTY = -20; // Reputation loss when player attacks bot
+export const REPUTATION_DEFEAT_PENALTY = -5; // Reputation loss when player defeats bot
 export const REPUTATION_WIN_BONUS = 5; // Reputation gain when bot wins against player (they respect strength)
-export const REPUTATION_DEFEND_BONUS = 8; // Reputation gain when player successfully defends against bot
+export const REPUTATION_DEFEND_BONUS = 10; // Reputation gain when player successfully defends against bot
 export const REPUTATION_ALLY_DEFEND_CHANCE = 0.4; // 40% chance ally bots will help defend
-export const REPUTATION_ALLY_BONUS = 3; // Reputation bonus from allied bots
 export const REPUTATION_MIN = 0;
 export const REPUTATION_MAX = 100;
 
@@ -119,7 +112,7 @@ export const ENEMY_ATTACK_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours - min tim
 export const ENEMY_ATTACK_MAX_PER_BOT = 3; // Max attacks per bot per 24h cycle
 export const ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000; // 24 hours - reset attack counter
 export const ENEMY_ATTACK_BASE_CHANCE = 0.20; // 20% base chance to attack at rep 30
-export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.025; // +2.5% chance per rep point below 30
+export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.015; // +1.5% chance per rep point below 30
 export const ENEMY_ATTACK_POWER_RATIO_LIMIT = 1.5; // Bots can only attack if their power is <= 150% of player
 export const ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS = 5 * 60 * 1000; // 5 minutes between simultaneous attacks
 
@@ -149,14 +142,13 @@ export const RETALIATION_CHANCE_ROGUE = 0.90; // 90% chance - unpredictable but 
 // DIPLOMACY SYSTEM
 export const REPUTATION_DECAY_INTERVAL_MS = 1 * 60 * 60 * 1000; // 1 hour
 export const REPUTATION_DECAY_AMOUNT = 1; // Reputation loss per decay interval
-export const REPUTATION_DECAY_MIN_THRESHOLD = 0; // Minimum reputation is 0 (no floor)
 export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // >= 75 doesn't decay
 export const REPUTATION_DECAY_BOOST_THRESHOLD = 40; // Below 40, decay accelerates
 export const REPUTATION_DECAY_MAX_MULTIPLIER = 2.0; // Maximum 2x decay when at 0 rep
 
 export const DIPLOMACY_GIFT_BASE_COST: Partial<Record<string, number>> = {
-    MONEY: 100000,
-    OIL: 500,
+    MONEY: 50000,
+    OIL: 5000,
     AMMO: 200,
     GOLD: 100
 };
@@ -167,6 +159,6 @@ export const DIPLOMACY_GIFT_REPUTATION_GAIN = 8; // +8 reputation per gift
 export const DIPLOMACY_GIFT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour between gifts to same bot
 export const DIPLOMACY_ALLIANCE_REP_REQUIREMENT = 50; // Minimum reputation to propose alliance
 export const DIPLOMACY_ALLIANCE_REP_GAIN = 5; // +5 reputation for proposing alliance
-export const DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT = 35; // Minimum reputation to propose peace
+export const DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT = 20; // Minimum reputation to propose peace
 export const DIPLOMACY_PEACE_REP_GAIN = 10; // +10 reputation for peace proposal
 export const DIPLOMACY_PEACE_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours cooldown after peace proposal

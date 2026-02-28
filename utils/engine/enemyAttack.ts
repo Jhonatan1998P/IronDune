@@ -291,7 +291,7 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         stateUpdates: {
             enemyAttackCounts,
             lastEnemyAttackCheckTime: now,
-            lastEnemyAttackResetTime: state.lastEnemyAttackResetTime || now,
+            lastEnemyAttackResetTime: (now - state.lastEnemyAttackResetTime >= ENEMY_ATTACK_RESET_MS) ? now : (state.lastEnemyAttackResetTime || now),
             incomingAttacks: newIncomingAttacks
         },
         logs

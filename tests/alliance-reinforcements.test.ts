@@ -61,7 +61,7 @@ describe('Alliance Reinforcements System', () => {
         currentInterestRate: 0.05,
         nextRateChangeTime: NOW + 3600000,
         lastInterestPayoutTime: NOW,
-        empirePoints: 1000,
+        empirePoints: 20000,
         lastSaveTime: NOW,
         campaignProgress: 0,
         lastCampaignMissionFinishedTime: 0,
@@ -602,6 +602,7 @@ describe('Alliance Reinforcements System', () => {
             });
 
             const gameState = createGameState({
+        empirePoints: 50000,
                 rankingData: {
                     bots: [maxRepBot],
                     lastUpdateTime: NOW

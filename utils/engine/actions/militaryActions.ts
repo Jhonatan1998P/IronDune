@@ -1,6 +1,6 @@
 
 import { UNIT_DEFS } from '../../../data/units';
-import { CAMPAIGN_COOLDOWN, CAMPAIGN_TRAVEL_TIME, NEWBIE_PROTECTION_THRESHOLD, PVP_RANGE_MAX, PVP_RANGE_MIN, PVP_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../../../constants';
+import { NEWBIE_PROTECTION_THRESHOLD, PVP_RANGE_MAX, PVP_RANGE_MIN, PVP_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../../../constants';
 import { GameState, LogEntry, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
 import { startWar } from '../war';
 import { calculateRecruitmentCost, calculateRecruitmentTime } from '../../formulas';
