@@ -285,12 +285,19 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         const colorClass = isPlayer ? 'text-cyan-400' : 'text-red-400';
         const bgClass = isPlayer ? 'bg-cyan-950/20 border-cyan-500/20' : 'bg-red-950/20 border-red-500/20';
 
-        console.error(`[DEBUG] renderUnitList(${side}): initialArmy=`, JSON.stringify(initialArmy));
-        console.error(`[DEBUG] renderUnitList(${side}): sortedUnitTypes=`, sortedUnitTypes);
+        console.error(`[DEBUG] renderUnitList(${side}):`);
+        console.error(`  initialArmy keys:`, Object.keys(initialArmy));
+        console.error(`  initialArmy values:`, Object.values(initialArmy));
+        console.error(`  casualties:`, casualties);
+        console.error(`  sortedUnitTypes:`, sortedUnitTypes);
 
-        const activeUnits = sortedUnitTypes.filter(u => (initialArmy[u] || 0) > 0);
+        const activeUnits = sortedUnitTypes.filter(u => {
+            const count = initialArmy[u];
+            if (count > 0) console.error(`  Unidad ${u}: ${count}`);
+            return count > 0;
+        });
         
-        console.error(`[DEBUG] renderUnitList(${side}): activeUnits=`, activeUnits);
+        console.error(`  activeUnits:`, activeUnits);
 
         if (activeUnits.length === 0) {
             return (

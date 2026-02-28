@@ -581,11 +581,10 @@ const resolveRaidCombat = (
     
     const result = simulateCombat(currentUnits, enemyUnits, playerDamageMultiplier, allyArmies);
     
-    console.error('[DEBUG] resolveRaidCombat result:', {
-        initialEnemyArmy: JSON.stringify(result.initialEnemyArmy),
-        totalEnemyCasualties: JSON.stringify(result.totalEnemyCasualties),
-        finalEnemyArmy: JSON.stringify(result.finalEnemyArmy)
-    });
+    console.error('[DEBUG] resolveRaidCombat:');
+    console.error('  initialEnemyArmy:', result.initialEnemyArmy);
+    console.error('  totalEnemyCasualties:', result.totalEnemyCasualties);
+    console.error('  finalEnemyArmy:', result.finalEnemyArmy);
 
     const stolenBuildings: Partial<Record<BuildingType, number>> = {};
     let diamondDamaged = false;
