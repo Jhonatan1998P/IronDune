@@ -1,19 +1,15 @@
-import { BUILDING_DEFS } from '../../data/buildings';
-import { UNIT_DEFS } from '../../data/units';
-import { TECH_DEFS } from '../../data/techs';
-import { GameState, ResourceType, TechType, BuildingType, OfflineReport, LogEntry, IncomingAttack, WarState, UnitType } from '../../types';
-import { resolveMission } from './missions';
+import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry } from '../../types';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts, calculateMaxBankCapacity } from './modifiers';
 import { 
     OFFLINE_PRODUCTION_LIMIT_MS,
     ATTACK_COOLDOWN_MIN_MS,
     ATTACK_COOLDOWN_MAX_MS
 } from '../../constants';
-import { simulateCombat } from './combat';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
 import { processNemesisTick } from './nemesis';
 import { processEnemyAttackCheck } from './enemyAttack';
+import { processAttackQueue } from './attackQueue';
 
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -31,6 +27,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         bankInterestEarned: 0,
         completedResearch: [],
         completedMissions: [],
+        queuedAttackResults: [],
     };
 
     const newLogs: LogEntry[] = [];
@@ -118,77 +115,6 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.nextAttackTime = nextAttackTime;
 
-    const remainingMissions: typeof newState.activeMissions = [];
-    for (const mission of newState.activeMissions) {
-        if (now >= mission.endTime) {
-            const outcome = resolveMission(
-                mission,
-                newState.resources,
-                newState.maxResources,
-                newState.campaignProgress,
-                newState.techLevels,
-                newState.activeWar,
-                mission.endTime,
-                newState.rankingData.bots,
-                newState.empirePoints,
-                newState.buildings,
-                newState.targetAttackCounts,
-                newState.spyReports || []
-            );
-            
-            Object.assign(newState.resources, outcome.resources);
-            Object.entries(outcome.unitsToAdd).forEach(([uType, qty]) => {
-                newState.units[uType as UnitType] = (newState.units[uType as UnitType] || 0) + (qty as number);
-            });
-            
-            if (outcome.buildingsToAdd) {
-                Object.entries(outcome.buildingsToAdd).forEach(([bId, qty]) => {
-                    const bType = bId as BuildingType;
-                    if (!newState.buildings[bType]) newState.buildings[bType] = { level: 0 };
-                    newState.buildings[bType].level += (qty as number);
-                });
-            }
-            
-            if (mission.type === 'CAMPAIGN_ATTACK') {
-                newState.lastCampaignMissionFinishedTime = Math.max(newState.lastCampaignMissionFinishedTime, mission.endTime);
-                if (outcome.newCampaignProgress) newState.campaignProgress = Math.max(newState.campaignProgress, outcome.newCampaignProgress);
-            }
-
-            if (outcome.newGrudge) {
-                newState.grudges.push(outcome.newGrudge);
-                // Generar log de venganza creada
-                newLogs.push({
-                    id: `grudge-created-${mission.endTime}-${outcome.newGrudge.id}`,
-                    messageKey: 'log_grudge_created',
-                    type: 'intel',
-                    timestamp: mission.endTime,
-                    params: {
-                        attacker: outcome.newGrudge.botName,
-                        retaliationTime: new Date(outcome.newGrudge.retaliationTime).toLocaleTimeString()
-                    }
-                });
-            }
-            
-            const isSuccess = outcome.logKey === 'log_battle_win' || outcome.logKey.includes('patrol_battle_win') || outcome.logKey.includes('contraband');
-            report.completedMissions.push({
-                id: mission.id,
-                success: isSuccess,
-                loot: outcome.logParams?.loot || {}
-            });
-            
-            newLogs.push({
-                id: `mis-res-${mission.endTime}-${mission.id}`,
-                messageKey: outcome.logKey,
-                type: outcome.logType as any,
-                timestamp: mission.endTime,
-                params: outcome.logParams
-            });
-        } else {
-            remainingMissions.push(mission);
-        }
-    }
-    newState.activeMissions = remainingMissions;
-
     if (now - newState.rankingData.lastUpdateTime >= GROWTH_INTERVAL_MS) {
         const { bots: updatedBots, cycles } = processRankingEvolution(
             newState.rankingData.bots, 
@@ -212,7 +138,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     };
     newState.lastReputationDecayTime = newLastDecayTime;
 
-    // Process Nemesis System (Grudges & Retaliation) Offline
+    // Process Nemesis System (Grudges & Retaliation) Offline - BEFORE attack queue
     const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(newState, now);
     if (nemesisUpdates.grudges) {
         newState.grudges = nemesisUpdates.grudges;
@@ -222,7 +148,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newLogs.push(...nemesisLogs);
 
-    // Process Enemy Attack System Offline (30min checks)
+    // Process Enemy Attack System Offline (30min checks) - BEFORE attack queue
     const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(newState, now);
     if (enemyAttackUpdates.enemyAttackCounts) {
         newState.enemyAttackCounts = enemyAttackUpdates.enemyAttackCounts;
@@ -237,6 +163,23 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         newState.incomingAttacks = enemyAttackUpdates.incomingAttacks;
     }
     newLogs.push(...enemyAttackLogs);
+
+    // Process ALL attacks in chronological order (includes new attacks from nemesis/enemyAttack)
+    const { newState: queueState, queuedResults, newLogs: queueLogs } = processAttackQueue(newState, now);
+    newState = queueState;
+    report.queuedAttackResults = queuedResults;
+    newLogs.push(...queueLogs);
+
+    for (const result of queuedResults) {
+        if (result.type === 'OUTGOING' && result.result.logKey) {
+            const isSuccess = result.result.logKey === 'log_battle_win' || result.result.logKey.includes('patrol_battle_win') || result.result.logKey.includes('contraband');
+            report.completedMissions.push({
+                id: result.missionId || result.id,
+                success: isSuccess,
+                loot: result.result.logParams?.loot || {}
+            });
+        }
+    }
 
     return { newState, report, newLogs };
 };

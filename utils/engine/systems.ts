@@ -1,6 +1,10 @@
 
-import { BuildingType, GameState, LogEntry, ResourceType, UnitType, WarState } from '../../types';
+import { BuildingType, GameState, LogEntry, UnitType, WarState, ActiveMission, IncomingAttack } from '../../types';
 import { resolveMission } from './missions';
+import { 
+    getQueuedIncomingAttacks, 
+    processIncomingAttackInQueue
+} from './attackQueue';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
@@ -50,17 +54,49 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
        updatedActiveResearch = null;
     }
 
-    // 4. Missions
-    const updatedMissions = state.activeMissions.filter((mission, idx) => {
-        if (now >= mission.endTime) {
+    // 4. Process ALL attacks in chronological order (missions + incoming)
+    interface AttackQueueItem {
+        type: 'OUTGOING' | 'INCOMING';
+        endTime: number;
+        mission?: ActiveMission;
+        attack?: IncomingAttack;
+    }
+
+    const outgoingAttacks = state.activeMissions
+        .filter(m => m.endTime <= now)
+        .sort((a, b) => {
+            if (a.endTime !== b.endTime) return a.endTime - b.endTime;
+            return a.startTime - b.startTime;
+        });
+
+    const incomingAttacks = getQueuedIncomingAttacks(state, now);
+
+    const attackQueue: AttackQueueItem[] = [
+        ...outgoingAttacks.map(m => ({ type: 'OUTGOING' as const, endTime: m.endTime, mission: m })),
+        ...incomingAttacks.map(a => ({ type: 'INCOMING' as const, endTime: a.endTime, attack: a }))
+    ];
+
+    attackQueue.sort((a, b) => {
+        if (a.endTime !== b.endTime) return a.endTime - b.endTime;
+        const aStart = a.mission?.startTime || a.attack?.startTime || 0;
+        const bStart = b.mission?.startTime || b.attack?.startTime || 0;
+        return aStart - bStart;
+    });
+
+    let updatedMissions = [...state.activeMissions];
+    let updatedIncomingAttacks = [...state.incomingAttacks];
+
+    for (const item of attackQueue) {
+        if (item.type === 'OUTGOING' && item.mission) {
+            const mission = item.mission;
             const outcome = resolveMission(
                 mission, 
-                newResources, // Pass the currently accumulating resources, not the stale state
+                newResources,
                 state.maxResources, 
                 state.campaignProgress, 
                 state.techLevels, 
                 activeWar, 
-                now, 
+                item.endTime,
                 state.rankingData.bots,
                 state.empirePoints,
                 state.buildings,
@@ -68,24 +104,17 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 state.spyReports || []
             );
             
-            // Apply outcome to local resources
             Object.assign(newResources, outcome.resources);
 
-            // Apply outcome to local units
             Object.entries(outcome.unitsToAdd).forEach(([uType, qty]) => {
                 newUnits[uType as UnitType] = (newUnits[uType as UnitType] || 0) + (qty as number);
             });
 
-            // Apply outcome to local buildings (NEW: Plunder System)
             if (outcome.buildingsToAdd) {
                 Object.entries(outcome.buildingsToAdd).forEach(([bId, qty]) => {
                     const bType = bId as BuildingType;
-                    // Ensure building entry exists
                     if (!newBuildings[bType]) newBuildings[bType] = { level: 0 };
-                    
-                    newBuildings[bType] = {
-                        level: newBuildings[bType].level + (qty as number)
-                    };
+                    newBuildings[bType] = { level: newBuildings[bType].level + (qty as number) };
                 });
             }
 
@@ -100,19 +129,17 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             }
 
             if (mission.type === 'CAMPAIGN_ATTACK') {
-                newLastCampaignTime = now;
+                newLastCampaignTime = item.endTime;
                 if (outcome.newCampaignProgress) newCampaignProgress = Math.max(newCampaignProgress, outcome.newCampaignProgress);
             }
 
-            // --- GRUDGE HANDLING ---
             if (outcome.newGrudge) {
                 updatedGrudges.push(outcome.newGrudge);
-                // Generar log de venganza creada
                 logs.push({
-                    id: `grudge-created-${now}-${outcome.newGrudge.id}`,
+                    id: `grudge-created-${item.endTime}-${outcome.newGrudge.id}`,
                     messageKey: 'log_grudge_created',
                     type: 'intel',
-                    timestamp: now,
+                    timestamp: item.endTime,
                     params: {
                         attacker: outcome.newGrudge.botName,
                         retaliationTime: new Date(outcome.newGrudge.retaliationTime).toLocaleTimeString()
@@ -120,7 +147,6 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 });
             }
 
-            // --- REPUTATION HANDLING ---
             if (outcome.reputationChanges && outcome.reputationChanges.length > 0) {
                 updatedRankingBots = updatedRankingBots.map(bot => {
                     const change = outcome.reputationChanges?.find(r => r.botId === bot.id);
@@ -134,14 +160,13 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 if (alliesAfter.length > alliesBefore.length) {
-                    // Encontrar los nuevos aliados
                     const newAllies = alliesAfter.filter(a => !alliesBefore.some(b => b.id === a.id));
                     newAllies.forEach(ally => {
                         logs.push({
-                            id: `rep-gain-${now}-${ally.id}`,
+                            id: `rep-gain-${item.endTime}-${ally.id}`,
                             messageKey: 'log_new_ally',
                             type: 'info',
-                            timestamp: now,
+                            timestamp: item.endTime,
                             params: { ally: ally.name }
                         });
                     });
@@ -149,16 +174,37 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             }
 
             logs.push({
-                id: `mis-res-${now}-${idx}`,
+                id: `mis-res-${item.endTime}-${mission.id}`,
                 messageKey: outcome.logKey,
                 type: outcome.logType,
-                timestamp: now,
+                timestamp: item.endTime,
                 params: outcome.logParams
             });
-            return false;
+
+            updatedMissions = updatedMissions.filter(m => m.id !== mission.id);
+
+        } else if (item.type === 'INCOMING' && item.attack) {
+            const attack = item.attack;
+            const { result, logs: attackLogs } = processIncomingAttackInQueue(
+                { ...state, resources: newResources, units: newUnits, buildings: newBuildings },
+                attack,
+                item.endTime
+            );
+
+            Object.assign(newResources, result.resources);
+
+            Object.entries(result.unitsLost || {}).forEach(([uType, count]) => {
+                const unitType = uType as UnitType;
+                newUnits[unitType] = Math.max(0, (newUnits[unitType] || 0) - (count as number));
+            });
+
+            newLifetimeStats.unitsLost += Object.values(result.unitsLost || {}).reduce((a: any, b: any) => a + b, 0) as number;
+
+            logs.push(...attackLogs.map(log => ({ ...log, timestamp: item.endTime })));
+
+            updatedIncomingAttacks = updatedIncomingAttacks.filter(a => a.id !== attack.id);
         }
-        return true;
-    });
+    }
 
     return {
         stateUpdates: {
@@ -171,6 +217,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             techLevels: updatedTechLevels,
             activeResearch: updatedActiveResearch,
             activeMissions: updatedMissions,
+            incomingAttacks: updatedIncomingAttacks,
             campaignProgress: newCampaignProgress,
             lastCampaignMissionFinishedTime: newLastCampaignTime,
             lifetimeStats: newLifetimeStats,

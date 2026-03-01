@@ -38,6 +38,23 @@ export interface IncomingAttack {
   isScouted?: boolean; // Flag if player paid to reveal composition
 }
 
+export interface QueuedAttackResult {
+  id: string;
+  type: 'OUTGOING' | 'INCOMING';
+  missionId?: string;
+  attackId?: string;
+  result: {
+    resources?: Partial<Record<ResourceType, number>>;
+    unitsToAdd?: Partial<Record<UnitType, number>>;
+    buildingsToAdd?: Partial<Record<BuildingType, number>>;
+    logKey?: string;
+    logType?: 'info' | 'combat' | 'build' | 'research' | 'finance' | 'mission' | 'market' | 'tutorial' | 'economy' | 'war' | 'intel';
+    logParams?: Partial<CombatLogParams> & Partial<MarketLogParams> & Partial<DesertionLogParams> & Partial<IntelLogParams> & { [key: string]: any };
+    battleResult?: BattleResult;
+  };
+  processedAt: number;
+}
+
 export interface AllyReinforcement {
   id: string;
   botId: string;
@@ -231,6 +248,10 @@ export interface GameState {
   incomingAttacks: IncomingAttack[];
   activeWar: WarState | null; // New War System
 
+  // Attack Queue System (New V1.5)
+  attackQueue: string[]; // Array of attack IDs pending processing (temporary during offline processing)
+  lastProcessedAttackTime: number; // Timestamp of last processed attack to maintain sequence
+
   // Allied Reinforcements System (New)
   allyReinforcements: AllyReinforcement[]; // Active reinforcements from allies
 
@@ -320,4 +341,5 @@ export interface OfflineReport {
         success: boolean;
         loot: Partial<Record<ResourceType, number>>;
     }[];
+    queuedAttackResults: QueuedAttackResult[];
 }
