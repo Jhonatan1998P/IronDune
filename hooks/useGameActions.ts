@@ -17,6 +17,20 @@ import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
 
+const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
+    const importantLogs = logs.filter(log => 
+        log.type === 'combat' || log.type === 'mission' || log.type === 'intel' || log.type === 'war'
+    );
+    const otherLogs = logs.filter(log => 
+        log.type !== 'combat' && log.type !== 'mission' && log.type !== 'intel' && log.type !== 'war'
+    );
+    
+    const limitedOther = otherLogs.slice(0, maxTotal - importantLogs.length);
+    return [...importantLogs, ...limitedOther]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, maxTotal);
+};
+
 export const useGameActions = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
@@ -124,7 +138,7 @@ export const useGameActions = (
               if (result.log) {
                   finalState = {
                       ...finalState,
-                      logs: [result.log, ...finalState.logs].slice(0, 100)
+                      logs: limitLogs([result.log, ...finalState.logs], 100)
                   };
               }
               return finalState;
@@ -139,7 +153,7 @@ export const useGameActions = (
               };
               return {
                   ...prev,
-                  logs: [errorLog, ...prev.logs].slice(0, 100)
+                  logs: limitLogs([errorLog, ...prev.logs], 100)
               };
           }
           
@@ -300,7 +314,7 @@ export const useGameActions = (
                   },
                   diplomaticActions: newDiplomaticActions,
                   resources: newResources,
-                  logs: [newLog, ...prev.logs].slice(0, 100)
+                  logs: limitLogs([newLog, ...prev.logs], 100)
               };
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
@@ -345,7 +359,7 @@ export const useGameActions = (
                       bots: newBots
                   },
                   diplomaticActions: newDiplomaticActions,
-                  logs: [newLog, ...prev.logs].slice(0, 100)
+                  logs: limitLogs([newLog, ...prev.logs], 100)
               };
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
@@ -390,7 +404,7 @@ export const useGameActions = (
                       bots: newBots
                   },
                   diplomaticActions: newDiplomaticActions,
-                  logs: [newLog, ...prev.logs].slice(0, 100)
+                  logs: limitLogs([newLog, ...prev.logs], 100)
               };
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
@@ -484,7 +498,7 @@ export const useGameActions = (
               resources: newResources,
               redeemedGiftCodes: newRedeemedCodes,
               giftCodeCooldowns: newCooldowns,
-              logs: [newLog, ...prev.logs].slice(0, 100)
+              logs: limitLogs([newLog, ...prev.logs], 100)
           };
       });
       
