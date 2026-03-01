@@ -42,14 +42,15 @@ const ViewLoader: React.FC = () => (
 interface ViewRouterProps {
     activeTab: TabType;                                                 // Pestaña activa actualmente
     simEnemyArmy: Partial<Record<UnitType, number>> | null;           // Ejército enemigo para simulación
-    onSimulateRequest: (enemyUnits: Partial<Record<UnitType, number>>) => void; // Función para solicitar simulación
+    simPlayerArmy: Partial<Record<UnitType, number>> | null;         // Ejército del jugador para simulación
+    onSimulateRequest: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void; // Función para solicitar simulación
 }
 
 /**
  * Componente principal de enrutamiento de vistas
  * Renderiza la vista correspondiente según la pestaña activa
  */
-export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy, onSimulateRequest }) => {
+export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy, simPlayerArmy, onSimulateRequest }) => {
     const {
         gameState, logs,
         build, recruit, research, handleBankTransaction,
@@ -81,7 +82,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
             case 'reports':
                 return <ReportsView logs={logs} onDelete={deleteLogs} onArchive={archiveLogs} onSimulate={onSimulateRequest} />;
             case 'simulator':
-                return <BattleSimulatorView initialEnemyArmy={simEnemyArmy} />;
+                return <BattleSimulatorView initialEnemyArmy={simEnemyArmy} initialPlayerArmy={simPlayerArmy} />;
             case 'campaign':
                 return <CampaignView gameState={gameState} onExecuteBattle={executeCampaignBattle} onSpeedUp={speedUp} />;
             case 'rankings':

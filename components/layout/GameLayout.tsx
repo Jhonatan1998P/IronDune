@@ -18,12 +18,14 @@ export const GameLayout: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState<TabType>('buildings');
   const [simEnemyArmy, setSimEnemyArmy] = useState<Partial<Record<UnitType, number>> | null>(null);
+  const [simPlayerArmy, setSimPlayerArmy] = useState<Partial<Record<UnitType, number>> | null>(null);
   
   // State for Mobile Right Panel Drawer
   const [isStatusPanelOpen, setIsStatusPanelOpen] = useState(false);
 
-  const handleSimulate = (enemyUnits: Partial<Record<UnitType, number>>) => {
+  const handleSimulate = (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => {
       setSimEnemyArmy(enemyUnits);
+      setSimPlayerArmy(playerUnits);
       setActiveTab('simulator');
   };
 
@@ -92,7 +94,8 @@ export const GameLayout: React.FC = () => {
                 <div className="flex-1 flex flex-col min-h-0 pb-6">
                   <ViewRouter 
                     activeTab={activeTab} 
-                    simEnemyArmy={simEnemyArmy} 
+                    simEnemyArmy={simEnemyArmy}
+                    simPlayerArmy={simPlayerArmy}
                     onSimulateRequest={handleSimulate} 
                   />
                 </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { formatNumber } from '../utils';
 import { useLanguage } from '../context/LanguageContext';
 import { UNIT_DEFS } from '../data/units';
-import { UnitType } from '../types';
+import { UnitType, ResourceType } from '../types';
 
 interface GameTooltipProps {
     title: string;
@@ -14,6 +14,7 @@ interface GameTooltipProps {
     requirements?: Array<{ label: string; met: boolean }>;
     rapidFire?: Record<string, number>;
     footer?: string;
+    resourceType?: string;
 }
 
 const getResourceName = (key: string, t: any): string => {
@@ -32,7 +33,7 @@ const getResourceValue = (resources: Record<string, number> | undefined, key: st
 };
 
 export const GameTooltip: React.FC<GameTooltipProps> = ({
-    title, description, cost, resources, production, stats, requirements, rapidFire, footer
+    title, description, cost, resources, production, stats, requirements, rapidFire, footer, resourceType
 }) => {
     const { t, language } = useLanguage();
 
@@ -68,12 +69,15 @@ export const GameTooltip: React.FC<GameTooltipProps> = ({
                     <span className="text-[9px] text-emerald-500/70 uppercase tracking-widest block mb-1.5 font-bold">
                         {t.common.ui.output_label}
                     </span>
-                    {Object.entries(production).map(([res, val]) => (
+                    {Object.entries(production).map(([res, val]) => {
+                        const isDiamond = res === ResourceType.DIAMOND || resourceType === 'DIAMOND';
+                        return (
                         <div key={res} className="flex justify-between items-center text-emerald-300 font-mono text-[10px] sm:text-xs">
                             <span className="uppercase opacity-80 truncate">{getResourceName(res, t)}</span>
-                            <span className="font-bold shrink-0">+ {formatNumber((val as number) * 600)}<span className="text-[9px] opacity-50 ml-0.5">/10m</span></span>
+                            <span className="font-bold shrink-0">+ {formatNumber((val as number) * (isDiamond ? 3600 : 600))}<span className="text-[9px] opacity-50 ml-0.5">{isDiamond ? '/h' : '/10m'}</span></span>
                         </div>
-                    ))}
+                        );
+                    })}
                  </div>
             )}
 

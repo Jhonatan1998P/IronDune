@@ -11,7 +11,7 @@ import { PvpAttackModal } from '../PvpAttackModal';
 interface WarViewProps {
     gameState: GameState;
     onSpy: (attackId: string) => void;
-    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>) => void;
+    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void;
 }
 
 const StatBar: React.FC<{ label: string; playerVal: number; enemyVal: number; format?: boolean; color: string }> = ({ label, playerVal, enemyVal, format = true, color }) => {
@@ -149,7 +149,7 @@ export const WarView: React.FC<WarViewProps> = ({ gameState, onSpy, onSimulate }
                             </div>
                             {onSimulate && (
                                 <button
-                                    onClick={() => onSimulate(nextWave.units)}
+                                    onClick={() => onSimulate(nextWave.units, gameState.units)}
                                     className="w-full py-1.5 rounded border border-cyan-500/30 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2"
                                 >
                                     <Icons.Simulate />

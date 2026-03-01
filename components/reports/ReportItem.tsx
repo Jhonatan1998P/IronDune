@@ -12,7 +12,8 @@ interface ReportItemProps {
     onDelete: (id: string) => void;
     onArchive: (id: string, archive: boolean) => void;
     onViewDetails: (log: LogEntry) => void;
-    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>) => void;
+    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void;
+    playerUnits?: Partial<Record<UnitType, number>>;
     t: TranslationDictionary;
 }
 
@@ -27,7 +28,7 @@ const getResourceIcon = (res: string) => {
     }
 };
 
-export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelected, onSelect: _onSelect, onDelete, onArchive, onViewDetails, onSimulate, t }) => {
+export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelected, onSelect: _onSelect, onDelete, onArchive, onViewDetails, onSimulate, playerUnits, t }) => {
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
@@ -221,15 +222,15 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                          </div>
                                      </div>
 
-                                     {onSimulate && log.params?.units && (
-                                         <button
-                                             onClick={() => onSimulate(log.params?.units ?? {})}
-                                             className="w-full mt-2 sm:mt-3 py-1.5 sm:py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"
-                                         >
-                                             <Icons.Simulate className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                             {t.common.actions.simulate}
-                                         </button>
-                                     )}
+                                      {onSimulate && log.params?.units && (
+                                          <button
+                                              onClick={() => onSimulate(log.params?.units ?? {}, playerUnits ?? {})}
+                                              className="w-full mt-2 sm:mt-3 py-1.5 sm:py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"
+                                          >
+                                              <Icons.Simulate className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                              {t.common.actions.simulate}
+                                          </button>
+                                      )}
                                  </>
                              ) : (
                                  <div className="text-indigo-300 italic text-[10px] sm:text-xs">{msg}</div>

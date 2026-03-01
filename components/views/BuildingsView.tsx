@@ -94,6 +94,8 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
         actionLabel = t.common.actions.upgrade;
     }
 
+    const isDiamondMine = def.id === BuildingType.DIAMOND_MINE;
+
     const tooltipContent = (
         <GameTooltip
             title={info.name}
@@ -101,6 +103,7 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
             cost={def.baseCost as unknown as Record<string, number>} 
             resources={gameState.resources}
             production={nextLevelProduction}
+            resourceType={isDiamondMine ? 'DIAMOND' : undefined}
             stats={[
                { label: t.common.ui.level, value: `${qty} ${queuedQty > 0 ? `(+${queuedQty})` : ''}`, color: 'text-cyan-400' },
                { label: t.common.ui.type_label, value: isQuantityMode ? t.common.ui.constructible : t.common.ui.upgradeable, color: 'text-slate-400' },

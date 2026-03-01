@@ -111,6 +111,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
                     production={production[ResourceType.DIAMOND] * 600} 
                     upkeep={0}
                     icon={<Icons.Resources.Diamond className="w-4 h-4 text-cyan-400" />}
+                    resourceType="DIAMOND"
                 />
 
                 <ResourceDisplay 

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LogEntry, UnitType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useGame } from '../../context/GameContext';
 import { Icons } from '../UIComponents';
 import { FilterType, FilterTab } from '../reports/FilterTab';
 import { ReportItem } from '../reports/ReportItem';
@@ -13,7 +14,7 @@ interface ReportsViewProps {
     logs: LogEntry[];
     onDelete: (ids: string[]) => void;
     onArchive: (ids: string[], archive: boolean) => void;
-    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>) => void;
+    onSimulate?: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void;
 }
 
 const ITEMS_PER_PAGE = 15;
@@ -23,6 +24,7 @@ const ITEMS_PER_PAGE = 15;
 // ============================================
 export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArchive, onSimulate }) => {
     const { t } = useLanguage();
+    const { gameState } = useGame();
 
     // -- State: Filtros y navegación --
     const [activeTab, setActiveTab] = useState<FilterType>('all');
@@ -265,7 +267,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArch
                                             onDelete={singleDelete}
                                             onArchive={singleArchive}
                                             onViewDetails={setSelectedLog}
-                                            onSimulate={onSimulate}
+                                            onSimulate={(enemyUnits) => onSimulate?.(enemyUnits, gameState.units)}
+                                            playerUnits={gameState.units}
                                             t={t}
                                         />
                                     </div>

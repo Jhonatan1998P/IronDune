@@ -26,14 +26,13 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
         const upkeep = (upkeepCosts[res] || 0) * timeMultiplier;
         let netChange = prod - upkeep;
         
-        // Base Diamond Production Logic (1 per Hour)
+        // Diamond Production: 1 diamond per hour per level
         if (res === ResourceType.DIAMOND) {
-            // Check damage state
             const diamondMine = state.buildings[BuildingType.DIAMOND_MINE];
-            if (diamondMine && !diamondMine.isDamaged) {
-                // 1 Diamond / 3600 seconds * timeMultiplier
-                const baseDiamondProd = (1 / 3600) * timeMultiplier;
-                netChange += baseDiamondProd;
+            if (diamondMine && diamondMine.level > 0 && !diamondMine.isDamaged) {
+                // diamondMine.level diamonds per hour = diamondMine.level / 3600 per second
+                const diamondProd = (diamondMine.level / 3600) * timeMultiplier;
+                netChange += diamondProd;
             }
         }
 

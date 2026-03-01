@@ -110,13 +110,14 @@ interface HistoryEntry {
    ============================================ */
 interface BattleSimulatorViewProps {
     initialEnemyArmy?: Partial<Record<UnitType, number>> | null;  // Ejército enemigo inicial (para simular desde informes)
+    initialPlayerArmy?: Partial<Record<UnitType, number>> | null;  // Ejército del jugador inicial (para simular desde informes)
 }
 
 /**
  * Componente principal de la vista del simulador de batalla
  * Permite configurar ejércitos y simular batallas
  */
-export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initialEnemyArmy }) => {
+export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initialEnemyArmy, initialPlayerArmy }) => {
     const { t } = useLanguage();
     
     // --- ESTADO ---
@@ -139,6 +140,12 @@ export const BattleSimulatorView: React.FC<BattleSimulatorViewProps> = ({ initia
             setResult(null); 
         }
     }, [initialEnemyArmy]);
+
+    useEffect(() => {
+        if (initialPlayerArmy) {
+            setPlayerUnits(initialPlayerArmy);
+        }
+    }, [initialPlayerArmy]);
 
     // --- HANDLERS ---
     /**

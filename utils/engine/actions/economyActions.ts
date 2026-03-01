@@ -6,7 +6,7 @@ export const executeSpeedUp = (state: GameState, targetId: string, type: 'BUILD'
     const currentDiamonds = state.resources[ResourceType.DIAMOND] || 0;
     if (currentDiamonds < 1) return { success: false, errorKey: 'missing_diamond' };
 
-    const REDUCTION_MS = 10 * 60 * 1000; // 10 Minutes
+    const REDUCTION_MS = 30 * 60 * 1000; // 30 Minutes
     let found = false;
     const newState = { ...state };
     
