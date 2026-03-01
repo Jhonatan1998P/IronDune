@@ -5,6 +5,7 @@ import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateCombatStats, simulateCombat } from '../utils/engine/combat';
 import { useEventSubscription } from './useEventSubscription';
 import { addGameLog } from '../utils';
+import { createDebugAllyAttackTest } from '../utils/debug';
 
 // Modular Hooks
 import { useGameLoop } from './useGameLoop';
@@ -80,6 +81,13 @@ export const useGameEngine = () => {
       };
       return () => { delete window._updateGameState; }
   }, []);
+
+  // Debug: Expose ally attack test function to browser console
+  const debugTestAllyAttack = createDebugAllyAttackTest(setGameState);
+  useEffect(() => {
+      window.debugTestAllyAttack = debugTestAllyAttack;
+      return () => { delete window.debugTestAllyAttack; }
+  }, [debugTestAllyAttack]);
 
   // Auto-Save Effect (Orchestrated here)
   useEffect(() => {

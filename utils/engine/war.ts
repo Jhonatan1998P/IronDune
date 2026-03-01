@@ -541,7 +541,7 @@ const resolveWarCombat = (
     return {
         winner: result.winner,
         rounds: result.rounds || [],
-        initialPlayerArmy: currentUnits,
+        initialPlayerArmy: { ...currentUnits },
         initialEnemyArmy: enemyUnits,
         finalPlayerArmy: result.finalPlayerArmy,
         finalEnemyArmy: result.finalEnemyArmy,
@@ -580,7 +580,7 @@ const resolveRaidCombat = (
     }
     
     const result = simulateCombat(currentUnits, enemyUnits, playerDamageMultiplier, allyArmies);
-    
+
     const stolenBuildings: Partial<Record<BuildingType, number>> = {};
     let diamondDamaged = false;
 
@@ -608,7 +608,7 @@ const resolveRaidCombat = (
     return {
         winner: result.winner,
         rounds: result.rounds || [],
-        initialPlayerArmy: currentUnits,
+        initialPlayerArmy: { ...currentUnits },
         initialEnemyArmy: enemyUnits,
         finalPlayerArmy: result.finalPlayerArmy,
         finalEnemyArmy: result.finalEnemyArmy,

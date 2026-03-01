@@ -202,18 +202,6 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
 
     const result = log.params.combatResult as BattleResult;
 
-    // DEBUG: Log the result data
-    console.log('[DEBUG] CombatReportModal - result:', {
-        winner: result.winner,
-        rounds: result.rounds,
-        initialPlayerArmy: result.initialPlayerArmy,
-        initialEnemyArmy: result.initialEnemyArmy,
-        totalPlayerCasualties: result.totalPlayerCasualties,
-        totalEnemyCasualties: result.totalEnemyCasualties,
-        finalPlayerArmy: result.finalPlayerArmy,
-        finalEnemyArmy: result.finalEnemyArmy
-    });
-
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
@@ -300,7 +288,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
             const count = initialArmy[u];
             return (count || 0) > 0;
         });
-        
+
         if (activeUnits.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
