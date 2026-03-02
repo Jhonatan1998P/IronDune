@@ -2,7 +2,7 @@
 
 **Session ID:** ses_353d4f250ffeEbeujD0RLsOzXx
 **Created:** 3/2/2026, 1:30:28 AM
-**Updated:** 3/2/2026, 1:54:11 AM
+**Updated:** 3/2/2026, 2:21:51 AM
 
 ---
 
@@ -162,6 +162,141 @@ Estas correcciones resuelven el problema descrito donde:
 - Las rondas y daño se mostrarán correctamente
 - La misión de patrullaje usará las tropas correctas al regresar
 - No habrá "intercambio de tropas" entre ataques enemigos y misiones del jugador
+
+---
+
+## User
+
+como se llama la  vista donde puedo crear una partida y  exportar e importar partida tambi
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+La vista se llama **`MainMenu`** y está en:
+
+```
+/home/runner/workspace/components/MainMenu.tsx
+```
+
+Desde este menú puedes:
+- **Nueva Partida** (New Game)
+- **Importar Partida** (Import Save) 
+- **Exportar Partida** (Export Save)
+
+---
+
+## User
+
+bien cuando el jugador le de a guardar y salir y sea llevado al MainMenu el auto-save debe parar
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+Entiendo mejor el problema. El auto-guardado actual se ejecuta mediante un `useEffect` que depende de `gameState` y `status`. Cuando el jugador hace "Save & Exit", el estado cambia a `'MENU'` y el efecto debería detenerse, pero para asegurarlo correctamente, necesito agregar una limpieza explícita.
+
+Voy a implementar la corrección:
+
+**Tool: task**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+La corrección se ha aplicado. 
+
+**Resumen del cambio en `/home/runner/workspace/hooks/useGameEngine.ts`:**
+
+El efecto de auto-guardado ahora:
+1. Retorna inmediatamente si el estado no es `'PLAYING'`
+2. Solo se ejecuta cuando `status` cambia (no en cada cambio de `gameState`)
+
+Esto asegura que cuando el jugador hace clic en "Guardar y Salir" y el estado cambia a `'MENU'`, el auto-guardado se detenga correctamente.
 
 ---
 

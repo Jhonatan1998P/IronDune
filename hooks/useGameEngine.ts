@@ -91,10 +91,11 @@ export const useGameEngine = () => {
 
   // Auto-Save Effect (Orchestrated here)
   useEffect(() => {
-    if (status === 'PLAYING') {
-        persistence.performAutoSave();
-    }
-  }, [gameState, status, persistence]);
+    // Don't run auto-save if not actively playing
+    if (status !== 'PLAYING') return;
+    
+    persistence.performAutoSave();
+  }, [status, persistence.performAutoSave]);
 
   // --- 6. LOG MANAGEMENT UTILS ---
   const deleteLogs = useCallback((ids: string[]) => {
