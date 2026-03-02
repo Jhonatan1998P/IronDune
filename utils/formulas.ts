@@ -8,44 +8,56 @@ import { BuildingDef, BuildingType, ResourceType, TechDef, UnitDef } from "../ty
 
 /**
  * Calculates the total cost for constructing/upgrading a specific amount of levels/buildings.
- * Handles both LINEAR (Quantity) and EXPONENTIAL (Level) scaling.
+ * Handles both QUANTITY (linear batch) and LEVEL (exponential) scaling.
  */
 export const calculateConstructionCost = (
-    def: BuildingDef, 
-    startLevel: number, 
+    def: BuildingDef,
+    startLevel: number,
     count: number
 ): { money: number; oil: number; ammo: number } => {
+    // --- SPECIAL CASE: BANK ---
+    // Cost is 10% of the capacity of the *next* level (the one being built)
+    if (def.id === BuildingType.BANK) {
+        let totalMoney = 0;
+        for (let i = 0; i < count; i++) {
+            const nextLevel = startLevel + i + 1;
+            const targetCapacity = nextLevel < BANK_LEVEL_CAPACITIES.length
+                ? BANK_LEVEL_CAPACITIES[nextLevel]
+                : BANK_LEVEL_CAPACITIES[BANK_LEVEL_CAPACITIES.length - 1];
+            totalMoney += Math.floor(targetCapacity * 0.10);
+        }
+        return { money: totalMoney, oil: 0, ammo: 0 };
+    }
+
+    // --- QUANTITY MODE BUILDINGS (House, Factory, Oil Rig, etc.) ---
+    // Formula: Costo = baseCost × Σ(multiplier ^ (startLevel + i)) para i de 1 a count
+    // Cada edificio cuesta más que el anterior (1.5% increase acumulativo)
+    // Ejemplo: 1ra casa = 1000 × 1.015^1 = 1015, 2da casa = 1000 × 1.015^2 = 1030, etc.
+    if (def.buildMode === 'QUANTITY') {
+        let totalMoney = 0;
+        let totalOil = 0;
+        let totalAmmo = 0;
+
+        for (let i = 1; i <= count; i++) {
+            const multiplier = Math.pow(def.costMultiplier, startLevel + i);
+            totalMoney += Math.floor(def.baseCost.money * multiplier);
+            totalOil += Math.floor(def.baseCost.oil * multiplier);
+            totalAmmo += Math.floor(def.baseCost.ammo * multiplier);
+        }
+
+        return { money: totalMoney, oil: totalOil, ammo: totalAmmo };
+    }
+
+    // --- LEVEL MODE BUILDINGS (Bank, Market, University, etc.) ---
+    // Each level costs progressively more: baseCost × (multiplier ^ currentLevel)
     let totalMoney = 0;
     let totalOil = 0;
     let totalAmmo = 0;
 
     for (let i = 0; i < count; i++) {
         const currentLvl = startLevel + i;
-        const nextLevel = currentLvl + 1; // Target Level for upgrade
+        const multiplier = Math.pow(def.costMultiplier, currentLvl);
 
-        // --- SPECIAL CASE: BANK ---
-        // Cost is 10% of the capacity of the *next* level (the one being built)
-        if (def.id === BuildingType.BANK) {
-            const targetCapacity = nextLevel < BANK_LEVEL_CAPACITIES.length 
-                ? BANK_LEVEL_CAPACITIES[nextLevel] 
-                : BANK_LEVEL_CAPACITIES[BANK_LEVEL_CAPACITIES.length - 1]; // Cap if over max defined
-            
-            const bankCost = Math.floor(targetCapacity * 0.10);
-            totalMoney += bankCost;
-            // Bank only costs money in this specific override
-            continue; 
-        }
-
-        // --- STANDARD BUILDINGS ---
-        let multiplier = 0;
-        
-        if (def.costScaling === 'LINEAR') {
-            multiplier = 1 + (def.costMultiplier * currentLvl);
-        } else {
-            // Default exponential scaling
-            multiplier = Math.pow(def.costMultiplier, currentLvl);
-        }
-        
         totalMoney += Math.floor(def.baseCost.money * multiplier);
         totalOil += Math.floor(def.baseCost.oil * multiplier);
         totalAmmo += Math.floor(def.baseCost.ammo * multiplier);
@@ -100,23 +112,58 @@ export const calculateConstructionTime = (
  * Calculates the max affordable buildings based on current resources.
  */
 export const calculateMaxAffordableBuildings = (
-    def: BuildingDef, 
-    startLevel: number, 
+    def: BuildingDef,
+    startLevel: number,
     resources: Record<ResourceType, number>
 ): number => {
+    // --- QUANTITY MODE: Each building costs exponentially more ---
+    // Need to iterate and sum costs until we exceed budget
+    if (def.buildMode === 'QUANTITY') {
+        let count = 0;
+        let currentMoney = resources[ResourceType.MONEY];
+        let currentOil = resources[ResourceType.OIL];
+        let currentAmmo = resources[ResourceType.AMMO];
+
+        // Safety limit to avoid infinite loops in UI
+        while (count < 100) {
+            // Cost of next building (position = count + 1)
+            const nextCost = calculateConstructionCost(def, startLevel, count + 1);
+            const prevCost = count > 0 ? calculateConstructionCost(def, startLevel, count) : { money: 0, oil: 0, ammo: 0 };
+            
+            // Marginal cost of the next building
+            const marginalMoney = nextCost.money - prevCost.money;
+            const marginalOil = nextCost.oil - prevCost.oil;
+            const marginalAmmo = nextCost.ammo - prevCost.ammo;
+
+            if (currentMoney >= marginalMoney &&
+                currentOil >= marginalOil &&
+                currentAmmo >= marginalAmmo) {
+
+                currentMoney -= marginalMoney;
+                currentOil -= marginalOil;
+                currentAmmo -= marginalAmmo;
+                count++;
+            } else {
+                break;
+            }
+        }
+        return Math.max(1, count);
+    }
+
+    // --- LEVEL MODE: Each level costs more, so we iterate ---
     let count = 0;
     let currentMoney = resources[ResourceType.MONEY];
     let currentOil = resources[ResourceType.OIL];
     let currentAmmo = resources[ResourceType.AMMO];
-    
+
     // Safety limit to avoid infinite loops in UI
     while (count < 100) {
         const nextCost = calculateConstructionCost(def, startLevel + count, 1);
-        
-        if (currentMoney >= nextCost.money && 
-            currentOil >= nextCost.oil && 
+
+        if (currentMoney >= nextCost.money &&
+            currentOil >= nextCost.oil &&
             currentAmmo >= nextCost.ammo) {
-            
+
             currentMoney -= nextCost.money;
             currentOil -= nextCost.oil;
             currentAmmo -= nextCost.ammo;

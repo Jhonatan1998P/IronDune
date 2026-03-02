@@ -5,7 +5,8 @@ const PER_10_MINUTES = 600;
 const rate = (amount: number) => amount / PER_10_MINUTES;
 
 // Configuración de Balanceo
-const QUANTITY_MULT = 1.05;
+// QUANTITY_MULT: 1.5% increase per building owned (Desert Operations style)
+const QUANTITY_MULT = 1.015;
 // LEVEL_MULT genérico para edificios civiles
 const LEVEL_MULT = 1.50; 
 
@@ -18,7 +19,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     baseCost: { money: 1000, oil: 0, ammo: 0 },
     costMultiplier: QUANTITY_MULT,
     productionRate: { [ResourceType.MONEY]: rate(500) }, // 500/10m
-    maxLevel: 200,
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated)
     imagePlaceholder: 'https://picsum.photos/200/200?grayscale',
     score: 1,
@@ -27,10 +28,10 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     id: BuildingType.FACTORY,
     translationKey: 'factory',
     buildMode: 'QUANTITY',
-    baseCost: { money: 25000, oil: 500, ammo: 0 },
+    baseCost: { money: 20000, oil: 1000, ammo: 0 },
     costMultiplier: QUANTITY_MULT,
     productionRate: { [ResourceType.MONEY]: rate(2500) }, // 2500/10m
-    maxLevel: 100,
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated)
     imagePlaceholder: 'https://picsum.photos/201/201?grayscale',
     score: 5,
@@ -39,10 +40,10 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     id: BuildingType.SKYSCRAPER,
     translationKey: 'skyscraper',
     buildMode: 'QUANTITY',
-    baseCost: { money: 5000000, oil: 100000, ammo: 0 },
+    baseCost: { money: 100000, oil: 50000, ammo: 0 },
     costMultiplier: QUANTITY_MULT,
-    productionRate: { [ResourceType.MONEY]: rate(5000) }, // 5000/10m
-    maxLevel: 100,
+    productionRate: { [ResourceType.MONEY]: rate(12500) }, // 12500/10m
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated from 1m)
     imagePlaceholder: 'https://picsum.photos/202/202?grayscale',
     score: 100,
@@ -93,10 +94,10 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     id: BuildingType.OIL_RIG,
     translationKey: 'oil_rig',
     buildMode: 'QUANTITY',
-    baseCost: { money: 10000, oil: 0, ammo: 0 },
+    baseCost: { money: 8000, oil: 0, ammo: 2000 },
     costMultiplier: QUANTITY_MULT,
     productionRate: { [ResourceType.OIL]: rate(200) }, // 200/10m
-    maxLevel: 100,
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated)
     imagePlaceholder: 'https://picsum.photos/205/205?grayscale',
     score: 3,
@@ -105,10 +106,10 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     id: BuildingType.GOLD_MINE,
     translationKey: 'gold_mine',
     buildMode: 'QUANTITY',
-    baseCost: { money: 15000, oil: 500, ammo: 0 },
+    baseCost: { money: 15000, oil: 500, ammo: 1500 },
     costMultiplier: QUANTITY_MULT,
     productionRate: { [ResourceType.GOLD]: rate(64) }, // 64/10m
-    maxLevel: 50,
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated)
     imagePlaceholder: 'https://picsum.photos/206/206?grayscale',
     score: 25,
@@ -117,10 +118,10 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     id: BuildingType.MUNITIONS_FACTORY,
     translationKey: 'munitions_factory',
     buildMode: 'QUANTITY',
-    baseCost: { money: 10000, oil: 200, ammo: 0 },
+    baseCost: { money: 5000, oil: 500, ammo: 0 },
     costMultiplier: QUANTITY_MULT,
     productionRate: { [ResourceType.AMMO]: rate(700) }, // 700/10m
-    maxLevel: 100,
+    maxLevel: 200000,
     buildTime: 30000, // 30s (Updated)
     imagePlaceholder: 'https://picsum.photos/207/207?grayscale',
     score: 4,

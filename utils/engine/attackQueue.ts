@@ -211,7 +211,6 @@ export const processAttackQueue = (
     now: number
 ): { newState: GameState; queuedResults: QueuedAttackResult[]; newLogs: LogEntry[] } => {
     let currentState = JSON.parse(JSON.stringify(state)) as GameState;
-    const initialPlayerUnits = JSON.parse(JSON.stringify(state.units));
     const queuedResults: QueuedAttackResult[] = [];
     const allLogs: LogEntry[] = [];
 
@@ -263,7 +262,7 @@ export const processAttackQueue = (
                 processedAt: attackTime
             });
         } else if (item.type === 'INCOMING' && item.attack) {
-            const { newState, result, logs } = processIncomingAttackInQueue(currentState, item.attack, initialPlayerUnits, attackTime);
+            const { newState, result, logs } = processIncomingAttackInQueue(currentState, item.attack, currentState.units, attackTime);
             currentState = newState;
             allLogs.push(...logs.map(log => ({ ...log, timestamp: attackTime })));
 
