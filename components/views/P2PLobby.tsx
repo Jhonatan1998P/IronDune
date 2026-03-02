@@ -9,18 +9,13 @@ interface P2PLobbyProps {
   onBattleStart: (opponentId: string, isHost: boolean) => void;
 }
 
-interface DiscoveredPeer {
-  id: string;
-  name: string;
-  score: number;
-}
-
 const defaultTranslations = {
   title: 'PvP Battle',
   your_id: 'Tu ID',
   enter_id: 'Ingresa ID del oponente...',
   connect: 'Conectar',
   online_players: 'Jugadores Conectados',
+  offline_players: 'Jugadores Desconectados',
   challenge: 'Desafiar',
   battle_request: 'Solicitud de Batalla!',
   wants_to_battle: 'quiere batallar contigo!',
@@ -34,6 +29,8 @@ const defaultTranslations = {
   battle_started: 'Batalla iniciada!',
   challenge_sent: 'Desafío enviado!',
   player_connected: 'Jugador conectado!',
+  online: 'En línea',
+  offline: 'Desconectado',
 };
 
 export const P2PLobby: React.FC<P2PLobbyProps> = ({ 
@@ -43,13 +40,15 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
 }) => {
   const [remotePeerId, setRemotePeerId] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [discoveredPeers, setDiscoveredPeers] = useState<Map<string, DiscoveredPeer>>(new Map());
   const [battleRequest, setBattleRequest] = useState<{from: string; name: string; score: number} | null>(null);
   
-  const { peerId, connectToPeer, sendToPeer, status, connectedPeers } = useP2P();
+  const { peerId, connectToPeer, sendToPeer, status, connectedPeers, knownPeers } = useP2P();
 
   const { showSuccess, showError, showInfo } = useToast();
   const t2 = defaultTranslations;
+
+  const onlinePeers = Array.from(knownPeers.values()).filter(p => p.isOnline && p.id !== peerId);
+  const offlinePeers = Array.from(knownPeers.values()).filter(p => !p.isOnline && p.id !== peerId);
 
   useEffect(() => {
     if (status === 'connected' && connectedPeers.size > 0) {
@@ -62,13 +61,6 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
       const { from, type, payload } = e.detail;
       
       switch (type) {
-        case 'player_info':
-          setDiscoveredPeers(prev => {
-            const newMap = new Map(prev);
-            newMap.set(from, { id: from, name: payload.name, score: payload.score });
-            return newMap;
-          });
-          break;
         case 'challenge':
           setBattleRequest({ from, name: payload.from, score: payload.score });
           showInfo(`${payload.from} quiere batallar!`);
@@ -100,13 +92,13 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
     setIsConnecting(false);
   };
 
-  const handleChallenge = (peer: DiscoveredPeer) => {
-    sendToPeer(peer.id, {
+  const handleChallenge = (peerId: string) => {
+    sendToPeer(peerId, {
       type: 'challenge',
       payload: { from: playerName, score: playerScore }
     });
     showInfo(t2.challenge_sent);
-    onBattleStart(peer.id, true);
+    onBattleStart(peerId, true);
   };
 
   const handleAcceptChallenge = () => {
@@ -141,9 +133,9 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
             {status === 'connected' ? 'En línea' : 'Conectando...'}
           </span>
         </div>
-        {connectedPeers.size > 0 && (
+        {knownPeers.size > 0 && (
           <span className="text-xs sm:text-sm text-cyan-400 font-bold">
-            {connectedPeers.size} conectado{connectedPeers.size > 1 ? 's' : ''}
+            {onlinePeers.length} en línea / {offlinePeers.length} offline
           </span>
         )}
       </div>
@@ -195,14 +187,15 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
         </div>
       </div>
 
-      {/* Connected Players */}
-      {discoveredPeers.size > 0 && (
-        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-white/10">
-          <h3 className="font-tech text-xs sm:text-sm text-white uppercase tracking-widest mb-3">
+      {/* Online Players */}
+      {onlinePeers.length > 0 && (
+        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-emerald-500/20">
+          <h3 className="font-tech text-xs sm:text-sm text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
             {t2.online_players}
           </h3>
           <div className="space-y-2">
-            {Array.from(discoveredPeers.values()).map((peer) => (
+            {onlinePeers.map((peer) => (
               <div
                 key={peer.id}
                 className="flex items-center justify-between bg-slate-800/50 p-2.5 sm:p-3 rounded-lg border border-white/5"
@@ -214,11 +207,38 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
                   </div>
                 </div>
                 <button
-                  onClick={() => handleChallenge(peer)}
+                  onClick={() => handleChallenge(peer.id)}
                   className="ml-2 px-3 sm:px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-300 text-xs font-bold uppercase tracking-wider rounded transition-colors shrink-0"
                 >
                   {t2.challenge}
                 </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Offline Players */}
+      {offlinePeers.length > 0 && (
+        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-white/10 opacity-60">
+          <h3 className="font-tech text-xs sm:text-sm text-slate-500 uppercase tracking-widest mb-3">
+            {t2.offline_players}
+          </h3>
+          <div className="space-y-2">
+            {offlinePeers.map((peer) => (
+              <div
+                key={peer.id}
+                className="flex items-center justify-between bg-slate-800/30 p-2.5 sm:p-3 rounded-lg border border-white/5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-slate-400 font-bold text-sm truncate">{peer.name}</div>
+                  <div className="text-slate-600 text-xs">
+                    Puntos: {peer.score.toLocaleString()}
+                  </div>
+                </div>
+                <span className="text-slate-600 text-xs uppercase tracking-wider">
+                  {t2.offline}
+                </span>
               </div>
             ))}
           </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useP2P, PeerMessage } from '../../context/P2PContext';
+import React, { useMemo } from 'react';
+import { useP2P } from '../../context/P2PContext';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 
@@ -8,77 +8,34 @@ interface P2PRankingProps {
   playerScore: number;
 }
 
-interface RankedPlayer {
-  id: string;
-  name: string;
-  score: number;
-  isPlayer: boolean;
-}
-
 export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore }) => {
-  const [rankedPlayers, setRankedPlayers] = useState<RankedPlayer[]>([]);
-  const { peerId, status, connectedPeers, sendToPeer } = useP2P();
+  const { peerId, status, knownPeers } = useP2P();
 
-  useEffect(() => {
-    if (!peerId) return;
+  const rankedPlayers = useMemo(() => {
+    const players = Array.from(knownPeers.values())
+      .filter(p => p.id !== peerId)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        score: p.score,
+        isPlayer: false,
+        isOnline: p.isOnline,
+      }));
     
-    setRankedPlayers(prev => {
-      const existing = prev.find(p => p.isPlayer);
-      if (existing && existing.score !== playerScore) {
-        return prev.map(p => p.isPlayer ? { ...p, score: playerScore, name: playerName } : p)
-          .sort((a, b) => b.score - a.score);
-      }
-      if (!existing && peerId) {
-        return [{ id: peerId, name: playerName, score: playerScore, isPlayer: true }, ...prev]
-          .sort((a, b) => b.score - a.score);
-      }
-      return prev;
-    });
-  }, [playerScore, peerId, playerName]);
-
-  useEffect(() => {
-    const handleMessage = (e: CustomEvent<PeerMessage & { from: string }>) => {
-      const { from, type, payload } = e.detail;
-      
-      switch (type) {
-        case 'score_update':
-          setRankedPlayers(prev => {
-            const existing = prev.find(p => p.id === from);
-            if (existing) {
-              return prev.map(p => p.id === from ? { ...p, score: payload.score } : p)
-                .sort((a, b) => b.score - a.score);
-            }
-            return prev;
-          });
-          break;
-        case 'player_info':
-          setRankedPlayers(prev => {
-            const existing = prev.find(p => p.id === from);
-            if (existing) return prev;
-            const newPlayer: RankedPlayer = {
-              id: from,
-              name: payload.name,
-              score: payload.score,
-              isPlayer: false,
-            };
-            return [...prev, newPlayer].sort((a, b) => b.score - a.score);
-          });
-          break;
-      }
-    };
-
-    window.addEventListener('p2p-message', handleMessage as EventListener);
-    return () => window.removeEventListener('p2p-message', handleMessage as EventListener);
-  }, []);
-
-  useEffect(() => {
-    connectedPeers.forEach((_, peerId) => {
-      sendToPeer(peerId, {
-        type: 'player_info',
-        payload: { id: peerId, name: playerName, score: playerScore }
+    if (peerId) {
+      players.unshift({
+        id: peerId,
+        name: playerName,
+        score: playerScore,
+        isPlayer: true,
+        isOnline: true,
       });
-    });
-  }, [connectedPeers, sendToPeer, playerName, playerScore]);
+    }
+    
+    return players.sort((a, b) => b.score - a.score);
+  }, [knownPeers, peerId, playerName, playerScore]);
+
+  const onlineCount = rankedPlayers.filter(p => p.isOnline).length;
 
   const getRankStyle = (rank: number) => {
     if (rank === 1) return { bg: 'bg-yellow-900/30', border: 'border-yellow-500/40', glow: 'shadow-[0_0_20px_rgba(234,179,8,0.2)]' };
@@ -113,7 +70,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
               <div className="text-cyan-300 text-[10px] sm:text-xs uppercase tracking-widest font-bold">Tu Posición</div>
               <div className="text-3xl sm:text-4xl font-bold text-white">#{playerRank}</div>
               <div className="text-slate-400 text-xs mt-1">
-                de {rankedPlayers.length} jugadores
+                de {rankedPlayers.length} jugadores ({onlineCount} en línea)
               </div>
             </div>
           </div>
@@ -134,6 +91,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
                   flex items-center justify-between p-2.5 sm:p-4 rounded-lg border transition-all
                   ${rankStyle.bg} ${rankStyle.border} ${rankStyle.glow}
                   ${player.isPlayer ? 'ring-1 sm:ring-2 ring-cyan-500/50' : ''}
+                  ${!player.isOnline ? 'opacity-50' : ''}
                 `}
               >
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -149,8 +107,14 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
                     {rank}
                   </div>
                   <div className="min-w-0">
-                    <div className={`font-bold text-sm sm:text-base truncate ${player.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
+                    <div className={`font-bold text-sm sm:text-base truncate flex items-center gap-2 ${player.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
                       {player.name}
+                      {!player.isOnline && (
+                        <span className="text-[10px] text-slate-500 uppercase">(Offline)</span>
+                      )}
+                      {player.isOnline && (
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                      )}
                     </div>
                     {player.isPlayer && (
                       <div className="text-[10px] sm:text-xs text-slate-500">Tú</div>
