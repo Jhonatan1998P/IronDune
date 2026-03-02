@@ -7,7 +7,9 @@ export type PeerMessage =
   | { type: 'attack'; payload: { army: Record<string, number> } }
   | { type: 'result'; payload: { winner: 'PLAYER' | 'ENEMY'; army: Record<string, number> } }
   | { type: 'score_update'; payload: { score: number } }
-  | { type: 'player_info'; payload: { id: string; name: string; score: number } };
+  | { type: 'player_info'; payload: { id: string; name: string; score: number } }
+  | { type: 'sync_state'; payload: { gameState: any } }
+  | { type: 'request_sync'; payload: { requestId: string } };
 
 export interface P2PState {
   peerId: string | null;
@@ -15,6 +17,20 @@ export interface P2PState {
   connectedPeers: Map<string, DataConnection>;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   error: string | null;
+}
+
+export interface PeerInfo {
+  id: string;
+  name: string;
+  score: number;
+}
+
+const STORAGE_KEY = 'p2p_session';
+
+interface StoredSession {
+  peerId: string;
+  remotePeerId: string;
+  timestamp: number;
 }
 
 export function useP2PConnection(playerName: string, playerScore: number) {
@@ -30,10 +46,44 @@ export function useP2PConnection(playerName: string, playerScore: number) {
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
   const initializedRef = useRef(false);
   const playerInfoRef = useRef({ name: playerName, score: playerScore });
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isReconnectingRef = useRef(false);
 
   useEffect(() => {
     playerInfoRef.current = { name: playerName, score: playerScore };
   }, [playerName, playerScore]);
+
+  const saveSession = useCallback((remotePeerId: string) => {
+    const peerId = peerRef.current?.id;
+    if (!peerId || !remotePeerId) return;
+    
+    const session: StoredSession = {
+      peerId,
+      remotePeerId,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  }, []);
+
+  const loadSession = useCallback((): StoredSession | null => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return null;
+      
+      const session: StoredSession = JSON.parse(stored);
+      if (Date.now() - session.timestamp > 30 * 60 * 1000) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      return session;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
   const sendToPeer = useCallback((peerId: string, message: PeerMessage) => {
     const conn = connectionsRef.current.get(peerId);
@@ -62,6 +112,11 @@ export function useP2PConnection(playerName: string, playerScore: number) {
 
       console.log('[P2P] Attempting to connect to:', remotePeerId);
 
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
       const conn = peer.connect(remotePeerId, {
         reliable: true,
         serialization: 'json',
@@ -77,6 +132,8 @@ export function useP2PConnection(playerName: string, playerScore: number) {
         clearTimeout(timeout);
         console.log('[P2P] Connection established!');
         connectionsRef.current.set(remotePeerId, conn);
+        saveSession(remotePeerId);
+        
         setState(prev => {
           const newPeers = new Map(prev.connectedPeers);
           newPeers.set(remotePeerId, conn);
@@ -86,6 +143,13 @@ export function useP2PConnection(playerName: string, playerScore: number) {
             isConnected: newPeers.size > 0,
           };
         });
+
+        const info = playerInfoRef.current;
+        conn.send({
+          type: 'player_info',
+          payload: { id: peer.id || '', name: info.name, score: info.score }
+        });
+
         resolve(conn);
       });
 
@@ -99,6 +163,7 @@ export function useP2PConnection(playerName: string, playerScore: number) {
       conn.on('close', () => {
         console.log('[P2P] Connection closed');
         connectionsRef.current.delete(remotePeerId);
+        
         setState(prev => {
           const newPeers = new Map(prev.connectedPeers);
           newPeers.delete(remotePeerId);
@@ -116,7 +181,70 @@ export function useP2PConnection(playerName: string, playerScore: number) {
         reject(err);
       });
     });
-  }, []);
+  }, [saveSession]);
+
+  const handleIncomingConnection = useCallback((conn: DataConnection, peerId: string) => {
+    conn.on('open', () => {
+      console.log('[P2P] Incoming connection established!');
+      connectionsRef.current.set(conn.peer, conn);
+      saveSession(conn.peer);
+      
+      setState(prev => {
+        const newPeers = new Map(prev.connectedPeers);
+        newPeers.set(conn.peer, conn);
+        return {
+          ...prev,
+          connectedPeers: newPeers,
+          isConnected: newPeers.size > 0,
+        };
+      });
+
+      const info = playerInfoRef.current;
+      conn.send({
+        type: 'player_info',
+        payload: { id: peerId || '', name: info.name, score: info.score }
+      });
+    });
+
+    conn.on('data', (data) => {
+      console.log('[P2P] Received data from incoming:', conn.peer);
+      window.dispatchEvent(new CustomEvent('p2p-message', { 
+        detail: { from: conn.peer, ...data as PeerMessage } 
+      }));
+    });
+
+    conn.on('close', () => {
+      console.log('[P2P] Incoming connection closed');
+      connectionsRef.current.delete(conn.peer);
+      setState(prev => {
+        const newPeers = new Map(prev.connectedPeers);
+        newPeers.delete(conn.peer);
+        return {
+          ...prev,
+          connectedPeers: newPeers,
+          isConnected: newPeers.size > 0,
+        };
+      });
+    });
+  }, [saveSession]);
+
+  const attemptReconnect = useCallback(async () => {
+    const session = loadSession();
+    if (!session || isReconnectingRef.current) return;
+    
+    isReconnectingRef.current = true;
+    console.log('[P2P] Attempting to reconnect...');
+    
+    try {
+      await connectToPeer(session.remotePeerId);
+      console.log('[P2P] Reconnected successfully!');
+    } catch (err) {
+      console.log('[P2P] Reconnection failed, will retry...');
+      reconnectTimerRef.current = setTimeout(() => {
+        isReconnectingRef.current = false;
+      }, 5000);
+    }
+  }, [loadSession, connectToPeer]);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -135,51 +263,23 @@ export function useP2PConnection(playerName: string, playerScore: number) {
         peerId: id,
         status: 'connected',
       }));
+
+      const session = loadSession();
+      if (session) {
+        console.log('[P2P] Found previous session, attempting reconnect...');
+        setTimeout(() => attemptReconnect(), 1000);
+      }
     });
 
     peer.on('connection', (conn) => {
       console.log('[P2P] Incoming connection from:', conn.peer);
-      
-      conn.on('open', () => {
-        console.log('[P2P] Incoming connection established!');
-        connectionsRef.current.set(conn.peer, conn);
-        setState(prev => {
-          const newPeers = new Map(prev.connectedPeers);
-          newPeers.set(conn.peer, conn);
-          return {
-            ...prev,
-            connectedPeers: newPeers,
-            isConnected: newPeers.size > 0,
-          };
-        });
+      handleIncomingConnection(conn, peer.id || '');
+    });
 
-        const info = playerInfoRef.current;
-        conn.send({
-          type: 'player_info',
-          payload: { id: peer.id || '', name: info.name, score: info.score }
-        });
-      });
-
-      conn.on('data', (data) => {
-        console.log('[P2P] Received data from incoming:', conn.peer);
-        window.dispatchEvent(new CustomEvent('p2p-message', { 
-          detail: { from: conn.peer, ...data as PeerMessage } 
-        }));
-      });
-
-      conn.on('close', () => {
-        console.log('[P2P] Incoming connection closed');
-        connectionsRef.current.delete(conn.peer);
-        setState(prev => {
-          const newPeers = new Map(prev.connectedPeers);
-          newPeers.delete(conn.peer);
-          return {
-            ...prev,
-            connectedPeers: newPeers,
-            isConnected: newPeers.size > 0,
-          };
-        });
-      });
+    peer.on('disconnected', () => {
+      console.log('[P2P] Peer disconnected, attempting to reconnect...');
+      setState(prev => ({ ...prev, status: 'connecting' }));
+      peer.reconnect();
     });
 
     peer.on('error', (err) => {
@@ -211,15 +311,19 @@ export function useP2PConnection(playerName: string, playerScore: number) {
     peerRef.current = peer;
 
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
       peer.destroy();
       initializedRef.current = false;
     };
-  }, []);
+  }, [loadSession, attemptReconnect, handleIncomingConnection]);
 
   return {
     ...state,
     connectToPeer,
     sendToPeer,
     broadcast,
+    clearSession,
   };
 }

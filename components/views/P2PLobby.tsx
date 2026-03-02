@@ -43,13 +43,25 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
   const [discoveredPeers, setDiscoveredPeers] = useState<Map<string, DiscoveredPeer>>(new Map());
   const [battleRequest, setBattleRequest] = useState<{from: string; name: string; score: number} | null>(null);
   
-  const { peerId, connectToPeer, sendToPeer, status } = useP2PConnection(
+  const { peerId, connectToPeer, sendToPeer, status, isConnected } = useP2PConnection(
     playerName, 
     playerScore
   );
 
-  const { showSuccess, showError, showInfo } = useToast();
+  const { showSuccess, showError, showInfo, showWarning } = useToast();
   const t2 = defaultTranslations;
+
+  useEffect(() => {
+    if (status === 'connected' && !isConnected) {
+      showWarning('Reconnecting to previous session...');
+    } else if (status === 'connected' && isConnected) {
+      showSuccess('Connected! Battle ready.');
+    } else if (status === 'error') {
+      showError('Connection lost. Check your internet.');
+    } else if (status === 'connecting') {
+      showInfo('Connecting...');
+    }
+  }, [status, isConnected, showSuccess, showError, showInfo, showWarning]);
 
   useEffect(() => {
     const handleMessage = (e: CustomEvent<PeerMessage & { from: string }>) => {
