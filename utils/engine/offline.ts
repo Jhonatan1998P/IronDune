@@ -58,22 +58,28 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             }
         }
 
-        if (netChange > 0) {
-            report.resourcesGained[res] = Math.floor(netChange);
+        // Use Math.floor consistently for both report and state update
+        // This ensures what the player sees matches what they receive
+        const flooredChange = Math.floor(netChange);
+        
+        if (flooredChange > 0) {
+            report.resourcesGained[res] = flooredChange;
         }
 
-        newState.resources[res] = Math.max(0, Math.min(maxStorage[res], newState.resources[res] + netChange));
+        newState.resources[res] = Math.max(0, Math.min(maxStorage[res], newState.resources[res] + flooredChange));
     });
 
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
         if (newState.bankBalance < maxBankCapacity) {
-            const minuteRate = newState.currentInterestRate / 360; 
+            const minuteRate = newState.currentInterestRate / 360;
             const timeInMinutes = effectiveTimeMs / 60000;
             const interestEarned = newState.bankBalance * minuteRate * timeInMinutes;
             const actualInterest = Math.min(maxBankCapacity - newState.bankBalance, interestEarned);
-            newState.bankBalance += actualInterest;
-            report.bankInterestEarned = Math.floor(actualInterest);
+            // Use Math.floor consistently for both report and state update
+            const flooredInterest = Math.floor(actualInterest);
+            newState.bankBalance += flooredInterest;
+            report.bankInterestEarned = flooredInterest;
         }
     }
 
@@ -179,6 +185,11 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             });
         }
     }
+
+    // CRITICAL FIX: Update lastSaveTime to prevent duplicate offline calculation
+    // Without this, the offline progress can be calculated multiple times,
+    // causing resources to be added repeatedly (the "millions of resources" bug)
+    newState.lastSaveTime = now;
 
     return { newState, report, newLogs };
 };
