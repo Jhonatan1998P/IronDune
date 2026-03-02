@@ -86,8 +86,9 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
       await connectToPeer(remotePeerId.trim());
       showSuccess(t2.connected);
       setRemotePeerId('');
-    } catch (err) {
-      showError(t2.connection_failed);
+    } catch (err: any) {
+      const errorMessage = err?.message || t2.connection_failed;
+      showError(errorMessage);
       console.error('Connection failed:', err);
     }
     setIsConnecting(false);
