@@ -158,7 +158,8 @@ export const usePersistence = (
       // Guardar logs/informes en localStorage con límites
       saveLogsToStorage(gameState.logs || []);
       
-      localStorage.setItem('ironDuneSave', JSON.stringify(gameState));
+      const stateToSave = { ...gameState, lastSaveTime: now };
+      localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
       setHasSave(true);
   }, [gameState]);
 

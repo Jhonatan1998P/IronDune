@@ -520,6 +520,8 @@ export const resolveMission = (
             const spyReport = spyReports.find(r => r.botId === mission.targetId && r.expiresAt > now);
             if (spyReport) {
                 botArmy = spyReport.units;
+            } else if (targetBot) {
+                botArmy = getBotDefensiveArmy(targetBot, spyReports, now);
             } else {
                 botArmy = generateBotArmy(mission.targetScore, 1.0, targetPersonality);
             }
@@ -828,5 +830,10 @@ export const getBotDefensiveArmy = (
     if (activeReport) {
         return activeReport.units;
     }
-    return generateBotArmy(bot.stats.DOMINION, 1.0, bot.personality || BotPersonality.WARLORD);
+    
+    const personality = bot.personality || BotPersonality.WARLORD;
+    const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
+    const defenseBudget = bot.stats.DOMINION * 4000 * defenseRatio;
+    const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
+    return getSmartUnitComposition(defenseBudget, personality, true, availableUnits);
 };

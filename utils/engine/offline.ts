@@ -53,9 +53,8 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
 
         if (res === ResourceType.DIAMOND) {
             const diamondMine = newState.buildings[BuildingType.DIAMOND_MINE];
-            if (diamondMine && diamondMine.level > 0 && !diamondMine.isDamaged) {
-                const diamondProd = (diamondMine.level / 3600) * effectiveTimeSecs;
-                netChange += diamondProd;
+            if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
+                netChange = 0;
             }
         }
 
