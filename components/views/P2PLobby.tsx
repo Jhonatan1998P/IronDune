@@ -31,6 +31,11 @@ const defaultTranslations = {
   player_connected: 'Jugador conectado!',
   online: 'En línea',
   offline: 'Desconectado',
+  remove: 'Eliminar',
+  remove_confirm: 'Eliminar este jugador?',
+  yes: 'Sí',
+  no: 'No',
+  removed: 'Jugador eliminado',
 };
 
 export const P2PLobby: React.FC<P2PLobbyProps> = ({ 
@@ -42,7 +47,7 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [battleRequest, setBattleRequest] = useState<{from: string; name: string; score: number} | null>(null);
   
-  const { peerId, connectToPeer, sendToPeer, status, connectedPeers, knownPeers } = useP2P();
+  const { peerId, connectToPeer, sendToPeer, status, connectedPeers, knownPeers, removePeer, idTakenCountdown } = useP2P();
 
   const { showSuccess, showError, showInfo } = useToast();
   const t2 = defaultTranslations;
@@ -123,6 +128,13 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
     }
   };
 
+  const handleRemovePeer = (peerIdToRemove: string) => {
+    if (window.confirm(t2.remove_confirm)) {
+      removePeer(peerIdToRemove);
+      showInfo(t2.removed);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-full p-2 sm:p-4 gap-3 sm:gap-4 animate-[fadeIn_0.3s_ease-out]">
       {/* Header Status */}
@@ -139,6 +151,30 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
           </span>
         )}
       </div>
+
+      {/* ID Taken Countdown */}
+      {idTakenCountdown !== null && (
+        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-amber-500/40 bg-amber-900/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Icons.Radar className="w-5 h-5 text-amber-400 animate-pulse" />
+              <div>
+                <div className="text-amber-400 font-bold text-sm">ID en uso</div>
+                <div className="text-amber-500/70 text-xs">Esperando para reconectar...</div>
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-400">
+              {Math.floor(idTakenCountdown / 60)}:{(idTakenCountdown % 60).toString().padStart(2, '0')}
+            </div>
+          </div>
+          <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-amber-500 transition-all duration-1000"
+              style={{ width: `${(idTakenCountdown / 75) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Your ID Card */}
       <div className="glass-panel p-3 sm:p-4 rounded-xl border border-white/10">
@@ -206,12 +242,21 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
                     Puntos: {peer.score.toLocaleString()}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleChallenge(peer.id)}
-                  className="ml-2 px-3 sm:px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-300 text-xs font-bold uppercase tracking-wider rounded transition-colors shrink-0"
-                >
-                  {t2.challenge}
-                </button>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => handleRemovePeer(peer.id)}
+                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                    title={t2.remove}
+                  >
+                    <Icons.Close className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleChallenge(peer.id)}
+                    className="px-3 sm:px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-300 text-xs font-bold uppercase tracking-wider rounded transition-colors"
+                  >
+                    {t2.challenge}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -236,9 +281,18 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
                     Puntos: {peer.score.toLocaleString()}
                   </div>
                 </div>
-                <span className="text-slate-600 text-xs uppercase tracking-wider">
-                  {t2.offline}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleRemovePeer(peer.id)}
+                    className="p-2 text-slate-600 hover:text-red-400 transition-colors"
+                    title={t2.remove}
+                  >
+                    <Icons.Close className="w-4 h-4" />
+                  </button>
+                  <span className="text-slate-600 text-xs uppercase tracking-wider">
+                    {t2.offline}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

@@ -33,25 +33,34 @@ interface P2PContextType extends P2PState {
   sendToPeer: (peerId: string, message: PeerMessage) => boolean;
   broadcast: (message: PeerMessage) => void;
   clearSession: () => void;
+  removePeer: (peerId: string) => void;
   playerName: string;
   playerScore: number;
   knownPeers: Map<string, PeerInfo>;
+  idTakenCountdown: number | null;
 }
 
 const P2PContext = createContext<P2PContextType | null>(null);
 
 const STORAGE_KEY = 'p2p_session';
-const ACCOUNT_ID_KEY = 'p2p_account_id';
 const HEARTBEAT_INTERVAL = 10000;
 const PEER_TIMEOUT = 30000;
 
-const generateAccountId = (): string => {
-  const stored = localStorage.getItem(ACCOUNT_ID_KEY);
-  if (stored) return stored;
-  
-  const newId = `player_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  localStorage.setItem(ACCOUNT_ID_KEY, newId);
-  return newId;
+const SHORT_ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
+const generateShortId = (prefix: string = 'id', length: number = 5): string => {
+  let result = prefix ? `${prefix}_` : '';
+  for (let i = 0; i < length; i++) {
+    result += SHORT_ID_CHARS.charAt(Math.floor(Math.random() * SHORT_ID_CHARS.length));
+  }
+  return result;
+};
+
+const getStoredPeerId = (): string | null => {
+  return localStorage.getItem('p2p_peer_id');
+};
+
+const savePeerId = (id: string): void => {
+  localStorage.setItem('p2p_peer_id', id);
 };
 
 interface StoredSession {
@@ -74,6 +83,7 @@ export const P2PProvider: React.FC<{
   });
   
   const [knownPeers, setKnownPeers] = useState<Map<string, PeerInfo>>(new Map());
+  const [idTakenCountdown, setIdTakenCountdown] = useState<number | null>(null);
   
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
@@ -82,9 +92,10 @@ export const P2PProvider: React.FC<{
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isReconnectingRef = useRef(false);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const accountIdRef = useRef(generateAccountId());
   const pendingConnectionsRef = useRef<Set<string>>(new Set());
-
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const COUNTDOWN_SECONDS = 75;
+  
   useEffect(() => {
     playerInfoRef.current = { name: playerName, score: playerScore };
   }, [playerName, playerScore]);
@@ -119,6 +130,30 @@ export const P2PProvider: React.FC<{
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
+  const removePeer = useCallback((peerId: string) => {
+    const conn = connectionsRef.current.get(peerId);
+    if (conn) {
+      conn.close();
+      connectionsRef.current.delete(peerId);
+    }
+    
+    setKnownPeers(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(peerId);
+      return newMap;
+    });
+    
+    setState(prev => {
+      const newPeers = new Map(prev.connectedPeers);
+      newPeers.delete(peerId);
+      return {
+        ...prev,
+        connectedPeers: newPeers,
+        isConnected: newPeers.size > 0,
+      };
+    });
   }, []);
 
   const sendToPeer = useCallback((peerId: string, message: PeerMessage) => {
@@ -332,9 +367,14 @@ export const P2PProvider: React.FC<{
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    console.log('[P2P] Initializing PeerJS...');
+    const initialPeerId = getStoredPeerId() || generateShortId('dune', 6);
+    if (!getStoredPeerId()) {
+      savePeerId(initialPeerId);
+    }
 
-    const peer = new Peer(accountIdRef.current, {
+    console.log('[P2P] Initializing PeerJS with ID:', initialPeerId);
+
+    const peer = new Peer(initialPeerId, {
       debug: 1,
     });
 
@@ -438,15 +478,47 @@ export const P2PProvider: React.FC<{
 
     peer.on('error', (err) => {
       console.error('[P2P] Peer error:', err);
-      let errorMsg = 'Connection error';
       
       const errorType = err.type;
-      if (errorType === 'peer-unavailable' || errorType === 'unavailable-id') {
-        if (err.message?.includes('ID')) {
-          errorMsg = 'Player not found. Check the ID and try again.';
-        } else {
-          errorMsg = 'Your account ID is already in use. Clear your browser data or wait a moment.';
+      if (errorType === 'unavailable-id') {
+        console.log(`[P2P] ID taken, waiting ${COUNTDOWN_SECONDS}s before retry...`);
+        
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
         }
+        
+        let remaining = COUNTDOWN_SECONDS;
+        setIdTakenCountdown(remaining);
+        setState(prev => ({ ...prev, status: 'connecting', error: `Tu ID está en uso. Esperando ${remaining}s...` }));
+        
+        countdownIntervalRef.current = setInterval(() => {
+          remaining -= 1;
+          setIdTakenCountdown(remaining);
+          
+          if (remaining <= 0) {
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+              countdownIntervalRef.current = null;
+            }
+            
+            console.log('[P2P] Countdown finished, generating new ID...');
+            const newPeerId = generateShortId('dune', 6);
+            savePeerId(newPeerId);
+            setIdTakenCountdown(null);
+            setState(prev => ({ ...prev, error: 'ID en uso. Generando nuevo ID...' }));
+            
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
+        }, 1000);
+        
+        return;
+      }
+      
+      let errorMsg = 'Connection error';
+      if (errorType === 'peer-unavailable') {
+        errorMsg = 'Player not found. Check the ID and try again.';
       } else if (errorType === 'server-error') {
         errorMsg = 'Server error. Try again in a few seconds.';
       } else if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
@@ -475,6 +547,9 @@ export const P2PProvider: React.FC<{
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
       }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
       peer.destroy();
       initializedRef.current = false;
     };
@@ -493,9 +568,11 @@ export const P2PProvider: React.FC<{
       sendToPeer,
       broadcast,
       clearSession,
+      removePeer,
       playerName,
       playerScore,
       knownPeers,
+      idTakenCountdown,
     }}>
       {children}
     </P2PContext.Provider>
