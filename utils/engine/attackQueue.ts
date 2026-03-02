@@ -118,12 +118,13 @@ export const processOutgoingAttackInQueue = (
 export const processIncomingAttackInQueue = (
     state: GameState,
     attack: IncomingAttack,
+    initialPlayerUnits: Record<UnitType, number>,
     now: number
 ): { newState: GameState; result: any; logs: LogEntry[] } => {
     const newState = JSON.parse(JSON.stringify(state)) as GameState;
     const logs: LogEntry[] = [];
 
-    const playerUnits = newState.units;
+    const playerUnits = initialPlayerUnits;
     const enemyUnits = attack.units;
 
     const battleResult = simulateDefenseCombat(playerUnits, enemyUnits, 1.0);
@@ -195,7 +196,7 @@ export const simulateDefenseCombat = (
     enemyUnits: Partial<Record<UnitType, number>>,
     damageMultiplier: number
 ): BattleResult => {
-    return simulateCombat(enemyUnits, playerUnits, damageMultiplier);
+    return simulateCombat(playerUnits, enemyUnits, damageMultiplier);
 };
 
 interface QueuedAttackItem {
@@ -210,6 +211,7 @@ export const processAttackQueue = (
     now: number
 ): { newState: GameState; queuedResults: QueuedAttackResult[]; newLogs: LogEntry[] } => {
     let currentState = JSON.parse(JSON.stringify(state)) as GameState;
+    const initialPlayerUnits = JSON.parse(JSON.stringify(state.units));
     const queuedResults: QueuedAttackResult[] = [];
     const allLogs: LogEntry[] = [];
 
@@ -261,7 +263,7 @@ export const processAttackQueue = (
                 processedAt: attackTime
             });
         } else if (item.type === 'INCOMING' && item.attack) {
-            const { newState, result, logs } = processIncomingAttackInQueue(currentState, item.attack, attackTime);
+            const { newState, result, logs } = processIncomingAttackInQueue(currentState, item.attack, initialPlayerUnits, attackTime);
             currentState = newState;
             allLogs.push(...logs.map(log => ({ ...log, timestamp: attackTime })));
 
