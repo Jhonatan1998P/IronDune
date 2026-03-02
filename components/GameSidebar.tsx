@@ -56,8 +56,8 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
       {
           title: 'Multiplayer',
           items: [
-              { id: 'p2p_lobby' as TabType, label: 'Battle', icon: Icons.Radar },
-              { id: 'p2p_rankings' as TabType, label: 'P2P Rank', icon: Icons.Crown },
+              { id: 'p2p_lobby' as TabType, label: 'PvP Battle', icon: Icons.Radar, color: 'text-cyan-400' },
+              { id: 'p2p_rankings' as TabType, label: 'PvP Ranking', icon: Icons.Crown, color: 'text-yellow-400' },
           ]
       }
   ];
@@ -201,6 +201,8 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
         { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
         { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
+        { id: 'p2p_lobby' as TabType, icon: Icons.Radar, label: 'PvP Battle', color: 'text-cyan-400' },
+        { id: 'p2p_rankings' as TabType, icon: Icons.Crown, label: 'PvP Rank', color: 'text-yellow-400' },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];
 
