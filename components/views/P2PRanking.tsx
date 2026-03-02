@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useP2PConnection, PeerMessage } from '../../hooks/useP2PConnection';
+import { useP2P, PeerMessage } from '../../context/P2PContext';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 
@@ -17,11 +17,24 @@ interface RankedPlayer {
 
 export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore }) => {
   const [rankedPlayers, setRankedPlayers] = useState<RankedPlayer[]>([]);
-  
-  const { peerId, status } = useP2PConnection(
-    playerName, 
-    playerScore
-  );
+  const { peerId, status, connectedPeers, sendToPeer } = useP2P();
+
+  useEffect(() => {
+    if (!peerId) return;
+    
+    setRankedPlayers(prev => {
+      const existing = prev.find(p => p.isPlayer);
+      if (existing && existing.score !== playerScore) {
+        return prev.map(p => p.isPlayer ? { ...p, score: playerScore, name: playerName } : p)
+          .sort((a, b) => b.score - a.score);
+      }
+      if (!existing && peerId) {
+        return [{ id: peerId, name: playerName, score: playerScore, isPlayer: true }, ...prev]
+          .sort((a, b) => b.score - a.score);
+      }
+      return prev;
+    });
+  }, [playerScore, peerId, playerName]);
 
   useEffect(() => {
     const handleMessage = (e: CustomEvent<PeerMessage & { from: string }>) => {
@@ -59,21 +72,13 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
   }, []);
 
   useEffect(() => {
-    if (!peerId) return;
-    
-    setRankedPlayers(prev => {
-      const existing = prev.find(p => p.id === peerId);
-      if (existing && existing.score !== playerScore) {
-        return prev.map(p => p.id === peerId ? { ...p, score: playerScore, name: playerName } : p)
-          .sort((a, b) => b.score - a.score);
-      }
-      if (!existing && peerId) {
-        return [{ id: peerId, name: playerName, score: playerScore, isPlayer: true }, ...prev]
-          .sort((a, b) => b.score - a.score);
-      }
-      return prev;
+    connectedPeers.forEach((_, peerId) => {
+      sendToPeer(peerId, {
+        type: 'player_info',
+        payload: { id: peerId, name: playerName, score: playerScore }
+      });
     });
-  }, [playerScore, peerId]);
+  }, [connectedPeers, sendToPeer, playerName, playerScore]);
 
   const getRankStyle = (rank: number) => {
     if (rank === 1) return { bg: 'bg-yellow-900/30', border: 'border-yellow-500/40', glow: 'shadow-[0_0_20px_rgba(234,179,8,0.2)]' };
@@ -96,6 +101,9 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
             <span className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
             <span className="text-xs text-slate-500 uppercase">
               {status === 'connected' ? 'Online' : 'Offline'}
+            </span>
+            <span className="text-xs text-cyan-400 ml-2">
+              ({connectedPeers.size} connected)
             </span>
           </div>
         </div>

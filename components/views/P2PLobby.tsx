@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useP2PConnection, PeerMessage } from '../../hooks/useP2PConnection';
+import { useP2P, PeerMessage } from '../../context/P2PContext';
 import { Icons } from '../UIComponents';
 import { useToast } from '../ui/Toast';
 
@@ -20,7 +20,7 @@ const defaultTranslations = {
   your_id: 'Your ID',
   enter_id: 'Enter opponent ID...',
   connect: 'Connect',
-  online_players: 'Online Players',
+  online_players: 'Connected Players',
   challenge: 'Challenge',
   battle_request: 'Battle Request!',
   wants_to_battle: 'wants to battle you!',
@@ -31,6 +31,9 @@ const defaultTranslations = {
   connection_failed: 'Connection failed. Check the ID and try again.',
   id_copied: 'ID copied to clipboard!',
   waiting: 'Waiting for opponent...',
+  battle_started: 'Battle started!',
+  challenge_sent: 'Challenge sent!',
+  player_connected: 'Player connected!',
 };
 
 export const P2PLobby: React.FC<P2PLobbyProps> = ({ 
@@ -43,25 +46,16 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
   const [discoveredPeers, setDiscoveredPeers] = useState<Map<string, DiscoveredPeer>>(new Map());
   const [battleRequest, setBattleRequest] = useState<{from: string; name: string; score: number} | null>(null);
   
-  const { peerId, connectToPeer, sendToPeer, status, isConnected } = useP2PConnection(
-    playerName, 
-    playerScore
-  );
+  const { peerId, connectToPeer, sendToPeer, status, connectedPeers } = useP2P();
 
-  const { showSuccess, showError, showInfo, showWarning } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
   const t2 = defaultTranslations;
 
   useEffect(() => {
-    if (status === 'connected' && !isConnected) {
-      showWarning('Reconnecting to previous session...');
-    } else if (status === 'connected' && isConnected) {
-      showSuccess('Connected! Battle ready.');
-    } else if (status === 'error') {
-      showError('Connection lost. Check your internet.');
-    } else if (status === 'connecting') {
-      showInfo('Connecting...');
+    if (status === 'connected' && connectedPeers.size > 0) {
+      showSuccess(t2.player_connected);
     }
-  }, [status, isConnected, showSuccess, showError, showInfo, showWarning]);
+  }, [connectedPeers.size, status, showSuccess, t2.player_connected]);
 
   useEffect(() => {
     const handleMessage = (e: CustomEvent<PeerMessage & { from: string }>) => {
@@ -81,14 +75,14 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
           break;
         case 'accept':
           onBattleStart(from, false);
-          showSuccess('Battle started!');
+          showSuccess(t2.battle_started);
           break;
       }
     };
 
     window.addEventListener('p2p-message', handleMessage as EventListener);
     return () => window.removeEventListener('p2p-message', handleMessage as EventListener);
-  }, [onBattleStart, showInfo, showSuccess]);
+  }, [onBattleStart, showInfo, showSuccess, t2.battle_started]);
 
   const handleConnect = async () => {
     if (!remotePeerId.trim()) return;
@@ -111,7 +105,7 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
       type: 'challenge',
       payload: { from: playerName, score: playerScore }
     });
-    showInfo(`Challenge sent to ${peer.name}`);
+    showInfo(t2.challenge_sent);
     onBattleStart(peer.id, true);
   };
 
@@ -121,7 +115,7 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
       type: 'accept',
       payload: { army: {} }
     });
-    showSuccess('Battle accepted!');
+    showSuccess(t2.battle_started);
     onBattleStart(battleRequest.from, false);
     setBattleRequest(null);
   };
@@ -150,6 +144,11 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
           <span className="text-xs text-slate-500 uppercase">
             {status === 'connected' ? 'Ready' : 'Connecting...'}
           </span>
+          {connectedPeers.size > 0 && (
+            <span className="text-xs text-cyan-400 ml-2">
+              ({connectedPeers.size} connected)
+            </span>
+          )}
         </div>
         
         <div className="space-y-4">

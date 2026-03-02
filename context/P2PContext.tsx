@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import Peer, { DataConnection } from 'peerjs';
 
 export type PeerMessage = 
@@ -25,6 +25,17 @@ export interface PeerInfo {
   score: number;
 }
 
+interface P2PContextType extends P2PState {
+  connectToPeer: (remotePeerId: string) => Promise<DataConnection>;
+  sendToPeer: (peerId: string, message: PeerMessage) => boolean;
+  broadcast: (message: PeerMessage) => void;
+  clearSession: () => void;
+  playerName: string;
+  playerScore: number;
+}
+
+const P2PContext = createContext<P2PContextType | null>(null);
+
 const STORAGE_KEY = 'p2p_session';
 
 interface StoredSession {
@@ -33,7 +44,11 @@ interface StoredSession {
   timestamp: number;
 }
 
-export function useP2PConnection(playerName: string, playerScore: number) {
+export const P2PProvider: React.FC<{ 
+  children: React.ReactNode; 
+  playerName: string;
+  playerScore: number;
+}> = ({ children, playerName, playerScore }) => {
   const [state, setState] = useState<P2PState>({
     peerId: null,
     isConnected: false,
@@ -183,51 +198,6 @@ export function useP2PConnection(playerName: string, playerScore: number) {
     });
   }, [saveSession]);
 
-  const handleIncomingConnection = useCallback((conn: DataConnection, peerId: string) => {
-    conn.on('open', () => {
-      console.log('[P2P] Incoming connection established!');
-      connectionsRef.current.set(conn.peer, conn);
-      saveSession(conn.peer);
-      
-      setState(prev => {
-        const newPeers = new Map(prev.connectedPeers);
-        newPeers.set(conn.peer, conn);
-        return {
-          ...prev,
-          connectedPeers: newPeers,
-          isConnected: newPeers.size > 0,
-        };
-      });
-
-      const info = playerInfoRef.current;
-      conn.send({
-        type: 'player_info',
-        payload: { id: peerId || '', name: info.name, score: info.score }
-      });
-    });
-
-    conn.on('data', (data) => {
-      console.log('[P2P] Received data from incoming:', conn.peer);
-      window.dispatchEvent(new CustomEvent('p2p-message', { 
-        detail: { from: conn.peer, ...data as PeerMessage } 
-      }));
-    });
-
-    conn.on('close', () => {
-      console.log('[P2P] Incoming connection closed');
-      connectionsRef.current.delete(conn.peer);
-      setState(prev => {
-        const newPeers = new Map(prev.connectedPeers);
-        newPeers.delete(conn.peer);
-        return {
-          ...prev,
-          connectedPeers: newPeers,
-          isConnected: newPeers.size > 0,
-        };
-      });
-    });
-  }, [saveSession]);
-
   const attemptReconnect = useCallback(async () => {
     const session = loadSession();
     if (!session || isReconnectingRef.current) return;
@@ -273,7 +243,49 @@ export function useP2PConnection(playerName: string, playerScore: number) {
 
     peer.on('connection', (conn) => {
       console.log('[P2P] Incoming connection from:', conn.peer);
-      handleIncomingConnection(conn, peer.id || '');
+      
+      conn.on('open', () => {
+        console.log('[P2P] Incoming connection established!');
+        connectionsRef.current.set(conn.peer, conn);
+        saveSession(conn.peer);
+        
+        setState(prev => {
+          const newPeers = new Map(prev.connectedPeers);
+          newPeers.set(conn.peer, conn);
+          return {
+            ...prev,
+            connectedPeers: newPeers,
+            isConnected: newPeers.size > 0,
+          };
+        });
+
+        const info = playerInfoRef.current;
+        conn.send({
+          type: 'player_info',
+          payload: { id: peer.id || '', name: info.name, score: info.score }
+        });
+      });
+
+      conn.on('data', (data) => {
+        console.log('[P2P] Received data from incoming:', conn.peer);
+        window.dispatchEvent(new CustomEvent('p2p-message', { 
+          detail: { from: conn.peer, ...data as PeerMessage } 
+        }));
+      });
+
+      conn.on('close', () => {
+        console.log('[P2P] Incoming connection closed');
+        connectionsRef.current.delete(conn.peer);
+        setState(prev => {
+          const newPeers = new Map(prev.connectedPeers);
+          newPeers.delete(conn.peer);
+          return {
+            ...prev,
+            connectedPeers: newPeers,
+            isConnected: newPeers.size > 0,
+          };
+        });
+      });
     });
 
     peer.on('disconnected', () => {
@@ -317,13 +329,27 @@ export function useP2PConnection(playerName: string, playerScore: number) {
       peer.destroy();
       initializedRef.current = false;
     };
-  }, [loadSession, attemptReconnect, handleIncomingConnection]);
+  }, [loadSession, attemptReconnect, saveSession]);
 
-  return {
-    ...state,
-    connectToPeer,
-    sendToPeer,
-    broadcast,
-    clearSession,
-  };
-}
+  return (
+    <P2PContext.Provider value={{
+      ...state,
+      connectToPeer,
+      sendToPeer,
+      broadcast,
+      clearSession,
+      playerName,
+      playerScore,
+    }}>
+      {children}
+    </P2PContext.Provider>
+  );
+};
+
+export const useP2P = () => {
+  const context = useContext(P2PContext);
+  if (!context) {
+    throw new Error('useP2P must be used within a P2PProvider');
+  }
+  return context;
+};
