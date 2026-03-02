@@ -3,7 +3,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p_lobby' | 'p2p_rankings';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -51,6 +51,13 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
               { id: 'rankings' as TabType, label: t.features.rankings.title.split(' ')[0], icon: Icons.Crown },
               { id: 'diplomacy' as TabType, label: t.common.ui.diplomacy || 'Diplomacy', icon: NavIcons.Diplomacy },
               { id: 'simulator' as TabType, label: t.common.ui.nav_simulator, icon: NavIcons.Simulator },
+          ]
+      },
+      {
+          title: 'Multiplayer',
+          items: [
+              { id: 'p2p_lobby' as TabType, label: 'Battle', icon: Icons.Radar },
+              { id: 'p2p_rankings' as TabType, label: 'P2P Rank', icon: Icons.Crown },
           ]
       }
   ];
