@@ -5,7 +5,7 @@
  * y los sincroniza automáticamente con los peers remotos.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMultiplayer } from './useMultiplayer';
 
 interface UseMultiplayerSyncProps {
@@ -27,11 +27,19 @@ export const useMultiplayerSync = ({
   enabled = true,
 }: UseMultiplayerSyncProps) => {
   const { isConnected, syncPlayerWithData } = useMultiplayer();
+  const lastSyncRef = useRef<{ name: string; level: number } | null>(null);
 
   useEffect(() => {
     if (!enabled || !isConnected) return;
 
-    // Sincronizar inmediatamente cuando hay cambios
+    // Evitar sync duplicado si los datos no han cambiado
+    const last = lastSyncRef.current;
+    if (last && last.name === playerName && last.level === empirePoints) {
+      return;
+    }
+
+    // Sincronizar solo cuando hay cambios reales
     syncPlayerWithData(playerName, empirePoints);
+    lastSyncRef.current = { name: playerName, level: empirePoints };
   }, [enabled, isConnected, playerName, empirePoints, syncPlayerWithData]);
 };

@@ -31,6 +31,19 @@ import { gameEventBus } from '../utils/eventBus';
 const APP_ID = 'shadowbound-multiplayer-v1';
 const PRESENCE_BROADCAST_INTERVAL = 5000;
 
+// Configuración de Trystero con trackers adicionales para mejor conectividad
+const TRYSTERO_CONFIG = {
+  appId: APP_ID,
+  // Trackers adicionales para mejorar la conectividad
+  trackerUrls: [
+    'wss://tracker.btorrent.xyz',
+    'wss://tracker.webtorrent.dev',
+    'wss://tracker.openwebtorrent.com',
+    'wss://tracker.files.fm:7073',
+    'wss://tracker.novage.com.ua',
+  ],
+};
+
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -247,7 +260,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     let room: Room | null = null;
     try {
-      room = joinRoom({ appId: APP_ID }, roomId);
+      // Usar configuración con múltiples trackers para mejor conectividad
+      room = joinRoom(TRYSTERO_CONFIG, roomId);
       roomRef.current = room;
     } catch (error) {
       console.error('Error connecting to room:', error);
@@ -362,6 +376,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     const playerData: PlayerPresence = { id: playerId, name: 'Player', level: 0, lastSeen: Date.now() };
     playersRef.current.set(playerId, playerData);
     
+    console.log('[Multiplayer] Connected to room:', roomId, 'with playerId:', playerId);
+    
     // Broadcast inicial inmediato y repetido para asegurar que todos los peers lo reciban
     // El primer broadcast puede perderse si los peers aún no están completamente conectados
     pendingTimeoutsRef.current.broadcastTimeout = setTimeout(() => {
@@ -423,9 +439,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   // CLEANUP AL DESMONTAR
   useEffect(() => {
-    console.log('[Multiplayer] Provider mounted');
+    console.log('[Multiplayer] Provider mounted - instance:', Math.random().toString(36).substr(2, 5));
     return () => {
-      console.log('[Multiplayer] Provider unmounting - cleaning up room');
+      console.log('[Multiplayer] Provider unmounting - cleaning up room, isConnected:', isConnectedRef.current);
       cleanupRoom();
       isConnectedRef.current = false;
       localPlayerIdRef.current = null;
