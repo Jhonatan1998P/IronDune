@@ -7,23 +7,25 @@ import { P2PProvider } from './context/P2PContext';
 import { GameLayout } from './components/layout/GameLayout';
 
 const AppContent: React.FC = () => {
-  const { gameState } = useGame();
-  
   return (
-    <P2PProvider playerName={gameState.playerName} playerScore={gameState.empirePoints}>
-      <GameLayout />
-    </P2PProvider>
+    <GameLayout />
   );
 };
 
-const App: React.FC = () => (
+const App: React.FC = () => {
+  const { gameState } = useGame();
+  
+  return (
     <LanguageProvider>
       <ToastProvider>
         <GameProvider>
-          <AppContent />
+          <P2PProvider playerName={gameState.playerName} playerScore={gameState.empirePoints}>
+            <AppContent />
+          </P2PProvider>
         </GameProvider>
       </ToastProvider>
     </LanguageProvider>
-);
+  );
+};
 
 export default App;

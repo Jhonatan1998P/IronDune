@@ -484,7 +484,7 @@ export const P2PProvider: React.FC<{
     }
   }, [loadSession, connectToPeer]);
 
-  useEffect(() => {
+useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
@@ -500,52 +500,76 @@ export const P2PProvider: React.FC<{
 
     console.log('[P2P] Initializing PeerJS with ID:', initialPeerId);
 
-    const createPeer = (peerId: string) => {
+    const createPeer = (peerId: string, onReady?: () => void) => {
       console.log('[P2P] Creating peer with ID:', peerId);
       const peer = new Peer(peerId, {
         debug: 1,
       });
 
-peer.on('open', (id) => {
-      console.log('[P2P] My peer ID:', id);
-      reconnectAttemptsRef.current = 0;
-      idRetryPhaseRef.current = 'initial';
-      setIdTakenCountdown(null);
-      setState(prev => ({
-        ...prev,
-        peerId: id,
-        status: 'connected',
-        error: null,
-      }));
+      const initTimeout = setTimeout(() => {
+        console.log('[P2P] 30s timeout reached, checking status...');
+        if (peer.id) {
+          console.log('[P2P] Peer already connected, disconnecting to reconnect...');
+          peer.disconnect();
+          setTimeout(() => {
+            peer.reconnect();
+          }, 1000);
+        }
+      }, 30000);
 
-      const session = loadSession();
-      if (session && session.remotePeerId !== id) {
-        console.log('[P2P] Previous session found but not auto-reconnecting. User must reconnect manually.');
-        setState(prev => ({ ...prev, error: 'Sesión anterior encontrada. Reconecta manualmente.' }));
-      }
+      peer.on('open', (id) => {
+        console.log('[P2P] My peer ID:', id);
+        clearTimeout(initTimeout);
+        reconnectAttemptsRef.current = 0;
+        idRetryPhaseRef.current = 'initial';
+        setIdTakenCountdown(null);
+        setState(prev => ({
+          ...prev,
+          peerId: id,
+          status: 'connected',
+          error: null,
+        }));
 
-      if (heartbeatTimerRef.current) {
-        clearInterval(heartbeatTimerRef.current);
-      }
-      heartbeatTimerRef.current = setInterval(() => {
-        broadcast({
-          type: 'heartbeat',
-          payload: { timestamp: Date.now() }
-        });
-        checkPeerStatus();
-        broadcastPlayerInfo();
-      }, HEARTBEAT_INTERVAL);
-    });
+        const session = loadSession();
+        if (session && session.remotePeerId !== id) {
+          console.log('[P2P] Previous session found but not auto-reconnecting. User must reconnect manually.');
+        }
 
-    peer.on('connection', (conn) => {
-      console.log('[P2P] Incoming connection from:', conn.peer);
-      
-      const existingConn = connectionsRef.current.get(conn.peer);
-      if (existingConn && existingConn.open) {
-        console.log('[P2P] Already connected to this peer, closing duplicate');
-        conn.close();
-        return;
-      }
+        if (heartbeatTimerRef.current) {
+          clearInterval(heartbeatTimerRef.current);
+        }
+        heartbeatTimerRef.current = setInterval(() => {
+          if (peer.open) {
+            broadcast({
+              type: 'heartbeat',
+              payload: { timestamp: Date.now() }
+            });
+            
+            connectionsRef.current.forEach((conn, peerId) => {
+              if (conn.open) {
+                conn.send({ type: 'heartbeat', payload: { timestamp: Date.now() } });
+              } else {
+                console.log('[P2P] Connection to', peerId, 'is closed, removing');
+                connectionsRef.current.delete(peerId);
+              }
+            });
+          }
+          checkPeerStatus();
+          broadcastPlayerInfo();
+        }, HEARTBEAT_INTERVAL);
+        
+        if (onReady) onReady();
+      });
+
+      peer.on('connection', (conn) => {
+        console.log('[P2P] Incoming connection from:', conn.peer);
+        
+        const existingConn = connectionsRef.current.get(conn.peer);
+        if (existingConn && existingConn.open) {
+          console.log('[P2P] Already connected to this peer, closing duplicate');
+          conn.close();
+          return;
+        }
         
         conn.on('open', () => {
           console.log('[P2P] Incoming connection established!');
@@ -609,29 +633,53 @@ peer.on('open', (id) => {
         });
       });
 
-      peer.on('disconnected', () => {
-        console.log('[P2P] Peer disconnected, attempt:', reconnectAttemptsRef.current + 1);
+peer.on('disconnected', () => {
+        console.log('[P2P] Peer disconnected from server, attempting automatic reconnection...');
         
         if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.log('[P2P] Max reconnect attempts reached');
-          setState(prev => ({ 
-            ...prev, 
-            status: 'error', 
-            error: 'No se pudo reconectar. Recarga la página para intentar de nuevo.' 
-          }));
-          return;
+          console.log('[P2P] Max reconnect attempts reached, will keep retrying silently');
         }
         
         reconnectAttemptsRef.current += 1;
         setState(prev => ({ 
           ...prev, 
-          status: 'connecting', 
-          error: `Reconectando... (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})` 
+          status: 'connecting',
+          error: null
         }));
         
         setTimeout(() => {
           peer.reconnect();
-        }, 3000);
+        }, 2000);
+      });
+
+      peer.on('error', (err) => {
+        console.error('[P2P] Peer error:', err);
+        
+        const errorType = err.type;
+        
+        if (errorType === 'unavailable-id') {
+          handleIdTaken(peer);
+          return;
+        }
+        
+        if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
+          console.log('[P2P] Network error detected, will auto-reconnect silently');
+          setTimeout(() => peer.reconnect(), 3000);
+          return;
+        }
+        
+        if (errorType === 'peer-unavailable') {
+          console.log('[P2P] Peer unavailable - this is normal if the other player is offline');
+          return;
+        }
+        
+        if (errorType === 'server-error') {
+          console.log('[P2P] Server error, will retry silently');
+          setTimeout(() => peer.reconnect(), 5000);
+          return;
+        }
+        
+        console.log('[P2P] Non-critical error, ignoring:', errorType);
       });
 
       peer.on('error', (err) => {
@@ -668,17 +716,17 @@ peer.on('open', (id) => {
           return;
         }
         
-        let errorMsg = 'Connection error';
+        let errorMsg = 'Error de conexión';
         if (errorType === 'peer-unavailable') {
-          errorMsg = 'Player not found. Check the ID and try again.';
+          errorMsg = 'Jugador no encontrado. Verifica el ID e intenta de nuevo.';
         } else if (errorType === 'server-error') {
-          errorMsg = 'Server error. Try again in a few seconds.';
+          errorMsg = 'Error del servidor. Intenta de nuevo en unos segundos.';
         } else if (errorType === 'webrtc') {
-          errorMsg = 'WebRTC not supported in this browser.';
+          errorMsg = 'WebRTC no es compatible en este navegador.';
         } else if (errorType === 'browser-incompatible') {
-          errorMsg = 'Browser not compatible with P2P.';
+          errorMsg = 'Navegador no compatible con P2P.';
         } else {
-          errorMsg = err.message || 'Unknown error';
+          errorMsg = err.message || 'Error desconocido';
         }
         
         setState(prev => ({
@@ -785,6 +833,7 @@ peer.on('open', (id) => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
+      console.log('[P2P] Cleaning up - this should only happen on page close');
       peer.disconnect();
       initializedRef.current = false;
     };
