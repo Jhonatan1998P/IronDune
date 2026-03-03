@@ -141,9 +141,17 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // COMUNICACIÓN
   const broadcastPresence = useCallback((usePlayerId?: string) => {
     const idToUse = usePlayerId || localPlayerIdRef.current;
-    if (!sendActionRef.current || !idToUse || !isConnectedRef.current) return;
+    if (!sendActionRef.current || !idToUse || !isConnectedRef.current) {
+      console.warn('[Multiplayer] broadcastPresence skipped:', { 
+        hasSendAction: !!sendActionRef.current, 
+        idToUse, 
+        isConnected: isConnectedRef.current 
+      });
+      return;
+    }
 
     const playerData = playersRef.current.get(idToUse);
+    console.log('[Multiplayer] broadcastPresence:', playerData);
     if (playerData) {
       try {
         sendActionRef.current({
@@ -211,7 +219,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   const syncPlayerWithData = useCallback((playerName: string, empirePoints: number) => {
     const currentId = localPlayerIdRef.current;
-    if (!currentId || !isConnectedRef.current) return;
+    if (!currentId || !isConnectedRef.current) {
+      console.warn('[Multiplayer] syncPlayerWithData skipped:', { currentId, isConnected: isConnectedRef.current });
+      return;
+    }
 
     const playerData: PlayerPresence = {
       id: currentId,
@@ -220,6 +231,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       lastSeen: Date.now(),
     };
 
+    console.log('[Multiplayer] syncPlayerWithData:', playerData);
     playersRef.current.set(currentId, playerData);
     broadcastPresence();
   }, [broadcastPresence]);

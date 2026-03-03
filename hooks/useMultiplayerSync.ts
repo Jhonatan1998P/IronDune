@@ -28,9 +28,22 @@ export const useMultiplayerSync = ({
 }: UseMultiplayerSyncProps) => {
   const { isConnected, syncPlayerWithData } = useMultiplayer();
   const lastSyncRef = useRef<{ name: string; level: number } | null>(null);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !isConnected) return;
+    // Detectar reconexión - resetear el ref para forzar re-sync
+    if (isConnected && !wasConnectedRef.current) {
+      console.log('[MultiplayerSync] Reconnected, forcing resync');
+      lastSyncRef.current = null;
+      wasConnectedRef.current = true;
+    }
+    
+    if (!isConnected) {
+      wasConnectedRef.current = false;
+      return;
+    }
+    
+    if (!enabled) return;
 
     // Evitar sync duplicado si los datos no han cambiado
     const last = lastSyncRef.current;
@@ -39,6 +52,7 @@ export const useMultiplayerSync = ({
     }
 
     // Sincronizar solo cuando hay cambios reales
+    console.log('[MultiplayerSync] Syncing player:', playerName, empirePoints);
     syncPlayerWithData(playerName, empirePoints);
     lastSyncRef.current = { name: playerName, level: empirePoints };
   }, [enabled, isConnected, playerName, empirePoints, syncPlayerWithData]);
