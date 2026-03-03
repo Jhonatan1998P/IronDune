@@ -343,22 +343,21 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       pendingTimeoutsRef.current.uiTimeout = setTimeout(() => updateRemotePlayers(), 300);
     });
 
-    // Peer Leave - IMPORTANTE: Limpiar completamente el peer para permitir reconexión
+    // Peer Leave - Limpieza completa del jugador que se sale
     room.onPeerLeave((peerId: string) => {
       console.log('[Multiplayer] ❌ PEER LEFT:', peerId, 'at', new Date().toLocaleTimeString());
       setPeers(prev => prev.filter(p => p !== peerId));
-      // Eliminar completamente del playersRef para permitir reconexión limpia
+      // Eliminar completamente del playersRef - NO mantener datos residuales
       playersRef.current.delete(peerId);
       console.log('[Multiplayer] Deleted peer from playersRef, remaining:', playersRef.current.size);
       updateRemotePlayers();
     });
 
-    // Obtener lista inicial de peers (importante para reconexiones)
-    // Trystero mantiene una lista de peers aunque no hayan disparado onPeerJoin
+    // Obtener lista inicial de peers (solo para conexiones iniciales, NO reconexiones)
     const initialPeers = room.getPeers();
     console.log('[Multiplayer] Initial peers in room:', initialPeers);
     if (initialPeers.length > 0) {
-      // Ya hay peers en la sala - registrarlos
+      // Ya hay peers en la sala - registrarlos temporalmente
       initialPeers.forEach((peerId: string) => {
         playersRef.current.set(peerId, {
           id: peerId,
@@ -393,18 +392,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         case 'PRESENCE_UPDATE':
           const playerData = action.payload as PlayerPresence;
           if (playerData) {
-            // Verificar si es una reconexión (mismo nombre, diferente ID)
-            const existingEntry = Array.from(playersRef.current.entries()).find(
-              ([id, data]) => data.name === playerData.name && id !== peerId
-            );
-            
-            if (existingEntry) {
-              // Es una reconexión - eliminar el ID viejo
-              console.log('[Multiplayer] 🔄 Detected reconnection:', existingEntry[0], '→', peerId);
-              playersRef.current.delete(existingEntry[0]);
-            }
-            
-            // Actualizar o crear la entrada del peer con el NUEVO ID
+            // Actualizar datos del peer
             playersRef.current.set(peerId, {
               id: peerId,
               name: playerData.name || 'Jugador',
@@ -419,13 +407,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           console.log('[Multiplayer] Sending presence in response to REQUEST_PRESENCE from:', peerId);
           // Enviar nuestra presencia inmediatamente
           broadcastPresence(playerId);
-          break;
-        case 'PLAYER_LEAVE':
-          console.log('[Multiplayer] Player left notification from:', peerId);
-          // Limpiar inmediatamente cuando recibimos notificación de salida
-          playersRef.current.delete(peerId);
-          setPeers(prev => prev.filter(p => p !== peerId));
-          updateRemotePlayers();
           break;
         case 'GIFT_GOLD':
           const giftData = action.payload as GiftGoldPayload;
@@ -451,36 +432,22 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     console.log('[Multiplayer] Connected to room:', roomId, 'with playerId:', playerId);
 
-    // Broadcast inicial inmediato y repetido para asegurar que todos los peers lo reciban
-    // El primer broadcast puede perderse si los peers aún no están completamente conectados
+    // Broadcast inicial para que otros peers nos vean
     pendingTimeoutsRef.current.broadcastTimeout = setTimeout(() => {
       console.log('[Multiplayer] Initial presence broadcast');
       broadcastPresence(playerId);
-    }, 50);
+    }, 100);
 
-    // Segundo broadcast para asegurar
+    // Segundo broadcast + REQUEST_PRESENCE a todos los peers existentes
     setTimeout(() => {
-      console.log('[Multiplayer] Second presence broadcast');
+      console.log('[Multiplayer] Second broadcast + requesting presence from peers');
       broadcastPresence(playerId);
-    }, 200);
-    
-    // Tercer broadcast + REQUEST_PRESENCE a todos (importante para reconexiones)
-    setTimeout(() => {
-      console.log('[Multiplayer] Third broadcast + requesting presence from all peers');
-      broadcastPresence(playerId);
-      // Solicitar presencia de todos los peers existentes
       try {
         sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any);
       } catch (e) {
         console.warn('Error sending REQUEST_PRESENCE:', e);
       }
-    }, 500);
-
-    // Cuarto broadcast con datos actualizados (por si el syncPlayerWithData ya se ejecutó)
-    setTimeout(() => {
-      console.log('[Multiplayer] Fourth broadcast with updated data');
-      broadcastPresence(playerId);
-    }, 800);
+    }, 300);
 
     // Broadcast periódico
     pendingTimeoutsRef.current.presenceTimeout = setInterval(() => broadcastPresence(), PRESENCE_BROADCAST_INTERVAL);
@@ -519,22 +486,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   }, [initRoom]);
 
   const leave = useCallback(() => {
-    console.log('[Multiplayer] Leaving room - notifying peers');
-    
-    // Enviar mensaje final de despedida (opcional, para que otros peers limpien inmediatamente)
-    if (sendActionRef.current && localPlayerIdRef.current) {
-      try {
-        sendActionRef.current({
-          type: 'PLAYER_LEAVE',
-          payload: null,
-          playerId: localPlayerIdRef.current,
-          timestamp: Date.now(),
-        } as any);
-      } catch (e) {
-        // Ignorar errores - la sala se está cerrando de todos modos
-      }
-    }
-    
+    console.log('[Multiplayer] Leaving room');
     cleanupRoom();
     setCurrentRoomId(null);
     setLocalPlayerId(null);
