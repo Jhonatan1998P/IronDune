@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { useP2P } from '../../context/P2PContext';
+import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
+import type { PlayerPresence } from '../../types/multiplayer';
 
 interface P2PRankingProps {
   playerName: string;
@@ -9,33 +10,44 @@ interface P2PRankingProps {
 }
 
 export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore }) => {
-  const { peerId, status, knownPeers } = useP2P();
+  const { isConnected, remotePlayers, currentRoomId } = useMultiplayer();
 
+  // Combinar jugador local con remotePlayers para el ranking
   const rankedPlayers = useMemo(() => {
-    const players = Array.from(knownPeers.values())
-      .filter(p => p.id !== peerId)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        score: p.score,
+    const players: Array<{
+      id: string;
+      name: string;
+      score: number;
+      isPlayer: boolean;
+      isOnline: boolean;
+    }> = [];
+
+    // Agregar jugador local
+    players.push({
+      id: 'local',
+      name: playerName,
+      score: playerScore,
+      isPlayer: true,
+      isOnline: true,
+    });
+
+    // Agregar jugadores remotos
+    remotePlayers.forEach((player: PlayerPresence) => {
+      players.push({
+        id: player.id,
+        name: player.name,
+        score: player.level,
         isPlayer: false,
-        isOnline: p.isOnline,
-      }));
-    
-    if (peerId) {
-      players.unshift({
-        id: peerId,
-        name: playerName,
-        score: playerScore,
-        isPlayer: true,
         isOnline: true,
       });
-    }
-    
+    });
+
+    // Ordenar por score (mayor a menor)
     return players.sort((a, b) => b.score - a.score);
-  }, [knownPeers, peerId, playerName, playerScore]);
+  }, [playerName, playerScore, remotePlayers]);
 
   const onlineCount = rankedPlayers.filter(p => p.isOnline).length;
+  const playerRank = rankedPlayers.findIndex(p => p.isPlayer) + 1;
 
   const getRankStyle = (rank: number) => {
     if (rank === 1) return { bg: 'bg-yellow-900/30', border: 'border-yellow-500/40', glow: 'shadow-[0_0_20px_rgba(234,179,8,0.2)]' };
@@ -43,8 +55,6 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
     if (rank === 3) return { bg: 'bg-orange-900/30', border: 'border-orange-500/40', glow: 'shadow-[0_0_15px_rgba(249,115,22,0.15)]' };
     return { bg: 'bg-slate-900/40', border: 'border-white/5', glow: '' };
   };
-
-  const playerRank = rankedPlayers.findIndex(p => p.isPlayer) + 1;
 
   return (
     <div className="flex flex-col min-h-full p-2 sm:p-4 gap-3 sm:gap-4 animate-[fadeIn_0.3s_ease-out]">
@@ -56,12 +66,19 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
             Rankings PvP
           </h2>
           <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
+            <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
             <span className="text-xs sm:text-sm text-slate-400 uppercase font-bold">
-              {status === 'connected' ? 'En línea' : 'Offline'}
+              {isConnected ? 'En línea' : 'Offline'}
             </span>
           </div>
         </div>
+
+        {/* Sala actual */}
+        {currentRoomId && (
+          <div className="mb-3 sm:mb-4 text-xs text-slate-500">
+            Sala: <code className="text-cyan-400 bg-black/30 px-2 py-1 rounded">{currentRoomId}</code>
+          </div>
+        )}
 
         {/* Player Rank Card */}
         {playerRank > 0 && (
@@ -83,7 +100,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
           {rankedPlayers.map((player, index) => {
             const rank = index + 1;
             const rankStyle = getRankStyle(rank);
-            
+
             return (
               <div
                 key={player.id}
@@ -97,8 +114,8 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   <div className={`
                     flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded font-bold text-sm shrink-0
-                    ${rank <= 3 
-                      ? rank === 1 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' 
+                    ${rank <= 3
+                      ? rank === 1 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
                       : rank === 2 ? 'bg-slate-400/20 text-slate-300 border border-slate-400/50'
                       : 'bg-orange-500/20 text-orange-400 border border-orange-500/50'
                       : 'bg-black/40 text-slate-500 border border-white/10'
@@ -132,11 +149,11 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
           })}
         </div>
 
-        {rankedPlayers.length === 0 && (
+        {rankedPlayers.length <= 1 && (
           <div className="glass-panel p-6 sm:p-8 rounded-xl border border-white/10 text-center">
             <Icons.Crown className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400 text-sm sm:text-base mb-2">Conéctate con amigos para ver rankings!</p>
-            <p className="text-slate-500 text-xs sm:text-sm">Comparte tu ID en Batalla PvP</p>
+            <p className="text-slate-500 text-xs sm:text-sm">Crea o únete a una sala multijugador</p>
           </div>
         )}
       </div>

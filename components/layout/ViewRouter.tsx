@@ -24,7 +24,7 @@ const RankingsView = lazy(() => import('../views/RankingsView').then(m => ({ def
 const WarView = lazy(() => import('../views/WarView').then(m => ({ default: m.WarView })));
 const SettingsView = lazy(() => import('../views/SettingsView').then(m => ({ default: m.SettingsView })));
 const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ default: m.default })));
-const P2PHome = lazy(() => import('../views/P2PHome').then(m => ({ default: m.P2PHome })));
+const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 
 // Loading fallback component
 const ViewLoader: React.FC = () => (
@@ -94,7 +94,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                 return <DiplomacyView />;
             case 'settings':
                 return (
-                    <SettingsView 
+                    <SettingsView
                         gameState={gameState}
                         changePlayerName={changePlayerName}
                         redeemGiftCode={redeemGiftCode}
@@ -105,10 +105,9 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                 );
             case 'p2p':
                 return (
-                    <P2PHome 
+                    <P2PRanking
                         playerName={gameState.playerName}
                         playerScore={gameState.empirePoints}
-                        onBattleStart={() => {}}
                     />
                 );
             default:

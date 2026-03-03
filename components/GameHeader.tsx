@@ -7,6 +7,7 @@ import { formatNumber, formatDuration } from '../utils';
 import { useLanguage } from '../context/LanguageContext';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
 import { getIncomeStats } from '../utils/engine/selectors';
+import { MultiplayerButton } from './MultiplayerButton';
 
 interface GameHeaderProps {
     onToggleStatus?: () => void;
@@ -180,8 +181,9 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
         </div>
 
         {/* MOBILE: Right Panel Trigger */}
-        <div className="xl:hidden shrink-0 pl-2 border-l border-white/10">
-            <button 
+        <div className="xl:hidden shrink-0 pl-2 border-l border-white/10 flex items-center gap-2">
+            <MultiplayerButton variant="icon" />
+            <button
                 onClick={onToggleStatus}
                 className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg relative transition-colors border border-white/5"
             >
@@ -192,7 +194,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
                 ) : (
                     <Icons.Radar />
                 )}
-                
+
                 {/* Badge for active tasks */}
                 {!hasIncoming && totalActiveTasks > 0 && (
                     <span className="absolute -top-1 -right-1 bg-cyan-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-lg">

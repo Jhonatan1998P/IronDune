@@ -1,32 +1,41 @@
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { LanguageProvider } from './context/LanguageContext';
-import { GameProvider, useGame } from './context/GameContext';
+import { GameProvider } from './context/GameContext';
 import { ToastProvider } from './components/ui/Toast';
-import { P2PProvider } from './context/P2PContext';
+import { MultiplayerProvider } from './hooks/useMultiplayer';
 import { GameLayout } from './components/layout/GameLayout';
 
+/**
+ * AppContent - Componente principal del juego
+ * 
+ * NOTA: MultiplayerProvider está OUTSIDE de GameProvider para evitar
+ * que se desmonte con cada actualización del gameState.
+ * 
+ * Las conexiones WebRTC (Trystero) deben mantenerse estables y solo
+ * limpiarse cuando el usuario sale explícitamente de la sala.
+ */
 const AppContent: React.FC = () => {
-  const { gameState } = useGame();
-  
-  const p2pProps = useMemo(() => ({
-    playerName: gameState.playerName,
-    playerScore: gameState.empirePoints
-  }), [gameState.playerName, gameState.empirePoints]);
-  
-  return (
-    <P2PProvider {...p2pProps}>
-      <GameLayout />
-    </P2PProvider>
-  );
+  return <GameLayout />;
 };
 
+/**
+ * App - Árbol de Providers
+ * 
+ * Orden CRÍTICO:
+ * 1. MultiplayerProvider (más externo - no depende del juego)
+ * 2. GameProvider (interno - se re-renderiza con el estado)
+ * 
+ * Esto previene que las conexiones P2P se interrumpan con cada update.
+ */
 const App: React.FC = () => (
     <LanguageProvider>
       <ToastProvider>
-        <GameProvider>
-          <AppContent />
-        </GameProvider>
+        <MultiplayerProvider>
+          <GameProvider>
+            <AppContent />
+          </GameProvider>
+        </MultiplayerProvider>
       </ToastProvider>
     </LanguageProvider>
 );

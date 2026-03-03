@@ -8,3 +8,6 @@ export * from './types/events';
 
 // Export StaticBot from rankings utility
 export type { StaticBot } from './utils/engine/rankings';
+
+// Export multiplayer types
+export * from './types/multiplayer';
