@@ -140,9 +140,9 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
       {/* Header Status */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+          <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400 animate-pulse' : status === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'}`}></span>
           <span className="text-xs sm:text-sm text-slate-400 uppercase font-bold">
-            {status === 'connected' ? 'En línea' : 'Conectando...'}
+            {status === 'connected' ? 'En línea' : status === 'connecting' ? 'Reconectando...' : 'Conectando...'}
           </span>
         </div>
         {knownPeers.size > 0 && (
@@ -151,6 +151,23 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
           </span>
         )}
       </div>
+
+      {/* Error / Status Message */}
+      {status !== 'connected' && status !== 'disconnected' && (
+        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-amber-500/40 bg-amber-900/20">
+          <div className="flex items-center gap-3">
+            <Icons.Radar className="w-5 h-5 text-amber-400 animate-pulse" />
+            <div>
+              <div className="text-amber-400 font-bold text-sm">
+                {idTakenCountdown !== null ? 'ID en uso' : 'Reconectando...'}
+              </div>
+              {idTakenCountdown === null && (
+                <div className="text-amber-500/70 text-xs">Tu ID está reservado, espera un momento...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ID Taken Countdown */}
       {idTakenCountdown !== null && (

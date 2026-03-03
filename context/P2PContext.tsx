@@ -4,13 +4,25 @@ import Peer, { DataConnection } from 'peerjs';
 export type PeerMessage = 
   | { type: 'challenge'; payload: { from: string; score: number } }
   | { type: 'accept'; payload: { army: Record<string, number> } }
+  | { type: 'decline'; payload: { reason?: string } }
   | { type: 'attack'; payload: { army: Record<string, number> } }
   | { type: 'result'; payload: { winner: 'PLAYER' | 'ENEMY'; army: Record<string, number> } }
   | { type: 'score_update'; payload: { score: number } }
   | { type: 'player_info'; payload: { id: string; name: string; score: number } }
   | { type: 'sync_state'; payload: { gameState: any } }
   | { type: 'request_sync'; payload: { requestId: string } }
-  | { type: 'heartbeat'; payload: { timestamp: number } };
+  | { type: 'heartbeat'; payload: { timestamp: number } }
+  | { type: 'chat'; payload: { message: string; timestamp: number } }
+  | { type: 'typing'; payload: { isTyping: boolean } };
+
+export interface ChatMessage {
+  id: string;
+  from: string;
+  fromName: string;
+  message: string;
+  timestamp: number;
+  isOwn: boolean;
+}
 
 export interface P2PState {
   peerId: string | null;
@@ -28,6 +40,15 @@ export interface PeerInfo {
   isOnline: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  from: string;
+  fromName: string;
+  message: string;
+  timestamp: number;
+  isOwn: boolean;
+}
+
 interface P2PContextType extends P2PState {
   connectToPeer: (remotePeerId: string) => Promise<DataConnection>;
   sendToPeer: (peerId: string, message: PeerMessage) => boolean;
@@ -38,6 +59,10 @@ interface P2PContextType extends P2PState {
   playerScore: number;
   knownPeers: Map<string, PeerInfo>;
   idTakenCountdown: number | null;
+  chatMessages: Map<string, ChatMessage[]>;
+  sendChat: (peerId: string, message: string) => void;
+  broadcastChat: (message: string) => void;
+  clearChat: (peerId?: string) => void;
 }
 
 const P2PContext = createContext<P2PContextType | null>(null);
@@ -84,6 +109,7 @@ export const P2PProvider: React.FC<{
   
   const [knownPeers, setKnownPeers] = useState<Map<string, PeerInfo>>(new Map());
   const [idTakenCountdown, setIdTakenCountdown] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<Map<string, ChatMessage[]>>(new Map());
   
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
@@ -94,7 +120,12 @@ export const P2PProvider: React.FC<{
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingConnectionsRef = useRef<Set<string>>(new Set());
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 3;
   const COUNTDOWN_SECONDS = 75;
+  
+  const idRetryPhaseRef = useRef<'initial' | 'retry5s' | 'retry75s' | 'newId'>('initial');
+  const originalPeerIdRef = useRef<string | null>(null);
   
   useEffect(() => {
     playerInfoRef.current = { name: playerName, score: playerScore };
@@ -184,6 +215,70 @@ export const P2PProvider: React.FC<{
     });
   }, [broadcast]);
 
+  const sendChat = useCallback((peerId: string, message: string) => {
+    const info = playerInfoRef.current;
+    const msg: PeerMessage = {
+      type: 'chat',
+      payload: { message, timestamp: Date.now() }
+    };
+    
+    if (sendToPeer(peerId, msg)) {
+      setChatMessages(prev => {
+        const newMap = new Map(prev);
+        const peerMessages = newMap.get(peerId) || [];
+        const newMessage: ChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          from: peerRef.current?.id || '',
+          fromName: info.name,
+          message,
+          timestamp: Date.now(),
+          isOwn: true,
+        };
+        newMap.set(peerId, [...peerMessages, newMessage]);
+        return newMap;
+      });
+    }
+  }, [broadcast, sendToPeer]);
+
+  const broadcastChat = useCallback((message: string) => {
+    const info = playerInfoRef.current;
+    const msg: PeerMessage = {
+      type: 'chat',
+      payload: { message, timestamp: Date.now() }
+    };
+    
+    broadcast(msg);
+    
+    connectionsRef.current.forEach((_, peerId) => {
+      setChatMessages(prev => {
+        const newMap = new Map(prev);
+        const peerMessages = newMap.get(peerId) || [];
+        const newMessage: ChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          from: peerRef.current?.id || '',
+          fromName: info.name,
+          message,
+          timestamp: Date.now(),
+          isOwn: true,
+        };
+        newMap.set(peerId, [...peerMessages, newMessage]);
+        return newMap;
+      });
+    });
+  }, [broadcast]);
+
+  const clearChat = useCallback((peerId?: string) => {
+    if (peerId) {
+      setChatMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(peerId);
+        return newMap;
+      });
+    } else {
+      setChatMessages(new Map());
+    }
+  }, []);
+
   const updateKnownPeer = useCallback((peerId: string, name: string, score: number) => {
     setKnownPeers(prev => {
       const newMap = new Map(prev);
@@ -206,10 +301,28 @@ export const P2PProvider: React.FC<{
       updateKnownPeer(from, data.payload.name, data.payload.score);
     }
     
+    if (data.type === 'chat') {
+      const peerName = knownPeers.get(from)?.name || from;
+      setChatMessages(prev => {
+        const newMap = new Map(prev);
+        const peerMessages = newMap.get(from) || [];
+        const newMessage: ChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          from,
+          fromName: peerName,
+          message: data.payload.message,
+          timestamp: data.payload.timestamp,
+          isOwn: false,
+        };
+        newMap.set(from, [...peerMessages, newMessage]);
+        return newMap;
+      });
+    }
+    
     window.dispatchEvent(new CustomEvent('p2p-message', { 
       detail: { from, ...data } 
     }));
-  }, [updateKnownPeer]);
+  }, [updateKnownPeer, knownPeers]);
 
   const checkPeerStatus = useCallback(() => {
     const now = Date.now();
@@ -367,129 +480,232 @@ export const P2PProvider: React.FC<{
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    const initialPeerId = getStoredPeerId() || generateShortId('dune', 6);
-    if (!getStoredPeerId()) {
+    const storedId = getStoredPeerId();
+    let initialPeerId = storedId || generateShortId('dune', 6);
+    
+    if (!storedId) {
       savePeerId(initialPeerId);
     }
+    
+    originalPeerIdRef.current = initialPeerId;
+    idRetryPhaseRef.current = 'initial';
 
     console.log('[P2P] Initializing PeerJS with ID:', initialPeerId);
 
-    const peer = new Peer(initialPeerId, {
-      debug: 1,
-    });
+    const createPeer = (peerId: string) => {
+      console.log('[P2P] Creating peer with ID:', peerId);
+      const peer = new Peer(peerId, {
+        debug: 1,
+      });
 
-    peer.on('open', (id) => {
-      console.log('[P2P] My peer ID:', id);
-      setState(prev => ({
-        ...prev,
-        peerId: id,
-        status: 'connected',
-      }));
+      peer.on('open', (id) => {
+        console.log('[P2P] My peer ID:', id);
+        reconnectAttemptsRef.current = 0;
+        idRetryPhaseRef.current = 'initial';
+        setIdTakenCountdown(null);
+        setState(prev => ({
+          ...prev,
+          peerId: id,
+          status: 'connected',
+          error: null,
+        }));
 
-      const session = loadSession();
-      if (session) {
-        console.log('[P2P] Found previous session, attempting reconnect...');
-        setTimeout(() => attemptReconnect(), 1000);
-      }
+        const session = loadSession();
+        if (session) {
+          console.log('[P2P] Found previous session, attempting reconnect...');
+          setTimeout(() => attemptReconnect(), 1000);
+        }
 
-      if (heartbeatTimerRef.current) {
-        clearInterval(heartbeatTimerRef.current);
-      }
-      heartbeatTimerRef.current = setInterval(() => {
-        broadcast({
-          type: 'heartbeat',
-          payload: { timestamp: Date.now() }
-        });
-        checkPeerStatus();
-        broadcastPlayerInfo();
-      }, HEARTBEAT_INTERVAL);
-    });
-
-    peer.on('connection', (conn) => {
-      console.log('[P2P] Incoming connection from:', conn.peer);
-      
-      conn.on('open', () => {
-        console.log('[P2P] Incoming connection established!');
-        connectionsRef.current.set(conn.peer, conn);
-        saveSession(conn.peer);
-        
-        setState(prev => {
-          const newPeers = new Map(prev.connectedPeers);
-          newPeers.set(conn.peer, conn);
-          return {
-            ...prev,
-            connectedPeers: newPeers,
-            isConnected: newPeers.size > 0,
-          };
-        });
-
-        const info = playerInfoRef.current;
-        conn.send({
-          type: 'player_info',
-          payload: { id: peer.id || '', name: info.name, score: info.score }
-        });
-
-        setKnownPeers(prev => {
-          const newMap = new Map(prev);
-          newMap.set(conn.peer, {
-            id: conn.peer,
-            name: info.name,
-            score: info.score,
-            lastSeen: Date.now(),
-            isOnline: true,
+        if (heartbeatTimerRef.current) {
+          clearInterval(heartbeatTimerRef.current);
+        }
+        heartbeatTimerRef.current = setInterval(() => {
+          broadcast({
+            type: 'heartbeat',
+            payload: { timestamp: Date.now() }
           });
-          return newMap;
+          checkPeerStatus();
+          broadcastPlayerInfo();
+        }, HEARTBEAT_INTERVAL);
+      });
+
+      peer.on('connection', (conn) => {
+        console.log('[P2P] Incoming connection from:', conn.peer);
+        
+        conn.on('open', () => {
+          console.log('[P2P] Incoming connection established!');
+          connectionsRef.current.set(conn.peer, conn);
+          saveSession(conn.peer);
+          
+          setState(prev => {
+            const newPeers = new Map(prev.connectedPeers);
+            newPeers.set(conn.peer, conn);
+            return {
+              ...prev,
+              connectedPeers: newPeers,
+              isConnected: newPeers.size > 0,
+            };
+          });
+
+          const info = playerInfoRef.current;
+          conn.send({
+            type: 'player_info',
+            payload: { id: peer.id || '', name: info.name, score: info.score }
+          });
+
+          setKnownPeers(prev => {
+            const newMap = new Map(prev);
+            newMap.set(conn.peer, {
+              id: conn.peer,
+              name: info.name,
+              score: info.score,
+              lastSeen: Date.now(),
+              isOnline: true,
+            });
+            return newMap;
+          });
+        });
+
+        conn.on('data', (data) => {
+          handleIncomingData(conn.peer, data as PeerMessage);
+        });
+
+        conn.on('close', () => {
+          console.log('[P2P] Incoming connection closed');
+          connectionsRef.current.delete(conn.peer);
+          setState(prev => {
+            const newPeers = new Map(prev.connectedPeers);
+            newPeers.delete(conn.peer);
+            return {
+              ...prev,
+              connectedPeers: newPeers,
+              isConnected: newPeers.size > 0,
+            };
+          });
+
+          setKnownPeers(prev => {
+            const newMap = new Map(prev);
+            const existing = newMap.get(conn.peer);
+            if (existing) {
+              newMap.set(conn.peer, { ...existing, isOnline: false });
+            }
+            return newMap;
+          });
         });
       });
 
-      conn.on('data', (data) => {
-        handleIncomingData(conn.peer, data as PeerMessage);
+      peer.on('disconnected', () => {
+        console.log('[P2P] Peer disconnected, attempt:', reconnectAttemptsRef.current + 1);
+        
+        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.log('[P2P] Max reconnect attempts reached');
+          setState(prev => ({ 
+            ...prev, 
+            status: 'error', 
+            error: 'No se pudo reconectar. Recarga la página para intentar de nuevo.' 
+          }));
+          return;
+        }
+        
+        reconnectAttemptsRef.current += 1;
+        setState(prev => ({ 
+          ...prev, 
+          status: 'connecting', 
+          error: `Reconectando... (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})` 
+        }));
+        
+        setTimeout(() => {
+          peer.reconnect();
+        }, 3000);
       });
 
-      conn.on('close', () => {
-        console.log('[P2P] Incoming connection closed');
-        connectionsRef.current.delete(conn.peer);
-        setState(prev => {
-          const newPeers = new Map(prev.connectedPeers);
-          newPeers.delete(conn.peer);
-          return {
-            ...prev,
-            connectedPeers: newPeers,
-            isConnected: newPeers.size > 0,
-          };
-        });
-
-        setKnownPeers(prev => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(conn.peer);
-          if (existing) {
-            newMap.set(conn.peer, { ...existing, isOnline: false });
+      peer.on('error', (err) => {
+        console.error('[P2P] Peer error:', err);
+        
+        const errorType = err.type;
+        
+        if (errorType === 'unavailable-id') {
+          handleIdTaken(peer);
+          return;
+        }
+        
+        if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
+          console.log('[P2P] Network error, attempt:', reconnectAttemptsRef.current + 1);
+          
+          if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+            console.log('[P2P] Max network error attempts reached');
+            setState(prev => ({ 
+              ...prev, 
+              status: 'error', 
+              error: 'Conexión inestable. Recarga la página para intentar de nuevo.' 
+            }));
+            return;
           }
-          return newMap;
-        });
+          
+          reconnectAttemptsRef.current += 1;
+          setState(prev => ({ 
+            ...prev, 
+            status: 'connecting', 
+            error: `Conexión perdida. Reconectando... (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})` 
+          }));
+          
+          setTimeout(() => peer.reconnect(), 3000);
+          return;
+        }
+        
+        let errorMsg = 'Connection error';
+        if (errorType === 'peer-unavailable') {
+          errorMsg = 'Player not found. Check the ID and try again.';
+        } else if (errorType === 'server-error') {
+          errorMsg = 'Server error. Try again in a few seconds.';
+        } else if (errorType === 'webrtc') {
+          errorMsg = 'WebRTC not supported in this browser.';
+        } else if (errorType === 'browser-incompatible') {
+          errorMsg = 'Browser not compatible with P2P.';
+        } else {
+          errorMsg = err.message || 'Unknown error';
+        }
+        
+        setState(prev => ({
+          ...prev,
+          status: 'error',
+          error: errorMsg,
+        }));
       });
-    });
 
-    peer.on('disconnected', () => {
-      console.log('[P2P] Peer disconnected, attempting to reconnect...');
-      setState(prev => ({ ...prev, status: 'connecting' }));
-      peer.reconnect();
-    });
+      return peer;
+    };
 
-    peer.on('error', (err) => {
-      console.error('[P2P] Peer error:', err);
+    const handleIdTaken = (currentPeer: Peer) => {
+      const phase = idRetryPhaseRef.current;
       
-      const errorType = err.type;
-      if (errorType === 'unavailable-id') {
-        console.log(`[P2P] ID taken, waiting ${COUNTDOWN_SECONDS}s before retry...`);
+      console.log(`[P2P] ID taken, current phase: ${phase}`);
+      
+      if (phase === 'initial') {
+        console.log('[P2P] Phase 1: Waiting 5s then retry with same ID');
+        idRetryPhaseRef.current = 'retry5s';
+        setState(prev => ({ ...prev, status: 'connecting', error: 'ID en uso. Reintentando en 5s...' }));
+        
+        setTimeout(() => {
+          console.log('[P2P] Retrying with same ID after 5s...');
+          currentPeer.reconnect();
+        }, 5000);
+        return;
+      }
+      
+      if (phase === 'retry5s') {
+        console.log('[P2P] Phase 2: Disconnecting and waiting 75s then retry');
+        idRetryPhaseRef.current = 'retry75s';
         
         if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
         }
         
+        currentPeer.disconnect();
+        
         let remaining = COUNTDOWN_SECONDS;
         setIdTakenCountdown(remaining);
-        setState(prev => ({ ...prev, status: 'connecting', error: `Tu ID está en uso. Esperando ${remaining}s...` }));
+        setState(prev => ({ ...prev, status: 'connecting', error: `ID en uso. Esperando ${remaining}s...` }));
         
         countdownIntervalRef.current = setInterval(() => {
           remaining -= 1;
@@ -501,46 +717,50 @@ export const P2PProvider: React.FC<{
               countdownIntervalRef.current = null;
             }
             
-            console.log('[P2P] Countdown finished, generating new ID...');
-            const newPeerId = generateShortId('dune', 6);
-            savePeerId(newPeerId);
+            console.log('[P2P] Retrying with same ID after 75s wait...');
             setIdTakenCountdown(null);
-            setState(prev => ({ ...prev, error: 'ID en uso. Generando nuevo ID...' }));
-            
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
+            setState(prev => ({ ...prev, error: 'Reconectando...' }));
+            currentPeer.reconnect();
           }
         }, 1000);
-        
         return;
       }
       
-      let errorMsg = 'Connection error';
-      if (errorType === 'peer-unavailable') {
-        errorMsg = 'Player not found. Check the ID and try again.';
-      } else if (errorType === 'server-error') {
-        errorMsg = 'Server error. Try again in a few seconds.';
-      } else if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
-        errorMsg = 'Network error. Check your internet connection.';
-      } else if (errorType === 'webrtc') {
-        errorMsg = 'WebRTC not supported in this browser.';
-      } else if (errorType === 'browser-incompatible') {
-        errorMsg = 'Browser not compatible with P2P.';
-      } else {
-        errorMsg = err.message || 'Unknown error';
+      if (phase === 'retry75s') {
+        console.log('[P2P] Phase 3: All retries failed, generating new ID');
+        idRetryPhaseRef.current = 'newId';
+        
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        
+        const newPeerId = generateShortId('dune', 6);
+        originalPeerIdRef.current = newPeerId;
+        savePeerId(newPeerId);
+        setIdTakenCountdown(null);
+        
+        console.log('[P2P] Generated new ID:', newPeerId);
+        setState(prev => ({ ...prev, error: 'Generando nuevo ID...' }));
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        return;
       }
-      
-      setState(prev => ({
-        ...prev,
-        status: 'error',
-        error: errorMsg,
-      }));
-    });
+    };
 
+    const peer = createPeer(initialPeerId);
     peerRef.current = peer;
 
+    const handleBeforeUnload = () => {
+      console.log('[P2P] User leaving, disconnecting gracefully...');
+      peer.disconnect();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (heartbeatTimerRef.current) {
         clearInterval(heartbeatTimerRef.current);
       }
@@ -550,7 +770,7 @@ export const P2PProvider: React.FC<{
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
-      peer.destroy();
+      peer.disconnect();
       initializedRef.current = false;
     };
   }, [loadSession, attemptReconnect, saveSession, handleIncomingData, checkPeerStatus, broadcastPlayerInfo]);
@@ -573,6 +793,10 @@ export const P2PProvider: React.FC<{
       playerScore,
       knownPeers,
       idTakenCountdown,
+      chatMessages,
+      sendChat,
+      broadcastChat,
+      clearChat,
     }}>
       {children}
     </P2PContext.Provider>
