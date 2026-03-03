@@ -324,11 +324,11 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
                     <input
                       type="text"
                       value={roomIdInput}
-                      onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
+                      onChange={(e) => setRoomIdInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Código de sala"
-                      className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2.5 pr-10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 uppercase tracking-wider min-w-0 transition-all"
-                      maxLength={20}
+                      className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2.5 pr-10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 font-mono tracking-wide min-w-0 transition-all"
+                      maxLength={30}
                     />
                     {roomIdInput && (
                       <button
