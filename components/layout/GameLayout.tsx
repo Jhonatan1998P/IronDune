@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
+import { useMultiplayerSync } from '../../hooks/useMultiplayer';
 import { MainMenu } from '../MainMenu';
 import { OfflineWelcome } from '../OfflineWelcome';
 import { UnitType } from '../../types';
@@ -7,21 +8,28 @@ import { UnitType } from '../../types';
 import { GameHeader } from '../GameHeader';
 import { GameSidebar, TabType, MobileNavBar } from '../GameSidebar';
 import { RightStatusPanel } from '../RightStatusPanel';
-import { TutorialOverlay } from '../TutorialOverlay'; 
-import { ObjectiveTracker } from '../ObjectiveTracker'; 
+import { TutorialOverlay } from '../TutorialOverlay';
+import { ObjectiveTracker } from '../ObjectiveTracker';
 import { ActiveAttacksIndicator } from '../ActiveAttacksIndicator';
 import { ViewRouter } from './ViewRouter';
 import { WarHUD } from '../WarHUD';
 
 export const GameLayout: React.FC = () => {
   const { status, gameState, offlineReport, clearOfflineReport } = useGame();
-  
+
   const [activeTab, setActiveTab] = useState<TabType>('buildings');
   const [simEnemyArmy, setSimEnemyArmy] = useState<Partial<Record<UnitType, number>> | null>(null);
   const [simPlayerArmy, setSimPlayerArmy] = useState<Partial<Record<UnitType, number>> | null>(null);
-  
+
   // State for Mobile Right Panel Drawer
   const [isStatusPanelOpen, setIsStatusPanelOpen] = useState(false);
+
+  // Auto-sync jugador con el sistema multijugador
+  useMultiplayerSync({
+    playerName: gameState.playerName,
+    empirePoints: gameState.empirePoints,
+    enabled: status === 'PLAYING',
+  });
 
   const handleSimulate = (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => {
       setSimEnemyArmy(enemyUnits);

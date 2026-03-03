@@ -1,6 +1,6 @@
 /**
  * useMultiplayer Hook
- * 
+ *
  * Hook personalizado para acceder al contexto multijugador.
  * Separado para compatibilidad con Vite Fast Refresh.
  */
@@ -31,6 +31,7 @@ export const useMultiplayer = (): UseMultiplayerReturn => {
     leave: context.leave,
     reconnect: context.reconnect,
     syncPlayer: context.syncPlayer,
+    syncPlayerWithData: context.syncPlayerWithData,
     broadcastAction: context.broadcastAction,
     sendToPeer: context.sendToPeer,
     onRemoteAction: context.onRemoteAction,

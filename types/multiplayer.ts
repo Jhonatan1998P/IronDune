@@ -62,6 +62,7 @@ export interface UseMultiplayerReturn {
 
   // Sincronización
   syncPlayer: (player: { name: string; level: number }) => void; // Actualizar tu presencia
+  syncPlayerWithData: (playerName: string, empirePoints: number) => void; // Actualizar con datos directos
 
   // Comunicación
   broadcastAction: (action: MultiplayerAction) => void; // A todos
