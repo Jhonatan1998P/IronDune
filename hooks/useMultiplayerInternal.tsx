@@ -326,11 +326,13 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       pendingTimeoutsRef.current.uiTimeout = setTimeout(() => updateRemotePlayers(), 300);
     });
 
-    // Peer Leave
+    // Peer Leave - IMPORTANTE: Limpiar completamente el peer para permitir reconexión
     room.onPeerLeave((peerId: string) => {
-      console.log('[Multiplayer] Peer left:', peerId);
+      console.log('[Multiplayer] ❌ PEER LEFT:', peerId, 'at', new Date().toLocaleTimeString());
       setPeers(prev => prev.filter(p => p !== peerId));
+      // Eliminar completamente del playersRef para permitir reconexión limpia
       playersRef.current.delete(peerId);
+      console.log('[Multiplayer] Deleted peer from playersRef, remaining:', playersRef.current.size);
       updateRemotePlayers();
     });
 
@@ -346,12 +348,22 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         case 'PRESENCE_UPDATE':
           const playerData = action.payload as PlayerPresence;
           if (playerData) {
-            // Actualizar o crear la entrada del peer
-            const existing = playersRef.current.get(peerId);
+            // Verificar si es una reconexión (mismo nombre, diferente ID)
+            const existingEntry = Array.from(playersRef.current.entries()).find(
+              ([id, data]) => data.name === playerData.name && id !== peerId
+            );
+            
+            if (existingEntry) {
+              // Es una reconexión - eliminar el ID viejo
+              console.log('[Multiplayer] 🔄 Detected reconnection:', existingEntry[0], '→', peerId);
+              playersRef.current.delete(existingEntry[0]);
+            }
+            
+            // Actualizar o crear la entrada del peer con el NUEVO ID
             playersRef.current.set(peerId, {
               id: peerId,
-              name: playerData.name || existing?.name || 'Jugador',
-              level: playerData.level ?? existing?.level ?? 0,
+              name: playerData.name || 'Jugador',
+              level: playerData.level ?? 0,
               lastSeen: Date.now(),
             });
             console.log('[Multiplayer] ✅ Updated player presence:', peerId, playersRef.current.get(peerId));
@@ -362,6 +374,13 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           console.log('[Multiplayer] Sending presence in response to REQUEST_PRESENCE from:', peerId);
           // Enviar nuestra presencia inmediatamente
           broadcastPresence(playerId);
+          break;
+        case 'PLAYER_LEAVE':
+          console.log('[Multiplayer] Player left notification from:', peerId);
+          // Limpiar inmediatamente cuando recibimos notificación de salida
+          playersRef.current.delete(peerId);
+          setPeers(prev => prev.filter(p => p !== peerId));
+          updateRemotePlayers();
           break;
         case 'GIFT_GOLD':
           const giftData = action.payload as GiftGoldPayload;
@@ -384,22 +403,34 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     const playerData: PlayerPresence = { id: playerId, name: 'Player', level: 0, lastSeen: Date.now() };
     playersRef.current.set(playerId, playerData);
-    
+
     console.log('[Multiplayer] Connected to room:', roomId, 'with playerId:', playerId);
-    
+
     // Broadcast inicial inmediato y repetido para asegurar que todos los peers lo reciban
     // El primer broadcast puede perderse si los peers aún no están completamente conectados
     pendingTimeoutsRef.current.broadcastTimeout = setTimeout(() => {
       console.log('[Multiplayer] Initial presence broadcast');
       broadcastPresence(playerId);
     }, 50);
-    
+
     // Segundo broadcast para asegurar
     setTimeout(() => {
       console.log('[Multiplayer] Second presence broadcast');
       broadcastPresence(playerId);
     }, 200);
     
+    // Tercer broadcast + REQUEST_PRESENCE a todos (importante para reconexiones)
+    setTimeout(() => {
+      console.log('[Multiplayer] Third broadcast + requesting presence from all peers');
+      broadcastPresence(playerId);
+      // Solicitar presencia de todos los peers existentes
+      try {
+        sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any);
+      } catch (e) {
+        console.warn('Error sending REQUEST_PRESENCE:', e);
+      }
+    }, 500);
+
     // Broadcast periódico
     pendingTimeoutsRef.current.presenceTimeout = setInterval(() => broadcastPresence(), PRESENCE_BROADCAST_INTERVAL);
 
@@ -412,7 +443,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         isConnected: isConnectedRef.current,
       });
     }, 10000);
-    
+
     // Guardar el interval ID para cleanup
     (pendingTimeoutsRef.current as any).statusInterval = statusInterval;
 
@@ -437,7 +468,22 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   }, [initRoom]);
 
   const leave = useCallback(() => {
-    console.log('[Multiplayer] Leaving room');
+    console.log('[Multiplayer] Leaving room - notifying peers');
+    
+    // Enviar mensaje final de despedida (opcional, para que otros peers limpien inmediatamente)
+    if (sendActionRef.current && localPlayerIdRef.current) {
+      try {
+        sendActionRef.current({
+          type: 'PLAYER_LEAVE',
+          payload: null,
+          playerId: localPlayerIdRef.current,
+          timestamp: Date.now(),
+        } as any);
+      } catch (e) {
+        // Ignorar errores - la sala se está cerrando de todos modos
+      }
+    }
+    
     cleanupRoom();
     setCurrentRoomId(null);
     setLocalPlayerId(null);
