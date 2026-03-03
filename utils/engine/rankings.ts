@@ -133,6 +133,7 @@ export interface RankingEntry {
     _rawLastRank?: number;
     personality: BotPersonality;
     canAttack?: boolean;
+    isP2P?: boolean;
 }
 
 export interface StaticBot {

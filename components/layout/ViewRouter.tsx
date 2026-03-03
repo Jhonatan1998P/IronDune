@@ -25,6 +25,7 @@ const WarView = lazy(() => import('../views/WarView').then(m => ({ default: m.Wa
 const SettingsView = lazy(() => import('../views/SettingsView').then(m => ({ default: m.SettingsView })));
 const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ default: m.default })));
 const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
+const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 
 // Loading fallback component
 const ViewLoader: React.FC = () => (
@@ -110,6 +111,8 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
                         playerScore={gameState.empirePoints}
                     />
                 );
+            case 'chat':
+                return <MultiplayerChatView gameState={gameState} />;
             default:
                 return null;
         }

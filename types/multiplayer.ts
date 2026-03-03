@@ -21,12 +21,20 @@ export interface GiftGoldPayload {
 }
 
 /**
+ * Payload para acción de mensaje de chat
+ */
+export interface ChatMessagePayload {
+  text: string;
+  senderName: string;
+}
+
+/**
  * Acción multijugador para comunicación entre peers
  * Nota: payload debe ser JSON-serializable para Trystero
  */
 export interface MultiplayerAction {
-  type: string;      // 'PRESENCE_UPDATE', 'REQUEST_PRESENCE', 'GIFT_GOLD', etc.
-  payload: PlayerPresence | GiftGoldPayload | null;  // Datos de la acción (debe ser JSON-serializable)
+  type: string;      // 'PRESENCE_UPDATE', 'REQUEST_PRESENCE', 'GIFT_GOLD', 'CHAT_MESSAGE', etc.
+  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | null;  // Datos de la acción (debe ser JSON-serializable)
   playerId: string;  // Quién envía
   timestamp: number; // Cuándo
   playerName?: string;
@@ -77,6 +85,7 @@ export enum MultiplayerActionType {
   PRESENCE_UPDATE = 'PRESENCE_UPDATE',
   REQUEST_PRESENCE = 'REQUEST_PRESENCE',
   GIFT_GOLD = 'GIFT_GOLD',
+  CHAT_MESSAGE = 'CHAT_MESSAGE',
 }
 
 /**

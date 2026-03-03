@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GameState } from '../../types';
 import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
+import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { PvpAttackModal } from '../PvpAttackModal';
 import { executeDeclareWar } from '../../utils/engine/actions';
 import { CommanderProfileModal } from '../modals/CommanderProfileModal';
+import { useMultiplayer } from '../../hooks/useMultiplayer';
 
 interface RankingsViewProps {
     gameState: GameState;
@@ -25,6 +27,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     const [profileEntry, setProfileEntry] = useState<RankingEntry | null>(null);
     const [attackTarget, setAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
 
+    const { isConnected, remotePlayers } = useMultiplayer();
+
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
@@ -32,8 +36,45 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     }, []);
 
     const fullRankings = useMemo(() => {
-        return getCurrentStandings(gameState, gameState.rankingData.bots, category);
-    }, [gameState.empirePoints, gameState.lifetimeStats, gameState.campaignProgress, category, gameState.rankingData.bots]);
+        const botRankings = getCurrentStandings(gameState, gameState.rankingData.bots, category);
+        
+        if (!isConnected || remotePlayers.length === 0) {
+            return botRankings;
+        }
+
+        const getTier = (rank: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
+            if (rank <= 3) return 'S';
+            if (rank <= 10) return 'A';
+            if (rank <= 50) return 'B';
+            if (rank <= 100) return 'C';
+            return 'D';
+        };
+
+        const peerEntries: RankingEntry[] = remotePlayers.map(player => ({
+            id: player.id,
+            rank: 0,
+            name: player.name || 'Unknown',
+            score: player.level || 0,
+            isPlayer: false,
+            avatarId: 0,
+            country: 'XX',
+            tier: 'D',
+            trend: 0,
+            _rawLastRank: 0,
+            personality: BotPersonality.WARLORD,
+            canAttack: false,
+            isP2P: true
+        }));
+
+        const allEntries = [...botRankings, ...peerEntries];
+        allEntries.sort((a, b) => b.score - a.score);
+
+        return allEntries.map((entry, index) => ({
+            ...entry,
+            rank: index + 1,
+            tier: getTier(index + 1)
+        }));
+    }, [gameState, category, isConnected, remotePlayers]);
 
     const playerEntry = fullRankings.find(e => e.isPlayer);
     
@@ -115,7 +156,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                     flex flex-col gap-3 h-full
                     hover:border-white/20 hover:bg-white/5
                     md:hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)] md:hover:-translate-y-0.5
-                    ${entry.isPlayer ? 'bg-cyan-900/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : `${rankStyle.bg} ${rankStyle.border} ${rankStyle.glow}`}
+                    ${entry.isPlayer ? 'bg-cyan-900/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : entry.isP2P ? 'bg-emerald-900/20 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : `${rankStyle.bg} ${rankStyle.border} ${rankStyle.glow}`}
                 `}
             >
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
@@ -136,9 +177,14 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                                 <span className="text-lg shrink-0">{getFlagEmoji(entry.country)}</span>
-                                <span className={`font-bold text-sm truncate ${entry.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
+                                <span className={`font-bold text-sm truncate ${entry.isPlayer ? 'text-cyan-300' : entry.isP2P ? 'text-emerald-300' : 'text-white'}`}>
                                     {entry.name}
                                 </span>
+                                {entry.isP2P && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                                        P2P
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>

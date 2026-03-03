@@ -3,7 +3,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -57,6 +57,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
           title: 'Multiplayer',
           items: [
               { id: 'p2p' as TabType, label: 'PvP Arena', icon: Icons.Radar, color: 'text-cyan-400' },
+              { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
   ];
@@ -201,6 +202,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
         { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
         { id: 'p2p' as TabType, icon: Icons.Radar, label: 'PvP Arena', color: 'text-cyan-400' },
+        { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];
 

@@ -96,7 +96,7 @@ export const GameLayout: React.FC = () => {
           </div>
 
           {/* 2. MAIN SCROLLABLE AREA */}
-          <main className="flex-1 flex mb-20 md:overflow-hidden pt-[70px] pb-[65px] relative md:pt-0 md:pb-0 h-full overflow-y-auto">
+          <main className={`flex-1 flex mb-20 md:overflow-hidden pt-[70px] pb-[65px] relative md:pt-0 md:pb-0 h-full ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             
             {/* Left Panel: Navigation (Desktop Only) */}
             <GameSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -106,8 +106,8 @@ export const GameLayout: React.FC = () => {
               <div className="xl:hidden">
                   <ActiveAttacksIndicator />
               </div>
-              <div className="w-full min-h-full p-3 md:p-6 flex flex-col max-w-[1920px] mx-auto">
-                <div className="flex-1 flex flex-col min-h-0 pb-6">
+              <div className={`w-full min-h-full flex flex-col max-w-[1920px] mx-auto ${activeTab === 'chat' ? 'p-0' : 'p-3 md:p-6'}`}>
+                <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'pb-0' : 'pb-6'}`}>
                   <ViewRouter 
                     activeTab={activeTab} 
                     simEnemyArmy={simEnemyArmy}

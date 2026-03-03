@@ -12,3 +12,4 @@ export * from './views/MarketView';
 export * from './views/RankingsView'; 
 export * from './views/WarView'; 
 export * from './views/SettingsView';
+export * from './views/MultiplayerChatView';
