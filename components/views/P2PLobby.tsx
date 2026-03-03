@@ -47,7 +47,7 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [battleRequest, setBattleRequest] = useState<{from: string; name: string; score: number} | null>(null);
   
-  const { peerId, connectToPeer, sendToPeer, status, connectedPeers, knownPeers, removePeer, idTakenCountdown } = useP2P();
+  const { peerId, connectToPeer, sendToPeer, status, connectedPeers, knownPeers, removePeer } = useP2P();
 
   const { showSuccess, showError, showInfo } = useToast();
   const t2 = defaultTranslations;
@@ -158,37 +158,8 @@ export const P2PLobby: React.FC<P2PLobbyProps> = ({
           <div className="flex items-center gap-3">
             <Icons.Radar className="w-5 h-5 text-amber-400 animate-pulse" />
             <div>
-              <div className="text-amber-400 font-bold text-sm">
-                {idTakenCountdown !== null ? 'ID en uso' : 'Reconectando...'}
-              </div>
-              {idTakenCountdown === null && (
-                <div className="text-amber-500/70 text-xs">Tu ID está reservado, espera un momento...</div>
-              )}
+              <div className="text-amber-400 font-bold text-sm">Conectando...</div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ID Taken Countdown */}
-      {idTakenCountdown !== null && (
-        <div className="glass-panel p-3 sm:p-4 rounded-xl border border-amber-500/40 bg-amber-900/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Icons.Radar className="w-5 h-5 text-amber-400 animate-pulse" />
-              <div>
-                <div className="text-amber-400 font-bold text-sm">ID en uso</div>
-                <div className="text-amber-500/70 text-xs">Esperando para reconectar...</div>
-              </div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-400">
-              {Math.floor(idTakenCountdown / 60)}:{(idTakenCountdown % 60).toString().padStart(2, '0')}
-            </div>
-          </div>
-          <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-amber-500 transition-all duration-1000"
-              style={{ width: `${(idTakenCountdown / 75) * 100}%` }}
-            />
           </div>
         </div>
       )}

@@ -28,7 +28,9 @@ initBuildings[BuildingType.BANK] = { level: 1, isDamaged: false };
 
 export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,
+  gameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   playerName: 'Commander',
+  peerId: null,
   hasChangedName: false,
   resources: INITIAL_RESOURCES,
   maxResources: INITIAL_MAX_RESOURCES,
@@ -57,6 +59,8 @@ export const INITIAL_GAME_STATE: GameState = {
   tutorialAccepted: false,
   isTutorialMinimized: false,
   nextAttackTime: Date.now() + (3 * 60 * 60 * 1000),
+  attackQueue: [],
+  lastProcessedAttackTime: 0,
   incomingAttacks: [],
   activeWar: null,
   allyReinforcements: [],

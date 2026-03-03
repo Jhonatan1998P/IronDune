@@ -73,7 +73,6 @@ export const P2PHome: React.FC<P2PHomeProps> = ({
     connectedPeers, 
     knownPeers, 
     removePeer, 
-    idTakenCountdown,
     chatMessages,
     sendChat,
   } = useP2P();
@@ -590,14 +589,9 @@ export const P2PHome: React.FC<P2PHomeProps> = ({
         <div className="flex items-center gap-2">
           <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400 animate-pulse' : status === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'}`}></span>
           <span className="text-xs text-slate-400 uppercase font-bold">
-            {status === 'connected' ? t.online : status === 'connecting' ? 'Reconectando...' : 'Conectando...'}
+            {status === 'connected' ? t.online : status === 'connecting' ? 'Conectando...' : 'Desconectado'}
           </span>
         </div>
-        {idTakenCountdown !== null && (
-          <div className="text-xs text-amber-400 font-mono">
-            ID: {Math.floor(idTakenCountdown / 60)}:{(idTakenCountdown % 60).toString().padStart(2, '0')}
-          </div>
-        )}
         {knownPeers.size > 0 && (
           <span className="text-xs text-cyan-400 font-bold">
             {onlinePeers.length} {t.online}

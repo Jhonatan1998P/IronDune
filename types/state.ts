@@ -212,7 +212,9 @@ export interface GiftCodeRedeemed {
 
 export interface GameState {
   saveVersion: number; 
+  gameId: string; // Unique identifier for this save game
   playerName: string;
+  peerId: string | null; // PvP Peer ID for this player
   hasChangedName: boolean;
   resources: Record<ResourceType, number>;
   maxResources: Record<ResourceType, number>; 

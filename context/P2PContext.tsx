@@ -58,7 +58,6 @@ interface P2PContextType extends P2PState {
   playerName: string;
   playerScore: number;
   knownPeers: Map<string, PeerInfo>;
-  idTakenCountdown: number | null;
   chatMessages: Map<string, ChatMessage[]>;
   sendChat: (peerId: string, message: string) => void;
   broadcastChat: (message: string) => void;
@@ -80,19 +79,9 @@ const generateShortId = (prefix: string = 'id', length: number = 5): string => {
   return result;
 };
 
-const getStoredPeerId = (): string | null => {
-  return localStorage.getItem('p2p_peer_id');
-};
-
 const savePeerId = (id: string): void => {
   localStorage.setItem('p2p_peer_id', id);
 };
-
-interface StoredSession {
-  peerId: string;
-  remotePeerId: string;
-  timestamp: number;
-}
 
 export const P2PProvider: React.FC<{ 
   children: React.ReactNode; 
@@ -108,24 +97,14 @@ export const P2PProvider: React.FC<{
   });
   
   const [knownPeers, setKnownPeers] = useState<Map<string, PeerInfo>>(new Map());
-  const [idTakenCountdown, setIdTakenCountdown] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<Map<string, ChatMessage[]>>(new Map());
   
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
   const initializedRef = useRef(false);
   const playerInfoRef = useRef({ name: playerName, score: playerScore });
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isReconnectingRef = useRef(false);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingConnectionsRef = useRef<Set<string>>(new Set());
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const MAX_RECONNECT_ATTEMPTS = 3;
-  const COUNTDOWN_SECONDS = 75;
-  
-  const idRetryPhaseRef = useRef<'initial' | 'retry5s' | 'retry75s' | 'newId'>('initial');
-  const originalPeerIdRef = useRef<string | null>(null);
   
   useEffect(() => {
     playerInfoRef.current = { name: playerName, score: playerScore };
@@ -135,28 +114,12 @@ export const P2PProvider: React.FC<{
     const peerId = peerRef.current?.id;
     if (!peerId || !remotePeerId) return;
     
-    const session: StoredSession = {
+    const session = {
       peerId,
       remotePeerId,
       timestamp: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-  }, []);
-
-  const loadSession = useCallback((): StoredSession | null => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return null;
-      
-      const session: StoredSession = JSON.parse(stored);
-      if (Date.now() - session.timestamp > 30 * 60 * 1000) {
-        localStorage.removeItem(STORAGE_KEY);
-        return null;
-      }
-      return session;
-    } catch {
-      return null;
-    }
   }, []);
 
   const clearSession = useCallback(() => {
@@ -466,37 +429,12 @@ export const P2PProvider: React.FC<{
     });
   }, [handleIncomingData]);
 
-  const attemptReconnect = useCallback(async () => {
-    const session = loadSession();
-    if (!session || isReconnectingRef.current) return;
-    
-    isReconnectingRef.current = true;
-    console.log('[P2P] Attempting to reconnect...');
-    
-    try {
-      await connectToPeer(session.remotePeerId);
-      console.log('[P2P] Reconnected successfully!');
-    } catch (err) {
-      console.log('[P2P] Reconnection failed, will retry...');
-      reconnectTimerRef.current = setTimeout(() => {
-        isReconnectingRef.current = false;
-      }, 5000);
-    }
-  }, [loadSession, connectToPeer]);
-
-useEffect(() => {
+  useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    const storedId = getStoredPeerId();
-    let initialPeerId = storedId || generateShortId('dune', 6);
-    
-    if (!storedId) {
-      savePeerId(initialPeerId);
-    }
-    
-    originalPeerIdRef.current = initialPeerId;
-    idRetryPhaseRef.current = 'initial';
+    const initialPeerId = generateShortId('dune', 6);
+    savePeerId(initialPeerId);
 
     console.log('[P2P] Initializing PeerJS with ID:', initialPeerId);
 
@@ -504,25 +442,12 @@ useEffect(() => {
       console.log('[P2P] Creating peer with ID:', peerId);
       const peer = new Peer(peerId, {
         debug: 1,
+        secure: true,
       });
-
-      const initTimeout = setTimeout(() => {
-        console.log('[P2P] 30s timeout reached, checking status...');
-        if (peer.id) {
-          console.log('[P2P] Peer already connected, disconnecting to reconnect...');
-          peer.disconnect();
-          setTimeout(() => {
-            peer.reconnect();
-          }, 1000);
-        }
-      }, 30000);
 
       peer.on('open', (id) => {
         console.log('[P2P] My peer ID:', id);
-        clearTimeout(initTimeout);
-        reconnectAttemptsRef.current = 0;
-        idRetryPhaseRef.current = 'initial';
-        setIdTakenCountdown(null);
+        
         setState(prev => ({
           ...prev,
           peerId: id,
@@ -530,10 +455,9 @@ useEffect(() => {
           error: null,
         }));
 
-        const session = loadSession();
-        if (session && session.remotePeerId !== id) {
-          console.log('[P2P] Previous session found but not auto-reconnecting. User must reconnect manually.');
-        }
+        window.dispatchEvent(new CustomEvent('p2p-peer-id-changed', { 
+          detail: { peerId: id } 
+        }));
 
         if (heartbeatTimerRef.current) {
           clearInterval(heartbeatTimerRef.current);
@@ -610,7 +534,7 @@ useEffect(() => {
         });
 
         conn.on('close', () => {
-          console.log('[P2P] Incoming connection closed');
+          console.log('[P2P] Connection closed by remote peer:', conn.peer);
           connectionsRef.current.delete(conn.peer);
           setState(prev => {
             const newPeers = new Map(prev.connectedPeers);
@@ -633,191 +557,32 @@ useEffect(() => {
         });
       });
 
-peer.on('disconnected', () => {
-        console.log('[P2P] Peer disconnected from server, attempting automatic reconnection...');
-        
-        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.log('[P2P] Max reconnect attempts reached, will keep retrying silently');
-        }
-        
-        reconnectAttemptsRef.current += 1;
-        setState(prev => ({ 
-          ...prev, 
-          status: 'connecting',
-          error: null
-        }));
-        
-        setTimeout(() => {
-          peer.reconnect();
-        }, 2000);
-      });
-
       peer.on('error', (err) => {
-        console.error('[P2P] Peer error:', err);
+        console.error('[P2P] Peer error:', err.type, err.message);
         
         const errorType = err.type;
         
-        if (errorType === 'unavailable-id') {
-          handleIdTaken(peer);
-          return;
-        }
-        
-        if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
-          console.log('[P2P] Network error detected, will auto-reconnect silently');
-          setTimeout(() => peer.reconnect(), 3000);
-          return;
-        }
-        
         if (errorType === 'peer-unavailable') {
-          console.log('[P2P] Peer unavailable - this is normal if the other player is offline');
+          console.log('[P2P] Remote peer unavailable - player is offline');
           return;
         }
         
-        if (errorType === 'server-error') {
-          console.log('[P2P] Server error, will retry silently');
-          setTimeout(() => peer.reconnect(), 5000);
-          return;
-        }
-        
-        console.log('[P2P] Non-critical error, ignoring:', errorType);
-      });
-
-      peer.on('error', (err) => {
-        console.error('[P2P] Peer error:', err);
-        
-        const errorType = err.type;
-        
-        if (errorType === 'unavailable-id') {
-          handleIdTaken(peer);
-          return;
-        }
-        
-        if (errorType === 'network' || errorType === 'socket-error' || errorType === 'socket-closed') {
-          console.log('[P2P] Network error, attempt:', reconnectAttemptsRef.current + 1);
-          
-          if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-            console.log('[P2P] Max network error attempts reached');
-            setState(prev => ({ 
-              ...prev, 
-              status: 'error', 
-              error: 'Conexión inestable. Recarga la página para intentar de nuevo.' 
-            }));
-            return;
-          }
-          
-          reconnectAttemptsRef.current += 1;
-          setState(prev => ({ 
-            ...prev, 
-            status: 'connecting', 
-            error: `Conexión perdida. Reconectando... (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})` 
-          }));
-          
-          setTimeout(() => peer.reconnect(), 3000);
-          return;
-        }
-        
-        let errorMsg = 'Error de conexión';
-        if (errorType === 'peer-unavailable') {
-          errorMsg = 'Jugador no encontrado. Verifica el ID e intenta de nuevo.';
-        } else if (errorType === 'server-error') {
-          errorMsg = 'Error del servidor. Intenta de nuevo en unos segundos.';
-        } else if (errorType === 'webrtc') {
-          errorMsg = 'WebRTC no es compatible en este navegador.';
-        } else if (errorType === 'browser-incompatible') {
-          errorMsg = 'Navegador no compatible con P2P.';
-        } else {
-          errorMsg = err.message || 'Error desconocido';
-        }
-        
+        console.log('[P2P] Error occurred, resetting...');
         setState(prev => ({
           ...prev,
           status: 'error',
-          error: errorMsg,
+          error: 'Error de conexión. Crea una nueva partida.',
         }));
       });
 
       return peer;
     };
 
-    const handleIdTaken = (currentPeer: Peer) => {
-      const phase = idRetryPhaseRef.current;
-      
-      console.log(`[P2P] ID taken, current phase: ${phase}`);
-      
-      if (phase === 'initial') {
-        console.log('[P2P] Phase 1: Waiting 5s then retry with same ID');
-        idRetryPhaseRef.current = 'retry5s';
-        setState(prev => ({ ...prev, status: 'connecting', error: 'ID en uso. Reintentando en 5s...' }));
-        
-        setTimeout(() => {
-          console.log('[P2P] Retrying with same ID after 5s...');
-          currentPeer.reconnect();
-        }, 5000);
-        return;
-      }
-      
-      if (phase === 'retry5s') {
-        console.log('[P2P] Phase 2: Disconnecting and waiting 75s then retry');
-        idRetryPhaseRef.current = 'retry75s';
-        
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-        }
-        
-        currentPeer.disconnect();
-        
-        let remaining = COUNTDOWN_SECONDS;
-        setIdTakenCountdown(remaining);
-        setState(prev => ({ ...prev, status: 'connecting', error: `ID en uso. Esperando ${remaining}s...` }));
-        
-        countdownIntervalRef.current = setInterval(() => {
-          remaining -= 1;
-          setIdTakenCountdown(remaining);
-          
-          if (remaining <= 0) {
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-              countdownIntervalRef.current = null;
-            }
-            
-            console.log('[P2P] Retrying with same ID after 75s wait...');
-            setIdTakenCountdown(null);
-            setState(prev => ({ ...prev, error: 'Reconectando...' }));
-            currentPeer.reconnect();
-          }
-        }, 1000);
-        return;
-      }
-      
-      if (phase === 'retry75s') {
-        console.log('[P2P] Phase 3: All retries failed, generating new ID');
-        idRetryPhaseRef.current = 'newId';
-        
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-        
-        const newPeerId = generateShortId('dune', 6);
-        originalPeerIdRef.current = newPeerId;
-        savePeerId(newPeerId);
-        setIdTakenCountdown(null);
-        
-        console.log('[P2P] Generated new ID:', newPeerId);
-        setState(prev => ({ ...prev, error: 'Generando nuevo ID...' }));
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-        return;
-      }
-    };
-
     const peer = createPeer(initialPeerId);
     peerRef.current = peer;
 
     const handleBeforeUnload = () => {
-      console.log('[P2P] User leaving, disconnecting gracefully...');
+      console.log('[P2P] User leaving, disconnecting...');
       peer.disconnect();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -827,17 +592,11 @@ peer.on('disconnected', () => {
       if (heartbeatTimerRef.current) {
         clearInterval(heartbeatTimerRef.current);
       }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-      console.log('[P2P] Cleaning up - this should only happen on page close');
+      console.log('[P2P] Cleaning up');
       peer.disconnect();
       initializedRef.current = false;
     };
-  }, [loadSession, attemptReconnect, saveSession, handleIncomingData, checkPeerStatus, broadcastPlayerInfo]);
+  }, [saveSession, handleIncomingData, checkPeerStatus, broadcastPlayerInfo]);
 
   useEffect(() => {
     if (state.status === 'connected' && state.peerId) {
@@ -856,7 +615,6 @@ peer.on('disconnected', () => {
       playerName,
       playerScore,
       knownPeers,
-      idTakenCountdown,
       chatMessages,
       sendChat,
       broadcastChat,

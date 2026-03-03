@@ -69,7 +69,7 @@ export const usePersistence = (
 
   // Save on page unload (when user closes tab/browser)
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       if (status === 'PLAYING') {
         const now = Date.now();
         saveSpyReportsToStorage(gameState.spyReports || []);
@@ -77,16 +77,28 @@ export const usePersistence = (
         const stateToSave = { ...gameState, lastSaveTime: now };
         localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
         setHasSave(true);
-        
-        // For modern browsers - show confirmation dialog
-        e.preventDefault();
-        e.returnValue = '';
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [gameState, status]);
+
+  // Sync peerId from P2P to gameState
+  useEffect(() => {
+    const handlePeerIdChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ peerId: string }>;
+      if (customEvent.detail?.peerId) {
+        setGameState(prev => ({
+          ...prev,
+          peerId: customEvent.detail.peerId
+        }));
+      }
+    };
+
+    window.addEventListener('p2p-peer-id-changed', handlePeerIdChange);
+    return () => window.removeEventListener('p2p-peer-id-changed', handlePeerIdChange);
+  }, [setGameState]);
 
   const startNewGame = useCallback(() => {
     setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });

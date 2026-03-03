@@ -96,6 +96,15 @@ const safeString = (value: any, fallback: string, minLength = 1, maxLength = Inf
 };
 
 /**
+ * Safe string que puede ser null
+ */
+const safeStringOrNull = (value: any): string | null => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    return null;
+};
+
+/**
  * Safe boolean con fallback
  */
 const safeBoolean = (value: any, fallback: boolean): boolean => {
@@ -608,6 +617,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
 
         // 3. Migrate Primitives
         cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);
+        cleanState.peerId = safeStringOrNull(saved.peerId);
         cleanState.hasChangedName = safeBoolean(saved.hasChangedName, false);
         cleanState.bankBalance = safeNumber(saved.bankBalance, 0, 0);
         cleanState.currentInterestRate = safeNumber(saved.currentInterestRate, 0.05, 0, 1);
