@@ -55,10 +55,10 @@ export interface UseMultiplayerReturn {
   currentRoomId: string | null;       // roomId actual
 
   // Funciones de conexión
-  createRoom: () => string;           // Crea sala, retorna roomId
-  joinRoomById: (roomId: string) => boolean; // Unirse a sala
-  leave: () => void;                  // Salir de sala
-  reconnect: () => boolean;           // Reconectar a última sala
+  createRoom: (roomId?: string) => string;     // Crea sala, retorna roomId (opcionalmente acepta roomId)
+  joinRoomById: (roomId: string) => boolean;   // Unirse a sala
+  leave: () => void;                           // Salir de sala
+  reconnect: () => boolean;                    // Reconectar a última sala
 
   // Sincronización
   syncPlayer: (player: { name: string; level: number }) => void; // Actualizar tu presencia

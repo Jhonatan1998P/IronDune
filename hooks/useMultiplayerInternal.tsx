@@ -52,6 +52,7 @@ interface PendingTimeouts {
   presenceTimeout: ReturnType<typeof setTimeout> | null;
   uiTimeout: ReturnType<typeof setTimeout> | null;
   broadcastTimeout: ReturnType<typeof setTimeout> | null;
+  statusInterval?: ReturnType<typeof setInterval>;
 }
 
 export interface MultiplayerContextType {
@@ -120,13 +121,15 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     if (timeouts.presenceTimeout) clearTimeout(timeouts.presenceTimeout);
     if (timeouts.uiTimeout) clearTimeout(timeouts.uiTimeout);
     if (timeouts.broadcastTimeout) clearTimeout(timeouts.broadcastTimeout);
-    pendingTimeoutsRef.current = { presenceTimeout: null, uiTimeout: null, broadcastTimeout: null };
+    if (timeouts.statusInterval) clearInterval(timeouts.statusInterval);
+    pendingTimeoutsRef.current = { presenceTimeout: null, uiTimeout: null, broadcastTimeout: null, statusInterval: undefined };
   }, []);
 
   const updateRemotePlayers = useCallback(() => {
     const currentId = localPlayerIdRef.current;
     const allPlayers = Array.from(playersRef.current.values());
     const filtered = currentId ? allPlayers.filter(p => p.id !== currentId) : allPlayers;
+    console.log('[Multiplayer] updateRemotePlayers - total:', allPlayers.length, 'filtered:', filtered.length, 'remotePlayers:', filtered);
     setRemotePlayers(filtered);
   }, []);
 
@@ -282,7 +285,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     // Peer Join
     room.onPeerJoin((peerId: string) => {
-      console.log('[Multiplayer] Peer joined:', peerId);
+      console.log('[Multiplayer] ✅ PEER JOINED:', peerId, 'at', new Date().toLocaleTimeString());
       setPeers(prev => [...new Set([...prev, peerId])]);
       
       // Registrar el peer en playersRef inmediatamente
@@ -297,6 +300,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       // Enviar REQUEST_PRESENCE al nuevo peer
       try {
         sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any, peerId);
+        console.log('[Multiplayer] Sent REQUEST_PRESENCE to:', peerId);
       } catch (e) {
         console.warn('Error sending REQUEST_PRESENCE:', e);
       }
@@ -311,6 +315,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
             playerId: playerId,
             timestamp: Date.now(),
           } as any, peerId);
+          console.log('[Multiplayer] Sent PRESENCE_UPDATE to:', peerId, playerData);
         }
       } catch (e) {
         console.warn('Error sending presence to new peer:', e);
@@ -331,8 +336,11 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     // Recepción de Acciones
     getAction((action: any, peerId: string) => {
-      if (action.playerId === playerId) return;
-      console.log('[Multiplayer] Action received:', action.type, 'from:', peerId, 'action:', action);
+      if (action.playerId === playerId) {
+        console.log('[Multiplayer] Ignoring own action:', action.type);
+        return;
+      }
+      console.log('[Multiplayer] 📩 Action received:', action.type, 'from:', peerId, 'payload:', action.payload);
 
       switch (action.type) {
         case 'PRESENCE_UPDATE':
@@ -346,11 +354,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
               level: playerData.level ?? existing?.level ?? 0,
               lastSeen: Date.now(),
             });
-            console.log('[Multiplayer] Updated player presence:', peerId, playersRef.current.get(peerId));
+            console.log('[Multiplayer] ✅ Updated player presence:', peerId, playersRef.current.get(peerId));
             updateRemotePlayers();
           }
           break;
         case 'REQUEST_PRESENCE':
+          console.log('[Multiplayer] Sending presence in response to REQUEST_PRESENCE from:', peerId);
           // Enviar nuestra presencia inmediatamente
           broadcastPresence(playerId);
           break;
@@ -394,14 +403,27 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     // Broadcast periódico
     pendingTimeoutsRef.current.presenceTimeout = setInterval(() => broadcastPresence(), PRESENCE_BROADCAST_INTERVAL);
 
+    // Log periódico del estado de la sala (para debugging)
+    const statusInterval = setInterval(() => {
+      console.log('[Multiplayer] 📊 Room status:', {
+        roomId,
+        peers: peers.length,
+        remotePlayers: remotePlayers.length,
+        isConnected: isConnectedRef.current,
+      });
+    }, 10000);
+    
+    // Guardar el interval ID para cleanup
+    (pendingTimeoutsRef.current as any).statusInterval = statusInterval;
+
     return true;
   }, [isConnecting, broadcastPresence, cleanupRoom, generatePlayerId, updateRemotePlayers]);
 
   // FUNCIONES PÚBLICAS
-  const createRoom = useCallback((): string => {
-    const roomId = `sb_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    console.log('[Multiplayer] Creating room:', roomId);
-    if (initRoom(roomId)) return roomId;
+  const createRoom = useCallback((roomId?: string): string => {
+    const id = roomId || `sb_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    console.log('[Multiplayer] Creating room:', id);
+    if (initRoom(id)) return id;
     return '';
   }, [initRoom]);
 

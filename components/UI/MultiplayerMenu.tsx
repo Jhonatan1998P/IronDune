@@ -85,14 +85,15 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
       return;
     }
 
-    const roomId = createRoom();
+    // Usar el MISMO ID que se mostró en la previsualización
+    const roomId = previewRoomId ? createRoom(previewRoomId) : createRoom();
     if (roomId) {
       setPreviewRoomId(roomId);
       showSuccess(`Sala creada: ${roomId}`);
     } else {
       showError('Error al crear la sala');
     }
-  }, [createRoom, showSuccess, showError, showPreview, showInfo]);
+  }, [createRoom, showSuccess, showError, showPreview, previewRoomId]);
 
   const handleCancelPreview = useCallback(() => {
     setShowPreview(false);
