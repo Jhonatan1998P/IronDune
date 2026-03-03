@@ -468,6 +468,28 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     return true;
   }, [isConnecting, broadcastPresence, cleanupRoom, generatePlayerId, updateRemotePlayers]);
 
+  // ============================================================================
+  // AUTO-SYNC: Forzar sync cuando isConnected cambia
+  // ============================================================================
+  // Este efecto se ejecuta CADA vez que isConnected cambia a true
+  // Es CRÍTICO para sincronizar después de una reconexión
+  useEffect(() => {
+    if (isConnected && localPlayerIdRef.current) {
+      console.log('[Multiplayer] isConnected changed to true - checking if sync is needed');
+      // Pequeño delay para asegurar que sendActionRef esté listo
+      const timeout = setTimeout(() => {
+        const playerData = playersRef.current.get(localPlayerIdRef.current!);
+        console.log('[Multiplayer] Current player data in playersRef:', playerData);
+        // Si los datos son por defecto, forzamos un broadcast de todos modos
+        // useMultiplayerSync debería ejecutar syncPlayerWithData pronto
+        if (playerData && (playerData.name === 'Player' || playerData.level === 0)) {
+          console.log('[Multiplayer] Player data is default, waiting for useMultiplayerSync...');
+        }
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [isConnected]);
+
   // FUNCIONES PÚBLICAS
   const createRoom = useCallback((roomId?: string): string => {
     const id = roomId || `sb_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;

@@ -24,6 +24,14 @@ export const GameLayout: React.FC = () => {
   // State for Mobile Right Panel Drawer
   const [isStatusPanelOpen, setIsStatusPanelOpen] = useState(false);
 
+  // Debug: Log cuando GameLayout se monta
+  useEffect(() => {
+    console.log('[GameLayout] Mounted, status:', status, 'playerName:', gameState.playerName, 'empirePoints:', gameState.empirePoints);
+    return () => {
+      console.log('[GameLayout] Unmounting');
+    };
+  }, []);
+
   // Auto-sync jugador con el sistema multijugador
   useMultiplayerSync({
     playerName: gameState.playerName,

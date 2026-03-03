@@ -27,20 +27,38 @@ export const useMultiplayerSync = ({
   enabled = true,
 }: UseMultiplayerSyncProps) => {
   const { isConnected, syncPlayerWithData } = useMultiplayer();
-  const lastSyncRef = useRef<{ name: string; level: number } | null>(null);
+  const lastSyncRef = useRef<{ name: string; level: number; timestamp: number } | null>(null);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !isConnected) return;
+    // Detectar reconexión - cuando isConnected cambia de false a true
+    if (isConnected && !wasConnectedRef.current) {
+      console.log('[MultiplayerSync] Connection established (first time or reconnect)');
+      wasConnectedRef.current = true;
+      // Resetear para forzar sync inmediato
+      lastSyncRef.current = null;
+    }
+    
+    if (!isConnected) {
+      wasConnectedRef.current = false;
+      return;
+    }
+    
+    if (!enabled) return;
 
-    // Evitar sync duplicado si los datos no han cambiado
+    // Evitar sync duplicado si los datos no han cambiado (con 5s de gracia)
     const last = lastSyncRef.current;
-    if (last && last.name === playerName && last.level === empirePoints) {
+    const now = Date.now();
+    if (last && 
+        last.name === playerName && 
+        last.level === empirePoints &&
+        (now - last.timestamp) < 5000) {
       return;
     }
 
-    // Sincronizar cuando los datos cambian
+    // Sincronizar cuando los datos cambian o después de reconexión
     console.log('[MultiplayerSync] Syncing player:', playerName, empirePoints);
     syncPlayerWithData(playerName, empirePoints);
-    lastSyncRef.current = { name: playerName, level: empirePoints };
+    lastSyncRef.current = { name: playerName, level: empirePoints, timestamp: now };
   }, [enabled, isConnected, playerName, empirePoints, syncPlayerWithData]);
 };
