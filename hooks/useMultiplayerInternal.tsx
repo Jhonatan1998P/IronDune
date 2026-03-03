@@ -122,7 +122,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     if (timeouts.uiTimeout) clearTimeout(timeouts.uiTimeout);
     if (timeouts.broadcastTimeout) clearTimeout(timeouts.broadcastTimeout);
     if (timeouts.statusInterval) clearInterval(timeouts.statusInterval);
-    pendingTimeoutsRef.current = { presenceTimeout: null, uiTimeout: null, broadcastTimeout: null, statusInterval: undefined };
+    pendingTimeoutsRef.current = { 
+      presenceTimeout: null, 
+      uiTimeout: null, 
+      broadcastTimeout: null, 
+      statusInterval: undefined 
+    };
   }, []);
 
   const updateRemotePlayers = useCallback(() => {
@@ -336,6 +341,34 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       updateRemotePlayers();
     });
 
+    // Obtener lista inicial de peers (importante para reconexiones)
+    // Trystero mantiene una lista de peers aunque no hayan disparado onPeerJoin
+    const initialPeers = room.getPeers();
+    console.log('[Multiplayer] Initial peers in room:', initialPeers);
+    if (initialPeers.length > 0) {
+      // Ya hay peers en la sala - registrarlos
+      initialPeers.forEach((peerId: string) => {
+        playersRef.current.set(peerId, {
+          id: peerId,
+          name: 'Jugador',
+          level: 0,
+          lastSeen: Date.now(),
+        });
+      });
+      setPeers(initialPeers);
+      updateRemotePlayers();
+      
+      // Solicitar presencia a todos los peers existentes
+      setTimeout(() => {
+        console.log('[Multiplayer] Requesting presence from existing peers:', initialPeers);
+        try {
+          sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any);
+        } catch (e) {
+          console.warn('Error requesting presence:', e);
+        }
+      }, 100);
+    }
+
     // Recepción de Acciones
     getAction((action: any, peerId: string) => {
       if (action.playerId === playerId) {
@@ -430,6 +463,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         console.warn('Error sending REQUEST_PRESENCE:', e);
       }
     }, 500);
+
+    // Cuarto broadcast con datos actualizados (por si el syncPlayerWithData ya se ejecutó)
+    setTimeout(() => {
+      console.log('[Multiplayer] Fourth broadcast with updated data');
+      broadcastPresence(playerId);
+    }, 800);
 
     // Broadcast periódico
     pendingTimeoutsRef.current.presenceTimeout = setInterval(() => broadcastPresence(), PRESENCE_BROADCAST_INTERVAL);
