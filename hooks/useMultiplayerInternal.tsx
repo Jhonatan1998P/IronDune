@@ -415,6 +415,14 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
             gameEventBus.emit('SHOW_TOAST' as any, { message: `¡Recibiste ${giftData.amount} oro!`, type: 'success' });
           }
           break;
+        case 'P2P_ATTACK':
+          console.log('[Multiplayer] Received P2P_ATTACK');
+          gameEventBus.emit('INCOMING_P2P_ATTACK' as any, action.payload);
+          break;
+        case 'P2P_BATTLE_RESULT':
+          console.log('[Multiplayer] Received P2P_BATTLE_RESULT');
+          gameEventBus.emit('P2P_BATTLE_RESULT' as any, action.payload);
+          break;
         default:
           if (actionsCallbackRef.current) {
             actionsCallbackRef.current(action);

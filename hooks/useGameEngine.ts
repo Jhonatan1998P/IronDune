@@ -138,6 +138,8 @@ export const useGameEngine = () => {
     resetGame: persistence.resetGame,
 
     // Actions
+    addP2PIncomingAttack: actions.addP2PIncomingAttack,
+    applyP2PBattleResult: actions.applyP2PBattleResult,
     build: actions.build, 
     recruit: actions.recruit, 
     research: actions.research, 

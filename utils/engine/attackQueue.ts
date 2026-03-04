@@ -262,6 +262,16 @@ export const processAttackQueue = (
                 processedAt: attackTime
             });
         } else if (item.type === 'INCOMING' && item.attack) {
+            // Para ataques P2P, el defensor NO procesa la batalla localmente.
+            // El atacante es quien resuelve y envía el resultado via useP2PBattleResolver.
+            // Aquí solo eliminamos el ataque de la cola para que no se procese dos veces.
+            if (item.attack.isP2P) {
+                // Ataque P2P: no procesamos localmente, solo limpiamos la lista
+                // (el resultado llegará via gameEventBus 'P2P_BATTLE_RESULT')
+                currentState.incomingAttacks = currentState.incomingAttacks.filter(a => a.id !== item.attack!.id);
+                continue;
+            }
+
             const { newState, result, logs } = processIncomingAttackInQueue(currentState, item.attack, currentState.units, attackTime);
             currentState = newState;
             allLogs.push(...logs.map(log => ({ ...log, timestamp: attackTime })));

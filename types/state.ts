@@ -36,6 +36,8 @@ export interface IncomingAttack {
   delayCount?: number; // Track how many times grace period was applied
   isWarWave?: boolean; // Flag to identify war waves
   isScouted?: boolean; // Flag if player paid to reveal composition
+  isP2P?: boolean;           // Flag para identificar ataques P2P
+  attackerId?: string;       // ID del jugador atacante (para respuestas)
 }
 
 export interface QueuedAttackResult {

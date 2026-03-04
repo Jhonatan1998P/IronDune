@@ -505,7 +505,95 @@ export const useGameActions = (
       return { success: true, messageKey: 'gift_code_success' };
   }, [gameState, setGameState]);
 
+    const applyP2PBattleResult = useCallback((result: any, isAttacker: boolean) => {
+        setGameState(prev => {
+            // Implementation of applying the result
+            const newState = { ...prev };
+            // subtract casualties
+            const casualties = isAttacker ? result.attackerCasualties : result.defenderCasualties;
+            if (casualties) {
+                const newUnits = { ...newState.units };
+                for (const [unitType, count] of Object.entries(casualties)) {
+                    if (newUnits[unitType as UnitType]) {
+                        newUnits[unitType as UnitType] = Math.max(0, newUnits[unitType as UnitType] - (count as number));
+                    }
+                }
+                newState.units = newUnits;
+            }
+
+            // apply loot if attacker won
+            if (result.winner === 'ENEMY' && isAttacker && result.loot) {
+                const newResources = { ...newState.resources };
+                for (const [resType, count] of Object.entries(result.loot)) {
+                    newResources[resType as ResourceType] += (count as number);
+                }
+                newState.resources = newResources;
+            } else if (result.winner === 'ENEMY' && !isAttacker && result.loot) {
+                // defender lost resources
+                const newResources = { ...newState.resources };
+                for (const [resType, count] of Object.entries(result.loot)) {
+                    newResources[resType as ResourceType] = Math.max(0, newResources[resType as ResourceType] - (count as number));
+                }
+                newState.resources = newResources;
+            }
+
+            // apply stolen buildings if attacker won
+            if (result.winner === 'ENEMY' && isAttacker && result.stolenBuildings) {
+                const newBuildings = { ...newState.buildings };
+                for (const [bType, count] of Object.entries(result.stolenBuildings)) {
+                    const bt = bType as BuildingType;
+                    newBuildings[bt] = { ...newBuildings[bt], level: newBuildings[bt].level + (count as number) };
+                }
+                newState.buildings = newBuildings;
+            } else if (result.winner === 'ENEMY' && !isAttacker && result.stolenBuildings) {
+                // defender lost buildings
+                const newBuildings = { ...newState.buildings };
+                for (const [bType, count] of Object.entries(result.stolenBuildings)) {
+                    const bt = bType as BuildingType;
+                    newBuildings[bt] = { ...newBuildings[bt], level: Math.max(1, newBuildings[bt].level - (count as number)) };
+                }
+                newState.buildings = newBuildings;
+            }
+
+            // remove from incoming attacks if defender
+            if (!isAttacker) {
+                newState.incomingAttacks = newState.incomingAttacks.filter(a => a.id !== result.attackId);
+            }
+
+            // Add combat log
+            const logEntry: LogEntry = {
+                id: `p2p_result_${Date.now()}`,
+                messageKey: isAttacker ? (result.winner === 'ENEMY' ? 'combat.victory' : 'combat.defeat') : (result.winner === 'PLAYER' ? 'combat.defenseSuccess' : 'combat.defenseFail'),
+                type: 'combat',
+                timestamp: Date.now(),
+                params: {
+                    combatResult: result.battleResult,
+                    attacker: result.attackerId,
+                    targetName: result.defenderId,
+                    loot: result.loot,
+                    buildingLoot: result.stolenBuildings
+                }
+            };
+            newState.logs = limitLogs([logEntry, ...newState.logs], 100);
+
+            return newState;
+        });
+    }, [setGameState]);
+
+    const addP2PIncomingAttack = useCallback((attack: any) => {
+        setGameState(prev => {
+            // Check if it already exists
+            if (prev.incomingAttacks.some(a => a.id === attack.id)) return prev;
+            return {
+                ...prev,
+                incomingAttacks: [...prev.incomingAttacks, attack].sort((a, b) => a.endTime - b.endTime)
+            };
+        });
+    }, [setGameState]);
+
   return {
+    addP2PIncomingAttack,
+    applyP2PBattleResult,
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,
     acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,

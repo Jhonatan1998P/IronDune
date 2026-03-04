@@ -102,7 +102,14 @@ export const TacticalInterceptModal: React.FC<TacticalInterceptModalProps> = ({ 
                             {/* Info */}
                             <div className="flex-1 text-center sm:text-left">
                                 <div className="text-[8px] sm:text-[9px] md:text-[10px] text-slate-500 uppercase tracking-widest mb-1">{t.common.ui.aggressor}</div>
-                                <h3 className="font-tech text-base sm:text-xl md:text-2xl text-white uppercase tracking-wider mb-1">{attack.attackerName}</h3>
+                                <div className="flex items-center gap-2 mb-1 justify-center sm:justify-start">
+                                    <h3 className="font-tech text-base sm:text-xl md:text-2xl text-white uppercase tracking-wider">{attack.attackerName}</h3>
+                                    {attack.isP2P && (
+                                        <span className="text-[10px] text-cyan-400 bg-cyan-900/40 border border-cyan-500/30 px-2 py-0.5 rounded uppercase font-bold tracking-widest">
+                                            JUGADOR P2P
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="text-red-400 font-mono text-xs sm:text-sm md:text-sm">
                                     {t.common.ui.threat_score}: {formatNumber(attack.attackerScore)}
                                 </div>

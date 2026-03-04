@@ -9,6 +9,7 @@ import { PvpAttackModal } from '../PvpAttackModal';
 import { executeDeclareWar } from '../../utils/engine/actions';
 import { CommanderProfileModal } from '../modals/CommanderProfileModal';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { P2PAttackModal } from '../modals/P2PAttackModal';
 
 interface RankingsViewProps {
     gameState: GameState;
@@ -26,6 +27,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     
     const [profileEntry, setProfileEntry] = useState<RankingEntry | null>(null);
     const [attackTarget, setAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
+    const [p2pAttackTarget, setP2PAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
 
     const { isConnected, remotePlayers } = useMultiplayer();
 
@@ -228,6 +230,14 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                         >
                             {t.common.actions.inspect}
                         </button>
+                        {entry.isP2P && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setP2PAttackTarget({ id: entry.id, name: entry.name, score: entry.score }); }}
+                                className="text-xs text-red-400 hover:text-red-300 font-bold ml-4"
+                            >
+                                ATACAR
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -269,6 +279,17 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                     onClose={() => setAttackTarget(null)}
                     onAttackSent={(newState) => {
                         onAttack(attackTarget, newState); 
+                    }}
+                />
+            )}
+
+            {p2pAttackTarget && onAttack && (
+                <P2PAttackModal
+                    target={p2pAttackTarget}
+                    gameState={gameState}
+                    onClose={() => setP2PAttackTarget(null)}
+                    onAttackSent={(newState) => {
+                        onAttack(p2pAttackTarget, newState);
                     }}
                 />
             )}
