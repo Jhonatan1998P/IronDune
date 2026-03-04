@@ -37,11 +37,9 @@ export interface ChatMessagePayload {
  */
 export interface MultiplayerAction {
   type: string;      // 'PRESENCE_UPDATE', 'REQUEST_PRESENCE', 'GIFT_GOLD', 'CHAT_MESSAGE', etc.
-  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | any | null;  // Datos de la acción (debe ser JSON-serializable)
-  playerId: string;  // Quién envía
-  timestamp: number; // Cuándo
-  playerName?: string;
-  playerLevel?: number;
+  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | P2PBattleRequestTroops | P2PBattleDefenderTroops | any | null;  // Datos de la acción (debe ser JSON-serializable)
+  playerId: string;  // ID de quien envía
+  timestamp: number; // Marca de tiempo (para ordenamiento y prevención de latencia)
 }
 
 /**
@@ -262,5 +260,22 @@ export interface P2PAttackResult {
   stolenBuildings?: Partial<Record<BuildingType, number>>;
   
   winner: 'PLAYER' | 'ENEMY' | 'DRAW';
+  timestamp: number;
+}
+
+export interface P2PBattleRequestTroops {
+  type: 'P2P_BATTLE_REQUEST_TROOPS';
+  attackId: string;
+  attackerId: string;
+  targetId: string; // defender
+  timestamp: number;
+}
+
+export interface P2PBattleDefenderTroops {
+  type: 'P2P_BATTLE_DEFENDER_TROOPS';
+  attackId: string;
+  attackerId: string;
+  defenderId: string;
+  defenderUnits: Partial<Record<UnitType, number>>;
   timestamp: number;
 }

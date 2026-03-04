@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useGame } from '../context/GameContext';
-import { P2PAttackRequest, P2PAttackResult } from '../types/multiplayer';
+import { useMultiplayer } from './useMultiplayer';
+import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops } from '../types/multiplayer';
 import { IncomingAttack } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
 import type { UnitType, BuildingType } from '../types/enums';
@@ -50,6 +51,7 @@ const verifyBattleResult = (
 
 export const useP2PGameSync = () => {
   const { addP2PIncomingAttack, applyP2PBattleResult, gameState } = useGame();
+  const { sendToPeer, localPlayerId } = useMultiplayer();
 
   // Convertir ataque P2P a formato IncomingAttack
   const convertToIncomingAttack = (request: P2PAttackRequest): IncomingAttack => {
@@ -92,14 +94,48 @@ export const useP2PGameSync = () => {
       applyP2PBattleResult(result, false);
     };
 
+    const handleRequestTroops = (payload: any) => {
+      const request = payload as P2PBattleRequestTroops;
+      
+      // Asegurarse de que esta petición es para mí
+      if (request.targetId !== localPlayerId) return;
+      
+      console.log('[P2PGameSync] Defender received REQUEST_TROOPS. Sending current units...');
+      
+      // Tomamos la snapshot exacta de nuestras tropas ahora mismo
+      const snapshot: Partial<Record<UnitType, number>> = {};
+      for (const [k, v] of Object.entries(gameState.units)) {
+         if (v > 0) snapshot[k as UnitType] = v;
+      }
+      
+      const reply: P2PBattleDefenderTroops = {
+        type: 'P2P_BATTLE_DEFENDER_TROOPS',
+        attackId: request.attackId,
+        attackerId: request.attackerId,
+        defenderId: localPlayerId,
+        defenderUnits: snapshot,
+        timestamp: Date.now()
+      };
+      
+      // Enviar la respuesta directamente de vuelta al atacante
+      sendToPeer(request.attackerId, {
+        type: 'P2P_BATTLE_DEFENDER_TROOPS',
+        payload: reply,
+        playerId: localPlayerId || '',
+        timestamp: Date.now(),
+      });
+    };
+
     gameEventBus.on('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
     gameEventBus.on('P2P_BATTLE_RESULT' as any, handleBattleResult);
+    gameEventBus.on('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
 
     return () => {
       gameEventBus.off('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
       gameEventBus.off('P2P_BATTLE_RESULT' as any, handleBattleResult);
+      gameEventBus.off('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
     };
-  }, [addP2PIncomingAttack, applyP2PBattleResult, gameState.units, gameState.buildings]);
+  }, [addP2PIncomingAttack, applyP2PBattleResult, gameState.units, gameState.buildings, localPlayerId, sendToPeer]);
 
   return { convertToIncomingAttack };
 };

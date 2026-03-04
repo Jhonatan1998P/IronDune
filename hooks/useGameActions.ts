@@ -1,6 +1,8 @@
 
 import React, { useCallback } from 'react';
-import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry, ResourceType, GiftCode } from '../types';
+import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry, ResourceType, GiftCode, ActiveMission } from '../types';
+import { gameEventBus } from '../utils/eventBus';
+import { GameEventType } from '../types/events';
 import { 
     executeBuild, 
     executeRecruit, 
@@ -507,46 +509,46 @@ export const useGameActions = (
 
     const applyP2PBattleResult = useCallback((result: any, isAttacker: boolean) => {
         setGameState(prev => {
-            // Implementation of applying the result
             const newState = { ...prev };
-            // subtract casualties
+
+            // --- Bajas (ambos bandos siempre pierden tropas) ---
             const casualties = isAttacker ? result.attackerCasualties : result.defenderCasualties;
             if (casualties) {
                 const newUnits = { ...newState.units };
                 for (const [unitType, count] of Object.entries(casualties)) {
-                    if (newUnits[unitType as UnitType]) {
+                    if (newUnits[unitType as UnitType] !== undefined) {
                         newUnits[unitType as UnitType] = Math.max(0, newUnits[unitType as UnitType] - (count as number));
                     }
                 }
                 newState.units = newUnits;
             }
 
-            // apply loot if attacker won
-            if (result.winner === 'ENEMY' && isAttacker && result.loot) {
+            // --- Loot/edificios: SOLO si el atacante GANA (winner === 'PLAYER') ---
+            // winner === 'PLAYER' significa que el atacante (PLAYER perspective) ganó
+            if (result.winner === 'PLAYER' && isAttacker && result.loot) {
                 const newResources = { ...newState.resources };
                 for (const [resType, count] of Object.entries(result.loot)) {
-                    newResources[resType as ResourceType] += (count as number);
+                    newResources[resType as ResourceType] = (newResources[resType as ResourceType] || 0) + (count as number);
                 }
                 newState.resources = newResources;
-            } else if (result.winner === 'ENEMY' && !isAttacker && result.loot) {
-                // defender lost resources
+            } else if (result.winner === 'PLAYER' && !isAttacker && result.loot) {
+                // Defensor pierde recursos
                 const newResources = { ...newState.resources };
                 for (const [resType, count] of Object.entries(result.loot)) {
-                    newResources[resType as ResourceType] = Math.max(0, newResources[resType as ResourceType] - (count as number));
+                    newResources[resType as ResourceType] = Math.max(0, (newResources[resType as ResourceType] || 0) - (count as number));
                 }
                 newState.resources = newResources;
             }
 
-            // apply stolen buildings if attacker won
-            if (result.winner === 'ENEMY' && isAttacker && result.stolenBuildings) {
+            if (result.winner === 'PLAYER' && isAttacker && result.stolenBuildings) {
                 const newBuildings = { ...newState.buildings };
                 for (const [bType, count] of Object.entries(result.stolenBuildings)) {
                     const bt = bType as BuildingType;
                     newBuildings[bt] = { ...newBuildings[bt], level: newBuildings[bt].level + (count as number) };
                 }
                 newState.buildings = newBuildings;
-            } else if (result.winner === 'ENEMY' && !isAttacker && result.stolenBuildings) {
-                // defender lost buildings
+            } else if (result.winner === 'PLAYER' && !isAttacker && result.stolenBuildings) {
+                // Defensor pierde edificios
                 const newBuildings = { ...newState.buildings };
                 for (const [bType, count] of Object.entries(result.stolenBuildings)) {
                     const bt = bType as BuildingType;
@@ -555,28 +557,35 @@ export const useGameActions = (
                 newState.buildings = newBuildings;
             }
 
-            // remove from incoming attacks if defender
+            // --- Defensor: remover de incomingAttacks ---
             if (!isAttacker) {
                 newState.incomingAttacks = newState.incomingAttacks.filter(a => a.id !== result.attackId);
             }
 
-            // Add combat log
-            const logEntry: LogEntry = {
-                id: `p2p_result_${Date.now()}`,
-                messageKey: isAttacker ? (result.winner === 'ENEMY' ? 'combat.victory' : 'combat.defeat') : (result.winner === 'PLAYER' ? 'combat.defenseSuccess' : 'combat.defenseFail'),
-                type: 'combat',
-                timestamp: Date.now(),
-                params: {
-                    combatResult: result.battleResult,
-                    attacker: result.attackerId,
-                    targetName: result.defenderId,
-                    loot: result.loot,
-                    buildingLoot: result.stolenBuildings
-                }
-            };
-            newState.logs = limitLogs([logEntry, ...newState.logs], 100);
+            // --- Atacante: remover la ActiveMission P2P correspondiente ---
+            if (isAttacker) {
+                newState.activeMissions = (newState.activeMissions || []).filter(m => m.id !== result.attackId);
+            }
 
             return newState;
+        });
+
+        // Emitir log via eventBus para que useGameEngine.addLog dispare setHasNewReports(true)
+        const messageKey = isAttacker
+            ? (result.winner === 'PLAYER' ? 'combat.p2p.victory' : 'combat.p2p.defeat')
+            : (result.winner === 'PLAYER' ? 'combat.p2p.defenseFail' : 'combat.p2p.defenseSuccess');
+
+        gameEventBus.emit(GameEventType.ADD_LOG, {
+            messageKey,
+            type: 'combat',
+            params: {
+                combatResult: result.battleResult,
+                attackerId: result.attackerId,
+                defenderId: result.defenderId,
+                loot: result.loot,
+                buildingLoot: result.stolenBuildings,
+                winner: result.winner,
+            }
         });
     }, [setGameState]);
 
@@ -591,8 +600,24 @@ export const useGameActions = (
         });
     }, [setGameState]);
 
+    /**
+     * Registra una misión P2P saliente en activeMissions para que el indicador
+     * de ataque saliente aparezca en el atacante.
+     * La misión tiene el mismo ID que el attackId para poder removarla al resolver.
+     */
+    const addP2PMission = useCallback((mission: ActiveMission) => {
+        setGameState(prev => {
+            if ((prev.activeMissions || []).some(m => m.id === mission.id)) return prev;
+            return {
+                ...prev,
+                activeMissions: [...(prev.activeMissions || []), mission]
+            };
+        });
+    }, [setGameState]);
+
   return {
     addP2PIncomingAttack,
+    addP2PMission,
     applyP2PBattleResult,
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,

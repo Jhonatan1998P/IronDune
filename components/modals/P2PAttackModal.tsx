@@ -6,6 +6,8 @@ import { useLanguage } from '../../context/LanguageContext';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
 
+import { useGame } from '../../context/GameContext';
+
 interface P2PAttackModalProps {
     target: { id: string; name: string; score: number };
     gameState: GameState;
@@ -15,11 +17,12 @@ interface P2PAttackModalProps {
 
 export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameState, onClose, onAttackSent }) => {
     const { t } = useLanguage();
+    const { addP2PMission } = useGame();
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const { sendAttack } = useP2PAttack();
     
-    // Tiempo fijo de 7.5 minutos como dice el plan
-    const travelTime = 7.5 * 60 * 1000;
+    // Tiempo fijo de 7.5 minutos como dice el plan, por ahora 20 seg para pruebas
+    const travelTime = 20 * 1000;
 
     const handleUnitChange = (type: UnitType, change: number) => {
         setSelectedUnits(prev => {
@@ -50,18 +53,34 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
 
     const handleLaunch = () => {
         const attackId = `p2p_atk_${Date.now()}`;
-        
+        const startTime = Date.now();
+        const endTime = startTime + travelTime;
+        const attackerId = gameState.peerId || 'UNKNOWN_PEER';
+
         sendAttack(target.id, {
             attackId,
-            attackerId: gameState.peerId || 'UNKNOWN_PEER',
+            attackerId,
             attackerName: gameState.playerName,
             attackerScore: gameState.empirePoints,
             units: selectedUnits,
             targetId: target.id,
-            startTime: Date.now(),
-            endTime: Date.now() + travelTime
+            startTime,
+            endTime
         });
         
+        // Crear la misión saliente para el atacante
+        addP2PMission({
+            id: attackId,
+            type: 'PVP_ATTACK',
+            startTime,
+            endTime,
+            duration: 7.5,
+            units: selectedUnits,
+            targetId: target.id,
+            targetName: target.name,
+            targetScore: target.score
+        });
+
         // Descontar tropas enviadas del estado local
         const newUnits = { ...gameState.units };
         for (const [uType, count] of Object.entries(selectedUnits)) {

@@ -423,6 +423,14 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           console.log('[Multiplayer] Received P2P_BATTLE_RESULT');
           gameEventBus.emit('P2P_BATTLE_RESULT' as any, action.payload);
           break;
+        case 'P2P_BATTLE_REQUEST_TROOPS':
+          console.log('[Multiplayer] Received P2P_BATTLE_REQUEST_TROOPS');
+          gameEventBus.emit('P2P_BATTLE_REQUEST_TROOPS' as any, action.payload);
+          break;
+        case 'P2P_BATTLE_DEFENDER_TROOPS':
+          console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS');
+          gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, action.payload);
+          break;
         default:
           if (actionsCallbackRef.current) {
             actionsCallbackRef.current(action);
