@@ -95,7 +95,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
       </div>
 
       {/* Rankings List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-0.5 sm:px-1">
+      <div className="flex-1 px-0.5 sm:px-1">
         <div className="space-y-2 sm:space-y-3">
           {rankedPlayers.map((player, index) => {
             const rank = index + 1;
