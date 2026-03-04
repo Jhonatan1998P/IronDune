@@ -150,17 +150,19 @@ export const useP2PBattleResolver = () => {
             timestamp: Date.now(),
         });
 
-        // Fallback: si el defensor no responde en 15 s, CANCELAR el ataque
-        // No inventamos tropas, devolvemos las tropas al atacante.
+        // Fallback: si el defensor no responde en 8 s, CANCELAR el ataque
+        // NO creamos tropas inventadas - marcamos como W.O. y devolvemos todas las tropas al atacante
         timeoutRefs.current[mission.id] = setTimeout(() => {
             if (resolvedAttacksRef.current.has(mission.id)) return;
             resolvedAttacksRef.current.add(mission.id);
 
             const gs = gameStateRef.current;
 
+            console.log('[P2PBattleResolver] Defender did not respond in time, applying W.O. result');
+
             // Log that the defender fled/disconnected
             gameEventBus.emit('ADD_LOG' as any, {
-                messageKey: 'combat_p2p_defenseFail', // O un mensaje nuevo de desconexión
+                messageKey: 'combat_p2p_defenseFail',
                 type: 'combat',
                 params: {
                     attacker: gs.playerName || 'Unknown',
@@ -169,8 +171,10 @@ export const useP2PBattleResolver = () => {
                 }
             });
 
-            // Simulate returning troops by passing 0 casualties for the attacker
-            const dummyResult: P2PAttackResult = {
+            // W.O. - Todas las tropas del atacante vuelven, el defensor no pierde tropas
+            // NO usamos initialEnemyArmy vacío - esto es un caso especial de W.O.
+            const zeroedUnits: Partial<Record<UnitType, number>> = {};
+            const zeroedResult: P2PAttackResult = {
                 type: 'P2P_ATTACK_RESULT',
                 attackId: mission.id,
                 attackerId: myId || 'UNKNOWN_PEER',
@@ -181,9 +185,9 @@ export const useP2PBattleResolver = () => {
                     winner: 'DRAW',
                     rounds: [],
                     initialPlayerArmy: mission.units,
-                    initialEnemyArmy: {},
-                    finalPlayerArmy: mission.units, // Vuelven todos
-                    finalEnemyArmy: {},
+                    initialEnemyArmy: zeroedUnits,
+                    finalPlayerArmy: mission.units,
+                    finalEnemyArmy: zeroedUnits,
                     totalPlayerCasualties: {},
                     totalEnemyCasualties: {},
                     playerTotalHpStart: 0,
@@ -201,8 +205,8 @@ export const useP2PBattleResolver = () => {
                 timestamp: Date.now(),
             };
 
-            applyP2PBattleResultRef.current(dummyResult, true);
-        }, 15000);
+            applyP2PBattleResultRef.current(zeroedResult, true);
+        }, 8000);
     });
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -214,11 +218,17 @@ export const useP2PBattleResolver = () => {
             const data = payload as P2PBattleDefenderTroops;
             if (data.attackerId !== localPlayerIdRef.current) return;
 
+            console.log('[P2PBattleResolver] Received defender troops for attack:', data.attackId, 'units:', data.defenderUnits);
+
             // Buscar en el ref (siempre fresco)
             const mission = activeMissionsRef.current.find(m => m.id === data.attackId);
-            if (!mission) return;
+            if (!mission) {
+                console.log('[P2PBattleResolver] Mission not found for attack:', data.attackId);
+                return;
+            }
             if (resolvedAttacksRef.current.has(mission.id)) return;
 
+            console.log('[P2PBattleResolver] Executing battle with REAL defender units:', data.defenderUnits);
             executeBattleResolutionRef.current(mission, data.defenderUnits);
         };
 

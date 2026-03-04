@@ -66,17 +66,26 @@ export const useP2PGameSync = () => {
   useEffect(() => { addP2PIncomingAttackRef.current = addP2PIncomingAttack; }, [addP2PIncomingAttack]);
 
   // Convertir ataque P2P a formato IncomingAttack
-  const convertToIncomingAttack = (request: P2PAttackRequest): IncomingAttack => ({
-    id: request.attackId,
-    attackerName: request.attackerName,
-    attackerScore: request.attackerScore,
-    units: request.units,
-    startTime: request.startTime,
-    endTime: request.endTime,
-    isP2P: true,
-    attackerId: request.attackerId,
-    isScouted: false,
-  });
+  // IMPORTANTE: Rebasamos los timestamps al reloj LOCAL del defensor para evitar
+  // desincronización cuando los relojes de los jugadores difieren.
+  // Solo preservamos la duración del viaje (endTime - startTime) y la aplicamos
+  // al Date.now() del defensor.
+  const convertToIncomingAttack = (request: P2PAttackRequest): IncomingAttack => {
+    const travelDuration = request.endTime - request.startTime;
+    const now = Date.now();
+
+    return {
+      id: request.attackId,
+      attackerName: request.attackerName,
+      attackerScore: request.attackerScore,
+      units: request.units,
+      startTime: now,
+      endTime: now + travelDuration,
+      isP2P: true,
+      attackerId: request.attackerId,
+      isScouted: false,
+    };
+  };
 
   // Registrar listeners UNA sola vez — usan refs internamente para datos frescos
   useEffect(() => {
@@ -106,26 +115,34 @@ export const useP2PGameSync = () => {
       const gs = gameStateRef.current;
       const myId = localPlayerIdRef.current;
 
-      console.log('[P2PGameSync] REQUEST_TROOPS received — attackId:', request.attackId);
+      // _senderPeerId es el Trystero peerId REAL del atacante, inyectado por
+      // useMultiplayerInternal al recibir el mensaje. Lo necesitamos porque
+      // request.attackerId es un ID lógico (player_...) que no sirve para
+      // enrutar respuestas via sendToPeer (que requiere Trystero peerId).
+      const senderPeerId: string | undefined = (payload as any)._senderPeerId;
 
-      // Solo responder si soy el defensor objetivo.
-      // Ya no verificamos (request.targetId === myId) porque Trystero recibe la petición
-      // basándose en el peerId, pero myId es nuestro localPlayerId.
-      // En su lugar, verificamos si tenemos este ataque en nuestra lista de ataques entrantes.
-      const isTarget = gs.incomingAttacks.some(a => a.id === request.attackId);
-      
-      if (!isTarget) {
-          console.log('[P2PGameSync] I am not the target for attack:', request.attackId);
-          return;
+      console.log('[P2PGameSync] REQUEST_TROOPS received — attackId:', request.attackId,
+        'targetId:', request.targetId, 'myId:', myId, 'senderPeerId:', senderPeerId);
+
+      // Verificar que tenemos este ataque en nuestra cola de incomingAttacks.
+      // NOTA: NO comparamos request.targetId con myId porque usan sistemas de ID
+      // distintos (Trystero peerId vs player_... custom ID). El hecho de que
+      // Trystero enrutó el mensaje directamente a nosotros ya garantiza que somos
+      // el defensor correcto.
+      const hasAttack = gs.incomingAttacks.some(a => a.id === request.attackId);
+      if (!hasAttack) {
+          console.log('[P2PGameSync] Attack not found in incomingAttacks, responding anyway (Trystero routing guarantees target)');
       }
 
-      console.log('[P2PGameSync] Sending my troops to attacker:', request.attackerId, gs.units);
+      console.log('[P2PGameSync] Sending my REAL troops to attacker. senderPeerId:', senderPeerId, 'units:', gs.units);
 
       // Snapshot de tropas vivas en este momento
       const snapshot: Partial<Record<UnitType, number>> = {};
       for (const [k, v] of Object.entries(gs.units)) {
         if (v > 0) snapshot[k as UnitType] = v;
       }
+
+      console.log('[P2PGameSync] Defender sending REAL troops:', snapshot);
 
       const reply: P2PBattleDefenderTroops = {
         type: 'P2P_BATTLE_DEFENDER_TROOPS',
@@ -136,12 +153,18 @@ export const useP2PGameSync = () => {
         timestamp: Date.now(),
       };
 
-      sendToPeerRef.current(request.attackerId, {
+      // Usar senderPeerId (Trystero peerId real) para enrutar la respuesta.
+      // Fallback a request.attackerId por compatibilidad, aunque probablemente
+      // no funcionará si es un ID lógico (player_...).
+      const replyTarget = senderPeerId || request.attackerId;
+      console.log('[P2PGameSync] Sending troops reply to:', replyTarget);
+      sendToPeerRef.current(replyTarget, {
         type: 'P2P_BATTLE_DEFENDER_TROOPS',
         payload: reply,
         playerId: myId || '',
         timestamp: Date.now(),
       });
+      console.log('[P2PGameSync] troops reply sent');
     };
 
     gameEventBus.on('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);

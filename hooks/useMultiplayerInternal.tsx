@@ -416,20 +416,22 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           }
           break;
         case 'P2P_ATTACK':
-          console.log('[Multiplayer] Received P2P_ATTACK');
-          gameEventBus.emit('INCOMING_P2P_ATTACK' as any, action.payload);
+          console.log('[Multiplayer] Received P2P_ATTACK from peerId:', peerId);
+          // Augment payload with sender's Trystero peerId so downstream handlers
+          // can reply to the correct peer (localPlayerId ≠ Trystero peerId)
+          gameEventBus.emit('INCOMING_P2P_ATTACK' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_RESULT':
-          console.log('[Multiplayer] Received P2P_BATTLE_RESULT');
-          gameEventBus.emit('P2P_BATTLE_RESULT' as any, action.payload);
+          console.log('[Multiplayer] Received P2P_BATTLE_RESULT from peerId:', peerId);
+          gameEventBus.emit('P2P_BATTLE_RESULT' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_REQUEST_TROOPS':
-          console.log('[Multiplayer] Received P2P_BATTLE_REQUEST_TROOPS');
-          gameEventBus.emit('P2P_BATTLE_REQUEST_TROOPS' as any, action.payload);
+          console.log('[Multiplayer] Received P2P_BATTLE_REQUEST_TROOPS from peerId:', peerId);
+          gameEventBus.emit('P2P_BATTLE_REQUEST_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_DEFENDER_TROOPS':
-          console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS');
-          gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, action.payload);
+          console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS from peerId:', peerId);
+          gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         default:
           if (actionsCallbackRef.current) {
