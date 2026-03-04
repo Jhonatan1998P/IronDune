@@ -7,6 +7,7 @@ import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
 
 import { useGame } from '../../context/GameContext';
+import { useMultiplayer } from '../../hooks/useMultiplayer';
 
 interface P2PAttackModalProps {
     target: { id: string; name: string; score: number };
@@ -15,9 +16,10 @@ interface P2PAttackModalProps {
     onAttackSent: (newState: GameState) => void;
 }
 
-export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameState, onClose, onAttackSent }) => {
+export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameState, onClose }) => {
     const { t } = useLanguage();
     const { addP2PMission } = useGame();
+    const { localPlayerId } = useMultiplayer();
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const { sendAttack } = useP2PAttack();
     
@@ -55,8 +57,9 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
         const attackId = `p2p_atk_${Date.now()}`;
         const startTime = Date.now();
         const endTime = startTime + travelTime;
-        const attackerId = gameState.peerId || 'UNKNOWN_PEER';
+        const attackerId = localPlayerId || 'UNKNOWN_PEER';
 
+        // 1. Enviar el ataque al defensor via P2P
         sendAttack(target.id, {
             attackId,
             attackerId,
@@ -67,27 +70,21 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
             startTime,
             endTime
         });
-        
-        // Crear la misión saliente para el atacante
+
+        // 2. Registrar la misión saliente Y descontar tropas en un solo setGameState atómico
         addP2PMission({
             id: attackId,
             type: 'PVP_ATTACK',
             startTime,
             endTime,
-            duration: 7.5,
+            duration: travelTime / 60000,
             units: selectedUnits,
             targetId: target.id,
             targetName: target.name,
-            targetScore: target.score
+            targetScore: target.score,
+            isP2P: true
         });
 
-        // Descontar tropas enviadas del estado local
-        const newUnits = { ...gameState.units };
-        for (const [uType, count] of Object.entries(selectedUnits)) {
-            newUnits[uType as UnitType] -= count as number;
-        }
-        
-        onAttackSent({ ...gameState, units: newUnits });
         onClose();
     };
 

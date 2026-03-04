@@ -486,6 +486,10 @@ export interface TranslationDictionary {
       gift_code_once: string;
       gift_code_diario_rewards: string;
       gift_code_manco_rewards: string;
+      combat_p2p_victory?: string;
+      combat_p2p_defeat?: string;
+      combat_p2p_defenseSuccess?: string;
+      combat_p2p_defenseFail?: string;
     };
     menu: {
       new_game: string;

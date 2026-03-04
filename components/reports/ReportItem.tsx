@@ -33,8 +33,8 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     const isPatrol = log.messageKey.includes('patrol');
 
     const isDefenseLoss = log.messageKey === 'log_defense_loss';
-    const isDefenseWin = log.messageKey === 'log_defense_win';
-    const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win') || log.messageKey.includes('patrol_contraband');
+    const isDefenseWin = log.messageKey === 'log_defense_win' || log.messageKey === 'combat_p2p_defenseSuccess';
+    const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win') || log.messageKey.includes('patrol_contraband') || log.messageKey === 'combat_p2p_victory';
     
     let msg = log.messageKey;
     
@@ -43,6 +43,10 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     else if (log.messageKey === 'log_wipeout') msg = `${t.reports.wipeout}`;
     else if (log.messageKey === 'log_defense_win') msg = `${t.common.ui.under_attack}: ${t.campaign.victory_title}`;
     else if (log.messageKey === 'log_defense_loss') msg = `${t.common.ui.under_attack}: ${t.campaign.defeat_title}`;
+    else if (log.messageKey === 'combat_p2p_victory') msg = (t.common.ui.combat_p2p_victory || '').replace('{defender}', log.params?.defender || 'Enemy');
+    else if (log.messageKey === 'combat_p2p_defeat') msg = (t.common.ui.combat_p2p_defeat || '').replace('{attacker}', log.params?.attacker || 'Enemy');
+    else if (log.messageKey === 'combat_p2p_defenseSuccess') msg = (t.common.ui.combat_p2p_defenseSuccess || '').replace('{attacker}', log.params?.attacker || 'Enemy');
+    else if (log.messageKey === 'combat_p2p_defenseFail') msg = (t.common.ui.combat_p2p_defenseFail || '').replace('{attacker}', log.params?.attacker || 'Enemy');
     else if (log.messageKey === 'log_desertion' && log.params) {
         const resList = (log.params.reasons || []).map((r: string) => t.common.resources[r]).join(', ');
         const def = UNIT_DEFS[log.params.unit as UnitType];

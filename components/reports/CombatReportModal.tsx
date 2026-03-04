@@ -205,12 +205,12 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
     const isCampaign = log.type === 'combat' && log.params?.targetName?.startsWith('OP-');
     const isPatrol = log.messageKey.includes('patrol');
 
-    const isDefenseLoss = log.messageKey === 'log_defense_loss';
-    const isDefenseWin = log.messageKey === 'log_defense_win';
-    const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win');
+    const isDefenseLoss = log.messageKey === 'log_defense_loss' || log.messageKey === 'combat_p2p_defenseFail';
+    const isDefenseWin = log.messageKey === 'log_defense_win' || log.messageKey === 'combat_p2p_defenseSuccess';
+    const isAttackWin = log.messageKey === 'log_battle_win' || log.messageKey.includes('patrol_battle_win') || log.messageKey === 'combat_p2p_victory';
 
     const attackerName = log.params?.attackerName || log.params?.attacker || (log.messageKey.includes('defense') ? t.reports.hostile_force : t.reports.you_label);
-    const defenderName = log.params?.targetName || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
+    const defenderName = log.params?.targetName || log.params?.defender || (log.messageKey.includes('defense') ? t.reports.you_label : t.reports.enemy_target);
 
     // Safe HP calculations with NaN prevention
     const playerHpStart = result.playerTotalHpStart || 0;
@@ -257,12 +257,12 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         if (isDefenseLoss) {
             headerBg = 'bg-gradient-to-b from-red-900/40 to-transparent';
             headerText = 'text-red-500';
-            title = t.common.ui.log_defense_loss;
+            title = t.common.ui.log_defense_loss || t.campaign.defeat_title;
             iconHeader = <Icons.Warning className="w-6 h-6" />;
         } else if (isDefenseWin) {
             headerBg = 'bg-gradient-to-b from-cyan-900/40 to-transparent';
             headerText = 'text-cyan-400';
-            title = t.common.ui.log_defense_win;
+            title = t.common.ui.log_defense_win || t.campaign.victory_title;
             iconHeader = <Icons.Shield className="w-6 h-6" />;
         } else if (isAttackWin) {
             headerBg = 'bg-gradient-to-b from-emerald-900/40 to-transparent';

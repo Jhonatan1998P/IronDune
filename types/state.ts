@@ -24,6 +24,7 @@ export interface ActiveMission {
   targetName?: string; // For PvP
   targetScore?: number; // For PvP (to calculate army size)
   isWarAttack?: boolean; // Flag for War specific attacks
+  isP2P?: boolean; // Flag for P2P multiplayer missions
 }
 
 export interface IncomingAttack {

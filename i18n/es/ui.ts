@@ -325,6 +325,13 @@ export const ui = {
         log_attack_reset: "REINICIO DE ATAQUES: Los contadores de ataques enemigos han sido reiniciados.",
         log_ally_reinforcement: "REFUERZOS ALIADOS: ¡{allyName} está enviando ayuda!",
         log_new_ally: "NUEVO ALIADO: ¡Has ganado un nuevo aliado!",
+        
+        // P2P Battle Messages
+        combat_p2p_victory: "VICTORIA P2P: ¡Derrotaste a {defender}!",
+        combat_p2p_defeat: "DERROTA P2P: Fuiste derrotado por {attacker}.",
+        combat_p2p_defenseSuccess: "DEFENSA P2P EXITOSA: ¡Repeliste el ataque de {attacker}!",
+        combat_p2p_defenseFail: "DEFENSA P2P FALLIDA: ¡{attacker} rompió tus defensas!",
+        
         loot_estimated: "Valor Estimado del Botín",
         loot_reroll: "(Cambia en cada misión)",
         system_status: "Estado del Sistema",

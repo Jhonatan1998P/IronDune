@@ -2,17 +2,14 @@
  * useP2PBattleResolver
  *
  * Lo usa el ATACANTE para:
- * 1. Detectar cuando sus misiones de tipo PVP_ATTACK llegan a endTime
- * 2. Obtener las tropas del DEFENSOR al momento del combate
- * 3. Calcular la batalla usando simulateCombat
- * 4. Enviar el resultado al defensor via P2P (sendBattleResult)
- * 5. Aplicar el resultado localmente (sus propias bajas y el loot si ganó)
- *
- * El DEFENSOR recibe el resultado via gameEventBus 'P2P_BATTLE_RESULT'
- * y lo aplica en useP2PGameSync.
+ * 1. Detectar cuando sus misiones PVP_ATTACK llegan a endTime
+ * 2. Solicitar las tropas REALES del defensor en ese instante (handshake)
+ * 3. Calcular el combate con simulateCombat
+ * 4. Enviar el resultado al defensor via P2P
+ * 5. Aplicar el resultado localmente (devolver supervivientes + loot si ganó)
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
 import { simulateCombat } from '../utils/engine/combat';
@@ -25,50 +22,68 @@ import { gameEventBus } from '../utils/eventBus';
 export const useP2PBattleResolver = () => {
     const { gameState, applyP2PBattleResult } = useGame();
     const { localPlayerId, sendToPeer, remotePlayers } = useMultiplayer();
-    
-    // Set to ensure we don't request twice for the same attack
+
+    // Refs siempre actualizados — evitan closures stale en los listeners
+    const activeMissionsRef = useRef<ActiveMission[]>([]);
+    const localPlayerIdRef = useRef(localPlayerId);
+    const sendToPeerRef = useRef(sendToPeer);
+    const remotePlayersRef = useRef(remotePlayers);
+    const applyP2PBattleResultRef = useRef(applyP2PBattleResult);
+    const gameStateRef = useRef(gameState);
+
+    useEffect(() => { activeMissionsRef.current = gameState.activeMissions || []; }, [gameState.activeMissions]);
+    useEffect(() => { localPlayerIdRef.current = localPlayerId; }, [localPlayerId]);
+    useEffect(() => { sendToPeerRef.current = sendToPeer; }, [sendToPeer]);
+    useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
+    useEffect(() => { applyP2PBattleResultRef.current = applyP2PBattleResult; }, [applyP2PBattleResult]);
+    useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+
+    // Idempotencia: evitar doble solicitud o doble resolución del mismo ataque
     const requestedAttacksRef = useRef<Set<string>>(new Set());
-    
-    // Set to ensure we don't resolve twice for the same attack
     const resolvedAttacksRef = useRef<Set<string>>(new Set());
-    
-    // Almacena un timeout ID para limpiar ataques "huérfanos" (defensor desconectado)
+
+    // Timeouts de fallback por attackId (para cuando el defensor no responde)
     const timeoutRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-    // Función que resuelve finalmente el combate con las tropas reales (o estimadas en fallback)
-    const executeBattleResolution = useCallback((mission: ActiveMission, defenderUnits: Partial<Record<UnitType, number>>) => {
+    // ──────────────────────────────────────────────────────────────────────────
+    // Paso 3: ejecutar el combate con las tropas del defensor (reales o estimadas)
+    // Implementado como ref-stable function (no useCallback con deps volátiles)
+    // ──────────────────────────────────────────────────────────────────────────
+    const executeBattleResolutionRef = useRef((
+        mission: ActiveMission,
+        defenderUnits: Partial<Record<UnitType, number>>
+    ) => {
         if (resolvedAttacksRef.current.has(mission.id)) return;
         resolvedAttacksRef.current.add(mission.id);
 
-        console.log('[P2PBattleResolver] Executing final P2P battle for:', mission.id, 'with defender troops:', defenderUnits);
-
         const attackerUnits = mission.units;
         const targetScore = mission.targetScore || 1000;
-        
+
         const battleResult = simulateCombat(attackerUnits, defenderUnits, 1.0);
 
-        // Calcular loot (solo si el atacante gana)
+        // Loot estimado basado en el score del objetivo (solo si el atacante gana)
         let loot: Partial<Record<ResourceType, number>> = {};
         const stolenBuildings: Partial<Record<BuildingType, number>> = {};
 
         if (battleResult.winner === 'PLAYER') {
-            // El atacante (nosotros) ganó
-            // Como el atacante no sabe los recursos reales del defensor a menos que los pida, 
-            // usamos un estimado basado en su score para el botín
             loot = {
-                [ResourceType.GOLD]: Math.floor(targetScore * 2),
-                [ResourceType.OIL]: Math.floor(targetScore * 1.5),
-                [ResourceType.MONEY]: Math.floor(targetScore * 1.5)
+                [ResourceType.GOLD]:  Math.floor(targetScore * 2),
+                [ResourceType.OIL]:   Math.floor(targetScore * 1.5),
+                [ResourceType.MONEY]: Math.floor(targetScore * 1.5),
             };
         }
 
+        const myId = localPlayerIdRef.current;
+        const gs = gameStateRef.current;
         const defenderId = mission.targetId || 'DEFENDER';
-        
+
         const result: P2PAttackResult = {
             type: 'P2P_ATTACK_RESULT',
             attackId: mission.id,
-            attackerId: localPlayerId || 'UNKNOWN_PEER',
-            defenderId: defenderId,
+            attackerId: myId || 'UNKNOWN_PEER',
+            attackerName: gs.playerName || 'Unknown',
+            defenderId,
+            defenderName: mission.targetName || 'Unknown',
             battleResult,
             attackerCasualties: battleResult.totalPlayerCasualties,
             defenderCasualties: battleResult.totalEnemyCasualties,
@@ -78,121 +93,154 @@ export const useP2PBattleResolver = () => {
             timestamp: Date.now(),
         };
 
-        // Enviar resultado al defensor via P2P
-        const targetPeerId = defenderId;
-        const peerExists = remotePlayers.some(p => p.id === targetPeerId);
-        
-        if (peerExists) {
-            sendToPeer(targetPeerId, {
+        // Paso 4: enviar resultado al defensor
+        const peers = remotePlayersRef.current;
+        if (peers.some(p => p.id === defenderId)) {
+            sendToPeerRef.current(defenderId, {
                 type: 'P2P_BATTLE_RESULT',
                 payload: result,
-                playerId: localPlayerId || '',
+                playerId: myId || '',
                 timestamp: Date.now(),
             });
         } else {
-             // Si no está, broadcast de rescate
-             for (const peerId of remotePlayers.map(p => p.id)) {
-                sendToPeer(peerId, {
+            // Broadcast de rescate si el defensor no está en remotePlayers
+            for (const peer of peers) {
+                sendToPeerRef.current(peer.id, {
                     type: 'P2P_BATTLE_RESULT',
                     payload: result,
-                    playerId: localPlayerId || '',
+                    playerId: myId || '',
                     timestamp: Date.now(),
                 });
             }
         }
 
-        // Aplicar resultado localmente como atacante
-        applyP2PBattleResult(result, true);
+        // Paso 5: aplicar localmente como atacante
+        applyP2PBattleResultRef.current(result, true);
 
-        console.log('[P2PBattleResolver] Battle resolved:', result.winner, 'attackId:', mission.id);
-        
-        // Limpiar timeout de fallback si existía
+        // Cancelar timeout de fallback si ya lo resolvimos con las tropas reales
         if (timeoutRefs.current[mission.id]) {
             clearTimeout(timeoutRefs.current[mission.id]);
             delete timeoutRefs.current[mission.id];
         }
+    });
 
-    }, [localPlayerId, remotePlayers, sendToPeer, applyP2PBattleResult]);
-
-    // Función inicial para solicitar las tropas reales al defensor cuando llega el endTime
-    const initiateP2PBattle = useCallback(async (mission: ActiveMission) => {
+    // ──────────────────────────────────────────────────────────────────────────
+    // Paso 2: cuando llega el endTime, solicitar tropas reales al defensor
+    // ──────────────────────────────────────────────────────────────────────────
+    const initiateP2PBattleRef = useRef((mission: ActiveMission) => {
         if (mission.type !== 'PVP_ATTACK') return;
         if (requestedAttacksRef.current.has(mission.id)) return;
-
         requestedAttacksRef.current.add(mission.id);
-        console.log('[P2PBattleResolver] Initiating P2P battle, requesting troops for:', mission.id);
 
+        const myId = localPlayerIdRef.current;
         const defenderId = mission.targetId || 'DEFENDER';
-        
-        // Pedimos al defensor que nos pase sus tropas reales
+
         const requestTroopsPayload: P2PBattleRequestTroops = {
             type: 'P2P_BATTLE_REQUEST_TROOPS',
             attackId: mission.id,
-            attackerId: localPlayerId || 'UNKNOWN_PEER',
+            attackerId: myId || 'UNKNOWN_PEER',
             targetId: defenderId,
-            timestamp: Date.now()
+            timestamp: Date.now(),
         };
 
-        sendToPeer(defenderId, {
+        sendToPeerRef.current(defenderId, {
             type: 'P2P_BATTLE_REQUEST_TROOPS',
             payload: requestTroopsPayload,
-            playerId: localPlayerId || '',
-            timestamp: Date.now()
+            playerId: myId || '',
+            timestamp: Date.now(),
         });
 
-        // Configurar un Fallback (por si el defensor se ha desconectado o huye de la batalla apagando la red)
+        // Fallback: si el defensor no responde en 15 s, CANCELAR el ataque
+        // No inventamos tropas, devolvemos las tropas al atacante.
         timeoutRefs.current[mission.id] = setTimeout(() => {
             if (resolvedAttacksRef.current.has(mission.id)) return;
-            
-            console.log(`[P2PBattleResolver] Timeout waiting for defender ${defenderId} on attack ${mission.id}. Using estimated troops as fallback.`);
-            
-            // Si el defensor nunca respondió (desconexión o abandono de sala), usamos el estimado inicial 
-            const targetScore = mission.targetScore || 1000;
-            const defenderEstimatedUnits: Partial<Record<UnitType, number>> = {
-                [UnitType.CYBER_MARINE]: Math.floor(targetScore / 10),
-                [UnitType.SCOUT_TANK]: Math.floor(targetScore / 50),
-                [UnitType.TITAN_MBT]: Math.floor(targetScore / 150)
-            };
-            
-            executeBattleResolution(mission, defenderEstimatedUnits);
-        }, 8000); // 8 segundos de tolerancia para recibir respuesta
-        
-    }, [localPlayerId, sendToPeer, executeBattleResolution]);
+            resolvedAttacksRef.current.add(mission.id);
 
-    // Listener para recibir las tropas reales del defensor
+            const gs = gameStateRef.current;
+
+            // Log that the defender fled/disconnected
+            gameEventBus.emit('ADD_LOG' as any, {
+                messageKey: 'combat_p2p_defenseFail', // O un mensaje nuevo de desconexión
+                type: 'combat',
+                params: {
+                    attacker: gs.playerName || 'Unknown',
+                    defender: mission.targetName || 'Unknown',
+                    reason: 'Defender disconnected/fled'
+                }
+            });
+
+            // Simulate returning troops by passing 0 casualties for the attacker
+            const dummyResult: P2PAttackResult = {
+                type: 'P2P_ATTACK_RESULT',
+                attackId: mission.id,
+                attackerId: myId || 'UNKNOWN_PEER',
+                attackerName: gs.playerName || 'Unknown',
+                defenderId,
+                defenderName: mission.targetName || 'Unknown',
+                battleResult: {
+                    winner: 'DRAW',
+                    rounds: [],
+                    initialPlayerArmy: mission.units,
+                    initialEnemyArmy: {},
+                    finalPlayerArmy: mission.units, // Vuelven todos
+                    finalEnemyArmy: {},
+                    totalPlayerCasualties: {},
+                    totalEnemyCasualties: {},
+                    playerTotalHpStart: 0,
+                    playerTotalHpLost: 0,
+                    enemyTotalHpStart: 0,
+                    enemyTotalHpLost: 0,
+                    playerDamageDealt: 0,
+                    enemyDamageDealt: 0,
+                },
+                attackerCasualties: {},
+                defenderCasualties: {},
+                loot: {},
+                stolenBuildings: {},
+                winner: 'DRAW',
+                timestamp: Date.now(),
+            };
+
+            applyP2PBattleResultRef.current(dummyResult, true);
+        }, 15000);
+    });
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Listener: recibir tropas reales del defensor
+    // Montado UNA sola vez — lee todo desde refs para evitar cierre stale
+    // ──────────────────────────────────────────────────────────────────────────
     useEffect(() => {
         const handleDefenderTroops = (payload: any) => {
             const data = payload as P2PBattleDefenderTroops;
-            if (data.attackerId !== localPlayerId) return;
+            if (data.attackerId !== localPlayerIdRef.current) return;
 
-            console.log('[P2PBattleResolver] Received real troops from defender for attack:', data.attackId);
-            
-            // Buscamos la misión local a la que pertenece
-            const mission = (gameState.activeMissions || []).find(m => m.id === data.attackId);
-            
-            if (mission && !resolvedAttacksRef.current.has(mission.id)) {
-                // Ejecutamos la batalla con las tropas REALES que nos acaba de mandar el defensor
-                executeBattleResolution(mission, data.defenderUnits);
-            }
+            // Buscar en el ref (siempre fresco)
+            const mission = activeMissionsRef.current.find(m => m.id === data.attackId);
+            if (!mission) return;
+            if (resolvedAttacksRef.current.has(mission.id)) return;
+
+            executeBattleResolutionRef.current(mission, data.defenderUnits);
         };
 
         gameEventBus.on('P2P_BATTLE_DEFENDER_TROOPS' as any, handleDefenderTroops);
         return () => {
             gameEventBus.off('P2P_BATTLE_DEFENDER_TROOPS' as any, handleDefenderTroops);
         };
-    }, [gameState.activeMissions, executeBattleResolution, localPlayerId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Solo una vez — todos los datos frescos vienen de refs
 
-    // Monitorear las activeMissions donde type === 'PVP_ATTACK' y ya venció el tiempo
+    // ──────────────────────────────────────────────────────────────────────────
+    // Paso 1: vigilar activeMissions y disparar handshake cuando endTime llegue
+    // ──────────────────────────────────────────────────────────────────────────
     useEffect(() => {
         const now = Date.now();
-        const outboundP2P = (gameState.activeMissions || []).filter(
+        const expired = (gameState.activeMissions || []).filter(
             m => m.type === 'PVP_ATTACK' && m.endTime <= now
         );
-
-        for (const mission of outboundP2P) {
-            initiateP2PBattle(mission);
+        for (const mission of expired) {
+            initiateP2PBattleRef.current(mission);
         }
-    }, [gameState.activeMissions, initiateP2PBattle]);
+    }, [gameState.activeMissions]);
 
-    return { resolveP2PBattle: initiateP2PBattle };
+    return { resolveP2PBattle: (mission: ActiveMission) => initiateP2PBattleRef.current(mission) };
 };

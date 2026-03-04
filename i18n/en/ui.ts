@@ -325,6 +325,13 @@ export const ui = {
         log_attack_reset: "ATTACK RESET: Enemy attack counters have been reset.",
         log_ally_reinforcement: "ALLIED REINFORCEMENTS: {allyName} is sending help!",
         log_new_ally: "NEW ALLY: You have gained a new ally!",
+        
+        // P2P Battle Messages
+        combat_p2p_victory: "P2P VICTORY: You defeated {defender}!",
+        combat_p2p_defeat: "P2P DEFEAT: You were defeated by {attacker}.",
+        combat_p2p_defenseSuccess: "P2P DEFENSE SUCCESSFUL: You repelled {attacker}'s attack!",
+        combat_p2p_defenseFail: "P2P DEFENSE FAILED: {attacker} breached your defenses!",
+        
         loot_estimated: "Estimated Loot Value",
         loot_reroll: "(Rerolls on mission)",
         system_status: "System Status",

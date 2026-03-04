@@ -248,7 +248,9 @@ export interface P2PAttackResult {
   type: 'P2P_ATTACK_RESULT';
   attackId: string;
   attackerId: string;
+  attackerName?: string;
   defenderId: string;
+  defenderName?: string;
   battleResult: BattleResult; 
   
   // IMPORTANTE: Ambos bandos siempre tienen bajas

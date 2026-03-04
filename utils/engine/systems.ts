@@ -89,6 +89,12 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
     for (const item of attackQueue) {
         if (item.type === 'OUTGOING' && item.mission) {
             const mission = item.mission;
+            
+            // Skip P2P missions - handled by useP2PBattleResolver
+            if (mission.isP2P) {
+                continue;
+            }
+
             const outcome = resolveMission(
                 mission, 
                 newResources,
@@ -185,9 +191,16 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
 
         } else if (item.type === 'INCOMING' && item.attack) {
             const attack = item.attack;
+
+            // Skip P2P attacks - handled by event listener in useP2PGameSync
+            if (attack.isP2P) {
+                continue;
+            }
+
             const { result, logs: attackLogs } = processIncomingAttackInQueue(
                 { ...state, resources: newResources, units: newUnits, buildings: newBuildings },
                 attack,
+                newUnits,
                 item.endTime
             );
 

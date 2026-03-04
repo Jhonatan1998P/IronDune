@@ -511,20 +511,36 @@ export const useGameActions = (
         setGameState(prev => {
             const newState = { ...prev };
 
-            // --- Bajas (ambos bandos siempre pierden tropas) ---
-            const casualties = isAttacker ? result.attackerCasualties : result.defenderCasualties;
-            if (casualties) {
-                const newUnits = { ...newState.units };
-                for (const [unitType, count] of Object.entries(casualties)) {
-                    if (newUnits[unitType as UnitType] !== undefined) {
-                        newUnits[unitType as UnitType] = Math.max(0, newUnits[unitType as UnitType] - (count as number));
+            if (isAttacker) {
+                // ATACANTE: Las tropas enviadas YA fueron descontadas de la base al lanzar.
+                // Al resolver solo debemos DEVOLVER los supervivientes a la base.
+                const survivors = result.battleResult?.finalPlayerArmy as Partial<Record<UnitType, number>> | undefined;
+                if (survivors) {
+                    const newUnits = { ...newState.units };
+                    for (const [unitType, count] of Object.entries(survivors)) {
+                        const unitCount = count as number;
+                        if (unitCount > 0) {
+                            newUnits[unitType as UnitType] = (newUnits[unitType as UnitType] || 0) + unitCount;
+                        }
                     }
+                    newState.units = newUnits;
                 }
-                newState.units = newUnits;
+            } else {
+                // DEFENSOR: Sus tropas nunca salieron de la base, descontar las bajas recibidas.
+                const casualties = result.defenderCasualties as Partial<Record<UnitType, number>> | undefined;
+                if (casualties) {
+                    const newUnits = { ...newState.units };
+                    for (const [unitType, count] of Object.entries(casualties)) {
+                        const unitCount = count as number;
+                        if (newUnits[unitType as UnitType] !== undefined) {
+                            newUnits[unitType as UnitType] = Math.max(0, newUnits[unitType as UnitType] - unitCount);
+                        }
+                    }
+                    newState.units = newUnits;
+                }
             }
 
             // --- Loot/edificios: SOLO si el atacante GANA (winner === 'PLAYER') ---
-            // winner === 'PLAYER' significa que el atacante (PLAYER perspective) ganó
             if (result.winner === 'PLAYER' && isAttacker && result.loot) {
                 const newResources = { ...newState.resources };
                 for (const [resType, count] of Object.entries(result.loot)) {
@@ -572,8 +588,8 @@ export const useGameActions = (
 
         // Emitir log via eventBus para que useGameEngine.addLog dispare setHasNewReports(true)
         const messageKey = isAttacker
-            ? (result.winner === 'PLAYER' ? 'combat.p2p.victory' : 'combat.p2p.defeat')
-            : (result.winner === 'PLAYER' ? 'combat.p2p.defenseFail' : 'combat.p2p.defenseSuccess');
+            ? (result.winner === 'PLAYER' ? 'combat_p2p_victory' : 'combat_p2p_defeat')
+            : (result.winner === 'PLAYER' ? 'combat_p2p_defenseFail' : 'combat_p2p_defenseSuccess');
 
         gameEventBus.emit(GameEventType.ADD_LOG, {
             messageKey,
@@ -585,6 +601,8 @@ export const useGameActions = (
                 loot: result.loot,
                 buildingLoot: result.stolenBuildings,
                 winner: result.winner,
+                attacker: result.attackerName || result.attackerId,
+                defender: result.defenderName || result.defenderId,
             }
         });
     }, [setGameState]);
@@ -601,15 +619,24 @@ export const useGameActions = (
     }, [setGameState]);
 
     /**
-     * Registra una misión P2P saliente en activeMissions para que el indicador
-     * de ataque saliente aparezca en el atacante.
-     * La misión tiene el mismo ID que el attackId para poder removarla al resolver.
+     * Registra una misión P2P saliente en activeMissions y descuenta las tropas
+     * enviadas del inventario local — todo en un solo setGameState atómico.
      */
     const addP2PMission = useCallback((mission: ActiveMission) => {
         setGameState(prev => {
+            // Idempotente: si ya existe no hacer nada
             if ((prev.activeMissions || []).some(m => m.id === mission.id)) return prev;
+
+            // Descontar tropas enviadas
+            const newUnits = { ...prev.units };
+            for (const [uType, count] of Object.entries(mission.units)) {
+                const current = newUnits[uType as UnitType] ?? 0;
+                newUnits[uType as UnitType] = Math.max(0, current - (count as number));
+            }
+
             return {
                 ...prev,
+                units: newUnits,
                 activeMissions: [...(prev.activeMissions || []), mission]
             };
         });

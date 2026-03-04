@@ -2,27 +2,7 @@
 
 **Session ID:** ses_346e009bfffe3hcQefCSd1aJpj
 **Created:** 3/4/2026, 1:53:25 PM
-**Updated:** 3/4/2026, 8:05:49 PM
-
----
-
-## Assistant
-
-**Tool: edit**
-
----
-
-## Assistant
-
-Ahora implementa la **Fase 8: Verificación de integridad**. Agrega la lógica al handler de `P2P_BATTLE_RESULT` en `useP2PGameSync`:
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: edit**
+**Updated:** 3/4/2026, 8:31:12 PM
 
 ---
 
@@ -1076,6 +1056,32 @@ Cámbialo temporalmente a:
 ```
 
 Esa es la única línea que necesitas cambiar. El resto de la lógica (cronómetros, radar, resolución de batalla y envío de tropas reales) tomará automáticamente esos 20 segundos (20000 milisegundos) y funcionará perfectamente.
+
+---
+
+## User
+
+haz un resumen de tallado de los bugs encontrado en los 2-3 ultimos prompts y crea un md al lado de constants.ts con nombre bugs.md
+
+---
+
+## Assistant
+
+**Tool: write**
+
+---
+
+## Assistant
+
+He creado el archivo `bugs.md` en la raíz del proyecto (junto a `constants.ts` y otros archivos base) con el resumen detallado de todos los bugs críticos encontrados y solucionados durante los últimos prompts, tal como solicitaste.
+
+El documento detalla:
+1. El problema del indicador de ataque saliente.
+2. El error del resolver que buscaba ataques en el lugar equivocado.
+3. La inversión de lógica de victoria/derrota.
+4. La falta de notificaciones en los reportes de combate.
+5. El problema crítico de usar tropas simuladas en lugar de las tropas reales del defensor en el instante del impacto (y cómo se solucionó con el Handshake P2P).
+6. El envío excesivo de mensajes por la red (broadcast) y la limpieza del radar.
 
 ---
 

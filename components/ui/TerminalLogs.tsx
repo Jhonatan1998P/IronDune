@@ -81,6 +81,10 @@ export const TerminalLogs: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
         if (messageKey === 'log_wipeout') return t.reports.wipeout;
         if (messageKey === 'log_defense_win') return t.common.ui.log_defense_win;
         if (messageKey === 'log_defense_loss') return t.common.ui.log_defense_loss;
+        if (messageKey === 'combat_p2p_victory') return (t.common.ui.combat_p2p_victory || '').replace('{defender}', params?.defender || 'Enemy');
+        if (messageKey === 'combat_p2p_defeat') return (t.common.ui.combat_p2p_defeat || '').replace('{attacker}', params?.attacker || 'Enemy');
+        if (messageKey === 'combat_p2p_defenseSuccess') return (t.common.ui.combat_p2p_defenseSuccess || '').replace('{attacker}', params?.attacker || 'Enemy');
+        if (messageKey === 'combat_p2p_defenseFail') return (t.common.ui.combat_p2p_defenseFail || '').replace('{attacker}', params?.attacker || 'Enemy');
         if (messageKey === 'log_intel_acquired') return t.reports.log_intel_acquired;
 
         // Grudge & Attack System Logs
