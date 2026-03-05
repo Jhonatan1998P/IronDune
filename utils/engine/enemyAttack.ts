@@ -1,4 +1,4 @@
-import { BotPersonality, GameState, IncomingAttack, LogEntry, ResourceType } from '../../types';
+import { BotPersonality, GameState, IncomingAttack, LogEntry } from '../../types';
 import { RankingCategory } from './rankings';
 import { generateBotArmy } from './missions';
 import {
@@ -26,9 +26,7 @@ import {
     RETALIATION_MULTIPLIER_TURTLE,
     RETALIATION_MULTIPLIER_TYCOON,
     RETALIATION_MULTIPLIER_ROGUE,
-    RETALIATION_GRUDGE_DURATION_MS,
     REPUTATION_ENEMY_THRESHOLD,
-    REPUTATION_ALLY_THRESHOLD,
     PVP_TRAVEL_TIME_MS,
     NEWBIE_PROTECTION_THRESHOLD
 } from '../../constants';
@@ -212,7 +210,6 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
 
     // Check if player has reached maximum simultaneous attacks
     const currentAttacks = state.incomingAttacks.filter(a => !a.isWarWave);
-    const maxSimultaneousReached = currentAttacks.length >= ENEMY_ATTACK_MAX_SIMULTANEOUS;
 
     // Check each bot for potential attack
     bots.forEach(bot => {
@@ -224,7 +221,7 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         }
 
         // Check if player has reached max simultaneous attacks
-        if (maxSimultaneousReached) {
+        if (currentAttacks.length + pendingAttacks.length >= ENEMY_ATTACK_MAX_SIMULTANEOUS) {
             return; // Player can't receive more than 6 attacks at once
         }
 

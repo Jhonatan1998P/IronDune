@@ -10,7 +10,7 @@ export const TICK_RATE_MS = 1000;
 export const NEWBIE_PROTECTION_THRESHOLD = 1200; // Points required to enable Threat and PvP
 
 // PVP SETTINGS
-export const PVP_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP and War
+export const PVP_TRAVEL_TIME_MS = 7.5 * 60 * 1000; // 7.5 Minutes standard for PvP and War
 export const PVP_RANGE_MIN = 0.5; // 50%
 export const PVP_RANGE_MAX = 1.5 // 150%
 export const PVP_LOOT_FACTOR = 0.15; // Legacy Factor (Kept for compatibility)
@@ -100,7 +100,7 @@ export const REPUTATION_MAX = 100;
 
 // ALLIED REINFORCEMENTS SYSTEM
 export const REINFORCEMENT_RATIO = 0.05; // Allies send 5% of their total military budget
-export const REINFORCEMENT_CHANCE = 0.15; // 100% chance for allies to send reinforcements when player is attacked (TEST MODE)
+export const REINFORCEMENT_CHANCE = 0.15; // 15% chance for allies to send reinforcements when player is attacked (TEST MODE)
 
 // Ally score limits for reinforcements (to prevent very strong allies from helping)
 export const ALLY_REINFORCEMENT_MIN_SCORE = 1000; // Minimum 1k points to send reinforcements
@@ -143,9 +143,9 @@ export const RETALIATION_CHANCE_ROGUE = 0.90; // 90% chance - unpredictable but 
 
 // DIPLOMACY SYSTEM
 export const REPUTATION_DECAY_INTERVAL_MS = 1 * 60 * 60 * 1000; // 1 hour
-export const REPUTATION_DECAY_AMOUNT = 1; // Reputation loss per decay interval
-export const REPUTATION_DECAY_MAX_THRESHOLD = 75; // >= 75 doesn't decay
-export const REPUTATION_DECAY_BOOST_THRESHOLD = 40; // Below 40, decay accelerates
+export const REPUTATION_DECAY_AMOUNT = 0.25; // Reputation loss per decay interval
+export const REPUTATION_DECAY_MAX_THRESHOLD = 85; // >= 75 doesn't decay
+export const REPUTATION_DECAY_BOOST_THRESHOLD = 30; // Below 30, decay accelerates
 export const REPUTATION_DECAY_MAX_MULTIPLIER = 2.0; // Maximum 2x decay when at 0 rep
 
 export const DIPLOMACY_GIFT_BASE_COST: Partial<Record<string, number>> = {
