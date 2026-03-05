@@ -2,369 +2,7 @@
 
 **Session ID:** ses_344f36899ffec9hffDKGj3o2X3
 **Created:** 3/4/2026, 10:51:30 PM
-**Updated:** 3/5/2026, 12:27:43 AM
-
----
-
-## Assistant
-
-Let me now implement the fixes for both bugs.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Now I have enough understanding to implement the fixes. Let me trace the final details to confirm my analysis.
-
-The **ID mismatch** is confirmed:
-- In `useMultiplayerInternal.tsx:396`, remote players are stored with `id: peerId` (Trystero WebRTC peer ID)
-- In `useMultiplayerInternal.tsx:276`, `localPlayerId` is set to `player_${Date.now()}_...` (custom string)
-- When the attacker picks a target from `remotePlayers`, `target.id` = Trystero peerId
-- When the defender checks `request.targetId !== myId` at `useP2PGameSync.ts:113`, it compares peerId vs `player_...` -- they NEVER match
-- The defender always returns early, never sends troops, and the attacker falls back to W.O. (DRAW with empty enemy army) after 8 seconds
-
-The **time desync** is confirmed:
-- The attacker sets `startTime = Date.now()`, `endTime = Date.now() + 20000` (absolute timestamps from attacker's clock)
-- The defender copies these directly in `convertToIncomingAttack` at `useP2PGameSync.ts:69-79`
-- The UI displays `endTime - Date.now()` -- if the defender's clock is 40s behind the attacker's, it shows 60s instead of 20s
-
-Let me implement both fixes:
-
-**Tool: edit**
-
----
-
-## Assistant
-
-Now let me implement the fix for Bug 1 (defender troops not reaching the attacker due to ID mismatch). I need to:
-
-1. Pass the Trystero peerId of the sender through the event bus so handlers can reply to the correct peer
-2. Fix `handleRequestTroops` to use the real Trystero peerId for replies instead of the mismatched custom ID
-
-**Tool: edit**
-
----
-
-## Assistant
-
-Let me check if these LSP errors are pre-existing or caused by my edit.
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-The LSP errors are pre-existing (Trystero type mismatches), not caused by my edit. Let me continue with the main fix for Bug 1 - the `handleRequestTroops` handler in `useP2PGameSync.ts`.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Continuing with the implementation. I need to fix `handleRequestTroops` in `useP2PGameSync.ts` to:
-1. Remove the broken `targetId !== myId` check (it compares a Trystero peerId against a custom `player_...` ID -- they never match)
-2. Use `_senderPeerId` (the real Trystero peerId I added to the payload) to route the reply back
-
-**Tool: edit**
-
----
-
-## Assistant
-
-Now let me also fix the `useP2PBattleResolver.ts` to properly handle the reply routing. The attacker sends `P2P_BATTLE_REQUEST_TROOPS` with `attackerId = localPlayerId` (a `player_...` string), but `sendToPeer` needs the Trystero peerId. Let me verify the attacker side is correct:
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me continue verifying the attacker-side listener and then run the tests.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me continue by verifying the full flow is correct and run the tests.
-
-**Tool: todowrite**
-
----
-
-## Assistant
-
-**Tool: bash**
-
----
-
-## Assistant
-
-**Tool: grep**
-
----
-
-## Assistant
-
-Let me check if the 3 test failures are pre-existing (unrelated to my changes).
-
-**Tool: read**
-
----
-
-## Assistant
-
-The 3 failing tests are in `tests/attackQueue.test.ts` and concern bot attack queue mechanics (not P2P multiplayer). They are **pre-existing failures** unrelated to my changes -- my edits only touched `useP2PGameSync.ts` and `useMultiplayerInternal.tsx`, neither of which is imported by `attackQueue.test.ts`.
-
-All 584 passing tests continue to pass, including the P2P-related integration tests.
-
-**Tool: todowrite**
-
----
-
-## Assistant
-
-Let me verify the final state of both modified files to ensure correctness.
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me verify one more thing - the `sendToPeer` routing on the attacker side in `useP2PBattleResolver.ts` to confirm the full round-trip works correctly.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me verify the attacker-side routing is also correct for the full round-trip, then provide a summary.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me verify the complete round-trip flow to ensure correctness end-to-end, then provide the summary.
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me verify the complete round-trip is correct by tracing the ID flow end-to-end:
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me provide a complete summary of the root cause analysis and the fixes.
-
----
-
-## Summary of Fixes
-
-### Files Modified
-
-1. `hooks/useP2PGameSync.ts` - 2 fixes
-2. `hooks/useMultiplayerInternal.tsx` - 1 supporting fix
-
----
-
-### Bug 1: Attacker report shows no defender troops
-
-**Root Cause: Dual ID system mismatch**
-
-The codebase has two distinct ID systems that were being compared incorrectly:
-
-| System | Format | Used by |
-|--------|--------|---------|
-| Trystero peerId | Random WebRTC string | `remotePlayers[].id`, `sendToPeer()` routing |
-| Custom player ID | `player_${timestamp}_${random}` | `localPlayerId`, `request.attackerId` |
-
-The flow broke at `useP2PGameSync.ts:122`:
-
-```typescript
-// OLD (broken): compared Trystero peerId vs custom player ID
-if (request.targetId !== myId) return; // ALWAYS true → defender never responds
-```
-
-- `request.targetId` = Trystero peerId (from `mission.targetId` set in `P2PAttackModal`)
-- `myId` = `localPlayerId` = `player_1709...` (custom string from `generatePlayerId()`)
-
-Since they never matched, the defender **always** returned early, never sent troops, and the attacker hit the 8-second timeout, resolving as a W.O./DRAW with `initialEnemyArmy: {}`.
-
-**Fix (2 parts):**
-
-1. **`useMultiplayerInternal.tsx:418-435`**: Augment all P2P event payloads with `_senderPeerId: peerId` (the real Trystero peerId of the message sender), so downstream handlers can route replies correctly.
-
-2. **`useP2PGameSync.ts:113-168`**: Remove the broken `targetId !== myId` guard. The fact that Trystero delivered the message via `sendToPeer(defenderId, ...)` already guarantees we are the correct target. Use `_senderPeerId` (real Trystero peerId) to route the troop reply back to the attacker instead of `request.attackerId` (custom player ID that `sendToPeer` can't route).
-
----
-
-### Bug 2: Defender sees wrong attack countdown (60s instead of 20s)
-
-**Root Cause: Absolute timestamps from the attacker's clock**
-
-In `convertToIncomingAttack` (`useP2PGameSync.ts:69-79`), the defender was copying the attacker's **absolute** `startTime` and `endTime` directly:
-
-```typescript
-// OLD: copies attacker's absolute timestamps verbatim
-startTime: request.startTime,  // e.g., attacker's Date.now() = 1709000040000
-endTime: request.endTime,      // e.g., 1709000060000 (20s later)
-```
-
-The UI displays `endTime - Date.now()`. If the defender's clock is behind the attacker's by 40 seconds:
-- Attacker: `endTime - Date.now() = 60000 - 40000 = 20s` (correct)
-- Defender: `endTime - Date.now() = 60000 - 0 = 60s` (wrong)
-
-**Fix** (`useP2PGameSync.ts:68-88`): Rebase timestamps to the defender's local clock by preserving only the **travel duration** and applying it to `Date.now()`:
-
-```typescript
-// NEW: rebase to defender's local clock
-const travelDuration = request.endTime - request.startTime; // 20000ms
-const now = Date.now();
-startTime: now,
-endTime: now + travelDuration,  // always shows correct 20s countdown
-```
-
----
-
-### Test Results
-
-All 584 passing tests continue to pass. The 3 pre-existing failures in `attackQueue.test.ts` are unrelated bot-attack-queue tests that fail due to stale test expectations, not affected by these changes.
-
----
-
-## User
-
-el ranking p2p debe actualizarse cada 1 minuto para actuallizar los datos de los jugadores y tambien debben actualizarse las tarjetas de los jugadores p2p en el modal multijugador en la tarjeeta de jugadores en sala
-
----
-
-## Assistant
-
-Let me explore the relevant files to understand the current update mechanism.
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: glob**
-
----
-
-## Assistant
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-Now I have full context. Let me analyze the problem and implement the fixes.
-
-**Current behavior:**
-- `useMultiplayerSync` only syncs when `playerName` or `empirePoints` props change (reactive, not periodic)
-- `P2PRanking` uses `useMemo` that only recomputes when `remotePlayers` reference changes
-- `MultiplayerMenu` renders player cards directly from `remotePlayers` but has no periodic refresh
-- The presence broadcast every 5s re-sends the *last known* data but doesn't force fresh data from `syncPlayerWithData`
-
-**What's needed:**
-1. Periodic forced sync every 60s in `useMultiplayerSync` (push fresh data to peers)
-2. Periodic re-render in `P2PRanking` (pull fresh view)
-3. Periodic re-render in `MultiplayerMenu` player cards (pull fresh view)
-
-**Tool: todowrite**
-
----
-
-## Assistant
-
-Let me implement all three changes.
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: edit**
-
----
-
-## Assistant
-
-**Tool: todowrite**
-
----
-
-## Assistant
-
-Let me continue with the remaining tasks.
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-Let me check how `P2PRanking` receives its props to understand if the local data is already reactive.
-
-**Tool: grep**
-
----
-
-## Assistant
-
----
-
-## User
-
-continua
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: grep**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
+**Updated:** 3/5/2026, 1:53:03 AM
 
 ---
 
@@ -858,6 +496,370 @@ Una vez el ataque ya tiene los tiempos correctos, se ejecuta la función `addP2P
 ```
 
 En resumen: El atacante envía sus marcas de tiempo originales, pero el defensor **solo toma la diferencia entre ellas (la duración)** y se la suma a su propio reloj local (`Date.now()`). Esto garantiza que si la misión tarda 20 segundos en P2P, ambos jugadores verán una cuenta regresiva de exactamente 20 segundos sin importar si uno tiene la hora de su PC adelantada o atrasada.
+
+---
+
+## User
+
+añde queel icono de vista de chat p2p tanto para desktop como para dispositivos moviles tenga atributo visual para denotar que hay movimiento en el chat p2p, ademas permitir que un jugador p2p pueda hacer ping a otro jugador p2p mediante el chat colocando @ seguido del nombre y el mensaje o solo la mencion lueg que se active un totooast de notificacion avisandole al jugador que el jugador (username) le ha hecho una mencion, dicha notificacion debe ser totalmente responsiva para dispositivos moviles como para deskto
+
+---
+
+## Assistant
+
+**Tool: task**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: task**
+
+---
+
+## User
+
+continua
+
+---
+
+## User
+
+---
+
+## Assistant
+
+## Goal
+
+The user wants to:
+1. Add a visual indicator (badge/dot) on the P2P chat icon in both desktop (`GameSidebar`) and mobile (`MobileNavBar`) navigation to denote new/unread chat activity.
+2. Allow P2P players to mention/ping another player using `@username` syntax in the chat, which triggers a responsive toast notification telling the pinged player they've been mentioned.
+
+## Instructions
+
+- The visual indicator must work on **both desktop sidebar and mobile bottom nav/bottom sheet**.
+- The `@mention` toast must be **fully responsive** (mobile + desktop).
+- The `@username` mention should work when a player types `@name message` OR just `@name` alone.
+- The toast should say something like: "**[username]** te ha mencionado en el chat".
+- Use existing patterns in the codebase — `gameEventBus` for cross-component events, existing toast system.
+- The unread indicator should clear when the user navigates to the `chat` tab.
+
+## Discoveries
+
+- **Navigation files:**
+  - Desktop sidebar: `/home/runner/workspace/components/GameSidebar.tsx` — contains `GameSidebar` component. Chat tab is defined at line 60: `{ id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' }`.
+  - Mobile nav: `MobileNavBar` is also in `/home/runner/workspace/components/GameSidebar.tsx` (lines ~180+), with chat in `secondaryItems`.
+  - Both receive `activeTab` and `setActiveTab` as props.
+
+- **Chat event flow:**
+  - Remote chat messages arrive via Trystero → `useMultiplayerInternal.tsx` intercepts `CHAT_MESSAGE` action (line 437) → emits `P2P_CHAT_MESSAGE` on `gameEventBus` with `{ text, senderName, playerId, timestamp, _senderPeerId }`.
+  - `useP2PGameSync.ts` listens to `P2P_CHAT_MESSAGE` (the `handleChatMessage` handler added in previous session) → saves to `localStorage` (`ironDuneP2PChatMessages`, max 20) → emits `LOCAL_CHAT_UPDATED` with updated messages array.
+  - `useMultiplayerChat.ts` listens to `LOCAL_CHAT_UPDATED` and updates `messages` state.
+  - Own sent messages: saved directly to localStorage in `sendMessage` inside `useMultiplayerChat.ts`.
+
+- **Toast system:** `gameEventBus.emit('SHOW_TOAST' as any, { message: '...', type: 'success' })` is already used elsewhere (e.g., in `useMultiplayerInternal.tsx` line 415 for gift gold). This is the existing toast mechanism.
+
+- **localStorage key for chat:** `ironDuneP2PChatMessages` (max 20 messages, `ChatMessage[]`).
+
+- **`ChatMessage` interface** (in `useMultiplayerChat.ts`):
+  ```ts
+  export interface ChatMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    text: string;
+    timestamp: number;
+    isLocal: boolean;
+  }
+  ```
+
+- **`gameEventBus`** is at `/home/runner/workspace/utils/eventBus.ts` and is used widely across the app for cross-component communication.
+
+- **`localPlayerId`** is the custom `player_...` ID. `localPlayerName` / `playerName` comes from `gameState.playerName`.
+
+- The existing war indicator badge pattern (active war red dot) in `GameSidebar.tsx` can be used as a model for the unread chat badge.
+
+- The `hasNewReports` flag pattern from `GameContext` is a good model — a simple boolean state that gets cleared when user visits the relevant tab.
+
+## Accomplished
+
+### Completed in this session:
+1. **Bug fixes for P2P attack system** (previous messages):
+   - Fixed ID mismatch in `handleRequestTroops` (`useP2PGameSync.ts`) — removed broken `targetId !== myId` guard, use `_senderPeerId` for routing.
+   - Fixed time desync in `convertToIncomingAttack` — rebases timestamps to defender's local clock.
+   - `useMultiplayerInternal.tsx` — augments all P2P payloads with `_senderPeerId`.
+
+2. **Periodic 1-minute sync for P2P ranking and player cards**:
+   - `useMultiplayerSync.ts` — added 60s cooldown.
+   - `useMultiplayerInternal.tsx` — changed `PRESENCE_BROADCAST_INTERVAL` from 5000ms to 60000ms.
+
+3. **P2P Chat persistence (last 20 messages in localStorage)**:
+   - `useMultiplayerChat.ts` — completely rewrote: loads from localStorage on mount, saves on send, listens to `LOCAL_CHAT_UPDATED` event. No longer uses `onRemoteAction` directly.
+   - `useP2PGameSync.ts` — added `handleChatMessage` listener for `P2P_CHAT_MESSAGE` event: saves incoming remote messages to localStorage and emits `LOCAL_CHAT_UPDATED`.
+   - `useMultiplayerInternal.tsx` — added `case 'CHAT_MESSAGE'` to the action switch to emit `P2P_CHAT_MESSAGE` on `gameEventBus`, imported `ChatMessagePayload` type.
+   - `usePersistence.ts` — added `localStorage.removeItem('ironDuneP2PChatMessages')` in `resetGame`.
+
+### Currently in progress (task was interrupted):
+4. **Unread chat indicator + @mention ping** — Work was about to begin. The plan was:
+   - Read the rest of `GameSidebar.tsx` (lines 101-317) to see the full mobile nav and button rendering to know where to inject the badge.
+   - Create a `useUnreadChat` hook (or inline logic) that:
+     - Listens to `LOCAL_CHAT_UPDATED` via `gameEventBus`.
+     - Sets `hasUnreadChat = true` when a new message arrives and `activeTab !== 'chat'`.
+     - Clears `hasUnreadChat` when `activeTab === 'chat'`.
+   - In `useP2PGameSync.ts` `handleChatMessage`: parse `payload.text` for `@playerName` mention pattern, if found and `payload.senderName !== localPlayerName`, emit `SHOW_TOAST` with mention notification.
+   - Modify `GameSidebar.tsx` chat button (desktop + mobile) to show a green pulsing dot badge when `hasUnreadChat` is true.
+
+## Relevant files / directories
+
+```
+/home/runner/workspace/
+├── components/
+│   ├── GameSidebar.tsx              ← NEXT TO EDIT: add unread badge to chat icon (desktop + mobile)
+│   └── views/
+│       └── MultiplayerChatView.tsx  ← may need @mention detection UI (autocomplete)
+├── hooks/
+│   ├── useMultiplayerChat.ts        ← EDITED: persistence, LOCAL_CHAT_UPDATED listener
+│   ├── useMultiplayerSync.ts        ← EDITED: 60s cooldown
+│   ├── useMultiplayerInternal.tsx   ← EDITED: CHAT_MESSAGE → P2P_CHAT_MESSAGE event, ChatMessagePayload import
+│   ├── useP2PGameSync.ts            ← EDITED: handleChatMessage, LOCAL_CHAT_UPDATED emit; NEXT: add @mention detection + SHOW_TOAST
+│   └── usePersistence.ts            ← EDITED: clear chat on resetGame
+├── types/
+│   └── multiplayer.ts               ← ChatMessagePayload type defined here
+└── utils/
+    └── eventBus.ts                  ← gameEventBus used for cross-component events
+```
+
+---
+
+## User
+
+---
+
+## Assistant
+
+**Tool: todowrite**
+
+---
+
+## Assistant
+
+Let me read the relevant files to pick up where we left off.
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+Good. Now let me also check the `useMultiplayerChat.ts` and `GameContext` to understand the `playerName` access pattern:
+
+**Tool: read**
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: glob**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Now I have all the context I need. The plan:
+
+1. **`useP2PGameSync.ts`**: In `handleChatMessage`, detect `@playerName` mentions against `gameStateRef.current.playerName`, and emit `SHOW_TOAST`.
+2. **`GameSidebar.tsx`**: 
+   - Listen to `LOCAL_CHAT_UPDATED` event + track `hasUnreadChat` state.
+   - Clear it when `activeTab === 'chat'`.
+   - Show a green pulsing dot on the chat button in both desktop and mobile.
+
+**Tool: todowrite**
+
+---
+
+## Assistant
+
+Now let me add the `@mention` detection in `useP2PGameSync.ts`:
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: todowrite**
+
+---
+
+## Assistant
+
+Now let me update `GameSidebar.tsx` to add the unread chat indicator. I need to:
+1. Import `gameEventBus` and wire up `LOCAL_CHAT_UPDATED` listener
+2. Track `hasUnreadChat` state, clear it when `activeTab === 'chat'`
+3. Render the badge on both desktop and mobile chat buttons
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Those errors will resolve once I use them. Now update `GameSidebar` component to track unread state:
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Good — that will resolve when I add the badge. Now add the badge to the desktop chat button (inside the `navGroups` map where `item.id === 'chat'`):
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: todowrite**
+
+---
+
+## Assistant
+
+Now add the same unread state logic to `MobileNavBar` and render the badge on the secondary-sheet chat button:
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Now add the badge inside the secondary-sheet button for chat. The current render loop for `secondaryItems` renders the icon inside a `div` with `className={mb-1 ${item.color || ''} shrink-0}`. I need to wrap that in a `relative` div and conditionally add the badge dot for the chat item:
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Now verify the full file looks correct and has no lingering errors:
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+No errors. Let me do a quick sanity check on the final state of the two files:
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+Everything looks good. Let me mark the last task done:
+
+**Tool: todowrite**
+
+---
+
+## Assistant
+
+All three tasks are done. Here's a summary of what was implemented:
+
+---
+
+### Changes made
+
+**`hooks/useP2PGameSync.ts`** — `@mention` detection  
+Inside `handleChatMessage`, after saving the new message and emitting `LOCAL_CHAT_UPDATED`, it now checks if the message text contains `@<localPlayerName>` (case-insensitive, regex-escaped). If it matches, it fires:
+```ts
+gameEventBus.emit('SHOW_TOAST', { message: `${senderName} te ha mencionado en el chat`, type: 'info' })
+```
+
+**`components/GameSidebar.tsx`** — Unread chat badge (desktop + mobile)
+
+Both `GameSidebar` and `MobileNavBar` now:
+- Track `hasUnreadChat` state initialized to `false`
+- Listen to `LOCAL_CHAT_UPDATED` via `gameEventBus` — sets `hasUnreadChat = true` only when the chat tab is not active (uses a ref to avoid stale closure)
+- Reset `hasUnreadChat = false` whenever `activeTab === 'chat'`
+
+**Desktop** (`GameSidebar`): The same animated ping-dot pattern used for `hasNewReports` (red) is rendered for the chat button in emerald green when `hasUnreadChat` is true.
+
+**Mobile** (`MobileNavBar`): The chat icon in the bottom sheet grid gets an absolute-positioned emerald dot at its top-right corner with the same ping animation.
 
 ---
 

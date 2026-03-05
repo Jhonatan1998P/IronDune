@@ -32,6 +32,15 @@ export interface ChatMessagePayload {
 }
 
 /**
+ * Payload para envío de recursos entre jugadores P2P
+ */
+export interface GiftResourcePayload {
+  resource: 'OIL' | 'GOLD' | 'AMMO';
+  amount: number;
+  senderName: string;
+}
+
+/**
  * Acción multijugador para comunicación entre peers
  * Nota: payload debe ser JSON-serializable para Trystero
  */
@@ -86,6 +95,7 @@ export enum MultiplayerActionType {
   PRESENCE_UPDATE = 'PRESENCE_UPDATE',
   REQUEST_PRESENCE = 'REQUEST_PRESENCE',
   GIFT_GOLD = 'GIFT_GOLD',
+  GIFT_RESOURCE = 'GIFT_RESOURCE',
   CHAT_MESSAGE = 'CHAT_MESSAGE',
   // P2P Battle Actions
   BATTLE_CHALLENGE = 'BATTLE_CHALLENGE',

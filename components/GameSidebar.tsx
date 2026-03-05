@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
+import { gameEventBus } from '../utils/eventBus';
 
 export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat';
 
@@ -24,6 +25,26 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
   const { hasNewReports, gameState } = useGame();
 
   const hasActiveWar = !!gameState.activeWar;
+
+  const [hasUnreadChat, setHasUnreadChat] = useState(false);
+
+  // Clear unread indicator when user opens chat
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'chat') setHasUnreadChat(false);
+  }, [activeTab]);
+
+  // Listen for new incoming chat messages
+  useEffect(() => {
+    const handleChatUpdate = () => {
+      if (activeTabRef.current !== 'chat') {
+        setHasUnreadChat(true);
+      }
+    };
+    gameEventBus.on('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+    return () => gameEventBus.off('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+  }, []);
 
   // Configuration for Desktop Groups
   const navGroups = [
@@ -118,6 +139,13 @@ export const GameSidebar: React.FC<GameSidebarProps> = ({ activeTab, setActiveTa
                               </span>
                           )}
 
+                          {item.id === 'chat' && hasUnreadChat && (
+                              <span className="flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                          )}
+
                           {activeTab === item.id && <div className="absolute left-0 top-0 h-full w-0.5 bg-cyan-500 shadow-[0_0_10px_#06b6d4]"></div>}
                         </button>
                       ))}
@@ -160,6 +188,25 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
     const { hasNewReports, gameState } = useGame();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [hasUnreadChat, setHasUnreadChat] = useState(false);
+
+    // Clear unread indicator when user opens chat
+    const activeTabRef = useRef(activeTab);
+    useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+    useEffect(() => {
+        if (activeTab === 'chat') setHasUnreadChat(false);
+    }, [activeTab]);
+
+    // Listen for new incoming chat messages
+    useEffect(() => {
+        const handleChatUpdate = () => {
+            if (activeTabRef.current !== 'chat') {
+                setHasUnreadChat(true);
+            }
+        };
+        gameEventBus.on('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+        return () => gameEventBus.off('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+    }, []);
 
     // Track fullscreen status
     useEffect(() => {
@@ -239,9 +286,15 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
                                         : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}
                                 `}
                             >
-                                <div className={`mb-1 ${item.color || ''} shrink-0`}>
-                                    <item.icon />
-                                </div>
+                            <div className={`mb-1 ${item.color || ''} shrink-0 relative`}>
+                                <item.icon />
+                                {item.id === 'chat' && hasUnreadChat && (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                    </span>
+                                )}
+                            </div>
                                 <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight text-center leading-tight w-full truncate px-0.5">
                                     {item.label}
                                 </span>

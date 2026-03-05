@@ -416,6 +416,16 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
             gameEventBus.emit('SHOW_TOAST' as any, { message: `¡Recibiste ${giftData.amount} oro!`, type: 'success' });
           }
           break;
+        case 'GIFT_RESOURCE':
+          const giftResData = action.payload as { resource: string; amount: number; senderName: string };
+          if (giftResData && giftResData.amount > 0 && giftResData.resource) {
+            gameEventBus.emit('RECEIVE_P2P_RESOURCE' as any, {
+              resource: giftResData.resource,
+              amount: giftResData.amount,
+              senderName: giftResData.senderName || 'Aliado',
+            });
+          }
+          break;
         case 'P2P_ATTACK':
           console.log('[Multiplayer] Received P2P_ATTACK from peerId:', peerId);
           // Augment payload with sender's Trystero peerId so downstream handlers

@@ -642,10 +642,36 @@ export const useGameActions = (
         });
     }, [setGameState]);
 
+  // Recibe recursos enviados por otro jugador P2P; los acredita respetando el cap de almacenamiento
+  const receiveP2PResource = useCallback((resource: ResourceType, amount: number) => {
+    if (amount <= 0) return;
+    setGameState(prev => ({
+      ...prev,
+      resources: {
+        ...prev.resources,
+        [resource]: Math.min(prev.maxResources[resource], (prev.resources[resource] || 0) + amount),
+      },
+    }));
+  }, [setGameState]);
+
+  // Descuenta recursos del jugador al enviarlos P2P; no puede bajar de 0
+  const deductLocalResource = useCallback((resource: ResourceType, amount: number) => {
+    if (amount <= 0) return;
+    setGameState(prev => ({
+      ...prev,
+      resources: {
+        ...prev.resources,
+        [resource]: Math.max(0, (prev.resources[resource] || 0) - amount),
+      },
+    }));
+  }, [setGameState]);
+
   return {
     addP2PIncomingAttack,
     addP2PMission,
     applyP2PBattleResult,
+    receiveP2PResource,
+    deductLocalResource,
     build, recruit, research, handleBankTransaction, speedUp, startMission, 
     executeCampaignBattle, executeTrade, executeDiamondExchange,
     acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,

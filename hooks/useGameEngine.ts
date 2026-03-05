@@ -141,6 +141,8 @@ export const useGameEngine = () => {
     addP2PIncomingAttack: actions.addP2PIncomingAttack,
     addP2PMission: actions.addP2PMission,
     applyP2PBattleResult: actions.applyP2PBattleResult,
+    receiveP2PResource: actions.receiveP2PResource,
+    deductLocalResource: actions.deductLocalResource,
     build: actions.build, 
     recruit: actions.recruit, 
     research: actions.research, 

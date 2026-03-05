@@ -168,6 +168,19 @@ export const useP2PGameSync = () => {
           localStorage.setItem('ironDuneP2PChatMessages', JSON.stringify(messages));
           // Emitir un evento secundario para que la UI se actualice si está abierta
           gameEventBus.emit('LOCAL_CHAT_UPDATED' as any, messages);
+
+          // Detectar mención @playerName
+          const myName = gameStateRef.current.playerName;
+          if (myName) {
+            const mentionPattern = new RegExp(`@${myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\b|$)`, 'i');
+            if (mentionPattern.test(payload.text)) {
+              const senderName = payload.senderName || 'Jugador Desconocido';
+              gameEventBus.emit('SHOW_TOAST' as any, {
+                message: `${senderName} te ha mencionado en el chat`,
+                type: 'info',
+              });
+            }
+          }
         }
       } catch (e) {
         console.error('Error saving background chat message:', e);
