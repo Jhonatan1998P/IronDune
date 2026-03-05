@@ -127,11 +127,11 @@ export const ENEMY_ATTACK_CHANCE_ROGUE = 1.2; // 20% more likely (opportunistic)
 // RETALIATION SYSTEM (UPDATED)
 export const RETALIATION_TIME_MIN_MS = 15 * 60 * 1000; // 15 minutes minimum
 export const RETALIATION_TIME_MAX_MS = 45 * 60 * 1000; // 45 minutes maximum
-export const RETALIATION_GRUDGE_DURATION_MS = 48 * 60 * 60 * 1000; // 48 hours to hold a grudge
+export const RETALIATION_GRUDGE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours to hold a grudge
 
 // Personality-based retaliation multipliers (affects army strength)
-export const RETALIATION_MULTIPLIER_WARLORD = 1.3; // 30% stronger
-export const RETALIATION_MULTIPLIER_TURTLE = 1.5; // 50% stronger (deathball)
+export const RETALIATION_MULTIPLIER_WARLORD = 1.1; // 10% stronger
+export const RETALIATION_MULTIPLIER_TURTLE = 1.2; // 20% stronger (deathball)
 export const RETALIATION_MULTIPLIER_TYCOON = 1.0; // Normal strength
 export const RETALIATION_MULTIPLIER_ROGUE = 1.0; // Normal strength
 
