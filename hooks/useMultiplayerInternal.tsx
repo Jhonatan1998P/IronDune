@@ -21,6 +21,7 @@ import type {
   MultiplayerAction,
   MultiplayerActionType,
   GiftGoldPayload,
+  ChatMessagePayload,
 } from '../types/multiplayer';
 import { gameEventBus } from '../utils/eventBus';
 
@@ -29,7 +30,7 @@ import { gameEventBus } from '../utils/eventBus';
 // ============================================================================
 
 const APP_ID = 'shadowbound-multiplayer-v1';
-const PRESENCE_BROADCAST_INTERVAL = 5000;
+const PRESENCE_BROADCAST_INTERVAL = 60000; // 1 minuto, para actualizar ranking y tarjetas P2P
 
 // Configuración de Trystero con trackers adicionales para mejor conectividad
 const TRYSTERO_CONFIG = {
@@ -432,6 +433,15 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         case 'P2P_BATTLE_DEFENDER_TROOPS':
           console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS from peerId:', peerId);
           gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
+          break;
+        case 'CHAT_MESSAGE':
+          const chatPayload = action.payload as ChatMessagePayload;
+          gameEventBus.emit('P2P_CHAT_MESSAGE' as any, { 
+            ...chatPayload, 
+            _senderPeerId: peerId,
+            playerId: action.playerId,
+            timestamp: action.timestamp
+          });
           break;
         default:
           if (actionsCallbackRef.current) {

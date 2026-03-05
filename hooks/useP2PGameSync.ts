@@ -115,34 +115,20 @@ export const useP2PGameSync = () => {
       const gs = gameStateRef.current;
       const myId = localPlayerIdRef.current;
 
-      // _senderPeerId es el Trystero peerId REAL del atacante, inyectado por
-      // useMultiplayerInternal al recibir el mensaje. Lo necesitamos porque
-      // request.attackerId es un ID lógico (player_...) que no sirve para
-      // enrutar respuestas via sendToPeer (que requiere Trystero peerId).
       const senderPeerId: string | undefined = (payload as any)._senderPeerId;
 
       console.log('[P2PGameSync] REQUEST_TROOPS received — attackId:', request.attackId,
         'targetId:', request.targetId, 'myId:', myId, 'senderPeerId:', senderPeerId);
 
-      // Verificar que tenemos este ataque en nuestra cola de incomingAttacks.
-      // NOTA: NO comparamos request.targetId con myId porque usan sistemas de ID
-      // distintos (Trystero peerId vs player_... custom ID). El hecho de que
-      // Trystero enrutó el mensaje directamente a nosotros ya garantiza que somos
-      // el defensor correcto.
       const hasAttack = gs.incomingAttacks.some(a => a.id === request.attackId);
       if (!hasAttack) {
           console.log('[P2PGameSync] Attack not found in incomingAttacks, responding anyway (Trystero routing guarantees target)');
       }
 
-      console.log('[P2PGameSync] Sending my REAL troops to attacker. senderPeerId:', senderPeerId, 'units:', gs.units);
-
-      // Snapshot de tropas vivas en este momento
       const snapshot: Partial<Record<UnitType, number>> = {};
       for (const [k, v] of Object.entries(gs.units)) {
         if (v > 0) snapshot[k as UnitType] = v;
       }
-
-      console.log('[P2PGameSync] Defender sending REAL troops:', snapshot);
 
       const reply: P2PBattleDefenderTroops = {
         type: 'P2P_BATTLE_DEFENDER_TROOPS',
@@ -153,28 +139,51 @@ export const useP2PGameSync = () => {
         timestamp: Date.now(),
       };
 
-      // Usar senderPeerId (Trystero peerId real) para enrutar la respuesta.
-      // Fallback a request.attackerId por compatibilidad, aunque probablemente
-      // no funcionará si es un ID lógico (player_...).
       const replyTarget = senderPeerId || request.attackerId;
-      console.log('[P2PGameSync] Sending troops reply to:', replyTarget);
       sendToPeerRef.current(replyTarget, {
         type: 'P2P_BATTLE_DEFENDER_TROOPS',
         payload: reply,
         playerId: myId || '',
         timestamp: Date.now(),
       });
-      console.log('[P2PGameSync] troops reply sent');
+    };
+
+    const handleChatMessage = (payload: any) => {
+      try {
+        const saved = localStorage.getItem('ironDuneP2PChatMessages');
+        let messages = saved ? JSON.parse(saved) : [];
+        
+        const newMessage = {
+          id: `${payload.playerId}-${payload.timestamp}`,
+          senderId: payload.playerId,
+          senderName: payload.senderName || 'Jugador Desconocido',
+          text: payload.text,
+          timestamp: payload.timestamp,
+          isLocal: false,
+        };
+
+        if (!messages.some((m: any) => m.id === newMessage.id)) {
+          messages.push(newMessage);
+          messages = messages.slice(-20);
+          localStorage.setItem('ironDuneP2PChatMessages', JSON.stringify(messages));
+          // Emitir un evento secundario para que la UI se actualice si está abierta
+          gameEventBus.emit('LOCAL_CHAT_UPDATED' as any, messages);
+        }
+      } catch (e) {
+        console.error('Error saving background chat message:', e);
+      }
     };
 
     gameEventBus.on('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
     gameEventBus.on('P2P_BATTLE_RESULT' as any, handleBattleResult);
     gameEventBus.on('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
+    gameEventBus.on('P2P_CHAT_MESSAGE' as any, handleChatMessage);
 
     return () => {
       gameEventBus.off('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
       gameEventBus.off('P2P_BATTLE_RESULT' as any, handleBattleResult);
       gameEventBus.off('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
+      gameEventBus.off('P2P_CHAT_MESSAGE' as any, handleChatMessage);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Solo una vez — datos frescos vienen de los refs

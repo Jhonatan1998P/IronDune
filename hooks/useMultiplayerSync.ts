@@ -8,6 +8,8 @@
 import { useEffect, useRef } from 'react';
 import { useMultiplayer } from './useMultiplayer';
 
+const SYNC_COOLDOWN_MS = 60_000; // 60 segundos (1 minuto)
+
 interface UseMultiplayerSyncProps {
   playerName: string;
   empirePoints: number;
@@ -46,18 +48,17 @@ export const useMultiplayerSync = ({
     
     if (!enabled) return;
 
-    // Evitar sync duplicado si los datos no han cambiado (con 5s de gracia)
     const last = lastSyncRef.current;
     const now = Date.now();
-    if (last && 
-        last.name === playerName && 
-        last.level === empirePoints &&
-        (now - last.timestamp) < 5000) {
+    
+    // Evitar sync duplicado si no ha pasado el cooldown (1 minuto)
+    // A menos que el nombre haya cambiado explícitamente (ahí sí forzamos sync inmediato)
+    if (last && last.name === playerName && (now - last.timestamp) < SYNC_COOLDOWN_MS) {
       return;
     }
 
-    // Sincronizar cuando los datos cambian o después de reconexión
-    console.log('[MultiplayerSync] Syncing player:', playerName, empirePoints);
+    // Sincronizar cuando los datos cambian o después de reconexión / timeout
+    console.log('[MultiplayerSync] Syncing player (1-minute update tick):', playerName, empirePoints);
     syncPlayerWithData(playerName, empirePoints);
     lastSyncRef.current = { name: playerName, level: empirePoints, timestamp: now };
   }, [enabled, isConnected, playerName, empirePoints, syncPlayerWithData]);

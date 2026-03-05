@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useMultiplayer } from './useMultiplayer';
 import { MultiplayerActionType, ChatMessagePayload } from '../types/multiplayer';
+import { gameEventBus } from '../utils/eventBus';
 
 export interface ChatMessage {
   id: string;
@@ -11,9 +12,36 @@ export interface ChatMessage {
   isLocal: boolean;
 }
 
+const P2P_CHAT_STORAGE_KEY = 'ironDuneP2PChatMessages';
+const MAX_CHAT_MESSAGES = 20;
+
+const loadChatFromStorage = (): ChatMessage[] => {
+  try {
+    const saved = localStorage.getItem(P2P_CHAT_STORAGE_KEY);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed)) {
+      return parsed.slice(-MAX_CHAT_MESSAGES);
+    }
+    return [];
+  } catch (e) {
+    console.error('Failed to load P2P chat messages from localStorage:', e);
+    return [];
+  }
+};
+
+const saveChatToStorage = (messages: ChatMessage[]) => {
+  try {
+    const limited = messages.slice(-MAX_CHAT_MESSAGES);
+    localStorage.setItem(P2P_CHAT_STORAGE_KEY, JSON.stringify(limited));
+  } catch (e) {
+    console.error('Failed to save P2P chat messages to localStorage:', e);
+  }
+};
+
 export const useMultiplayerChat = () => {
-  const { isConnected, localPlayerId, broadcastAction, onRemoteAction } = useMultiplayer();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { isConnected, localPlayerId, broadcastAction } = useMultiplayer();
+  const [messages, setMessages] = useState<ChatMessage[]>(loadChatFromStorage);
 
   const sendMessage = useCallback((text: string, playerName: string) => {
     if (!isConnected || !localPlayerId || !text.trim()) return;
@@ -40,28 +68,27 @@ export const useMultiplayerChat = () => {
       isLocal: true,
     };
 
-    setMessages(prev => [...prev, newMessage].slice(-100)); // Mantener últimos 100 mensajes
+    setMessages(prev => {
+      const newMessages = [...prev, newMessage].slice(-MAX_CHAT_MESSAGES);
+      saveChatToStorage(newMessages);
+      return newMessages;
+    });
   }, [isConnected, localPlayerId, broadcastAction]);
 
   useEffect(() => {
-    onRemoteAction((action) => {
-      if (action.type === MultiplayerActionType.CHAT_MESSAGE) {
-        const payload = action.payload as ChatMessagePayload;
-        const newMessage: ChatMessage = {
-          id: `${action.playerId}-${action.timestamp}`,
-          senderId: action.playerId,
-          senderName: payload.senderName || 'Jugador Desconocido',
-          text: payload.text,
-          timestamp: action.timestamp,
-          isLocal: false,
-        };
-        setMessages(prev => [...prev, newMessage].slice(-100));
-      }
-    });
-  }, [onRemoteAction]);
+    const handleLocalUpdate = (updatedMessages: ChatMessage[]) => {
+      setMessages(updatedMessages);
+    };
+
+    gameEventBus.on('LOCAL_CHAT_UPDATED' as any, handleLocalUpdate);
+    return () => {
+      gameEventBus.off('LOCAL_CHAT_UPDATED' as any, handleLocalUpdate);
+    };
+  }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    localStorage.removeItem(P2P_CHAT_STORAGE_KEY);
   }, []);
 
   return {

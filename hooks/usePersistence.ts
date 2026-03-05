@@ -263,6 +263,7 @@ export const usePersistence = (
       localStorage.removeItem('ironDuneSave');
       localStorage.removeItem(SPY_REPORTS_STORAGE_KEY);
       localStorage.removeItem(LOGS_STORAGE_KEY);
+      localStorage.removeItem('ironDuneP2PChatMessages');
       setHasSave(false);
       setStatus('MENU');
   }, [setGameState, setOfflineReport, setHasNewReports, setStatus]);
