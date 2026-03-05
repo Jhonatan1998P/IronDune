@@ -13,7 +13,7 @@ interface GameHeaderProps {
     onToggleStatus?: () => void;
 }
 
-export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
+export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatus }) => {
   const { gameState } = useGame();
   const { t } = useLanguage();
   
@@ -207,4 +207,4 @@ export const GameHeader: React.FC<GameHeaderProps> = ({ onToggleStatus }) => {
       </div>
     </header>
   );
-};
+});

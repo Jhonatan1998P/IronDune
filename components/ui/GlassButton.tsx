@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-export const GlassButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'neutral' }> = ({ 
+export const GlassButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'danger' | 'neutral' }> = React.memo(({ 
   children, className = '', variant = 'neutral', ...props 
 }) => {
   let colors = 'text-metal-200 hover:text-white border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10';
@@ -19,4 +19,4 @@ export const GlassButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>
       {children}
     </button>
   );
-};
+});

@@ -10,6 +10,7 @@ export const useGameLoop = (
   setHasNewReports: (has: boolean) => void
 ) => {
   const lastTickRef = useRef<number>(Date.now());
+  const hasNewReportsRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (status !== 'PLAYING') return;
@@ -29,14 +30,32 @@ export const useGameLoop = (
         
         if (newLogs.length > 0) {
             newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
-            setHasNewReports(true);
+            hasNewReportsRef.current = true;
         }
+
+        if (newState === prev && newLogs.length === 0) {
+          return prev;
+        }
+        
         return newState;
       });
     }, TICK_RATE_MS);
     
     return () => clearInterval(timer);
-  }, [status, setGameState, setHasNewReports]);
+  }, [status, setGameState]);
+
+  useEffect(() => {
+    if (status !== 'PLAYING') return;
+    
+    const reportTimer = setInterval(() => {
+      if (hasNewReportsRef.current) {
+        setHasNewReports(true);
+        hasNewReportsRef.current = false;
+      }
+    }, 100);
+    
+    return () => clearInterval(reportTimer);
+  }, [status, setHasNewReports]);
 
   return { lastTickRef };
 };

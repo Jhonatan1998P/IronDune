@@ -42,7 +42,7 @@ interface ViewProps {
  * - Costos de construcción/mejora
  * - Botón de acción (construir/mejorar/reparar)
  */
-const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction: (id: BuildingType, amount: number) => void, onRepair?: (id: BuildingType) => void, t: TranslationDictionary }> = ({ def, gameState, onAction, onRepair, t }) => {
+  const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction: (id: BuildingType, amount: number) => void, onRepair?: (id: BuildingType) => void, t: TranslationDictionary }> = React.memo(({ def, gameState, onAction, onRepair, t }) => {
     const buildingState = gameState.buildings[def.id];
     const qty = buildingState?.level || 0;
     const isDamaged = buildingState?.isDamaged || false;
@@ -166,12 +166,12 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
                     >
                         {actionLabel}
                     </GlassButton>
-              </div>
+               </div>
           </div>
         </div>
       </Card>
     );
-};
+});
 
 /**
  * BuildingsView - Componente Principal
@@ -182,7 +182,7 @@ const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction:
  * - Paginación en dispositivos móviles
  * - Integración con el sistema de tutorial
  */
-export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = ({ gameState, onAction, onSpeedUp: _onSpeedUp, onRepair }) => {
+export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = React.memo(({ gameState, onAction, onSpeedUp: _onSpeedUp, onRepair }) => {
   const { t } = useLanguage();
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -282,4 +282,4 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
         </div>
     </div>
   );
-};
+});

@@ -8,10 +8,10 @@ import { initializeRankingState } from '../utils/engine/rankings';
 
 export const INITIAL_RESOURCES: Record<ResourceType, number> = {
   [ResourceType.MONEY]: 5000, 
-  [ResourceType.OIL]: 200,
-  [ResourceType.AMMO]: 100,
-  [ResourceType.GOLD]: 0,
-  [ResourceType.DIAMOND]: 0,
+  [ResourceType.OIL]: 2500,
+  [ResourceType.AMMO]: 1500,
+  [ResourceType.GOLD]: 500,
+  [ResourceType.DIAMOND]: 5,
 };
 
 export const INITIAL_MAX_RESOURCES: Record<ResourceType, number> = {

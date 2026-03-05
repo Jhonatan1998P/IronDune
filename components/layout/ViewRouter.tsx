@@ -5,10 +5,10 @@
  * Cada case del switch renderiza el componente correspondiente a cada sección del juego.
  */
 
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect, Suspense, lazy, useMemo, useCallback } from 'react';
 import { TabType } from '../GameSidebar';
 import { useGame } from '../../context/GameContext';
-import { UnitType } from '../../types';
+import { UnitType, GameState } from '../../types';
 
 // Lazy load all views for better code splitting
 const BuildingsView = lazy(() => import('../views/BuildingsView').then(m => ({ default: m.BuildingsView })));
@@ -27,7 +27,6 @@ const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ d
 const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 
-// Loading fallback component
 const ViewLoader: React.FC = () => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="flex flex-col items-center gap-4">
@@ -37,22 +36,32 @@ const ViewLoader: React.FC = () => (
     </div>
 );
 
-/**
- * ViewRouterProps
- * Interfaz de propiedades del componente ViewRouter
- */
 interface ViewRouterProps {
-    activeTab: TabType;                                                 // Pestaña activa actualmente
-    simEnemyArmy: Partial<Record<UnitType, number>> | null;           // Ejército enemigo para simulación
-    simPlayerArmy: Partial<Record<UnitType, number>> | null;         // Ejército del jugador para simulación
-    onSimulateRequest: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void; // Función para solicitar simulación
+    activeTab: TabType;
+    simEnemyArmy: Partial<Record<UnitType, number>> | null;
+    simPlayerArmy: Partial<Record<UnitType, number>> | null;
+    onSimulateRequest: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void;
 }
 
-/**
- * Componente principal de enrutamiento de vistas
- * Renderiza la vista correspondiente según la pestaña activa
- */
-export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy, simPlayerArmy, onSimulateRequest }) => {
+const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>> = {
+    buildings: BuildingsView,
+    units: UnitsView,
+    missions: MissionsView,
+    research: ResearchView,
+    finance: FinanceView,
+    market: MarketView,
+    reports: ReportsView,
+    simulator: BattleSimulatorView,
+    campaign: CampaignView,
+    rankings: RankingsView,
+    war: WarView,
+    diplomacy: DiplomacyView,
+    settings: SettingsView,
+    p2p: P2PRanking,
+    chat: MultiplayerChatView
+};
+
+export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, simEnemyArmy, simPlayerArmy, onSimulateRequest }) => {
     const {
         gameState, logs,
         build, recruit, research, handleBankTransaction,
@@ -62,65 +71,71 @@ export const ViewRouter: React.FC<ViewRouterProps> = ({ activeTab, simEnemyArmy,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     } = useGame();
     
-    // Effect to mark reports read when tab is opened
+    const handleSimulate = useCallback((enemy: Partial<Record<UnitType, number>>, player: Partial<Record<UnitType, number>>) => {
+        onSimulateRequest(enemy, player);
+    }, [onSimulateRequest]);
+
+    const handleAttack = useCallback((_: any, newState: GameState) => {
+        (window as any)._updateGameState?.(newState);
+    }, []);
+
     useEffect(() => {
         if (activeTab === 'reports') markReportsRead();
     }, [activeTab, markReportsRead]);
 
-    const renderView = () => {
+    const viewProps = useMemo(() => {
         switch (activeTab) {
             case 'buildings':
-                return <BuildingsView gameState={gameState} onAction={build} onSpeedUp={speedUp} onRepair={repair} />;
+                return { gameState, onAction: build, onSpeedUp: speedUp, onRepair: repair };
             case 'units':
-                return <UnitsView gameState={gameState} onAction={recruit} onSpeedUp={speedUp} />;
+                return { gameState, onAction: recruit, onSpeedUp: speedUp };
             case 'missions':
-                return <MissionsView gameState={gameState} onStartMission={startMission} />;
+                return { gameState, onStartMission: startMission };
             case 'research':
-                return <ResearchView gameState={gameState} onAction={research} onSpeedUp={speedUp} />;
+                return { gameState, onAction: research, onSpeedUp: speedUp };
             case 'finance':
-                return <FinanceView gameState={gameState} onBankAction={handleBankTransaction} />;
+                return { gameState, onBankAction: handleBankTransaction };
             case 'market':
-                return <MarketView gameState={gameState} onExecuteTrade={executeTrade} onDiamondExchange={executeDiamondExchange} />;
+                return { gameState, onExecuteTrade: executeTrade, onDiamondExchange: executeDiamondExchange };
             case 'reports':
-                return <ReportsView logs={logs} onDelete={deleteLogs} onArchive={archiveLogs} onSimulate={onSimulateRequest} />;
+                return { logs, onDelete: deleteLogs, onArchive: archiveLogs, onSimulate: handleSimulate };
             case 'simulator':
-                return <BattleSimulatorView initialEnemyArmy={simEnemyArmy} initialPlayerArmy={simPlayerArmy} />;
+                return { initialEnemyArmy: simEnemyArmy, initialPlayerArmy: simPlayerArmy };
             case 'campaign':
-                return <CampaignView gameState={gameState} onExecuteBattle={executeCampaignBattle} onSpeedUp={speedUp} />;
+                return { gameState, onExecuteBattle: executeCampaignBattle, onSpeedUp: speedUp };
             case 'rankings':
-                return <RankingsView gameState={gameState} onAttack={(_, newState) => (window as any)._updateGameState?.(newState)} />;
+                return { gameState, onAttack: handleAttack };
             case 'war':
-                return <WarView gameState={gameState} onSpy={spyOnAttacker} onSimulate={onSimulateRequest} />;
+                return { gameState, onSpy: spyOnAttacker, onSimulate: handleSimulate };
             case 'diplomacy':
-                return <DiplomacyView />;
+                return {};
             case 'settings':
-                return (
-                    <SettingsView
-                        gameState={gameState}
-                        changePlayerName={changePlayerName}
-                        redeemGiftCode={redeemGiftCode}
-                        saveGame={saveGame}
-                        resetGame={resetGame}
-                        exportSave={exportSave}
-                    />
-                );
+                return { gameState, changePlayerName, redeemGiftCode, saveGame, resetGame, exportSave };
             case 'p2p':
-                return (
-                    <P2PRanking
-                        playerName={gameState.playerName}
-                        playerScore={gameState.empirePoints}
-                    />
-                );
+                return { playerName: gameState.playerName, playerScore: gameState.empirePoints };
             case 'chat':
-                return <MultiplayerChatView gameState={gameState} />;
+                return { gameState };
             default:
-                return null;
+                return {};
         }
-    };
+    }, [
+        activeTab, gameState, logs, simEnemyArmy, simPlayerArmy,
+        build, recruit, research, handleBankTransaction,
+        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        speedUp, spyOnAttacker, repair,
+        deleteLogs, archiveLogs, handleSimulate, handleAttack,
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+    ]);
+
+    const LazyComponent = VIEW_COMPONENTS[activeTab];
+
+    if (!LazyComponent) {
+        return null;
+    }
 
     return (
         <Suspense fallback={<ViewLoader />}>
-            {renderView()}
+            <LazyComponent {...viewProps} />
         </Suspense>
     );
-};
+});

@@ -11,7 +11,7 @@ interface CardProps {
     onClick?: () => void;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', title, tooltip, onClick }) => (
+export const Card: React.FC<CardProps> = React.memo(({ children, className = '', title, tooltip, onClick }) => (
   <div 
     onClick={onClick}
     className={`
@@ -38,4 +38,4 @@ export const Card: React.FC<CardProps> = ({ children, className = '', title, too
         {children}
     </div>
   </div>
-);
+));

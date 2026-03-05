@@ -4,7 +4,7 @@ import { formatNumber } from '../../utils';
 import { useLanguage } from '../../context/LanguageContext';
 import { SmartTooltip } from './SmartTooltip';
 
-export const ResourceDisplay: React.FC<{ label: string; value: number; max: number; color: string; production?: number; upkeep?: number; icon?: React.ReactNode; resourceType?: string }> = ({ label, value, max, color, production = 0, upkeep = 0, icon, resourceType }) => {
+export const ResourceDisplay: React.FC<{ label: string; value: number; max: number; color: string; production?: number; upkeep?: number; icon?: React.ReactNode; resourceType?: string }> = React.memo(({ label, value, max, color, production = 0, upkeep = 0, icon, resourceType }) => {
   const { t } = useLanguage();
   const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   const net = production - upkeep;
@@ -65,4 +65,4 @@ export const ResourceDisplay: React.FC<{ label: string; value: number; max: numb
       </div>
     </SmartTooltip>
   );
-};
+});

@@ -17,7 +17,7 @@ interface ViewProps {
 
 const DEFENSE_THRESHOLD_PCT = 0.2;
 
-const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: UnitType, amount: number) => void, t: TranslationDictionary }> = ({ def, gameState, onAction, t }) => {
+const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: UnitType, amount: number) => void, t: TranslationDictionary }> = React.memo(({ def, gameState, onAction, t }) => {
     const info = t.units[def.translationKey] || { name: def.id, stats: '...' };
     const isUnlocked = gameState.researchedTechs.includes(def.reqTech);
     
@@ -247,13 +247,13 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
                         </div>
                     )}
                 </div>
-            </div>
+               </div>
           </div>
         </Card>
     );
-}
+});
 
-export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType, amount: number) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = ({ gameState, onAction, onSpeedUp }) => {
+export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType, amount: number) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = React.memo(({ gameState, onAction, onSpeedUp }) => {
   const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<UnitCategory | 'ALL'>('ALL');
 
@@ -337,4 +337,4 @@ export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType
       </div>
     </div>
   );
-};
+});

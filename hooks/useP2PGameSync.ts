@@ -172,8 +172,12 @@ export const useP2PGameSync = () => {
           // Detectar mención @playerName
           const myName = gameStateRef.current.playerName;
           if (myName) {
-            const mentionPattern = new RegExp(`@${myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\b|$)`, 'i');
-            if (mentionPattern.test(payload.text)) {
+            // Escapar caracteres especiales de regex
+            const escapedName = myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Usar lookahead en lugar de \b para manejar nombres con caracteres no-ASCII
+            const mentionPattern = new RegExp(`@${escapedName}(?=[^\\w]|$)`, 'i');
+            const messageText = payload.text ?? '';
+            if (mentionPattern.test(messageText)) {
               const senderName = payload.senderName || 'Jugador Desconocido';
               gameEventBus.emit('SHOW_TOAST' as any, {
                 message: `${senderName} te ha mencionado en el chat`,
