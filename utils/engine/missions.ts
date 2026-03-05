@@ -238,11 +238,40 @@ const PERSONALITY_BUDGET_SPLIT: Record<BotPersonality, { attackRatio: number; de
     [BotPersonality.ROGUE]: { attackRatio: 0.60, defenseRatio: 0.40 }
 };
 
+/**
+ * Calcula para cada tipo de unidad cuántas unidades del bando enemigo
+ * tienen rapidFire contra ella. Devuelve un mapa UnitType -> cantidad total.
+ * Se usa para sesgar la composición del bot hacia unidades que counteren
+ * lo que el jugador trae.
+ */
+const buildRapidFireCounterMap = (
+    enemyArmy: Partial<Record<UnitType, number>>
+): Partial<Record<UnitType, number>> => {
+    // counterMap[X] = total de unidades enemigas a las que X hace rapidFire
+    const counterMap: Partial<Record<UnitType, number>> = {};
+
+    Object.entries(enemyArmy).forEach(([uKey, count]) => {
+        if (!count || count <= 0) return;
+        const uType = uKey as UnitType;
+
+        // Busca qué unidades del bot tienen rapidFire contra este tipo enemigo
+        Object.values(UnitType).forEach(botUnit => {
+            const rf = UNIT_DEFS[botUnit]?.rapidFire;
+            if (rf && rf[uType] !== undefined) {
+                counterMap[botUnit] = (counterMap[botUnit] || 0) + count;
+            }
+        });
+    });
+
+    return counterMap;
+};
+
 const getSmartUnitComposition = (
     budget: number,
     personality: BotPersonality,
     isDefense: boolean,
-    availableUnits: UnitType[]
+    availableUnits: UnitType[],
+    playerArmy?: Partial<Record<UnitType, number>>
 ): Partial<Record<UnitType, number>> => {
     const army: Partial<Record<UnitType, number>> = {};
     const strategy = PERSONALITY_STRATEGY[personality][isDefense ? 'defense' : 'offense'];
@@ -256,6 +285,17 @@ const getSmartUnitComposition = (
         if (tier >= 2) return 'medium';
         return 'light';
     };
+
+    // Si hay un ejército enemigo conocido, calculamos cuántas unidades countera cada tipo nuestro.
+    // Esto permite al bot adaptar su composición a lo que el jugador trae.
+    const counterMap = playerArmy && Object.keys(playerArmy).length > 0
+        ? buildRapidFireCounterMap(playerArmy)
+        : null;
+
+    // Calcula el total de unidades enemigas para normalizar el bonus de counter.
+    const totalPlayerUnits = playerArmy
+        ? Object.values(playerArmy).reduce((acc, v) => acc + (v || 0), 0)
+        : 0;
 
     unitMetricsList.forEach(metric => {
         let score = 0;
@@ -279,6 +319,15 @@ const getSmartUnitComposition = (
         
         if (metric.tier === 4 && Math.random() < strategy.eliteThreshold) {
             score += 20;
+        }
+
+        // --- ADAPTIVE AI: bonus si esta unidad hace rapidFire a unidades del jugador ---
+        // El bonus es proporcional a qué fracción del ejército enemigo countera esta unidad.
+        // Máximo +50 puntos (cuando esta unidad countera el 100% del ejército enemigo).
+        if (counterMap && totalPlayerUnits > 0) {
+            const counteredUnits = counterMap[metric.type] || 0;
+            const counterRatio = counteredUnits / totalPlayerUnits; // 0.0 a 1.0
+            score += counterRatio * 50;
         }
         
         metric.synergyScore = score;
@@ -375,7 +424,8 @@ const getSmartUnitComposition = (
 export const generateBotArmy = (
     targetScore: number,
     budgetMultiplier: number = 1.0,
-    personality?: BotPersonality
+    personality?: BotPersonality,
+    playerArmy?: Partial<Record<UnitType, number>>
 ): Partial<Record<UnitType, number>> => {
 
     // Unified formula: score * 4000 * multiplier for all military calculations
@@ -388,11 +438,14 @@ export const generateBotArmy = (
     const attackBudget = totalBudget * budgetSplit.attackRatio;
     const defenseBudget = totalBudget * budgetSplit.defenseRatio;
 
+    // El ataque se adapta al ejército del jugador (Adaptive AI).
+    // La defensa no necesita adaptarse (el bot no sabe con qué atacará el jugador).
     const attackArmy = getSmartUnitComposition(
         attackBudget,
         activePersonality,
         false,
-        availableUnits
+        availableUnits,
+        playerArmy
     );
 
     const defenseArmy = getSmartUnitComposition(

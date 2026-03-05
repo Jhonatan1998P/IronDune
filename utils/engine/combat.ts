@@ -5,6 +5,66 @@ const MAX_ROUNDS = 6;
 const EXPLOSION_THRESHOLD_PCT = 0.70;
 const SHIELD_PENETRATION_THRESHOLD = 0.01;
 
+// ─── SMART TARGETING: Probabilidades de buscar objetivo con rapidFire por tier ───
+const TARGETING_TIER_CHANCE: Record<number, number> = {
+    1: 0.01, // 1% para Tier 1 (CYBER_MARINE)
+    2: 0.02, // 2% para Tier 2 (HEAVY_COMMANDO)
+    3: 0.04, // 4% para Tier 3 (SCOUT_TANK, TITAN_MBT, WRAITH_GUNSHIP)
+    4: 0.06, // 6% para Tier 4 (ACE_FIGHTER, AEGIS_DESTROYER)
+    5: 0.06, // 6% para Tier 5 (PHANTOM_SUB)
+};
+
+const UNIT_TIER_MAP: Record<UnitType, number> = {
+    [UnitType.CYBER_MARINE]: 1,
+    [UnitType.HEAVY_COMMANDO]: 2,
+    [UnitType.SCOUT_TANK]: 3,
+    [UnitType.TITAN_MBT]: 3,
+    [UnitType.WRAITH_GUNSHIP]: 3,
+    [UnitType.ACE_FIGHTER]: 4,
+    [UnitType.AEGIS_DESTROYER]: 4,
+    [UnitType.PHANTOM_SUB]: 5,
+};
+
+/**
+ * Selecciona un objetivo de manera inteligente.
+ * Con probabilidad basada en el tier del atacante, busca primero un objetivo
+ * que esté en su lista de rapidFire (counter).
+ * En caso contrario, selecciona un objetivo al azar.
+ */
+const selectSmartTarget = (
+    attacker: BattleEntity,
+    targets: BattleEntity[],
+    targetCount: number
+): BattleEntity | null => {
+    const attackerTier = UNIT_TIER_MAP[attacker.type];
+    const targetingChance = TARGETING_TIER_CHANCE[attackerTier] || 0;
+    const rfMap = attacker.def.rapidFire;
+
+    // Si el atacante no tiene rapidFire o no hay chance de targeting inteligente, seleccion al azar
+    if (!rfMap || targetingChance === 0 || targets.length === 0) {
+        const randomIndex = Math.floor(Math.random() * Math.min(targetCount, targets.length));
+        return targets[randomIndex] || null;
+    }
+
+    // Con probabilidad del tier, buscar un objetivo que countere
+    if (Math.random() < targetingChance) {
+        // Filtrar solo objetivos vivos y que estén en el rapidFire del atacante
+        const counterTargets = targets.filter(t => 
+            !t.isDead && rfMap[t.type] !== undefined
+        );
+
+        if (counterTargets.length > 0) {
+            // Seleccionar aleatoriamente entre los objetivos que counterea
+            const chosenIndex = Math.floor(Math.random() * counterTargets.length);
+            return counterTargets[chosenIndex];
+        }
+    }
+
+    // Selección aleatoria estándar
+    const randomIndex = Math.floor(Math.random() * Math.min(targetCount, targets.length));
+    return targets[randomIndex] || null;
+};
+
 export const UNIT_PRIORITY: UnitType[] = [
     UnitType.CYBER_MARINE,
     UnitType.HEAVY_COMMANDO,
@@ -226,9 +286,8 @@ export const simulateCombat = (
                 const actualCount = targets.length;
                 if (actualCount === 0) break;
                 
-                // Select target with bounds checking
-                const targetIndex = Math.floor(Math.random() * Math.min(targetCount, actualCount));
-                const target      = targets[targetIndex];
+                // Select target with smart targeting (prioriza objetivos con rapidFire según el tier)
+                const target = selectSmartTarget(attacker, targets, targetCount);
                 
                 // Safety check: skip if target is invalid
                 if (!target || target.isDead) break;
@@ -299,8 +358,11 @@ export const simulateCombat = (
                         if (died) {
                             target.markedForDeath = true;
                             
+                            // Encontrar el índice del objetivo para el swap-and-pop
+                            const targetIndex = targets.indexOf(target);
+                            
                             // Safety check before swap
-                            if (targetCount > 0 && targetIndex < targets.length) {
+                            if (targetCount > 0 && targetIndex >= 0 && targetIndex < targets.length) {
                                 targets[targetIndex] = targets[targetCount - 1];
                             }
                             targetCount--;

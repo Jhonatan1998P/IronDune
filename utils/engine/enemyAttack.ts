@@ -252,9 +252,11 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         }
 
         // Bot attacks!
+        // El bot adapta su composición al ejército actual del jugador (Adaptive AI)
         const previousAttacks = attackRecord ? attackRecord.count : 0;
         const budgetMultiplier = 1.0 - (previousAttacks * 0.25);
-        const army = generateBotArmy(botScore, budgetMultiplier, bot.personality);
+        const playerUnits = state.units;
+        const army = generateBotArmy(botScore, budgetMultiplier, bot.personality, playerUnits);
         
         // Calculate arrival time with delay for simultaneous attacks
         let arrivalTime = now + PVP_TRAVEL_TIME_MS;

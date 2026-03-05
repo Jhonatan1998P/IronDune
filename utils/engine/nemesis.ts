@@ -59,12 +59,17 @@ export const getRetaliationMultiplier = (personality: BotPersonality): number =>
 };
 
 // --- HELPER: CREATE INCOMING ATTACK ---
-const launchRetaliation = (grudge: Grudge, now: number): IncomingAttack => {
+const launchRetaliation = (
+    grudge: Grudge,
+    now: number,
+    playerUnits: Record<UnitType, number>
+): IncomingAttack => {
     const arrivalTime = now + PVP_TRAVEL_TIME_MS;
 
     // Personality affects army strength via multiplier
     const multiplier = getRetaliationMultiplier(grudge.botPersonality);
-    const units = generateBotArmy(grudge.botScore, multiplier, grudge.botPersonality);
+    // El bot adapta su composición al ejército actual del jugador (Adaptive AI)
+    const units = generateBotArmy(grudge.botScore, multiplier, grudge.botPersonality, playerUnits);
 
     return {
         id: `retal-${grudge.id}-${now}`,
@@ -136,7 +141,7 @@ export const processNemesisTick = (state: GameState, now: number): { stateUpdate
         if (now >= grudge.retaliationTime) {
             // The retaliation roll already happened when grudge was created
             // Now we just launch the attack
-            const attack = launchRetaliation(grudge, now);
+            const attack = launchRetaliation(grudge, now, state.units);
             newIncomingAttacks.push(attack);
 
             logs.push({
