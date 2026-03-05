@@ -32,6 +32,9 @@ import { gameEventBus } from '../utils/eventBus';
 const APP_ID = 'shadowbound-multiplayer-v1';
 const PRESENCE_BROADCAST_INTERVAL = 60000; // 1 minuto, para actualizar ranking y tarjetas P2P
 
+// Sala global: ID fijo compartido por todos los jugadores al iniciar el juego
+export const GLOBAL_ROOM_ID = 'iron-dune-global-v1';
+
 // Configuración de Trystero con trackers adicionales para mejor conectividad
 const TRYSTERO_CONFIG = {
   appId: APP_ID,
@@ -65,6 +68,7 @@ export interface MultiplayerContextType {
   localPlayerId: string | null;
   remotePlayers: PlayerPresence[];
   currentRoomId: string | null;
+  isGlobalRoom: boolean;
   syncPlayer: (player: { name: string; level: number }) => void;
   syncPlayerWithData: (playerName: string, empirePoints: number) => void;
   broadcastAction: (action: MultiplayerAction) => void;
@@ -74,6 +78,7 @@ export interface MultiplayerContextType {
   joinRoomById: (roomId: string) => boolean;
   leave: () => void;
   reconnect: () => boolean;
+  returnToGlobalRoom: () => boolean;
 }
 
 export const MultiplayerContext = createContext<MultiplayerContextType | null>(null);
@@ -96,6 +101,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [remotePlayers, setRemotePlayers] = useState<PlayerPresence[]>([]);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [isGlobalRoom, setIsGlobalRoom] = useState(false);
 
   // REFS
   const roomRef = useRef<Room | null>(null);
@@ -464,6 +470,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     setIsConnecting(false);
     setIsInitialized(true);
     isConnectedRef.current = true;
+    setCurrentRoomId(roomId);
+    currentRoomIdRef.current = roomId;
+    setIsGlobalRoom(roomId === GLOBAL_ROOM_ID);
 
     const playerData: PlayerPresence = { id: playerId, name: 'Player', level: 0, lastSeen: Date.now() };
     playersRef.current.set(playerId, playerData);
@@ -550,6 +559,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     cleanupRoom();
     setCurrentRoomId(null);
     setLocalPlayerId(null);
+    setIsGlobalRoom(false);
     currentRoomIdRef.current = null;
     localPlayerIdRef.current = null;
     isConnectedRef.current = false;
@@ -568,9 +578,30 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     return initRoom(currentRoomIdRef.current);
   }, [initRoom]);
 
+  const returnToGlobalRoom = useCallback((): boolean => {
+    if (isConnectedRef.current && currentRoomIdRef.current === GLOBAL_ROOM_ID) {
+      gameEventBus.emit('SHOW_TOAST' as any, { message: 'Ya estás en la sala global', type: 'info' });
+      return false;
+    }
+    console.log('[Multiplayer] Returning to global room');
+    if (roomRef.current) {
+      cleanupRoom();
+      setCurrentRoomId(null);
+      setLocalPlayerId(null);
+      setIsGlobalRoom(false);
+      currentRoomIdRef.current = null;
+      localPlayerIdRef.current = null;
+      isConnectedRef.current = false;
+    }
+    return initRoom(GLOBAL_ROOM_ID);
+  }, [cleanupRoom, initRoom]);
+
   // CLEANUP AL DESMONTAR
   useEffect(() => {
     console.log('[Multiplayer] Provider mounted - instance:', Math.random().toString(36).substr(2, 5));
+    // Auto-join sala global al montar
+    console.log('[Multiplayer] Auto-joining global room:', GLOBAL_ROOM_ID);
+    initRoom(GLOBAL_ROOM_ID);
     return () => {
       console.log('[Multiplayer] Provider unmounting - cleaning up room, isConnected:', isConnectedRef.current);
       cleanupRoom();
@@ -578,7 +609,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       localPlayerIdRef.current = null;
       currentRoomIdRef.current = null;
     };
-  }, [cleanupRoom]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // RENDER
   return (
@@ -592,6 +624,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         localPlayerId,
         remotePlayers,
         currentRoomId,
+        isGlobalRoom,
         syncPlayer,
         syncPlayerWithData,
         broadcastAction,
@@ -601,6 +634,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         joinRoomById,
         leave,
         reconnect,
+        returnToGlobalRoom,
       }}
     >
       {children}
