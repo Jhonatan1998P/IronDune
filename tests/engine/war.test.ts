@@ -742,7 +742,7 @@ describe('Wave Timing', () => {
         it('should not correct war with minimal drift', () => {
             const now = Date.now();
             const war = createMockWarState({
-                startTime: now - 1000000,
+                startTime: now - WAR_WAVE_INTERVAL_MS,
                 currentWave: 3,
                 nextWaveTime: now + WAR_WAVE_INTERVAL_MS,
                 duration: WAR_DURATION_MS + 10000000 // Ensure war is still active

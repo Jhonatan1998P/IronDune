@@ -1,6 +1,8 @@
 import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult, BattleResult, UnitType, ResourceType, BuildingType } from '../../types';
 import { resolveMission } from './missions';
 import { simulateCombat } from './combat';
+import { calculateActiveReinforcements } from './allianceReinforcements';
+import { PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from '../../constants';
 
 export const getQueuedOutgoingAttacks = (state: GameState, now: number): ActiveMission[] => {
     return state.activeMissions
@@ -127,7 +129,17 @@ export const processIncomingAttackInQueue = (
     const playerUnits = initialPlayerUnits;
     const enemyUnits = attack.units;
 
-    const battleResult = simulateDefenseCombat(playerUnits, enemyUnits, 1.0);
+    // Calculate allied reinforcements for defense
+    let allyArmies: Record<string, Partial<Record<UnitType, number>>> | undefined;
+    const reinforcements = calculateActiveReinforcements(newState, now);
+    if (reinforcements.length > 0) {
+        allyArmies = {};
+        for (const ref of reinforcements) {
+            allyArmies[ref.botId] = ref.units;
+        }
+    }
+
+    const battleResult = simulateDefenseCombat(playerUnits, enemyUnits, 1.0, allyArmies);
 
     const survivingUnits: Partial<Record<UnitType, number>> = {};
     Object.entries(battleResult.finalPlayerArmy).forEach(([uType, count]) => {
@@ -153,12 +165,55 @@ export const processIncomingAttackInQueue = (
 
     const playerCasualtiesValue = calculateCasualtiesValue(state.units, battleResult.totalPlayerCasualties);
 
+    // Apply building plunder if player lost the defense
+    const stolenBuildings: Partial<Record<BuildingType, number>> = {};
+    let diamondDamaged = false;
+
+    if (battleResult.winner !== 'PLAYER' && !attack.isWarWave) {
+        const plunderRate = PLUNDER_RATES[0]; // 33% for raid attacks
+
+        PLUNDERABLE_BUILDINGS.forEach(bType => {
+            const currentLvl = newState.buildings[bType]?.level || 0;
+            if (currentLvl > 0) {
+                const stolen = Math.floor(currentLvl * plunderRate);
+                if (stolen > 0) {
+                    stolenBuildings[bType] = stolen;
+                    // Apply the building level reduction
+                    newState.buildings[bType] = {
+                        ...newState.buildings[bType],
+                        level: Math.max(0, currentLvl - stolen)
+                    };
+                }
+            }
+        });
+
+        // Handle Diamond Mine damage
+        if (newState.buildings[BuildingType.DIAMOND_MINE]?.level > 0) {
+            diamondDamaged = true;
+            stolenBuildings[BuildingType.DIAMOND_MINE] = 1;
+            newState.buildings[BuildingType.DIAMOND_MINE] = {
+                ...newState.buildings[BuildingType.DIAMOND_MINE],
+                isDamaged: true
+            };
+        }
+    }
+
     const logKey = battleResult.winner === 'PLAYER' ? 'log_defense_win' : 'log_defense_loss';
     const logType: LogEntry['type'] = 'combat';
 
     const logParams: any = {
         combatResult: battleResult,
-        attacker: attack.attackerName
+        attacker: attack.attackerName,
+        buildingLoot: Object.keys(stolenBuildings).length > 0 ? stolenBuildings : undefined,
+        diamondDamaged: diamondDamaged || undefined,
+        // Ally names for display in combat report
+        allyNames: allyArmies
+            ? Object.keys(allyArmies).reduce((acc, botId) => {
+                const bot = newState.rankingData.bots.find(b => b.id === botId);
+                if (bot) acc[botId] = bot.name;
+                return acc;
+            }, {} as Record<string, string>)
+            : undefined
     };
 
     const logEntry: LogEntry = {
@@ -174,6 +229,8 @@ export const processIncomingAttackInQueue = (
         resources: {},
         unitsLost: battleResult.totalPlayerCasualties,
         resourcesLost: playerCasualtiesValue,
+        stolenBuildings: Object.keys(stolenBuildings).length > 0 ? stolenBuildings : undefined,
+        diamondDamaged,
         logKey,
         logType,
         logParams,
@@ -194,9 +251,10 @@ const calculateCasualtiesValue = (
 export const simulateDefenseCombat = (
     playerUnits: Record<UnitType, number>,
     enemyUnits: Partial<Record<UnitType, number>>,
-    damageMultiplier: number
+    damageMultiplier: number,
+    allyArmies?: Record<string, Partial<Record<UnitType, number>>>
 ): BattleResult => {
-    return simulateCombat(playerUnits, enemyUnits, damageMultiplier);
+    return simulateCombat(playerUnits, enemyUnits, damageMultiplier, allyArmies);
 };
 
 interface QueuedAttackItem {

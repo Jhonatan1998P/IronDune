@@ -433,16 +433,12 @@ describe('Attack Queue System', () => {
             expect(secondAttack).toBeDefined();
 
             // Defender is the player (initialPlayerArmy)
-            // Note: Current implementation uses initialPlayerUnits for ALL attacks,
-            // so both attacks see the same initial army (30 units)
-            // This is a known limitation - defenses are not updated between attacks
             const firstDefenderPower = Object.values(firstAttack?.result.battleResult?.initialPlayerArmy || {}).reduce((sum, count) => sum + (count || 0), 0);
             const secondDefenderPower = Object.values(secondAttack?.result.battleResult?.initialPlayerArmy || {}).reduce((sum, count) => sum + (count || 0), 0);
 
             expect(firstDefenderPower).toBe(30);
-            // Note: Second attack also sees 30 defenders due to how initialPlayerUnits is captured
-            // This is expected behavior in the current implementation
-            expect(secondDefenderPower).toBe(30);
+            // Defenses ARE updated between attacks! The second attack sees reduced defenders.
+            expect(secondDefenderPower).toBeLessThan(30);
         });
 
         it('should process incoming attack before outgoing attack chronologically', () => {
@@ -698,7 +694,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { report } = calculateOfflineProgress(initialState);
@@ -764,7 +761,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { report } = calculateOfflineProgress(initialState);
@@ -835,7 +833,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { newState } = calculateOfflineProgress(initialState);
@@ -898,7 +897,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { report } = calculateOfflineProgress(initialState);
@@ -957,7 +957,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { report, newLogs } = calculateOfflineProgress(initialState);
@@ -978,13 +979,13 @@ describe('Attack Queue System', () => {
             expect(battleResult?.rounds).toBeDefined();
             expect(battleResult?.rounds.length).toBeGreaterThan(0);
 
-            // Verify initial armies
-            expect(battleResult?.initialPlayerArmy[UnitType.CYBER_MARINE]).toBe(20);
+            // Verify initial armies (now properly tracks returned patrol units 20 + 50 = 70)
+            expect(battleResult?.initialPlayerArmy[UnitType.CYBER_MARINE]).toBe(70);
             expect(battleResult?.initialPlayerArmy[UnitType.HEAVY_COMMANDO]).toBe(5);
             expect(battleResult?.initialEnemyArmy[UnitType.CYBER_MARINE]).toBe(30);
 
-            // Verify combat log was generated
-            const combatLog = newLogs.find(log => log.type === 'combat');
+            // Verify combat log was generated for the defense
+            const combatLog = newLogs.find(log => log.messageKey?.startsWith('log_defense_'));
             expect(combatLog).toBeDefined();
             expect(combatLog?.messageKey).toMatch(/log_defense_(win|loss)/);
             expect(combatLog?.params?.combatResult).toBeDefined();
@@ -1038,7 +1039,8 @@ describe('Attack Queue System', () => {
                 lastSaveTime: now - (45 * 60 * 1000),
                 units: initialUnits,
                 incomingAttacks: [enemyAttack],
-                activeMissions: [patrolMission]
+                activeMissions: [patrolMission],
+                rankingData: { bots: [], lastUpdateTime: now }
             });
 
             const { report } = calculateOfflineProgress(initialState);
@@ -1046,8 +1048,8 @@ describe('Attack Queue System', () => {
             const incomingResult = report.queuedAttackResults.find(r => r.type === 'INCOMING');
             const battleResult = incomingResult?.result.battleResult;
 
-            // Verify all unit types are tracked in combat report
-            expect(battleResult?.initialPlayerArmy[UnitType.CYBER_MARINE]).toBe(15);
+            // Verify all unit types are tracked in combat report (now properly tracks returned patrol units 15 + 50 = 65)
+            expect(battleResult?.initialPlayerArmy[UnitType.CYBER_MARINE]).toBe(65);
             expect(battleResult?.initialPlayerArmy[UnitType.HEAVY_COMMANDO]).toBe(10);
             expect(battleResult?.initialPlayerArmy[UnitType.SCOUT_TANK]).toBe(5);
             expect(battleResult?.initialPlayerArmy[UnitType.TITAN_MBT]).toBe(2);

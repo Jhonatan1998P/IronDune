@@ -33,25 +33,25 @@ const UNIT_TIER_MAP: Record<UnitType, number> = {
  */
 const selectSmartTarget = (
     attacker: BattleEntity,
-    targets: BattleEntity[],
-    targetCount: number
+    targets: BattleEntity[]
 ): BattleEntity | null => {
+    // Filtrar targets válidos y vivos primero
+    const validTargets = targets.filter(t => t && !t.isDead);
+    if (validTargets.length === 0) return null;
+
     const attackerTier = UNIT_TIER_MAP[attacker.type];
     const targetingChance = TARGETING_TIER_CHANCE[attackerTier] || 0;
     const rfMap = attacker.def.rapidFire;
 
     // Si el atacante no tiene rapidFire o no hay chance de targeting inteligente, seleccion al azar
-    if (!rfMap || targetingChance === 0 || targets.length === 0) {
-        const randomIndex = Math.floor(Math.random() * Math.min(targetCount, targets.length));
-        return targets[randomIndex] || null;
+    if (!rfMap || targetingChance === 0) {
+        const randomIndex = Math.floor(Math.random() * validTargets.length);
+        return validTargets[randomIndex] || null;
     }
 
     // Con probabilidad del tier, buscar un objetivo que countere
     if (Math.random() < targetingChance) {
-        // Filtrar solo objetivos vivos y que estén en el rapidFire del atacante
-        const counterTargets = targets.filter(t => 
-            !t.isDead && rfMap[t.type] !== undefined
-        );
+        const counterTargets = validTargets.filter(t => rfMap[t.type] !== undefined);
 
         if (counterTargets.length > 0) {
             // Seleccionar aleatoriamente entre los objetivos que counterea
@@ -61,8 +61,8 @@ const selectSmartTarget = (
     }
 
     // Selección aleatoria estándar
-    const randomIndex = Math.floor(Math.random() * Math.min(targetCount, targets.length));
-    return targets[randomIndex] || null;
+    const randomIndex = Math.floor(Math.random() * validTargets.length);
+    return validTargets[randomIndex] || null;
 };
 
 export const UNIT_PRIORITY: UnitType[] = [
@@ -287,7 +287,7 @@ export const simulateCombat = (
                 if (actualCount === 0) break;
                 
                 // Select target with smart targeting (prioriza objetivos con rapidFire según el tier)
-                const target = selectSmartTarget(attacker, targets, targetCount);
+                const target = selectSmartTarget(attacker, targets);
                 
                 // Safety check: skip if target is invalid
                 if (!target || target.isDead) break;

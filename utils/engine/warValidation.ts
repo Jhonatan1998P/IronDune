@@ -12,8 +12,8 @@ import { WAR_TOTAL_WAVES, WAR_PLAYER_ATTACKS, WAR_DURATION_MS, WAR_OVERTIME_MS, 
 // ============================================
 
 export const MAX_WAVE_DELAY_MS = 5 * 60 * 1000; // 5 minutes max drift correction
-export const MIN_WAVE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes minimum between waves
-export const MAX_WAVE_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes maximum between waves
+export const MIN_WAVE_INTERVAL_MS = Math.floor(WAR_WAVE_INTERVAL_MS * 0.5); // Minimum between waves (50% of normal interval)
+export const MAX_WAVE_INTERVAL_MS = Math.floor(WAR_WAVE_INTERVAL_MS * 1.5); // Maximum between waves (150% of normal interval)
 export const MAX_LOOT_POOL_MULTIPLIER = 10; // Prevent infinite loot accumulation exploits
 export const MAX_RESOURCE_LOSS_RATIO = 0.95; // Can't lose more than 95% in a war
 export const MAX_UNIT_LOSS_RATIO = 0.99; // Can't lose more than 99% of units

@@ -211,6 +211,27 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 newUnits[unitType] = Math.max(0, (newUnits[unitType] || 0) - (count as number));
             });
 
+            // Apply building plunder if enemy won the raid
+            if (result.stolenBuildings) {
+                Object.entries(result.stolenBuildings).forEach(([bType, stolen]) => {
+                    const buildingType = bType as BuildingType;
+                    if (stolen && (stolen as number) > 0 && newBuildings[buildingType]) {
+                        newBuildings[buildingType] = {
+                            ...newBuildings[buildingType],
+                            level: Math.max(0, newBuildings[buildingType].level - (stolen as number))
+                        };
+                    }
+                });
+            }
+
+            // Apply Diamond Mine damage if enemy won
+            if (result.diamondDamaged && newBuildings[BuildingType.DIAMOND_MINE]) {
+                newBuildings[BuildingType.DIAMOND_MINE] = {
+                    ...newBuildings[BuildingType.DIAMOND_MINE],
+                    isDamaged: true
+                };
+            }
+
             newLifetimeStats.unitsLost += Object.values(result.unitsLost || {}).reduce((a: any, b: any) => a + b, 0) as number;
 
             logs.push(...attackLogs.map(log => ({ ...log, timestamp: item.endTime })));

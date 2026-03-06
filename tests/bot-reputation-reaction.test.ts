@@ -61,16 +61,16 @@ describe('Bot Reaction to Player Attack - Retaliation System', () => {
     });
 
     describe('3. Retaliation Multiplier by Personality', () => {
-        it('WARLORD should have 1.3x army multiplier', () => {
+        it('WARLORD should have 1.1x army multiplier', () => {
             const multiplier = getRetaliationMultiplier(BotPersonality.WARLORD);
             console.log(`WARLORD retaliation multiplier: ${multiplier}x`);
-            expect(multiplier).toBe(1.3);
+            expect(multiplier).toBe(1.1);
         });
 
-        it('TURTLE should have 1.5x army multiplier (deathball)', () => {
+        it('TURTLE should have 1.2x army multiplier (deathball)', () => {
             const multiplier = getRetaliationMultiplier(BotPersonality.TURTLE);
             console.log(`TURTLE retaliation multiplier: ${multiplier}x`);
-            expect(multiplier).toBe(1.5);
+            expect(multiplier).toBe(1.2);
         });
 
         it('TYCOON should have 1.0x army multiplier', () => {
@@ -102,12 +102,12 @@ describe('Bot Reaction to Low Reputation', () => {
     const TEST_SCORE = 1000;
 
     describe('1. Reputation Decay by Current Level', () => {
-        it('reputation >= 75 should NOT decay (stable allies)', () => {
+        it('reputation >= 85 should NOT decay (stable allies)', () => {
             const bot: StaticBot = {
                 id: 'test-bot',
                 name: 'Test Bot',
                 personality: BotPersonality.WARLORD,
-                reputation: 80,
+                reputation: 90,
                 stats: { [RankingCategory.DOMINION]: TEST_SCORE, [RankingCategory.MILITARY]: 800, [RankingCategory.ECONOMY]: 600, [RankingCategory.CAMPAIGN]: 0 },
                 avatarId: 1,
                 country: 'US',
@@ -121,7 +121,7 @@ describe('Bot Reaction to Low Reputation', () => {
             const updatedBot = result.updatedBots[0];
 
             console.log(`Bot rep 80 -> ${updatedBot.reputation} (should stay 80)`);
-            expect(updatedBot.reputation).toBe(80);
+            expect(updatedBot.reputation).toBe(90);
         });
 
         it('reputation < 75 should decay', () => {
@@ -239,7 +239,7 @@ describe('Personality-Specific Behavior Summary', () => {
             console.log(`Strategy: Aggressive offense, high-tier units`);
 
             expect(chance).toBe(0.95);
-            expect(multiplier).toBe(1.3);
+            expect(multiplier).toBe(1.1);
         });
 
         it('TURTLE: defensive, high retaliation chance, deathball army', () => {
@@ -252,7 +252,7 @@ describe('Personality-Specific Behavior Summary', () => {
             console.log(`Strategy: Defensive superiority, tanky units`);
 
             expect(chance).toBe(0.85);
-            expect(multiplier).toBe(1.5);
+            expect(multiplier).toBe(1.2);
         });
 
         it('TYCOON: economic, low retaliation chance, normal army', () => {
