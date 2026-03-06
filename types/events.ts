@@ -18,11 +18,12 @@ export enum GameEventType {
   
   // P2P Async Attacks
   INCOMING_P2P_ATTACK = 'INCOMING_P2P_ATTACK',
-  P2P_BATTLE_RESULT = 'P2P_BATTLE_RESULT'
+  P2P_BATTLE_RESULT = 'P2P_BATTLE_RESULT',
+  SHOW_TOAST = 'SHOW_TOAST'
 }
 
 // Mapeo estricto de Evento -> Datos
-export interface GameEventPayloads {
+export type GameEventPayloads = {
   [GameEventType.STATE_CHANGE]: void; // Señal genérica de actualización
   [GameEventType.ERROR_OCCURRED]: { code: string; message: string };
   
@@ -40,6 +41,7 @@ export interface GameEventPayloads {
   
   [GameEventType.INCOMING_P2P_ATTACK]: any; // import { P2PAttackRequest } from './multiplayer'; causes circular deps? Let's use any for now
   [GameEventType.P2P_BATTLE_RESULT]: any;
+  [GameEventType.SHOW_TOAST]: { message: string; type?: 'success' | 'error' | 'info' | 'warning'; duration?: number };
 }
 
 export type GameEventCallback<T extends GameEventType> = (payload: GameEventPayloads[T]) => void;

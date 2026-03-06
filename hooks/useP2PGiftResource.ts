@@ -56,7 +56,7 @@ const saveGiftLimits = (state: GiftLimitState) => {
 
 export const useP2PGiftResource = () => {
   const { gameState, receiveP2PResource, deductLocalResource } = useGame();
-  const { broadcastAction, localPlayerId, isConnected } = useMultiplayer();
+  const { sendToPeer, localPlayerId, isConnected } = useMultiplayer();
 
   // Ref para acceder a las funciones más recientes en el listener del eventBus
   const receiveP2PResourceRef = useRef(receiveP2PResource);
@@ -132,13 +132,16 @@ export const useP2PGiftResource = () => {
   }, []);
 
   /**
-   * Envía recursos a todos los peers conectados.
+   * Envía recursos a un peer conectado específico.
    * Descuenta de los propios recursos del jugador y persiste el límite.
    * @returns { success: boolean; reason?: string }
    */
-  const sendResource = useCallback((resource: GiftableResource, amount: number): { success: boolean; reason?: string } => {
+  const sendResource = useCallback((resource: GiftableResource, amount: number, targetPeerId: string): { success: boolean; reason?: string } => {
     if (!isConnected || !localPlayerId) {
       return { success: false, reason: 'No conectado' };
+    }
+    if (!targetPeerId) {
+      return { success: false, reason: 'Debes seleccionar un jugador' };
     }
     if (amount <= 0) {
       return { success: false, reason: 'Cantidad inválida' };
@@ -163,13 +166,13 @@ export const useP2PGiftResource = () => {
     limits[resource] = (limits[resource] ?? 0) + amount;
     saveGiftLimits(limits);
 
-    // Enviar a todos los peers
+    // Enviar al peer específico
     const payload: GiftResourcePayload = {
       resource,
       amount,
       senderName: gameState.playerName || 'Aliado',
     };
-    broadcastAction({
+    sendToPeer(targetPeerId, {
       type: MultiplayerActionType.GIFT_RESOURCE,
       payload,
       playerId: localPlayerId,
@@ -177,7 +180,7 @@ export const useP2PGiftResource = () => {
     });
 
     return { success: true };
-  }, [isConnected, localPlayerId, gameState.resources, gameState.playerName, getRemainingLimit, broadcastAction]);
+  }, [isConnected, localPlayerId, gameState.resources, gameState.playerName, getRemainingLimit, sendToPeer]);
 
   return {
     sendResource,

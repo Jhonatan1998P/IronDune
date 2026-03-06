@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { gameEventBus } from '../../utils/eventBus';
+import { GameEventType } from '../../types/events';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -51,6 +53,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const showError = useCallback((message: string) => showToast(message, 'error', 5000), [showToast]);
   const showInfo = useCallback((message: string) => showToast(message, 'info'), [showToast]);
   const showWarning = useCallback((message: string) => showToast(message, 'warning'), [showToast]);
+
+  useEffect(() => {
+    const handleShowToast = (payload: { message: string; type?: ToastType; duration?: number }) => {
+      showToast(payload.message, payload.type, payload.duration);
+    };
+
+    gameEventBus.on(GameEventType.SHOW_TOAST, handleShowToast);
+
+    return () => {
+      gameEventBus.off(GameEventType.SHOW_TOAST, handleShowToast);
+    };
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ toasts, showToast, showSuccess, showError, showInfo, showWarning, removeToast }}>

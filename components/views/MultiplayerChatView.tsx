@@ -40,6 +40,7 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
     const [showGiftPanel, setShowGiftPanel] = useState(false);
+    const [giftTarget, setGiftTarget] = useState<string>('');
     const [sendError, setSendError] = useState<string | null>(null);
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
 
@@ -156,15 +157,30 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
     };
 
     const handleSendResource = (resource: GiftableResource, fraction: number) => {
+        if (!giftTarget) {
+            setSendError('Debes seleccionar un jugador destino');
+            return;
+        }
+
+        const targetPlayer = remotePlayers.find(p => p.id === giftTarget);
+        if (!targetPlayer) {
+            setSendError('El jugador seleccionado ya no está en la sala');
+            setGiftTarget('');
+            return;
+        }
+
         const remaining = getRemainingLimit(resource);
         const amount = Math.floor(remaining * fraction);
         if (amount <= 0) {
             setSendError('No tienes recursos disponibles para enviar');
             return;
         }
-        const result = sendResource(resource, amount);
+        const result = sendResource(resource, amount, giftTarget);
         if (result.success) {
-            setSendSuccess(`Enviaste ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a todos`);
+            setSendSuccess(`Enviaste ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name}`);
+            
+            // Opcional: Anunciar en el chat
+            sendMessage(`🎁 He enviado ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name}`, gameState.playerName);
         } else {
             setSendError(result.reason ?? 'Error al enviar');
         }
@@ -246,11 +262,27 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
             {/* Gift Panel */}
             {showGiftPanel && (
                 <div className="shrink-0 bg-slate-950/60 border border-white/10 rounded-xl p-2.5 animate-[fadeIn_0.2s_ease-out]">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-1">
-                            <Gift className="w-3 h-3" /> Enviar Recursos (a todos)
+                            <Gift className="w-3 h-3" /> Enviar Recursos
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono">
+                        
+                        {/* Selector de objetivo */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-slate-400 uppercase tracking-wider">A:</span>
+                            <select 
+                                className="bg-slate-900 border border-white/10 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-cyan-500/50"
+                                value={giftTarget}
+                                onChange={(e) => setGiftTarget(e.target.value)}
+                            >
+                                <option value="" disabled>Selecciona jugador...</option>
+                                {remotePlayers.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <span className="text-[9px] text-slate-500 font-mono ml-auto">
                             Reset en {fmtMs(msUntilReset)}
                         </span>
                     </div>
