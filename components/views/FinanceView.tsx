@@ -85,9 +85,9 @@ export const FinanceView: React.FC<{ gameState: GameState; onBankAction: (amount
 
         // 2. Calcular Interés Bancario (Ingreso Pasivo)
         if (gameState.bankBalance > 0 && hasBank) {
-            // Tasa actual es por 6 horas. 
-            // Interés por hora = (Balance * Tasa) / 6
-            const hourlyInterest = (gameState.bankBalance * gameState.currentInterestRate) / 6;
+            // Tasa actual es por 24 horas. 
+            // Interés por hora = (Balance * Tasa) / 24
+            const hourlyInterest = (gameState.bankBalance * gameState.currentInterestRate) / 24;
             if (hourlyInterest > 0) {
                 report.income.push({
                     source: `${t.common.ui.bank_yield} (${(gameState.currentInterestRate * 100).toFixed(2)}%)`,

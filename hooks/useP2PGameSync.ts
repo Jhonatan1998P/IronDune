@@ -66,21 +66,36 @@ export const useP2PGameSync = () => {
   useEffect(() => { addP2PIncomingAttackRef.current = addP2PIncomingAttack; }, [addP2PIncomingAttack]);
 
   // Convertir ataque P2P a formato IncomingAttack
-  // IMPORTANTE: Rebasamos los timestamps al reloj LOCAL del defensor para evitar
-  // desincronización cuando los relojes de los jugadores difieren.
-  // Solo preservamos la duración del viaje (endTime - startTime) y la aplicamos
-  // al Date.now() del defensor.
+  // CORRECCIÓN: Usamos el endTime original del atacante (ajustado por latencia de red)
+  // para que el defensor vea el mismo tiempo restante que el atacante.
   const convertToIncomingAttack = (request: P2PAttackRequest): IncomingAttack => {
-    const travelDuration = request.endTime - request.startTime;
     const now = Date.now();
+    const clientSentTime = request.clientSentTime || request.timestamp;
+    const networkLatency = now - clientSentTime;
+
+    // El atacante calculó: endTime = startTime + travelDuration
+    // Cuando el mensaje llegó al defensor ya pasaron 'networkLatency' ms del viaje
+    // Por tanto, el tiempo real restante = request.endTime - clientSentTime - networkLatency
+    //                                    = request.endTime - now
+    // Usamos directamente request.endTime como referencia absoluta y solo ajustamos
+    // por la latencia de red para sincronizar ambos relojes:
+    const defenderEndTime = request.endTime + networkLatency;
+
+    console.log('[P2PGameSync] convertToIncomingAttack:', {
+      requestEndTime: request.endTime,
+      clientSentTime,
+      networkLatency: `${(networkLatency / 1000).toFixed(1)}s`,
+      defenderEndTime,
+      timeRemaining: `${((defenderEndTime - now) / 1000).toFixed(1)}s`,
+    });
 
     return {
       id: request.attackId,
       attackerName: request.attackerName,
       attackerScore: request.attackerScore,
       units: request.units,
-      startTime: now,
-      endTime: now + travelDuration,
+      startTime: request.startTime,
+      endTime: defenderEndTime,
       isP2P: true,
       attackerId: request.attackerId,
       isScouted: false,

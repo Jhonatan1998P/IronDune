@@ -25,6 +25,11 @@ export const useGameLoop = (
 
       if (deltaTimeMs < 10) return;
 
+      // Detectar si el primer tick tiene un delta anormalmente grande (bug de doble producción)
+      if (deltaTimeMs > 5000) {
+        console.warn(`[GameLoop] Large deltaTime detected: ${(deltaTimeMs / 1000).toFixed(1)}s — possible overlap with offline calculation`);
+      }
+
       setGameState((prev) => {
         const { newState, newLogs } = calculateNextTick(prev, deltaTimeMs);
         

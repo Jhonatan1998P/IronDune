@@ -24,6 +24,13 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             [ResourceType.GOLD]: 0,
             [ResourceType.DIAMOND]: 0,
         },
+        resourcesConsumed: {
+            [ResourceType.MONEY]: 0,
+            [ResourceType.OIL]: 0,
+            [ResourceType.AMMO]: 0,
+            [ResourceType.GOLD]: 0,
+            [ResourceType.DIAMOND]: 0,
+        },
         bankInterestEarned: 0,
         completedResearch: [],
         completedMissions: [],
@@ -58,28 +65,41 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             }
         }
 
-        // Use Math.floor consistently for both report and state update
-        // This ensures what the player sees matches what they receive
-        const flooredChange = Math.floor(netChange);
+        const prevAmount = newState.resources[res];
+        // Si prev ya supera el cap (por cambio de empirePoints), primero clampear
+        const clampedPrev = Math.min(prevAmount, maxStorage[res]);
         
-        if (flooredChange > 0) {
-            report.resourcesGained[res] = flooredChange;
+        // El estado interno debe conservar su parte fraccional para precisión matemática
+        newState.resources[res] = Math.max(0, Math.min(maxStorage[res], clampedPrev + netChange));
+        
+        // El delta (para reportes) usa enteros usando truncado/suelo para evitar confusiones
+        const delta = Math.floor(newState.resources[res]) - Math.floor(clampedPrev);
+
+        if (delta > 0) {
+            // Report only what was ACTUALLY added (respecting storage cap)
+            report.resourcesGained[res] = delta;
+        } else if (delta < 0) {
+            // Record net consumption (upkeep exceeded production)
+            report.resourcesConsumed[res] = Math.abs(delta);
         }
 
-        newState.resources[res] = Math.max(0, Math.min(maxStorage[res], newState.resources[res] + flooredChange));
+        console.log(`[Offline] ${res}: prev=${prevAmount} clampedPrev=${clampedPrev} cap=${maxStorage[res]} netChange=${netChange} delta=${delta}`);
     });
 
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
         if (newState.bankBalance < maxBankCapacity) {
-            const minuteRate = newState.currentInterestRate / 360;
-            const timeInMinutes = effectiveTimeMs / 60000;
-            const interestEarned = newState.bankBalance * minuteRate * timeInMinutes;
+            // currentInterestRate es el interés diario (24 horas)
+            const timeInDays = effectiveTimeMs / (24 * 60 * 60 * 1000); // fracción de un día que pasó offline
+            const interestEarned = newState.bankBalance * newState.currentInterestRate * timeInDays;
+            
             const actualInterest = Math.min(maxBankCapacity - newState.bankBalance, interestEarned);
-            // Use Math.floor consistently for both report and state update
-            const flooredInterest = Math.floor(actualInterest);
-            newState.bankBalance += flooredInterest;
-            report.bankInterestEarned = flooredInterest;
+            
+            const prevBank = newState.bankBalance;
+            newState.bankBalance += actualInterest;
+            
+            // Reportamos el aumento entero
+            report.bankInterestEarned = Math.floor(newState.bankBalance) - Math.floor(prevBank);
         }
     }
 

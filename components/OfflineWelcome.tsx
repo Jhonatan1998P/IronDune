@@ -84,32 +84,49 @@ export const OfflineWelcome: React.FC<OfflineWelcomeProps> = ({ report, gameStat
                             <span className="break-words">{t.offline.production_summary}</span>
                         </h3>
                         <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                            {/* Ganancias */}
                             {Object.entries(report.resourcesGained).map(([res, val]) => {
                                 const amount = val as number;
                                 if (amount === 0) return null;
                                 return (
                                     <div 
-                                        key={res} 
+                                        key={`gain-${res}`} 
                                         className="bg-black/30 p-2 sm:p-3 rounded-lg flex justify-between items-center border border-white/5 hover:border-emerald-500/30 transition-colors"
                                     >
                                         <span className="text-[10px] sm:text-xs text-slate-400 uppercase truncate pr-2">
                                             {t.common.resources[res]}
                                         </span>
-                                        <span 
-                                            className={`font-mono font-bold text-sm sm:text-base md:text-lg whitespace-nowrap ${
-                                                amount > 0 ? 'text-emerald-400' : 'text-red-400'
-                                            }`}
-                                        >
-                                            {amount > 0 ? '+' : ''}{formatNumber(amount)}
+                                        <span className="font-mono font-bold text-sm sm:text-base md:text-lg whitespace-nowrap text-emerald-400">
+                                            +{formatNumber(amount)}
                                         </span>
                                     </div>
                                 );
                             })}
-                            {/* Mensaje si no hay producción */}
-                            {Object.values(report.resourcesGained).every(val => val === 0) && (
+                            
+                            {/* Consumo (Upkeep) */}
+                            {report.resourcesConsumed && Object.entries(report.resourcesConsumed).map(([res, val]) => {
+                                const amount = val as number;
+                                if (amount === 0) return null;
+                                return (
+                                    <div 
+                                        key={`consume-${res}`} 
+                                        className="bg-black/30 p-2 sm:p-3 rounded-lg flex justify-between items-center border border-white/5 hover:border-red-500/30 transition-colors"
+                                    >
+                                        <span className="text-[10px] sm:text-xs text-slate-400 uppercase truncate pr-2">
+                                            {t.common.resources[res]}
+                                        </span>
+                                        <span className="font-mono font-bold text-sm sm:text-base md:text-lg whitespace-nowrap text-red-400">
+                                            -{formatNumber(amount)}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                            
+                            {/* Mensaje si no hay cambios */}
+                            {Object.values(report.resourcesGained).every(val => val === 0) && (!report.resourcesConsumed || Object.values(report.resourcesConsumed).every(val => val === 0)) && (
                                 <div className="col-span-2 bg-black/20 p-3 rounded-lg border border-white/5 text-center">
                                     <p className="text-xs sm:text-sm text-slate-400">
-                                        {language === 'es' ? 'Sin producción durante la ausencia' : 'No production while away'}
+                                        {language === 'es' ? 'Sin producción ni consumo durante la ausencia' : 'No production or consumption while away'}
                                     </p>
                                 </div>
                             )}

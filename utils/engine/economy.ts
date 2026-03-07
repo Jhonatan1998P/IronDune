@@ -56,9 +56,9 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
     if (newBankBalance > 0 && bankLevel > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(state.empirePoints, bankLevel);
         if (newBankBalance < maxBankCapacity) {
-            const minuteRate = newRate / 360; 
-            const timeInMinutes = deltaTimeMs / 60000;
-            const interestEarned = newBankBalance * minuteRate * timeInMinutes;
+            // newRate is the daily interest rate (e.g. 0.045 for 4.5% per 24 hours)
+            const timeInDays = deltaTimeMs / (24 * 60 * 60 * 1000); // fraction of a day passed
+            const interestEarned = newBankBalance * newRate * timeInDays;
             newBankBalance = Math.min(maxBankCapacity, newBankBalance + interestEarned);
         }
     }

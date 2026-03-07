@@ -339,6 +339,7 @@ export interface BattleResult {
 export interface OfflineReport {
     timeElapsed: number; 
     resourcesGained: Record<ResourceType, number>;
+    resourcesConsumed: Record<ResourceType, number>;
     bankInterestEarned: number;
     completedResearch: TechType[];
     completedMissions: {

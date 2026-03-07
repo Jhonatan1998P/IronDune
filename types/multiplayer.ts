@@ -254,6 +254,7 @@ export interface P2PAttackRequest {
   startTime: number;
   endTime: number;           // Tiempo de viaje (ej: 7.5 minutos)
   timestamp: number;
+  clientSentTime: number;   // Timestamp de cuando el cliente envió el ataque (para calcular latencia)
 }
 
 export interface P2PAttackResult {

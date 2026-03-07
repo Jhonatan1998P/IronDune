@@ -17,9 +17,9 @@ export const getIncomeStats = (state: GameState): { production: Record<ResourceT
     // Note: In engine loop, interest is added directly to balance, not technically a "production rate" of the MONEY resource.
     // However, for UI clarity, we calculate the equivalent per-second rate here.
     if (state.bankBalance > 0 && state.buildings[BuildingType.BANK].level > 0) {
-        // Logic mirrors utils/engine/loop.ts
-        const minuteRate = state.currentInterestRate / 360; // 6-hour rate divided to minute
-        // Interest per minute = Balance * MinuteRate
+        // Logic mirrors utils/engine/economy.ts
+        // Interest rate is per 24 hours (24 * 60 = 1440 minutes)
+        const minuteRate = state.currentInterestRate / 1440; 
         const interestPerMinute = state.bankBalance * minuteRate;
         // Add to per-second rate for display
         production[ResourceType.MONEY] += (interestPerMinute / 60);

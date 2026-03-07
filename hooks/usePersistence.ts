@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, MutableRefObject, useRef } from 'react';
 import { GameState, GameStatus, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
@@ -67,9 +67,14 @@ export const usePersistence = (
     return () => clearInterval(cleanupInterval);
   }, [gameState.spyReports?.length, gameState.logs?.length, setGameState]);
 
+  const isResettingRef = useRef(false);
+
   // Save on page unload (when user closes tab/browser)
   useEffect(() => {
     const handleBeforeUnload = () => {
+      // Ignorar el guardado si estamos en medio de un reinicio total
+      if (isResettingRef.current) return;
+
       if (status === 'PLAYING') {
         const now = Date.now();
         saveSpyReportsToStorage(gameState.spyReports || []);
@@ -135,7 +140,25 @@ export const usePersistence = (
               .slice(0, 100);
         }
         
+        console.log('[LoadGame] Recursos Originales antes de Offline:', {
+            MONEY: migratedState.resources.MONEY,
+            OIL: migratedState.resources.OIL,
+            AMMO: migratedState.resources.AMMO,
+            GOLD: migratedState.resources.GOLD,
+            DIAMOND: migratedState.resources.DIAMOND,
+            Bank: migratedState.bankBalance
+        });
+        
         const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+
+        console.log('[LoadGame] Recursos Finales después de Offline:', {
+            MONEY: newState.resources.MONEY,
+            OIL: newState.resources.OIL,
+            AMMO: newState.resources.AMMO,
+            GOLD: newState.resources.GOLD,
+            DIAMOND: newState.resources.DIAMOND,
+            Bank: newState.bankBalance
+        });
 
         if (newLogs.length > 0) {
             newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -236,7 +259,25 @@ export const usePersistence = (
               .slice(0, 100);
         }
         
+        console.log('[ImportSave] Recursos Originales antes de Offline:', {
+            MONEY: migratedState.resources.MONEY,
+            OIL: migratedState.resources.OIL,
+            AMMO: migratedState.resources.AMMO,
+            GOLD: migratedState.resources.GOLD,
+            DIAMOND: migratedState.resources.DIAMOND,
+            Bank: migratedState.bankBalance
+        });
+
         const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+
+        console.log('[ImportSave] Recursos Finales después de Offline:', {
+            MONEY: newState.resources.MONEY,
+            OIL: newState.resources.OIL,
+            AMMO: newState.resources.AMMO,
+            GOLD: newState.resources.GOLD,
+            DIAMOND: newState.resources.DIAMOND,
+            Bank: newState.bankBalance
+        });
 
         if (newLogs.length > 0) {
             newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -257,15 +298,34 @@ export const usePersistence = (
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
   const resetGame = useCallback(() => {
-      setGameState(INITIAL_GAME_STATE);
+      // 1. Marcar el Ref para detener los listeners de guardado de beforeunload
+      isResettingRef.current = true;
+      
+      // 2. Pausar el juego inmediatamente para detener el loop y el autosave
+      setStatus('MENU');
+      
+      // Eliminar el event listener the beforeunload para evitar que vuelva a guardar al hacer reload
+      window.onbeforeunload = null;
+
+      // 3. Limpiar el estado de memoria a valores iniciales
+      setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
       setOfflineReport(null);
       setHasNewReports(false);
+      
+      // 4. Limpiar TODO el localStorage relacionado al juego
       localStorage.removeItem('ironDuneSave');
       localStorage.removeItem(SPY_REPORTS_STORAGE_KEY);
       localStorage.removeItem(LOGS_STORAGE_KEY);
       localStorage.removeItem('ironDuneP2PChatMessages');
+      
+      // 5. Marcar que ya no hay save
       setHasSave(false);
-      setStatus('MENU');
+      
+      // 6. Hard Reset con un timeout mínimo para asegurar que I/O del storage se completó
+      // y prevenir race conditions con eventos de la ventana
+      setTimeout(() => {
+          window.location.reload();
+      }, 50);
   }, [setGameState, setOfflineReport, setHasNewReports, setStatus]);
 
   return { hasSave, startNewGame, loadGame, saveGame, exportSave, importSave, resetGame, performAutoSave };
