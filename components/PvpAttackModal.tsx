@@ -5,7 +5,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { formatNumber, formatDuration } from '../utils';
 import { executePvpAttack } from '../utils/engine/actions';
-import { PVP_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../constants';
+import { GLOBAL_ATTACK_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../constants';
 
 interface PvpAttackModalProps {
     target: { id: string; name: string; score: number };
@@ -68,8 +68,8 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
     const availableUnits = (Object.entries(gameState.units) as [UnitType, number][]).filter(([, count]) => count > 0);
     const totalSelected = Object.values(selectedUnits).reduce((a: number, b) => a + ((b as number) || 0), 0);
     
-    let travelTime = PVP_TRAVEL_TIME_MS;
-    if (useDiamond) travelTime = PVP_TRAVEL_TIME_MS * 0.2;
+    let travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS;
+    if (useDiamond) travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS * 0.2;
     
     const hasDiamonds = gameState.resources[ResourceType.DIAMOND] >= 1;
 

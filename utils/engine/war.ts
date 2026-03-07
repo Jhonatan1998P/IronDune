@@ -29,7 +29,7 @@ import { calculateActiveReinforcements } from './allianceReinforcements';
 import { 
     WAR_TOTAL_WAVES, 
     WAR_PLAYER_ATTACKS, 
-    PVP_TRAVEL_TIME_MS, 
+    GLOBAL_ATTACK_TRAVEL_TIME_MS, 
     WAR_DURATION_MS, 
     WAR_WAVE_INTERVAL_MS, 
     WAR_OVERTIME_MS, 
@@ -157,7 +157,7 @@ export const generateWarWave = (
         }
 
         const now = Date.now();
-        const endTime = specificEndTime || (now + PVP_TRAVEL_TIME_MS);
+        const endTime = specificEndTime || (now + GLOBAL_ATTACK_TRAVEL_TIME_MS);
 
         // Validate end time
         if (endTime <= now || endTime > now + (60 * 60 * 1000)) {
@@ -169,7 +169,7 @@ export const generateWarWave = (
             attackerName: `${warState.enemyName} (Wave ${waveNumber})`,
             attackerScore: warState.enemyScore,
             units: enemyForce,
-            startTime: endTime - PVP_TRAVEL_TIME_MS,
+            startTime: endTime - GLOBAL_ATTACK_TRAVEL_TIME_MS,
             endTime: endTime,
             isWarWave: true,
             delayCount: 0,
@@ -192,7 +192,7 @@ const createFallbackWave = (
     const now = Date.now();
     const endTime = specificEndTime && specificEndTime > now 
         ? specificEndTime 
-        : now + PVP_TRAVEL_TIME_MS;
+        : now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
     // Minimal valid army
     const minimalArmy: Partial<Record<UnitType, number>> = {
@@ -204,7 +204,7 @@ const createFallbackWave = (
         attackerName: `${warState.enemyName} (Wave ${waveNumber})`,
         attackerScore: warState.enemyScore,
         units: minimalArmy,
-        startTime: endTime - PVP_TRAVEL_TIME_MS,
+        startTime: endTime - GLOBAL_ATTACK_TRAVEL_TIME_MS,
         endTime: endTime,
         isWarWave: true,
         delayCount: 0,
@@ -275,7 +275,7 @@ export const startWar = (
             return state;
         }
 
-        const firstWaveEndTime = now + PVP_TRAVEL_TIME_MS;
+        const firstWaveEndTime = now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
         // Create war state with comprehensive initialization
         const warState: WarState = {
@@ -844,7 +844,7 @@ const handleRandomAttack = (
         }
 
         const fullPowerArmy = generateBotArmy(enemyScore, 1.0, enemyPersonality);
-        const arrivalTime = now + PVP_TRAVEL_TIME_MS;
+        const arrivalTime = now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
         const raidAttack: IncomingAttack = {
             id: `bot-raid-${now}-${enemyId}`,

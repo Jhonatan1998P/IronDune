@@ -1,6 +1,6 @@
 
 import { UNIT_DEFS } from '../../../data/units';
-import { NEWBIE_PROTECTION_THRESHOLD, PVP_RANGE_MAX, PVP_RANGE_MIN, PVP_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../../../constants';
+import { NEWBIE_PROTECTION_THRESHOLD, PVP_RANGE_MAX, PVP_RANGE_MIN, GLOBAL_ATTACK_TRAVEL_TIME_MS, MAP_MISSION_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../../../constants';
 import { GameState, LogEntry, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
 import { startWar } from '../war';
 import { calculateRecruitmentCost, calculateRecruitmentTime } from '../../formulas';
@@ -81,7 +81,7 @@ export const executeCampaignAttack = (state: GameState, levelId: number, playerU
 
     const missionId = `camp-${Date.now()}`;
     // Use standard 15m travel time like PvP for consistency and balance
-    const endTime = now + PVP_TRAVEL_TIME_MS; 
+    const endTime = now + MAP_MISSION_TRAVEL_TIME_MS; 
     
     const newUnits = { ...state.units };
     Object.entries(playerUnits).forEach(([u, q]) => newUnits[u as UnitType] -= (q as number));
@@ -89,7 +89,7 @@ export const executeCampaignAttack = (state: GameState, levelId: number, playerU
     const newState = {
         ...state,
         units: newUnits,
-        activeMissions: [ ...state.activeMissions, { id: missionId, type: 'CAMPAIGN_ATTACK' as const, startTime: now, endTime, duration: 15, units: playerUnits, levelId } ]
+        activeMissions: [ ...state.activeMissions, { id: missionId, type: 'CAMPAIGN_ATTACK' as const, startTime: now, endTime, duration: Math.floor(MAP_MISSION_TRAVEL_TIME_MS / 60000), units: playerUnits, levelId } ]
     };
     return { success: true, newState };
 };
@@ -99,7 +99,7 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
     if (state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD) return { success: false, errorKey: 'protection_active' };
 
     let isWarAttack = false;
-    let travelTime = PVP_TRAVEL_TIME_MS; // Default 15 min
+    let travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS; // Default 15 min
 
     // Check reset time for limits
     const now = Date.now();
@@ -127,7 +127,7 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
 
     // Apply Diamond Acceleration
     if (useDiamond) {
-        travelTime = Math.floor(PVP_TRAVEL_TIME_MS * 0.2); // 80% Reduction
+        travelTime = Math.floor(GLOBAL_ATTACK_TRAVEL_TIME_MS * 0.2); // 80% Reduction
     }
 
     const hasUnits = Object.entries(playerUnits).some(([, val]) => val && val > 0);

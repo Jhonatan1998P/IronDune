@@ -27,7 +27,7 @@ import {
     RETALIATION_MULTIPLIER_TYCOON,
     RETALIATION_MULTIPLIER_ROGUE,
     REPUTATION_ENEMY_THRESHOLD,
-    PVP_TRAVEL_TIME_MS,
+    GLOBAL_ATTACK_TRAVEL_TIME_MS,
     NEWBIE_PROTECTION_THRESHOLD
 } from '../../constants';
 
@@ -259,7 +259,7 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         const army = generateBotArmy(botScore, budgetMultiplier, bot.personality, playerUnits);
         
         // Calculate arrival time with delay for simultaneous attacks
-        let arrivalTime = now + PVP_TRAVEL_TIME_MS;
+        let arrivalTime = now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
         if (pendingAttacks.length > 0) {
             // Add 5 minute delay for each previous pending attack
             arrivalTime += ENEMY_ATTACK_SIMULTANEOUS_DELAY_MS * pendingAttacks.length;

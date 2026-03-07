@@ -1,7 +1,7 @@
 import { BotPersonality, UnitType } from '../../types/enums';
 import { GameState, Grudge, IncomingAttack, LogEntry } from '../../types';
 import { 
-    PVP_TRAVEL_TIME_MS, 
+    GLOBAL_ATTACK_TRAVEL_TIME_MS, 
     NEWBIE_PROTECTION_THRESHOLD, 
     REPUTATION_ALLY_THRESHOLD, 
     REPUTATION_ENEMY_THRESHOLD,
@@ -64,7 +64,7 @@ const launchRetaliation = (
     now: number,
     playerUnits: Record<UnitType, number>
 ): IncomingAttack => {
-    const arrivalTime = now + PVP_TRAVEL_TIME_MS;
+    const arrivalTime = now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
     // Personality affects army strength via multiplier
     const multiplier = getRetaliationMultiplier(grudge.botPersonality);

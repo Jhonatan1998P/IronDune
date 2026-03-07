@@ -10,7 +10,8 @@ export const TICK_RATE_MS = 1000;
 export const NEWBIE_PROTECTION_THRESHOLD = 1200; // Points required to enable Threat and PvP
 
 // PVP SETTINGS
-export const PVP_TRAVEL_TIME_MS = 7.5 * 60 * 1000; // 7.5 Minutes standard for PvP and War
+export const GLOBAL_ATTACK_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP, PvE and War
+export const MAP_MISSION_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for Campaign Map Missions
 export const PVP_RANGE_MIN = 0.5; // 50%
 export const PVP_RANGE_MAX = 1.5 // 150%
 export const PVP_LOOT_FACTOR = 0.15; // Legacy Factor (Kept for compatibility)
@@ -39,7 +40,7 @@ export const WAR_DURATION_MS = 130 * 60 * 1000; // 2 Hours 10 Minutes Base
 export const WAR_OVERTIME_MS = 20 * 60 * 1000; // 20 Minutes added on Tie
 export const WAR_TOTAL_WAVES = 8; // 8 Waves Base
 export const WAR_PLAYER_ATTACKS = 8; // Matches waves
-export const WAR_WAVE_INTERVAL_MS = PVP_TRAVEL_TIME_MS; // Waves arrive every 15 mins (if simulated offline)
+export const WAR_WAVE_INTERVAL_MS = GLOBAL_ATTACK_TRAVEL_TIME_MS; // Waves arrive every 15 mins (if simulated offline)
 export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wars
 
 // OFFLINE PROGRESSION LIMITS
