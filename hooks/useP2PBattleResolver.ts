@@ -18,10 +18,12 @@ import { UnitType, ResourceType } from '../types/enums';
 import type { BuildingType } from '../types/enums';
 import type { ActiveMission } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
+import { useP2PAttackLimits } from './useP2PAttackLimits';
 
 export const useP2PBattleResolver = () => {
     const { gameState, applyP2PBattleResult } = useGame();
     const { localPlayerId, sendToPeer, remotePlayers } = useMultiplayer();
+    const { getAttackCount } = useP2PAttackLimits();
 
     // Refs siempre actualizados — evitan closures stale en los listeners
     const activeMissionsRef = useRef<ActiveMission[]>([]);
@@ -30,6 +32,7 @@ export const useP2PBattleResolver = () => {
     const remotePlayersRef = useRef(remotePlayers);
     const applyP2PBattleResultRef = useRef(applyP2PBattleResult);
     const gameStateRef = useRef(gameState);
+    const getAttackCountRef = useRef(getAttackCount);
 
     useEffect(() => { activeMissionsRef.current = gameState.activeMissions || []; }, [gameState.activeMissions]);
     useEffect(() => { localPlayerIdRef.current = localPlayerId; }, [localPlayerId]);
@@ -37,6 +40,7 @@ export const useP2PBattleResolver = () => {
     useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
     useEffect(() => { applyP2PBattleResultRef.current = applyP2PBattleResult; }, [applyP2PBattleResult]);
     useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+    useEffect(() => { getAttackCountRef.current = getAttackCount; }, [getAttackCount]);
 
     // Idempotencia: evitar doble solicitud o doble resolución del mismo ataque
     const requestedAttacksRef = useRef<Set<string>>(new Set());
@@ -65,17 +69,25 @@ export const useP2PBattleResolver = () => {
         let loot: Partial<Record<ResourceType, number>> = {};
         const stolenBuildings: Partial<Record<BuildingType, number>> = {};
 
+        // Número de ataque del atacante contra este defensor (ya registrado antes del lanzamiento)
+        const defenderId = mission.targetId || 'DEFENDER';
+        const attackNumber = getAttackCountRef.current(defenderId); // 1-6
+
         if (battleResult.winner === 'PLAYER') {
             loot = {
                 [ResourceType.GOLD]:  Math.floor(targetScore * 2),
                 [ResourceType.OIL]:   Math.floor(targetScore * 1.5),
                 [ResourceType.MONEY]: Math.floor(targetScore * 1.5),
             };
+
+            // Regla 3: pérdida de edificios escalonada (33%/25%/15%/15%/15%/15%)
+            // stolenBuildings aquí es una ESTIMACIÓN — el defensor re-calculará con sus edificios reales.
+            // El atacante sólo necesita saber el attackNumber para que el defensor aplique la tasa correcta.
+            // Enviamos stolenBuildings vacío; la tasa se calcula por attackNumber en el lado defensor.
         }
 
         const myId = localPlayerIdRef.current;
         const gs = gameStateRef.current;
-        const defenderId = mission.targetId || 'DEFENDER';
 
         const result: P2PAttackResult = {
             type: 'P2P_ATTACK_RESULT',
@@ -89,6 +101,7 @@ export const useP2PBattleResolver = () => {
             defenderCasualties: battleResult.totalEnemyCasualties,
             loot,
             stolenBuildings,
+            attackNumber, // Número de este ataque (para tasa de saqueo en el defensor)
             winner: battleResult.winner,
             timestamp: Date.now(),
         };

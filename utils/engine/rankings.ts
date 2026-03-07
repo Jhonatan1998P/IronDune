@@ -396,7 +396,7 @@ export const getCurrentStandings = (state: GameState, bots: StaticBot[], categor
         score: state.empirePoints,
         isPlayer: true,
         avatarId: 0,
-        country: 'US',
+        country: state.playerFlag || 'US',
         tier: 'D',
         trend: 0,
         _rawLastRank: previousPlayerRank,

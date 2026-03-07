@@ -2,14 +2,16 @@ import React, { useMemo } from 'react';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
+import { getFlagEmoji } from '../../utils/engine/rankings';
 import type { PlayerPresence } from '../../types/multiplayer';
 
 interface P2PRankingProps {
   playerName: string;
   playerScore: number;
+  playerFlag?: string;
 }
 
-export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore }) => {
+export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore, playerFlag }) => {
   const { isConnected, remotePlayers, currentRoomId } = useMultiplayer();
 
   // Combinar jugador local con remotePlayers para el ranking
@@ -20,6 +22,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
       score: number;
       isPlayer: boolean;
       isOnline: boolean;
+      flag?: string;
     }> = [];
 
     // Agregar jugador local
@@ -29,6 +32,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
       score: playerScore,
       isPlayer: true,
       isOnline: true,
+      flag: playerFlag,
     });
 
     // Agregar jugadores remotos
@@ -39,12 +43,13 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
         score: player.level,
         isPlayer: false,
         isOnline: true,
+        flag: player.flag,
       });
     });
 
     // Ordenar por score (mayor a menor)
     return players.sort((a, b) => b.score - a.score);
-  }, [playerName, playerScore, remotePlayers]);
+  }, [playerName, playerScore, playerFlag, remotePlayers]);
 
   const onlineCount = rankedPlayers.filter(p => p.isOnline).length;
   const playerRank = rankedPlayers.findIndex(p => p.isPlayer) + 1;
@@ -125,6 +130,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore 
                   </div>
                   <div className="min-w-0">
                     <div className={`font-bold text-sm sm:text-base truncate flex items-center gap-2 ${player.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
+                      {player.flag && <span className="text-lg shrink-0">{getFlagEmoji(player.flag)}</span>}
                       {player.name}
                       {!player.isOnline && (
                         <span className="text-[10px] text-slate-500 uppercase">(Offline)</span>

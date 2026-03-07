@@ -14,12 +14,15 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useP2PBattle } from '../../hooks/useP2PBattle';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { useLanguage } from '../../context/LanguageContext';
+import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
 import { UNIT_DEFS } from '../../data/units';
 import { UNIT_PRIORITY } from '../../utils/engine/combat';
 import { formatNumber } from '../../utils';
 import { Icons } from '../UIComponents';
 import type { UnitType, GameState } from '../../types';
 import type { PlayerPresence, P2PBattleRecord } from '../../types/multiplayer';
+
+import { getFlagEmoji } from '../../utils/engine/rankings';
 
 // ============================================================================
 // PROPS
@@ -40,30 +43,70 @@ const OpponentCard: React.FC<{
   player: PlayerPresence;
   onChallenge: (peerId: string) => void;
   disabled: boolean;
-}> = ({ player, onChallenge, disabled }) => (
-  <div className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-slate-900/50 hover:bg-slate-800/50 transition-all group">
-    <div className="flex items-center gap-3 min-w-0">
-      <div className="relative shrink-0">
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-          {player.name.charAt(0).toUpperCase()}
+  inRange: boolean;
+  remainingAttacks: number;
+  maxAttacks: number;
+}> = ({ player, onChallenge, disabled, inRange, remainingAttacks, maxAttacks }) => {
+  const outOfRange = !inRange;
+  const noAttacksLeft = remainingAttacks <= 0;
+  const cannotAttack = outOfRange || noAttacksLeft || disabled;
+
+  return (
+    <div className={`flex items-center justify-between p-3 rounded-lg border transition-all group ${
+      outOfRange
+        ? 'border-red-500/20 bg-red-950/20 opacity-70'
+        : 'border-white/10 bg-slate-900/50 hover:bg-slate-800/50'
+    }`}>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="relative shrink-0">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg ${
+            outOfRange
+              ? 'bg-gradient-to-br from-slate-600 to-slate-700'
+              : 'bg-gradient-to-br from-cyan-600 to-blue-700'
+          }`}>
+            {player.flag ? (
+              <span className="text-xl">{getFlagEmoji(player.flag)}</span>
+            ) : (
+              player.name.charAt(0).toUpperCase()
+            )}
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-900" />
         </div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-900" />
+        <div className="min-w-0">
+          <div className="text-white font-bold text-sm truncate">{player.name}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 text-xs font-mono">{formatNumber(player.level)} pts</span>
+            {outOfRange && (
+              <span className="text-[9px] text-red-400 bg-red-500/15 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                Fuera de rango
+              </span>
+            )}
+            {!outOfRange && noAttacksLeft && (
+              <span className="text-[9px] text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                Sin ataques hoy
+              </span>
+            )}
+            {!outOfRange && !noAttacksLeft && (
+              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full ${
+                remainingAttacks <= 2 ? 'text-amber-400 bg-amber-500/10' : 'text-slate-500 bg-white/5'
+              }`}>
+                {remainingAttacks}/{maxAttacks}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="min-w-0">
-        <div className="text-white font-bold text-sm truncate">{player.name}</div>
-        <div className="text-slate-500 text-xs font-mono">{formatNumber(player.level)} pts</div>
-      </div>
+      <button
+        onClick={() => onChallenge(player.id)}
+        disabled={cannotAttack}
+        className="shrink-0 px-3 py-2 bg-red-600/20 hover:bg-red-600/40 disabled:opacity-30 disabled:cursor-not-allowed border border-red-500/30 hover:border-red-500/60 text-red-300 rounded-lg text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+      >
+        <Icons.Swords className="w-3.5 h-3.5" />
+        Desafiar
+      </button>
     </div>
-    <button
-      onClick={() => onChallenge(player.id)}
-      disabled={disabled}
-      className="shrink-0 px-3 py-2 bg-red-600/20 hover:bg-red-600/40 disabled:opacity-30 disabled:cursor-not-allowed border border-red-500/30 hover:border-red-500/60 text-red-300 rounded-lg text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
-    >
-      <Icons.Swords className="w-3.5 h-3.5" />
-      Desafiar
-    </button>
-  </div>
-);
+  );
+};
 
 /**
  * ArmyUnitRow - Fila de selección de unidad para el ejército de batalla
@@ -181,6 +224,7 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
   const { t } = useLanguage();
   const { isConnected } = useMultiplayer();
   const p2p = useP2PBattle(gameState.playerName, gameState.empirePoints);
+  const { isInPointRange, getRemainingAttacks, maxAttacksPerDay } = useP2PAttackLimits();
 
   const [activeSection, setActiveSection] = useState<'arena' | 'history'>('arena');
 
@@ -372,7 +416,7 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
   // ============================================================================
 
   const renderArmySelection = () => {
-    if (p2p.battle.status !== 'PREPARING' && p2p.battle.status !== 'WAITING_LOCK' && p2p.battle.status !== 'LOCKED') return null;
+    if (p2p.battle.status !== 'PREPARING' && p2p.battle.status !== 'WAITING_LOCK' && p2p.battle.status !== 'LOCKED' && p2p.battle.status !== 'RESOLVING') return null;
 
     const isLocked = p2p.battle.myArmyLocked;
 
@@ -616,6 +660,9 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
                   player={player}
                   onChallenge={p2p.challengePlayer}
                   disabled={!p2p.canChallenge}
+                  inRange={isInPointRange(gameState.empirePoints, player.level)}
+                  remainingAttacks={getRemainingAttacks(player.id)}
+                  maxAttacks={maxAttacksPerDay}
                 />
               ))}
             </>

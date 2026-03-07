@@ -16,10 +16,18 @@ export const MAP_MISSION_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard
 export const PVP_RANGE_MIN = 0.5; // 50%
 export const PVP_RANGE_MAX = 1.5 // 150%
 export const PVP_LOOT_FACTOR = 0.15; // Legacy Factor (Kept for compatibility)
-export const MAX_ATTACKS_PER_TARGET = 3; // Limit attacks per target per day
+export const MAX_ATTACKS_PER_TARGET = 3; // Limit attacks per target per day (bots)
+
+// P2P COMBAT RULES
+export const P2P_MAX_ATTACKS_PER_TARGET_PER_DAY = 6; // Max normal P2P attacks per target per day
+export const P2P_ATTACK_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours reset
+export const P2P_ATTACK_COUNTS_STORAGE_KEY = 'ironDuneP2PAttackCounts'; // localStorage key
+
+// P2P Building plunder rates (by attack number: 1st=33%, 2nd=25%, 3rd-6th=15%)
+export const P2P_PLUNDER_RATES = [0.33, 0.25, 0.15, 0.15, 0.15, 0.15];
 
 // BUILDING PLUNDER SETTINGS (NEW V1.3)
-export const PLUNDER_RATES = [0.33, 0.25, 0.15]; // 1st attack, 2nd, 3rd
+export const PLUNDER_RATES = [0.33, 0.25, 0.15]; // 1st attack, 2nd, 3rd (vs bots)
 export const BOT_BUILDINGS_PER_SCORE = 20; // 1 building per 20 score points (score / 20)
 // Only Resource Producers can be stolen (Quantity Mode buildings + Skyscraper)
 // Diamond Mine is handled separately via Damage logic.

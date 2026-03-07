@@ -443,8 +443,12 @@ export const ui = {
         gift_code_cooldown: "Código en enfriamiento. Espera {hours}h {minutes}m",
         gift_code_daily: "Disponible cada 24h",
         gift_code_once: "Una vez",
-        gift_code_diario_rewards: "+10 Diamantes",
-        gift_code_manco_rewards: "+50M Dinero, +10 Diamantes"
+         gift_code_diario_rewards: "+10 Diamantes",
+         gift_code_manco_rewards: "+50M Dinero, +10 Diamantes",
+         select_flag: "Seleccionar Bandera",
+         select_flag_desc: "Elige tu bandera para PvP",
+         flag_changed_success: "¡Bandera actualizada!",
+         no_flag: "Sin bandera"
       },
       menu: {
         new_game: "Nueva Operación",

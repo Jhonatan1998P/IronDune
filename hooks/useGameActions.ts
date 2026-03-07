@@ -18,6 +18,7 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
+import { P2P_PLUNDER_RATES, PLUNDERABLE_BUILDINGS } from '../constants';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -233,7 +234,7 @@ export const useGameActions = (
       });
   }, [addLog, setGameState]);
 
-  const changePlayerName = useCallback((newName: string): { success: boolean; errorKey?: string } => {
+  const changePlayerName = useCallback((newName: string, flag?: string): { success: boolean; errorKey?: string } => {
       const trimmedName = newName.trim();
       
       if (trimmedName.length < 2) {
@@ -247,34 +248,43 @@ export const useGameActions = (
       }
       
       const nameLower = trimmedName.toLowerCase();
-      const nameTaken = gameState.rankingData.bots.some(
-          bot => bot.name.toLowerCase() === nameLower
-      );
-      
-      if (nameTaken) {
-          return { success: false, errorKey: 'name_already_taken' };
+      // Si el nombre no cambió, pero la bandera sí, permitimos el cambio (y no cobramos por el nombre si no cambió)
+      const nameChanged = nameLower !== gameState.playerName.toLowerCase();
+
+      if (nameChanged) {
+        const nameTaken = gameState.rankingData.bots.some(
+            bot => bot.name.toLowerCase() === nameLower
+        );
+        
+        if (nameTaken) {
+            return { success: false, errorKey: 'name_already_taken' };
+        }
       }
       
       const isFreeChange = !gameState.hasChangedName;
-      const cost = isFreeChange ? 0 : 20;
+      // Solo cobramos si el nombre cambió y no es el cambio gratis
+      const cost = (nameChanged && !isFreeChange) ? 20 : 0;
       
-      if (!isFreeChange && gameState.resources[ResourceType.DIAMOND] < cost) {
+      if (cost > 0 && gameState.resources[ResourceType.DIAMOND] < cost) {
           return { success: false, errorKey: 'not_enough_diamonds' };
       }
       
       setGameState(prev => ({
           ...prev,
           playerName: trimmedName,
-          hasChangedName: true,
+          playerFlag: flag !== undefined ? flag : prev.playerFlag,
+          hasChangedName: nameChanged ? true : prev.hasChangedName,
           resources: {
               ...prev.resources,
               [ResourceType.DIAMOND]: prev.resources[ResourceType.DIAMOND] - cost
           }
       }));
       
-      addLog('name_changed', 'info', { newName: trimmedName, wasFree: isFreeChange });
+      if (nameChanged) {
+        addLog('name_changed', 'info', { newName: trimmedName, wasFree: isFreeChange });
+      }
       return { success: true };
-  }, [gameState, addLog, setGameState]);
+  }, [gameState.playerName, gameState.hasChangedName, gameState.resources, gameState.rankingData.bots, addLog, setGameState]);
 
   const sendDiplomaticGift = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
       const now = Date.now();
@@ -556,19 +566,35 @@ export const useGameActions = (
                 newState.resources = newResources;
             }
 
-            if (result.winner === 'PLAYER' && isAttacker && result.stolenBuildings) {
+            // --- Regla 3: Edificios perdidos por el defensor (tasas escalonadas) ---
+            if (result.winner === 'PLAYER' && !isAttacker) {
+                // Calcular cuántos edificios pierde el defensor basado en sus edificios REALES
+                // y el número del ataque (attackNumber enviado por el atacante)
+                const attackNumber: number = typeof result.attackNumber === 'number' && result.attackNumber >= 1
+                    ? result.attackNumber
+                    : 1;
+                const plunderRateIndex = Math.min(attackNumber - 1, P2P_PLUNDER_RATES.length - 1);
+                const plunderRate = P2P_PLUNDER_RATES[plunderRateIndex];
+
+                const newBuildings = { ...newState.buildings };
+                for (const bType of PLUNDERABLE_BUILDINGS) {
+                    const currentLevel = newBuildings[bType]?.level || 0;
+                    if (currentLevel > 0) {
+                        const toLose = Math.max(1, Math.floor(currentLevel * plunderRate));
+                        newBuildings[bType] = {
+                            ...newBuildings[bType],
+                            level: Math.max(0, currentLevel - toLose)
+                        };
+                    }
+                }
+                newState.buildings = newBuildings;
+
+            } else if (result.winner === 'PLAYER' && isAttacker && result.stolenBuildings) {
+                // Atacante: recibe edificios (calculados por el defensor o estimados)
                 const newBuildings = { ...newState.buildings };
                 for (const [bType, count] of Object.entries(result.stolenBuildings)) {
                     const bt = bType as BuildingType;
                     newBuildings[bt] = { ...newBuildings[bt], level: newBuildings[bt].level + (count as number) };
-                }
-                newState.buildings = newBuildings;
-            } else if (result.winner === 'PLAYER' && !isAttacker && result.stolenBuildings) {
-                // Defensor pierde edificios
-                const newBuildings = { ...newState.buildings };
-                for (const [bType, count] of Object.entries(result.stolenBuildings)) {
-                    const bt = bType as BuildingType;
-                    newBuildings[bt] = { ...newBuildings[bt], level: Math.max(1, newBuildings[bt].level - (count as number)) };
                 }
                 newState.buildings = newBuildings;
             }

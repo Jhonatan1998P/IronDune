@@ -59,7 +59,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
             score: player.level || 0,
             isPlayer: false,
             avatarId: 0,
-            country: 'XX',
+            country: player.flag || 'XX',
             tier: 'D',
             trend: 0,
             _rawLastRank: 0,

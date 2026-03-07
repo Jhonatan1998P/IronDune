@@ -12,6 +12,7 @@ const SYNC_COOLDOWN_MS = 60_000; // 60 segundos (1 minuto)
 
 interface UseMultiplayerSyncProps {
   playerName: string;
+  playerFlag?: string;
   empirePoints: number;
   enabled?: boolean;
 }
@@ -20,16 +21,18 @@ interface UseMultiplayerSyncProps {
  * Hook para sincronizar automáticamente el estado del jugador
  * 
  * @param playerName - Nombre del jugador
+ * @param playerFlag - Bandera del jugador
  * @param empirePoints - Nivel del jugador (empire points)
  * @param enabled - Si está habilitada la sincronización (default: true)
  */
 export const useMultiplayerSync = ({
   playerName,
+  playerFlag,
   empirePoints,
   enabled = true,
 }: UseMultiplayerSyncProps) => {
   const { isConnected, syncPlayerWithData } = useMultiplayer();
-  const lastSyncRef = useRef<{ name: string; level: number; timestamp: number } | null>(null);
+  const lastSyncRef = useRef<{ name: string; flag?: string; level: number; timestamp: number } | null>(null);
   const wasConnectedRef = useRef(false);
 
   useEffect(() => {
@@ -52,14 +55,14 @@ export const useMultiplayerSync = ({
     const now = Date.now();
     
     // Evitar sync duplicado si no ha pasado el cooldown (1 minuto)
-    // A menos que el nombre haya cambiado explícitamente (ahí sí forzamos sync inmediato)
-    if (last && last.name === playerName && (now - last.timestamp) < SYNC_COOLDOWN_MS) {
+    // A menos que el nombre o bandera haya cambiado explícitamente (ahí sí forzamos sync inmediato)
+    if (last && last.name === playerName && last.flag === playerFlag && (now - last.timestamp) < SYNC_COOLDOWN_MS) {
       return;
     }
 
     // Sincronizar cuando los datos cambian o después de reconexión / timeout
-    console.log('[MultiplayerSync] Syncing player (1-minute update tick):', playerName, empirePoints);
-    syncPlayerWithData(playerName, empirePoints);
-    lastSyncRef.current = { name: playerName, level: empirePoints, timestamp: now };
-  }, [enabled, isConnected, playerName, empirePoints, syncPlayerWithData]);
+    console.log('[MultiplayerSync] Syncing player (1-minute update tick):', playerName, empirePoints, playerFlag);
+    syncPlayerWithData(playerName, empirePoints, playerFlag);
+    lastSyncRef.current = { name: playerName, flag: playerFlag, level: empirePoints, timestamp: now };
+  }, [enabled, isConnected, playerName, playerFlag, empirePoints, syncPlayerWithData]);
 };

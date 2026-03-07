@@ -443,8 +443,12 @@ export const ui = {
         gift_code_cooldown: "Code on cooldown. Wait {hours}h {minutes}m",
         gift_code_daily: "Available every 24h",
         gift_code_once: "One time",
-        gift_code_diario_rewards: "+10 Diamonds",
-        gift_code_manco_rewards: "+50M Money, +10 Diamonds"
+         gift_code_diario_rewards: "+10 Diamonds",
+         gift_code_manco_rewards: "+50M Money, +10 Diamonds",
+         select_flag: "Select Flag",
+         select_flag_desc: "Choose your banner for PvP",
+         flag_changed_success: "Flag updated!",
+         no_flag: "No flag"
       },
       menu: {
         new_game: "New Operation",

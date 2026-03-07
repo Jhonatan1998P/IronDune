@@ -112,7 +112,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
             case 'settings':
                 return { gameState, changePlayerName, redeemGiftCode, saveGame, resetGame, exportSave };
             case 'p2p':
-                return { playerName: gameState.playerName, playerScore: gameState.empirePoints };
+                return { playerName: gameState.playerName, playerScore: gameState.empirePoints, playerFlag: gameState.playerFlag };
             case 'chat':
                 return { gameState };
             default:

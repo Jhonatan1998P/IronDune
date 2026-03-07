@@ -2,10 +2,20 @@ import React, { useState } from 'react';
 import { GameState } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton } from '../UIComponents';
+import { getFlagEmoji } from '../../utils/engine/rankings';
+
+const AVAILABLE_FLAGS = [
+    'US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU',
+    'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO',
+    'IT', 'PT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ',
+    'AT', 'CH', 'GR', 'TR', 'UA', 'RO', 'HU', 'IE', 'CA', 'AU',
+    'NZ', 'IN', 'PK', 'PH', 'TH', 'VN', 'ID', 'MY', 'SG', 'IL',
+    'SA', 'AE', 'EG', 'ZA', 'NG', 'KE', 'MA', 'DO', 'PR', 'CU',
+];
 
 interface SettingsViewProps {
     gameState: GameState;
-    changePlayerName: (name: string) => { success: boolean; errorKey?: string };
+    changePlayerName: (name: string, flag?: string) => { success: boolean; errorKey?: string };
     redeemGiftCode: (code: string) => { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number };
     saveGame: () => void;
     resetGame: () => void;
@@ -26,6 +36,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [nameSuccess, setNameSuccess] = useState(false);
     const [giftCode, setGiftCode] = useState('');
     const [giftCodeStatus, setGiftCodeStatus] = useState<{ type: 'success' | 'error' | 'cooldown' | null; message: string }>({ type: null, message: '' });
+    const [selectedFlag, setSelectedFlag] = useState<string | undefined>(gameState.playerFlag);
+    const [flagSuccess, setFlagSuccess] = useState(false);
+    const [showFlagPicker, setShowFlagPicker] = useState(false);
 
     const handleNameChange = () => {
         setNameError(null);
@@ -37,6 +50,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             setTimeout(() => setNameSuccess(false), 3000);
         } else if (result.errorKey) {
             setNameError(result.errorKey);
+        }
+    };
+
+    const handleFlagSelect = (countryCode: string) => {
+        const newFlag = countryCode === selectedFlag ? undefined : countryCode;
+        setSelectedFlag(newFlag);
+        // Use changePlayerName with same name but new flag (no diamond cost for flag-only change)
+        const result = changePlayerName(gameState.playerName, newFlag);
+        if (result.success) {
+            setFlagSuccess(true);
+            setShowFlagPicker(false);
+            setTimeout(() => setFlagSuccess(false), 3000);
         }
     };
 
@@ -150,6 +175,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                         </p>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* FLAG SELECTOR */}
+                            <div className="border-t border-white/10 pt-3 sm:pt-4 mt-2">
+                                <p className="text-xs text-slate-400 font-mono italic mb-2">
+                                    {(t.common.ui as Record<string, string>).select_flag || 'Select Flag'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 mb-2">
+                                    {(t.common.ui as Record<string, string>).select_flag_desc || 'Choose your banner for PvP'}
+                                </p>
+                                
+                                <div className="flex items-center gap-3 mb-2">
+                                    <button
+                                        onClick={() => setShowFlagPicker(!showFlagPicker)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                                            showFlagPicker 
+                                                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                                                : 'bg-black/30 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className="text-xl">
+                                            {selectedFlag ? getFlagEmoji(selectedFlag) : '🏳️'}
+                                        </span>
+                                        <span className="text-xs font-bold uppercase tracking-wider">
+                                            {selectedFlag || ((t.common.ui as Record<string, string>).no_flag || 'No flag')}
+                                        </span>
+                                    </button>
+                                    
+                                    {selectedFlag && (
+                                        <button
+                                            onClick={() => handleFlagSelect(selectedFlag)}
+                                            className="text-[10px] text-red-400 hover:text-red-300 font-bold uppercase tracking-wider transition-colors"
+                                        >
+                                            {t.common.actions.cancel}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {flagSuccess && (
+                                    <p className="text-emerald-400 text-xs text-center font-mono mb-2">
+                                        {(t.common.ui as Record<string, string>).flag_changed_success || 'Flag updated!'}
+                                    </p>
+                                )}
+
+                                {showFlagPicker && (
+                                    <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 p-2 bg-black/40 border border-white/10 rounded-lg max-h-48 overflow-y-auto custom-scrollbar animate-[fadeIn_0.2s_ease-out]">
+                                        {AVAILABLE_FLAGS.map((code) => (
+                                            <button
+                                                key={code}
+                                                onClick={() => handleFlagSelect(code)}
+                                                className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all hover:scale-110 ${
+                                                    selectedFlag === code
+                                                        ? 'bg-cyan-500/30 border border-cyan-500/60 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                                                        : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/20'
+                                                }`}
+                                                title={code}
+                                            >
+                                                <span className="text-lg sm:text-xl">{getFlagEmoji(code)}</span>
+                                                <span className="text-[8px] text-slate-500 mt-0.5">{code}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="border-t border-white/10 pt-3 sm:pt-4 mt-2">

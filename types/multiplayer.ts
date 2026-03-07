@@ -13,6 +13,7 @@ export interface PlayerPresence {
   id: string;        // playerId único
   name: string;      // Nombre del jugador
   level: number;     // Nivel del jugador (empirePoints)
+  flag?: string;     // Bandera del jugador
   lastSeen: number;  // Timestamp de última actualización
 }
 
@@ -81,8 +82,8 @@ export interface UseMultiplayerReturn {
   returnToGlobalRoom: () => boolean;           // Volver a la sala global
 
   // Sincronización
-  syncPlayer: (player: { name: string; level: number }) => void; // Actualizar tu presencia
-  syncPlayerWithData: (playerName: string, empirePoints: number) => void; // Actualizar con datos directos
+  syncPlayer: (player: { name: string; level: number; flag?: string }) => void; // Actualizar tu presencia
+  syncPlayerWithData: (playerName: string, empirePoints: number, playerFlag?: string) => void; // Actualizar con datos directos
 
   // Comunicación
   broadcastAction: (action: MultiplayerAction) => void; // A todos
@@ -274,6 +275,10 @@ export interface P2PAttackResult {
   loot?: Partial<Record<ResourceType, number>>;
   stolenBuildings?: Partial<Record<BuildingType, number>>;
   
+  // Número de ataque del atacante contra este defensor (1=primero, 2=segundo... 6=sexto)
+  // Se usa para calcular la tasa de saqueo de edificios (33%/25%/15%/15%/15%/15%)
+  attackNumber?: number;
+
   winner: 'PLAYER' | 'ENEMY' | 'DRAW';
   timestamp: number;
 }

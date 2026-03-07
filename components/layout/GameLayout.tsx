@@ -37,6 +37,7 @@ export const GameLayout: React.FC = () => {
   // Auto-sync jugador con el sistema multijugador
   useMultiplayerSync({
     playerName: gameState.playerName,
+    playerFlag: gameState.playerFlag,
     empirePoints: gameState.empirePoints,
     enabled: status === 'PLAYING',
   });
@@ -104,7 +105,7 @@ export const GameLayout: React.FC = () => {
           </div>
 
           {/* 2. MAIN SCROLLABLE AREA */}
-            <main className="flex-1 flex mb-20 md:overflow-hidden pt-[70px] pb-[65px] h-full md:pt-0 md:pb-0 overflow-y-auto">
+            <main className="flex-1 flex overflow-y-auto overflow-x-hidden mb-20 pt-[70px] pb-[65px] md:pt-0 md:pb-0">
             
             {/* Left Panel: Navigation (Desktop Only) */}
             <GameSidebar activeTab={activeTab} setActiveTab={setActiveTab} />

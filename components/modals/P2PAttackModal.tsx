@@ -5,7 +5,8 @@ import { Icons } from '../UIComponents';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
-import { P2P_ATTACK_TRAVEL_TIME_MS } from '../../constants';
+import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
+import { P2P_ATTACK_TRAVEL_TIME_MS, P2P_MAX_ATTACKS_PER_TARGET_PER_DAY } from '../../constants';
 
 import { useGame } from '../../context/GameContext';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
@@ -23,9 +24,19 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
     const { localPlayerId } = useMultiplayer();
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const { sendAttack } = useP2PAttack();
+    const { canAttack, getRemainingAttacks, isInPointRange, registerAttack } = useP2PAttackLimits();
     
     // Tiempo configurado según constantes (15 minutos)
     const travelTime = P2P_ATTACK_TRAVEL_TIME_MS;
+
+    // --- Validaciones de reglas P2P ---
+    const remainingAttacks = getRemainingAttacks(target.id);
+    const inRange = isInPointRange(gameState.empirePoints, target.score);
+    const attackAllowed = canAttack(target.id, false) && inRange;
+
+    // Rango permitido para información al jugador
+    const minRange = Math.floor(gameState.empirePoints * 0.5);
+    const maxRange = Math.floor(gameState.empirePoints * 1.5);
 
     const handleUnitChange = (type: UnitType, change: number) => {
         setSelectedUnits(prev => {
@@ -55,10 +66,15 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
     };
 
     const handleLaunch = () => {
+        if (!attackAllowed) return;
+
         const attackId = `p2p_atk_${Date.now()}`;
         const startTime = Date.now();
         const endTime = startTime + travelTime;
         const attackerId = localPlayerId || 'UNKNOWN_PEER';
+
+        // Registrar el ataque en el límite diario ANTES de enviarlo
+        registerAttack(target.id, false);
 
         // 1. Enviar el ataque al defensor via P2P
         sendAttack(target.id, {
@@ -191,10 +207,43 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
 
                 {/* Footer */}
                 <div className="shrink-0 p-3 sm:p-4 border-t border-white/10 bg-black/40 space-y-2 sm:space-y-3">
+                    {/* Alertas de reglas P2P */}
+                    {!inRange && (
+                        <div className="flex items-start gap-2 p-2.5 bg-red-900/30 border border-red-500/40 rounded-lg text-xs text-red-300">
+                            <Icons.Close className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-400" />
+                            <span>
+                                Fuera de rango. Solo puedes atacar jugadores entre{' '}
+                                <span className="font-bold text-red-200">{formatNumber(minRange)}</span> y{' '}
+                                <span className="font-bold text-red-200">{formatNumber(maxRange)}</span> pts.
+                            </span>
+                        </div>
+                    )}
+                    {inRange && remainingAttacks <= 0 && (
+                        <div className="flex items-start gap-2 p-2.5 bg-amber-900/30 border border-amber-500/40 rounded-lg text-xs text-amber-300">
+                            <Icons.Close className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
+                            <span>
+                                Límite diario alcanzado. Has usado los{' '}
+                                <span className="font-bold">{P2P_MAX_ATTACKS_PER_TARGET_PER_DAY}</span> ataques
+                                permitidos contra este jugador hoy. Reinicio en 24 h.
+                            </span>
+                        </div>
+                    )}
+                    {inRange && remainingAttacks > 0 && (
+                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span>Ataques restantes hoy contra este jugador:</span>
+                            <span className={`font-bold font-mono ${remainingAttacks <= 2 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {remainingAttacks}/{P2P_MAX_ATTACKS_PER_TARGET_PER_DAY}
+                            </span>
+                        </div>
+                    )}
                     <button
                         onClick={handleLaunch}
-                        disabled={totalSelected === 0}
-                        className={`w-full py-2.5 sm:py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.98] ${totalSelected === 0 ? 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+                        disabled={totalSelected === 0 || !attackAllowed}
+                        className={`w-full py-2.5 sm:py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.98] ${
+                            totalSelected === 0 || !attackAllowed
+                                ? 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5'
+                                : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                        }`}
                     >
                         LANZAR ATAQUE P2P
                     </button>

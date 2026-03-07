@@ -69,8 +69,8 @@ export interface MultiplayerContextType {
   remotePlayers: PlayerPresence[];
   currentRoomId: string | null;
   isGlobalRoom: boolean;
-  syncPlayer: (player: { name: string; level: number }) => void;
-  syncPlayerWithData: (playerName: string, empirePoints: number) => void;
+  syncPlayer: (player: { name: string; level: number; flag?: string }) => void;
+  syncPlayerWithData: (playerName: string, empirePoints: number, playerFlag?: string) => void;
   broadcastAction: (action: MultiplayerAction) => void;
   sendToPeer: (peerId: string, action: MultiplayerAction) => void;
   onRemoteAction: (callback: (action: MultiplayerAction) => void) => void;
@@ -209,7 +209,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     actionsCallbackRef.current = callback;
   }, []);
 
-  const syncPlayer = useCallback((player: { name: string; level: number }) => {
+  const syncPlayer = useCallback((player: { name: string; level: number; flag?: string }) => {
     const currentId = localPlayerIdRef.current;
     if (!currentId || !isConnectedRef.current) return;
 
@@ -217,6 +217,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       id: currentId,
       name: player.name,
       level: player.level,
+      flag: player.flag,
       lastSeen: Date.now(),
     };
 
@@ -224,7 +225,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     broadcastPresence();
   }, [broadcastPresence]);
 
-  const syncPlayerWithData = useCallback((playerName: string, empirePoints: number) => {
+  const syncPlayerWithData = useCallback((playerName: string, empirePoints: number, playerFlag?: string) => {
     const currentId = localPlayerIdRef.current;
     if (!currentId || !isConnectedRef.current) {
       console.warn('[Multiplayer] syncPlayerWithData skipped:', { currentId, isConnected: isConnectedRef.current });
@@ -235,6 +236,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       id: currentId,
       name: playerName,
       level: empirePoints,
+      flag: playerFlag,
       lastSeen: Date.now(),
     };
 
@@ -404,6 +406,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
               id: peerId,
               name: playerData.name || 'Jugador',
               level: playerData.level ?? 0,
+              flag: playerData.flag,
               lastSeen: Date.now(),
             });
             console.log('[Multiplayer] ✅ Updated player presence:', peerId, playersRef.current.get(peerId));
