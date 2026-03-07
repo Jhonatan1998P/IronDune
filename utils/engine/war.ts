@@ -46,7 +46,9 @@ import {
     REPUTATION_DEFEND_BONUS, 
     REPUTATION_MIN, 
     REPUTATION_MAX,
-    SCORE_TO_RESOURCE_VALUE
+    SCORE_TO_RESOURCE_VALUE,
+    ENEMY_ATTACK_POWER_RATIO_MIN,
+    ENEMY_ATTACK_POWER_RATIO_LIMIT
 } from '../../constants';
 import { generateBotArmy, calculateResourceCost } from './missions';
 import { calculateMaxBankCapacity } from './modifiers';
@@ -813,7 +815,7 @@ const handleRandomAttack = (
 
         const validBots = bots.filter(b => {
             const ratio = b.stats[RankingCategory.DOMINION] / Math.max(1, state.empirePoints);
-            return ratio >= 0.5 && ratio <= 1.5;
+            return ratio >= ENEMY_ATTACK_POWER_RATIO_MIN && ratio <= ENEMY_ATTACK_POWER_RATIO_LIMIT;
         });
 
         let enemyId = 'bot-system-rival';
@@ -824,7 +826,7 @@ const handleRandomAttack = (
         if (validBots.length > 0) {
             const weightedValid = weightedBots.filter(w => {
                 const ratio = w.bot.stats[RankingCategory.DOMINION] / Math.max(1, state.empirePoints);
-                return ratio >= 0.5 && ratio <= 1.5;
+                return ratio >= ENEMY_ATTACK_POWER_RATIO_MIN && ratio <= ENEMY_ATTACK_POWER_RATIO_LIMIT;
             });
 
             if (weightedValid.length > 0) {
@@ -910,7 +912,7 @@ const processIncomingAttacks = (
     attacks: IncomingAttack[],
     units: Record<UnitType, number>,
     resources: Record<ResourceType, number>,
-    buildings: Record<BuildingType, { level: number }>,
+    buildings: Record<BuildingType, { level: number; isDamaged?: boolean }>,
     activeWar: WarState | null,
     lifetimeStats: any,
     state: GameState,
@@ -977,7 +979,7 @@ const processIncomingAttacks = (
                     if (combat.winner !== 'PLAYER' && combat.stolenBuildings) {
                         (Object.keys(combat.stolenBuildings) as BuildingType[]).forEach(bType => {
                             const stolen = combat.stolenBuildings[bType] || 0;
-                            if (stolen > 0 && buildings[bType]) {
+                            if (bType !== BuildingType.DIAMOND_MINE && stolen > 0 && buildings[bType]) {
                                 buildings[bType] = {
                                     ...buildings[bType],
                                     level: Math.max(0, buildings[bType].level - stolen)

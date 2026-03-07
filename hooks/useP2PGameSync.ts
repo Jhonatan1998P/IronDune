@@ -151,6 +151,7 @@ export const useP2PGameSync = () => {
         attackerId: request.attackerId,
         defenderId: myId || 'UNKNOWN_DEFENDER',
         defenderUnits: snapshot,
+        defenderBuildings: gs.buildings,
         timestamp: Date.now(),
       };
 

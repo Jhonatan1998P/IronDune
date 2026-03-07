@@ -18,7 +18,6 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
-import { P2P_PLUNDER_RATES, PLUNDERABLE_BUILDINGS } from '../constants';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -567,23 +566,15 @@ export const useGameActions = (
             }
 
             // --- Regla 3: Edificios perdidos por el defensor (tasas escalonadas) ---
-            if (result.winner === 'PLAYER' && !isAttacker) {
-                // Calcular cuántos edificios pierde el defensor basado en sus edificios REALES
-                // y el número del ataque (attackNumber enviado por el atacante)
-                const attackNumber: number = typeof result.attackNumber === 'number' && result.attackNumber >= 1
-                    ? result.attackNumber
-                    : 1;
-                const plunderRateIndex = Math.min(attackNumber - 1, P2P_PLUNDER_RATES.length - 1);
-                const plunderRate = P2P_PLUNDER_RATES[plunderRateIndex];
-
+            if (result.winner === 'PLAYER' && !isAttacker && result.stolenBuildings) {
                 const newBuildings = { ...newState.buildings };
-                for (const bType of PLUNDERABLE_BUILDINGS) {
-                    const currentLevel = newBuildings[bType]?.level || 0;
-                    if (currentLevel > 0) {
-                        const toLose = Math.max(1, Math.floor(currentLevel * plunderRate));
-                        newBuildings[bType] = {
-                            ...newBuildings[bType],
-                            level: Math.max(0, currentLevel - toLose)
+                for (const [bType, count] of Object.entries(result.stolenBuildings)) {
+                    const bt = bType as BuildingType;
+                    const currentLevel = newBuildings[bt]?.level || 0;
+                    if (bt !== BuildingType.DIAMOND_MINE && currentLevel > 0) {
+                        newBuildings[bt] = {
+                            ...newBuildings[bt],
+                            level: Math.max(0, currentLevel - (count as number))
                         };
                     }
                 }
@@ -594,7 +585,10 @@ export const useGameActions = (
                 const newBuildings = { ...newState.buildings };
                 for (const [bType, count] of Object.entries(result.stolenBuildings)) {
                     const bt = bType as BuildingType;
-                    newBuildings[bt] = { ...newBuildings[bt], level: newBuildings[bt].level + (count as number) };
+                    if (bt !== BuildingType.DIAMOND_MINE) {
+                        const currentLevel = newBuildings[bt]?.level || 0;
+                        newBuildings[bt] = { ...(newBuildings[bt] || {}), level: currentLevel + (count as number) };
+                    }
                 }
                 newState.buildings = newBuildings;
             }

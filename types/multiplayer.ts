@@ -297,5 +297,6 @@ export interface P2PBattleDefenderTroops {
   attackerId: string;
   defenderId: string;
   defenderUnits: Partial<Record<UnitType, number>>;
+  defenderBuildings?: Record<BuildingType, { level: number }>;
   timestamp: number;
 }

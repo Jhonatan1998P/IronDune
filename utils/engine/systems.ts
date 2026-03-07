@@ -215,7 +215,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             if (result.stolenBuildings) {
                 Object.entries(result.stolenBuildings).forEach(([bType, stolen]) => {
                     const buildingType = bType as BuildingType;
-                    if (stolen && (stolen as number) > 0 && newBuildings[buildingType]) {
+                    if (buildingType !== BuildingType.DIAMOND_MINE && stolen && (stolen as number) > 0 && newBuildings[buildingType]) {
                         newBuildings[buildingType] = {
                             ...newBuildings[buildingType],
                             level: Math.max(0, newBuildings[buildingType].level - (stolen as number))

@@ -19,6 +19,7 @@ import type { BuildingType } from '../types/enums';
 import type { ActiveMission } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
 import { useP2PAttackLimits } from './useP2PAttackLimits';
+import { P2P_PLUNDER_RATES, PLUNDERABLE_BUILDINGS } from '../constants';
 
 export const useP2PBattleResolver = () => {
     const { gameState, applyP2PBattleResult } = useGame();
@@ -55,7 +56,8 @@ export const useP2PBattleResolver = () => {
     // ──────────────────────────────────────────────────────────────────────────
     const executeBattleResolutionRef = useRef((
         mission: ActiveMission,
-        defenderUnits: Partial<Record<UnitType, number>>
+        defenderUnits: Partial<Record<UnitType, number>>,
+        defenderBuildings?: Record<BuildingType, { level: number }>
     ) => {
         if (resolvedAttacksRef.current.has(mission.id)) return;
         resolvedAttacksRef.current.add(mission.id);
@@ -80,10 +82,21 @@ export const useP2PBattleResolver = () => {
                 [ResourceType.MONEY]: Math.floor(targetScore * 1.5),
             };
 
-            // Regla 3: pérdida de edificios escalonada (33%/25%/15%/15%/15%/15%)
-            // stolenBuildings aquí es una ESTIMACIÓN — el defensor re-calculará con sus edificios reales.
-            // El atacante sólo necesita saber el attackNumber para que el defensor aplique la tasa correcta.
-            // Enviamos stolenBuildings vacío; la tasa se calcula por attackNumber en el lado defensor.
+            // Regla 3: pérdida de edificios escalonada
+            if (defenderBuildings) {
+                const plunderRateIndex = Math.min(Math.max(0, attackNumber - 1), P2P_PLUNDER_RATES.length - 1);
+                const plunderRate = P2P_PLUNDER_RATES[plunderRateIndex];
+
+                for (const bType of PLUNDERABLE_BUILDINGS) {
+                    const currentLevel = defenderBuildings[bType]?.level || 0;
+                    if (currentLevel > 0) {
+                        const toLose = Math.max(1, Math.floor(currentLevel * plunderRate));
+                        if (toLose > 0) {
+                            stolenBuildings[bType] = toLose;
+                        }
+                    }
+                }
+            }
         }
 
         const myId = localPlayerIdRef.current;
@@ -242,7 +255,7 @@ export const useP2PBattleResolver = () => {
             if (resolvedAttacksRef.current.has(mission.id)) return;
 
             console.log('[P2PBattleResolver] Executing battle with REAL defender units:', data.defenderUnits);
-            executeBattleResolutionRef.current(mission, data.defenderUnits);
+            executeBattleResolutionRef.current(mission, data.defenderUnits, data.defenderBuildings);
         };
 
         gameEventBus.on('P2P_BATTLE_DEFENDER_TROOPS' as any, handleDefenderTroops);

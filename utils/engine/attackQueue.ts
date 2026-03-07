@@ -306,6 +306,16 @@ export const processAttackQueue = (
         const attackTime = item.endTime;
         
         if (item.type === 'OUTGOING' && item.mission) {
+            // Para ataques P2P salientes, el atacante NO procesa la batalla sincrónicamente aquí.
+            // La resolución se maneja de forma asíncrona vía useP2PBattleResolver.
+            if (item.mission.isP2P) {
+                // Removemos la misión P2P de la cola local para no procesarla como si fuera contra un bot.
+                // Sin embargo, useP2PBattleResolver aún la necesita, pero este hook
+                // mira gameState.activeMissions, por lo que NO debemos eliminarla de currentState.activeMissions
+                // hasta que se resuelva la batalla P2P o de timeout.
+                continue;
+            }
+
             const { newState, result, logs } = processOutgoingAttackInQueue(currentState, item.mission, attackTime);
             currentState = newState;
             allLogs.push(...logs.map(log => ({ ...log, timestamp: attackTime })));
