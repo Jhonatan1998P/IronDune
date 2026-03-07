@@ -11,6 +11,7 @@ export const NEWBIE_PROTECTION_THRESHOLD = 1200; // Points required to enable Th
 
 // PVP SETTINGS
 export const GLOBAL_ATTACK_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for PvP, PvE and War
+export const P2P_ATTACK_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for Direct P2P Attacks
 export const MAP_MISSION_TRAVEL_TIME_MS = 15 * 60 * 1000; // 15 Minutes standard for Campaign Map Missions
 export const PVP_RANGE_MIN = 0.5; // 50%
 export const PVP_RANGE_MAX = 1.5 // 150%

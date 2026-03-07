@@ -5,6 +5,7 @@ import { Icons } from '../UIComponents';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
+import { P2P_ATTACK_TRAVEL_TIME_MS } from '../../constants';
 
 import { useGame } from '../../context/GameContext';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
@@ -23,8 +24,8 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const { sendAttack } = useP2PAttack();
     
-    // Tiempo fijo de 7.5 minutos como dice el plan, por ahora 20 seg para pruebas
-    const travelTime = 20 * 1000;
+    // Tiempo configurado según constantes (15 minutos)
+    const travelTime = P2P_ATTACK_TRAVEL_TIME_MS;
 
     const handleUnitChange = (type: UnitType, change: number) => {
         setSelectedUnits(prev => {
