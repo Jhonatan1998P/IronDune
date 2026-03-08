@@ -613,7 +613,13 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
     try {
         // 2. Migrate Save Version
         const savedVersion = safeNumber(saved.saveVersion, 0, 0);
-        logMigration('info', `Migrating from save version: ${savedVersion}`);
+        
+        // Log if save is already at current version - useful for debugging
+        if (savedVersion >= SAVE_VERSION) {
+            logMigration('info', `Save at version ${savedVersion}, running validation only`);
+        } else {
+            logMigration('info', `Migrating from save version: ${savedVersion}`);
+        }
 
         // 3. Migrate Primitives
         cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);

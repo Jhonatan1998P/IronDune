@@ -242,6 +242,10 @@ export const usePersistence = (
         // Pass parsed data for detailed error logging if migration fails
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
         
+        // DO NOT calculate offline progress on import!
+        // The imported save already represents a specific point in time.
+        // Calculating offline would incorrectly add resources that were already accounted for.
+        
         // Cargar spyReports desde localStorage
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {
@@ -258,8 +262,8 @@ export const usePersistence = (
               .sort((a, b) => b.timestamp - a.timestamp)
               .slice(0, 100);
         }
-        
-        console.log('[ImportSave] Recursos Originales antes de Offline:', {
+
+        console.log('[ImportSave] Recursos después de migración (sin offline):', {
             MONEY: migratedState.resources.MONEY,
             OIL: migratedState.resources.OIL,
             AMMO: migratedState.resources.AMMO,
@@ -268,26 +272,14 @@ export const usePersistence = (
             Bank: migratedState.bankBalance
         });
 
-        const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+        // Update lastSaveTime to now so future loads calculate offline correctly
+        migratedState.lastSaveTime = Date.now();
 
-        console.log('[ImportSave] Recursos Finales después de Offline:', {
-            MONEY: newState.resources.MONEY,
-            OIL: newState.resources.OIL,
-            AMMO: newState.resources.AMMO,
-            GOLD: newState.resources.GOLD,
-            DIAMOND: newState.resources.DIAMOND,
-            Bank: newState.bankBalance
-        });
+        setGameState(migratedState);
+        // Don't show offline report for imports - no offline time to report
+        setOfflineReport(null);
 
-        if (newLogs.length > 0) {
-            newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
-            setHasNewReports(true);
-        }
-
-        setGameState(newState);
-        if (report.timeElapsed > 60000) setOfflineReport(report);
-
-        localStorage.setItem('ironDuneSave', JSON.stringify(newState));
+        localStorage.setItem('ironDuneSave', JSON.stringify(migratedState));
         setHasSave(true);
         lastTickRef.current = Date.now();
         setStatus('PLAYING');
