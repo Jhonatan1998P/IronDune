@@ -30,7 +30,8 @@ const DiplomacyView: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [_cooldownTick, setCooldownTick] = useState(0);
 
-    const bots = state.rankingData.bots;
+    // Null safety for rankingData
+    const bots = state.rankingData?.bots || [];
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);

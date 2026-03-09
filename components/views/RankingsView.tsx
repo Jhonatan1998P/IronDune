@@ -38,8 +38,10 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
     }, []);
 
     const fullRankings = useMemo(() => {
-        const botRankings = getCurrentStandings(gameState, gameState.rankingData.bots, category);
-        
+        // Null safety for rankingData
+        const bots = gameState.rankingData?.bots || [];
+        const botRankings = getCurrentStandings(gameState, bots, category);
+
         if (!isConnected || remotePlayers.length === 0) {
             return botRankings;
         }

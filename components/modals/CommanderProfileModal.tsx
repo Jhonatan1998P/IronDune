@@ -67,9 +67,9 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         if (!canAffordSpy || isSpying || p2pSpyPending) return;
 
         setP2pSpyPending(true);
-        
+
         const result = sendSpyRequest(entry.id, entry.score, entry.name);
-        
+
         if (result) {
             if (onUpdateState) {
                 onUpdateState({
@@ -97,6 +97,12 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
     const handleSpy = () => {
         if (!canAffordSpy || isSpying) return;
+
+        // Null safety check for rankingData
+        if (!gameState.rankingData?.bots) {
+            console.error('[CommanderProfileModal] rankingData or bots is undefined');
+            return;
+        }
 
         const targetBot = gameState.rankingData.bots.find(b => b.id === entry.id);
         if (!targetBot) return;

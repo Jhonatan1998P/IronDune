@@ -54,6 +54,10 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         msg = `${t.reports.log_desertion} (${unitName} - ${resList})`;
     }
     else if (log.messageKey === 'log_intel_acquired') msg = t.reports.log_intel_acquired;
+    else if (log.messageKey === 'log_p2p_spy_success') {
+        const translated = t.reports.log_p2p_spy_success || 'P2P Spy Success';
+        msg = translated.replace('{targetName}', log.params?.targetName || 'Unknown');
+    }
     else if (log.messageKey === 'log_war_started') msg = t.common.ui.log_war_declared;
     else if (log.messageKey === 'log_war_overtime') msg = t.common.ui.log_war_overtime;
     else if (log.messageKey === 'log_war_ended') msg = `${t.common.ui.log_war_ended}: ${log.params?.winner === 'PLAYER' ? t.features.war.you : t.features.war.enemy}`;
@@ -203,13 +207,13 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                  <div className="space-y-2 mt-2 pl-0">
                      {isIntel && log.params && (
                          <div className="text-xs bg-indigo-950/40 rounded-lg p-2 sm:p-3 border border-indigo-500/20 shadow-inner">
-                             {log.messageKey === 'log_intel_acquired' ? (
+                             {log.messageKey === 'log_intel_acquired' || log.messageKey === 'log_p2p_spy_success' ? (
                                  <>
                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 sm:mb-3 border-b border-indigo-500/20 pb-2 gap-1.5 sm:gap-2">
                                          <span className="text-indigo-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">{t.reports.intel_target}: {log.params.targetName}</span>
                                          <span className="font-mono text-indigo-400 text-[9px] sm:text-[10px] bg-indigo-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params?.score ?? 0)}</span>
                                      </div>
-                                     
+
                                      <div className="space-y-1.5 sm:space-y-2">
                                          <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.reports.intel_composition}</div>
                                          <div className="flex flex-wrap gap-1.5 sm:gap-2">
@@ -226,7 +230,7 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                          </div>
                                      </div>
 
-                                      {onSimulate && log.params?.units && (
+                                      {onSimulate && log.params?.units && log.messageKey === 'log_intel_acquired' && (
                                           <button
                                               onClick={() => onSimulate(log.params?.units ?? {}, playerUnits ?? {})}
                                               className="w-full mt-2 sm:mt-3 py-1.5 sm:py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98]"

@@ -234,79 +234,86 @@ export const useP2PSpy = ({ gameState, onUpdateState, onSpyReportReceived }: Use
     if (!payload || payload.type !== MultiplayerActionType.SPY_RESPONSE) return;
 
     const myPlayerId = localPlayerIdRef.current;
-    console.log(`[P2P Spy] 🔍 Verificando respuesta - action.playerId (sender): ${action.playerId}, myPlayerId: ${myPlayerId}`);
+    console.log(`[P2P Spy] 🔍 Verificando respuesta - action.playerId (sender/target): ${action.playerId}, payload.requesterId: ${payload.requesterId}, myPlayerId: ${myPlayerId}`);
 
-    if (action.playerId === myPlayerId) {
-      const currentGameState = gameStateRef.current;
-      if (!currentGameState) {
-        console.error('[P2P Spy] Error: gameState no disponible al procesar respuesta');
-        return;
-      }
-      
-      const now = Date.now();
+    // The requester is the local player if payload.requesterId matches our local player ID
+    // action.playerId is the sender of this message (the target who responded)
+    const isForLocalPlayer = payload.requesterId === myPlayerId;
 
-      const totalUnitsReceived = Object.values(payload.units).reduce((sum, count) => sum + (count || 0), 0);
-      const totalResourcesReceived = Object.values(payload.resources).reduce((sum, val) => sum + (val || 0), 0);
-      const totalBuildingsReceived = Object.values(payload.buildings).reduce((sum, val) => sum + (val || 0), 0);
+    if (!isForLocalPlayer) {
+      console.log(`[P2P Spy] ⚠️ Response not for local player, skipping`);
+      return;
+    }
 
-      console.log(`[P2P Spy] ✅ Espionaje exitoso sobre ${payload.targetName} (${payload.targetId})`);
-      console.log(`[P2P Spy] 📊 Datos recibidos:`);
-      console.log(`   - Unidades: ${totalUnitsReceived}`);
-      console.log(`   - Recursos: ${totalResourcesReceived}`);
-      console.log(`   - Edificios: ${totalBuildingsReceived}`);
-      console.log(`   - Score: ${payload.targetScore}`);
-      console.log(`[P2P Spy] 🏗️ Detalle de edificios:`, payload.buildings);
+    const currentGameState = gameStateRef.current;
+    if (!currentGameState) {
+      console.error('[P2P Spy] Error: gameState no disponible al procesar respuesta');
+      return;
+    }
 
-      const report = {
-        id: `spy-p2p-${payload.targetId}-${now}`,
-        botId: payload.targetId,
-        botName: payload.targetName,
-        botScore: payload.targetScore,
-        botPersonality: null,
-        createdAt: now,
-        expiresAt: now + 10 * 60 * 1000,
+    const now = Date.now();
+
+    const totalUnitsReceived = Object.values(payload.units).reduce((sum, count) => sum + (count || 0), 0);
+    const totalResourcesReceived = Object.values(payload.resources).reduce((sum, val) => sum + (val || 0), 0);
+    const totalBuildingsReceived = Object.values(payload.buildings).reduce((sum, val) => sum + (val || 0), 0);
+
+    console.log(`[P2P Spy] ✅ Espionaje exitoso sobre ${payload.targetName} (${payload.targetId})`);
+    console.log(`[P2P Spy] 📊 Datos recibidos:`);
+    console.log(`   - Unidades: ${totalUnitsReceived}`);
+    console.log(`   - Recursos: ${totalResourcesReceived}`);
+    console.log(`   - Edificios: ${totalBuildingsReceived}`);
+    console.log(`   - Score: ${payload.targetScore}`);
+    console.log(`[P2P Spy] 🏗️ Detalle de edificios:`, payload.buildings);
+
+    const report = {
+      id: `spy-p2p-${payload.targetId}-${now}`,
+      botId: payload.targetId,
+      botName: payload.targetName,
+      botScore: payload.targetScore,
+      botPersonality: null,
+      createdAt: now,
+      expiresAt: now + 10 * 60 * 1000,
+      units: payload.units,
+      resources: payload.resources,
+      buildings: payload.buildings,
+      isP2P: true,
+    };
+
+    const newSpyReports = addSpyReport(currentGameState.spyReports || [], report);
+
+    const combatLog: LogEntry = {
+      id: `intel-p2p-${now}-${payload.targetId}`,
+      messageKey: 'log_p2p_spy_success',
+      type: 'intel',
+      timestamp: now,
+      params: {
+        targetName: payload.targetName,
         units: payload.units,
-        resources: payload.resources,
-        buildings: payload.buildings,
-        isP2P: true,
-      };
-
-      const newSpyReports = addSpyReport(currentGameState.spyReports || [], report);
-
-      const combatLog: LogEntry = {
-        id: `intel-p2p-${now}-${payload.targetId}`,
-        messageKey: 'log_p2p_spy_success',
-        type: 'intel',
-        timestamp: now,
-        params: {
-          targetName: payload.targetName,
-          units: payload.units,
-          score: payload.targetScore,
-          botId: payload.targetId
-        }
-      };
-
-      const newLogs = addGameLog(currentGameState.logs || [], combatLog);
-
-      try {
-        if (onUpdateStateRef.current) {
-          onUpdateStateRef.current({
-            spyReports: newSpyReports,
-            logs: newLogs,
-          });
-        } else if (typeof (window as any)._updateGameState === 'function') {
-          (window as any)._updateGameState({
-            spyReports: newSpyReports,
-            logs: newLogs,
-          });
-        }
-
-        if (onSpyReportReceivedRef.current) {
-          onSpyReportReceivedRef.current(report);
-        }
-      } catch (e) {
-        console.error('[P2P Spy] Error al actualizar estado con informe de espionaje:', e);
+        score: payload.targetScore,
+        botId: payload.targetId
       }
+    };
+
+    const newLogs = addGameLog(currentGameState.logs || [], combatLog);
+
+    try {
+      if (onUpdateStateRef.current) {
+        onUpdateStateRef.current({
+          spyReports: newSpyReports,
+          logs: newLogs,
+        });
+      } else if (typeof (window as any)._updateGameState === 'function') {
+        (window as any)._updateGameState({
+          spyReports: newSpyReports,
+          logs: newLogs,
+        });
+      }
+
+      if (onSpyReportReceivedRef.current) {
+        onSpyReportReceivedRef.current(report);
+      }
+    } catch (e) {
+      console.error('[P2P Spy] Error al actualizar estado con informe de espionaje:', e);
     }
   }, [localPlayerId]);
 
