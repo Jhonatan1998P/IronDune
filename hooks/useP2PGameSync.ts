@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
-import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops } from '../types/multiplayer';
+import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
 import { IncomingAttack } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
-import type { UnitType, BuildingType } from '../types/enums';
+import type { UnitType, BuildingType, ResourceType } from '../types/enums';
 
 // ============================================================================
 // Verificación de Integridad del resultado de batalla
@@ -164,6 +164,59 @@ export const useP2PGameSync = () => {
       });
     };
 
+    // Handler: Responder a solicitud de espionaje P2P
+    // Cuando otro jugador nos espía, respondemos con nuestros datos reales
+    const handleSpyRequest = (payload: any) => {
+      const request = payload as P2PSpyRequest & { _senderPeerId?: string };
+      const gs = gameStateRef.current;
+      const myId = localPlayerIdRef.current;
+
+      const senderPeerId: string | undefined = request._senderPeerId;
+
+      console.log('[P2PGameSync] SPY_REQUEST received — spyId:', request.spyId,
+        'from:', request.attackerName, 'senderPeerId:', senderPeerId);
+
+      // Snapshot de unidades (solo las que tienen > 0)
+      const unitSnapshot: Partial<Record<UnitType, number>> = {};
+      for (const [k, v] of Object.entries(gs.units)) {
+        if (v > 0) unitSnapshot[k as UnitType] = v;
+      }
+
+      // Snapshot de recursos
+      const resourceSnapshot: Partial<Record<ResourceType, number>> = {};
+      for (const [k, v] of Object.entries(gs.resources)) {
+        if (v > 0) resourceSnapshot[k as ResourceType] = Math.floor(v);
+      }
+
+      // Snapshot de edificios (convertir BuildingState.level a número simple)
+      const buildingSnapshot: Partial<Record<BuildingType, number>> = {};
+      for (const [k, v] of Object.entries(gs.buildings)) {
+        if (v && v.level > 0) buildingSnapshot[k as BuildingType] = v.level;
+      }
+
+      const reply: P2PSpyResponse = {
+        type: 'P2P_SPY_RESPONSE',
+        spyId: request.spyId,
+        targetId: myId || 'UNKNOWN',
+        targetName: gs.playerName || 'Unknown',
+        targetScore: gs.empirePoints || 0,
+        units: unitSnapshot,
+        resources: resourceSnapshot,
+        buildings: buildingSnapshot,
+        timestamp: Date.now(),
+      };
+
+      const replyTarget = senderPeerId || request.attackerId;
+      sendToPeerRef.current(replyTarget, {
+        type: 'P2P_SPY_RESPONSE',
+        payload: reply,
+        playerId: myId || '',
+        timestamp: Date.now(),
+      });
+
+      console.log('[P2PGameSync] SPY_RESPONSE sent to:', replyTarget);
+    };
+
     const handleChatMessage = (payload: any) => {
       try {
         const saved = localStorage.getItem('ironDuneP2PChatMessages');
@@ -211,12 +264,14 @@ export const useP2PGameSync = () => {
     gameEventBus.on('P2P_BATTLE_RESULT' as any, handleBattleResult);
     gameEventBus.on('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
     gameEventBus.on('P2P_CHAT_MESSAGE' as any, handleChatMessage);
+    gameEventBus.on('P2P_SPY_REQUEST' as any, handleSpyRequest);
 
     return () => {
       gameEventBus.off('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
       gameEventBus.off('P2P_BATTLE_RESULT' as any, handleBattleResult);
       gameEventBus.off('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
       gameEventBus.off('P2P_CHAT_MESSAGE' as any, handleChatMessage);
+      gameEventBus.off('P2P_SPY_REQUEST' as any, handleSpyRequest);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Solo una vez — datos frescos vienen de los refs

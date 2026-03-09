@@ -47,7 +47,7 @@ export interface GiftResourcePayload {
  */
 export interface MultiplayerAction {
   type: string;      // 'PRESENCE_UPDATE', 'REQUEST_PRESENCE', 'GIFT_GOLD', 'CHAT_MESSAGE', etc.
-  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | P2PBattleRequestTroops | P2PBattleDefenderTroops | any | null;  // Datos de la acción (debe ser JSON-serializable)
+  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | P2PBattleRequestTroops | P2PBattleDefenderTroops | P2PSpyRequest | P2PSpyResponse | any | null;  // Datos de la acción (debe ser JSON-serializable)
   playerId: string;  // ID de quien envía
   timestamp: number; // Marca de tiempo (para ordenamiento y prevención de latencia)
 }
@@ -298,5 +298,36 @@ export interface P2PBattleDefenderTroops {
   defenderId: string;
   defenderUnits: Partial<Record<UnitType, number>>;
   defenderBuildings?: Record<BuildingType, { level: number }>;
+  timestamp: number;
+}
+
+// ============================================================================
+// P2P ESPIONAGE SYSTEM TYPES
+// ============================================================================
+
+/**
+ * Solicitud de espionaje P2P: el espía pide información del objetivo
+ */
+export interface P2PSpyRequest {
+  type: 'P2P_SPY_REQUEST';
+  spyId: string;              // ID único del espionaje "spy-{targetId}-{timestamp}"
+  attackerId: string;         // ID del jugador que espía
+  attackerName: string;       // Nombre del jugador que espía
+  targetId: string;           // ID del jugador espiado
+  timestamp: number;
+}
+
+/**
+ * Respuesta de espionaje P2P: el objetivo responde con sus datos reales
+ */
+export interface P2PSpyResponse {
+  type: 'P2P_SPY_RESPONSE';
+  spyId: string;              // Mismo ID que el request para correlacionar
+  targetId: string;           // ID del jugador espiado
+  targetName: string;         // Nombre del jugador espiado
+  targetScore: number;        // Score (empirePoints) del espiado
+  units: Partial<Record<UnitType, number>>;           // Unidades defensivas reales
+  resources: Partial<Record<ResourceType, number>>;   // Recursos reales
+  buildings: Partial<Record<BuildingType, number>>;   // Edificios reales (nivel)
   timestamp: number;
 }

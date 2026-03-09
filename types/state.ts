@@ -191,10 +191,11 @@ export interface DiplomaticActions {
 
 export interface SpyReport {
     id: string;
-    botId: string;
+    botId: string; // Target ID (can be bot or player)
     botName: string;
     botScore: number;
-    botPersonality: BotPersonality;
+    botPersonality?: BotPersonality; // Optional for P2P players
+    isP2P?: boolean; // Flag to indicate if it's a P2P player
     createdAt: number;
     expiresAt: number; // 10 minutes after spy
     units: Partial<Record<UnitType, number>>;

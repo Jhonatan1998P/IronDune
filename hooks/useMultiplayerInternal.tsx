@@ -453,6 +453,14 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS from peerId:', peerId);
           gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
+        case 'P2P_SPY_REQUEST':
+          console.log('[Multiplayer] Received P2P_SPY_REQUEST from peerId:', peerId);
+          gameEventBus.emit('P2P_SPY_REQUEST' as any, { ...action.payload, _senderPeerId: peerId });
+          break;
+        case 'P2P_SPY_RESPONSE':
+          console.log('[Multiplayer] Received P2P_SPY_RESPONSE from peerId:', peerId);
+          gameEventBus.emit('P2P_SPY_RESPONSE' as any, { ...action.payload, _senderPeerId: peerId });
+          break;
         case 'CHAT_MESSAGE':
           const chatPayload = action.payload as ChatMessagePayload;
           gameEventBus.emit('P2P_CHAT_MESSAGE' as any, { 

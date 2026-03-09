@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GameState, TranslationDictionary, ResourceType, UnitType, LogEntry } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { GameState, TranslationDictionary, ResourceType, UnitType, LogEntry, SpyReport } from '../../types';
 import { RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { Icons, GlassButton } from '../UIComponents';
 import { formatNumber } from '../../utils';
@@ -8,6 +8,9 @@ import { BotPersonality } from '../../types/enums';
 import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions';
 import { addSpyReport, addGameLog } from '../../utils';
 import { UNIT_DEFS } from '../../data/units';
+import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { P2PSpyRequest, P2PSpyResponse } from '../../types/multiplayer';
+import { gameEventBus } from '../../utils/eventBus';
 
 // Mapa persistente para almacenar costos de espionaje por bot (no se pierde al desmontar)
 const SPY_COST_CACHE = new Map<string, number>();
@@ -35,19 +38,18 @@ const getTierInfo = (tier: string) => {
 export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, gameState, t, onClose, onDeclareWar, onAttack, onUpdateState }) => {
     const [showSpyReport, setShowSpyReport] = useState(false);
     const [isSpying, setIsSpying] = useState(false);
+    const [pendingSpyId, setPendingSpyId] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+    const { sendToPeer, localPlayerId } = useMultiplayer();
 
     const now = Date.now();
     const activeSpyReport = gameState.spyReports?.find(r => r.botId === entry.id && r.expiresAt > now);
     
     // Calcular costo de espionaje persistente usando cache a nivel de módulo
     const spyCost = useMemo(() => {
-        // Si ya tenemos un costo guardado para este bot, usarlo
         if (SPY_COST_CACHE.has(entry.id)) {
             return SPY_COST_CACHE.get(entry.id)!;
         }
-        
-        // Calcular nuevo costo y guardarlo en el cache
         const newCost = calculateSpyCost(entry.score);
         SPY_COST_CACHE.set(entry.id, newCost);
         return newCost;
@@ -55,8 +57,118 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     
     const canAffordSpy = gameState.resources[ResourceType.GOLD] >= spyCost;
 
+    useEffect(() => {
+        if (!pendingSpyId) return;
+        
+        const handleSpyResponse = (payload: any) => {
+            const response = payload as P2PSpyResponse;
+            if (response.spyId === pendingSpyId) {
+                const SPY_EXPIRY_MS = 10 * 60 * 1000;
+                
+                const newReport: SpyReport = {
+                    id: response.spyId,
+                    botId: response.targetId,
+                    botName: response.targetName,
+                    botScore: response.targetScore,
+                    isP2P: true,
+                    createdAt: response.timestamp,
+                    expiresAt: response.timestamp + SPY_EXPIRY_MS,
+                    units: response.units,
+                    resources: response.resources,
+                    buildings: response.buildings
+                };
+
+                const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
+
+                const combatLog: LogEntry = {
+                    id: `intel-${response.timestamp}-${response.targetId}`,
+                    messageKey: 'log_intel_acquired',
+                    type: 'intel',
+                    timestamp: response.timestamp,
+                    params: {
+                        targetName: response.targetName,
+                        units: newReport.units,
+                        score: response.targetScore,
+                        botId: response.targetId
+                    }
+                };
+                const newLogs = addGameLog(gameState.logs || [], combatLog);
+
+                if (onUpdateState) {
+                    onUpdateState({
+                        spyReports: newSpyReports,
+                        logs: newLogs
+                    });
+                } else if (typeof (window as any)._updateGameState === 'function') {
+                    (window as any)._updateGameState({
+                        ...gameState,
+                        spyReports: newSpyReports,
+                        logs: newLogs
+                    });
+                }
+
+                setShowSpyReport(true);
+                setIsSpying(false);
+                setPendingSpyId(null);
+            }
+        };
+
+        gameEventBus.on('P2P_SPY_RESPONSE' as any, handleSpyResponse);
+        return () => gameEventBus.off('P2P_SPY_RESPONSE' as any, handleSpyResponse);
+    }, [pendingSpyId, gameState, onUpdateState]);
+
     const handleSpy = () => {
         if (!canAffordSpy || isSpying) return;
+
+        if (entry.isP2P) {
+            setIsSpying(true);
+            const spyId = `spy-${entry.id}-${now}`;
+            setPendingSpyId(spyId);
+            
+            if (onUpdateState) {
+                onUpdateState({
+                    resources: {
+                        ...gameState.resources,
+                        [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
+                    }
+                });
+            } else if (typeof (window as any)._updateGameState === 'function') {
+                (window as any)._updateGameState({
+                    ...gameState,
+                    resources: {
+                        ...gameState.resources,
+                        [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
+                    }
+                });
+            }
+
+            const request: P2PSpyRequest = {
+                type: 'P2P_SPY_REQUEST',
+                spyId,
+                attackerId: localPlayerId || 'UNKNOWN_PLAYER',
+                attackerName: gameState.playerName,
+                targetId: entry.id,
+                timestamp: now,
+            };
+            
+            sendToPeer(entry.id, {
+                type: 'P2P_SPY_REQUEST',
+                payload: request,
+                playerId: request.attackerId,
+                timestamp: request.timestamp,
+            });
+            
+            setTimeout(() => {
+                setPendingSpyId((currentId) => {
+                    if (currentId === spyId) {
+                        setIsSpying(false);
+                        return null;
+                    }
+                    return currentId;
+                });
+            }, 8000);
+            return;
+        }
 
         const targetBot = gameState.rankingData.bots.find(b => b.id === entry.id);
         if (!targetBot) return;
@@ -96,6 +208,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             });
         } else if (typeof (window as any)._updateGameState === 'function') {
             (window as any)._updateGameState({
+                ...gameState,
                 resources: {
                     ...gameState.resources,
                     [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
