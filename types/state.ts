@@ -194,13 +194,12 @@ export interface SpyReport {
     botId: string;
     botName: string;
     botScore: number;
-    botPersonality: BotPersonality | null;
+    botPersonality: BotPersonality;
     createdAt: number;
     expiresAt: number; // 10 minutes after spy
     units: Partial<Record<UnitType, number>>;
     resources: Partial<Record<ResourceType, number>>;
     buildings: Partial<Record<BuildingType, number>>;
-    isP2P?: boolean; // Flag for P2P spy reports
 }
 
 export interface GiftCode {

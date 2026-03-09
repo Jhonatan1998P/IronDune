@@ -251,12 +251,10 @@ export const useGameActions = (
       const nameChanged = nameLower !== gameState.playerName.toLowerCase();
 
       if (nameChanged) {
-        // Null safety for rankingData
-        const bots = gameState.rankingData?.bots || [];
-        const nameTaken = bots.some(
+        const nameTaken = gameState.rankingData.bots.some(
             bot => bot.name.toLowerCase() === nameLower
         );
-
+        
         if (nameTaken) {
             return { success: false, errorKey: 'name_already_taken' };
         }
@@ -290,13 +288,11 @@ export const useGameActions = (
   const sendDiplomaticGift = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
       const now = Date.now();
       const result = sendGift(gameState, botId, now);
-
+      
       if (result.success && result.newReputation !== undefined) {
           setGameState(prev => {
-              // Null safety for rankingData
-              const currentBots = prev.rankingData?.bots || [];
-              const newBots = currentBots.map(bot =>
-                  bot.id === botId
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
                       ? { ...bot, reputation: result.newReputation! }
                       : bot
               );
@@ -342,13 +338,11 @@ export const useGameActions = (
   const proposeDiplomaticAlliance = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
       const now = Date.now();
       const result = proposeAlliance(gameState, botId, now);
-
+      
       if (result.success && result.newReputation !== undefined) {
           setGameState(prev => {
-              // Null safety for rankingData
-              const currentBots = prev.rankingData?.bots || [];
-              const newBots = currentBots.map(bot =>
-                  bot.id === botId
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
                       ? { ...bot, reputation: result.newReputation! }
                       : bot
               );
@@ -389,13 +383,11 @@ export const useGameActions = (
   const proposeDiplomaticPeace = useCallback((botId: string): { success: boolean; messageKey?: string; params?: Record<string, any> } => {
       const now = Date.now();
       const result = proposePeace(gameState, botId, now);
-
+      
       if (result.success && result.newReputation !== undefined) {
           setGameState(prev => {
-              // Null safety for rankingData
-              const currentBots = prev.rankingData?.bots || [];
-              const newBots = currentBots.map(bot =>
-                  bot.id === botId
+              const newBots = prev.rankingData.bots.map(bot => 
+                  bot.id === botId 
                       ? { ...bot, reputation: result.newReputation! }
                       : bot
               );

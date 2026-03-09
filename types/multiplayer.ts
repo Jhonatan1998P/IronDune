@@ -47,7 +47,7 @@ export interface GiftResourcePayload {
  */
 export interface MultiplayerAction {
   type: string;      // 'PRESENCE_UPDATE', 'REQUEST_PRESENCE', 'GIFT_GOLD', 'CHAT_MESSAGE', etc.
-  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | P2PBattleRequestTroops | P2PBattleDefenderTroops | P2PSpyRequest | P2PSpyResponse | any | null;  // Datos de la acción (debe ser JSON-serializable)
+  payload: PlayerPresence | GiftGoldPayload | ChatMessagePayload | P2PAttackRequest | P2PAttackResult | P2PBattleRequestTroops | P2PBattleDefenderTroops | any | null;  // Datos de la acción (debe ser JSON-serializable)
   playerId: string;  // ID de quien envía
   timestamp: number; // Marca de tiempo (para ordenamiento y prevención de latencia)
 }
@@ -107,9 +107,6 @@ export enum MultiplayerActionType {
   BATTLE_ARMY_LOCK = 'BATTLE_ARMY_LOCK',
   BATTLE_RESULT_SYNC = 'BATTLE_RESULT_SYNC',
   BATTLE_CANCEL = 'BATTLE_CANCEL',
-  // P2P Spy Actions
-  SPY_REQUEST = 'SPY_REQUEST',
-  SPY_RESPONSE = 'SPY_RESPONSE',
 }
 
 /**
@@ -301,32 +298,5 @@ export interface P2PBattleDefenderTroops {
   defenderId: string;
   defenderUnits: Partial<Record<UnitType, number>>;
   defenderBuildings?: Record<BuildingType, { level: number }>;
-  timestamp: number;
-}
-
-// ============================================================================
-// P2P SPY SYSTEM TYPES
-// ============================================================================
-
-export interface P2PSpyRequest {
-  type: 'SPY_REQUEST';
-  spyId: string;
-  requesterId: string;
-  requesterName: string;
-  requesterScore: number;
-  targetId: string;
-  timestamp: number;
-}
-
-export interface P2PSpyResponse {
-  type: 'SPY_RESPONSE';
-  spyId: string;
-  requesterId: string;
-  targetId: string;
-  targetName: string;
-  targetScore: number;
-  resources: Partial<Record<ResourceType, number>>;
-  units: Partial<Record<UnitType, number>>;
-  buildings: Partial<Record<BuildingType, number>>;
   timestamp: number;
 }

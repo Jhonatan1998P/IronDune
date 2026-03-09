@@ -462,14 +462,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
             timestamp: action.timestamp
           });
           break;
-        case 'SPY_REQUEST':
-          console.log('[Multiplayer] Received SPY_REQUEST from peerId:', peerId);
-          gameEventBus.emit('P2P_SPY_REQUEST' as any, { ...action.payload, _senderPeerId: peerId });
-          break;
-        case 'SPY_RESPONSE':
-          console.log('[Multiplayer] Received SPY_RESPONSE from peerId:', peerId);
-          gameEventBus.emit('P2P_SPY_RESPONSE' as any, { ...action.payload, _senderPeerId: peerId });
-          break;
         default:
           if (actionsCallbackRef.current) {
             actionsCallbackRef.current(action);

@@ -9,7 +9,6 @@ import React, { useEffect, Suspense, lazy, useMemo, useCallback } from 'react';
 import { TabType } from '../GameSidebar';
 import { useGame } from '../../context/GameContext';
 import { UnitType, GameState } from '../../types';
-import { useP2PSpy } from '../../hooks/useP2PSpy';
 
 // Lazy load all views for better code splitting
 const BuildingsView = lazy(() => import('../views/BuildingsView').then(m => ({ default: m.BuildingsView })));
@@ -71,8 +70,6 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
         deleteLogs, archiveLogs, markReportsRead,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     } = useGame();
-
-    useP2PSpy({ gameState });
     
     const handleSimulate = useCallback((enemy: Partial<Record<UnitType, number>>, player: Partial<Record<UnitType, number>>) => {
         onSimulateRequest(enemy, player);
