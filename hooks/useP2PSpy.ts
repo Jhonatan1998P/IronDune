@@ -106,29 +106,33 @@ export const useP2PSpy = ({ gameState, onUpdateState, onSpyReportReceived }: Use
     }, {} as Record<UnitType, number>);
 
     const unitsInBase: Partial<Record<UnitType, number>> = {};
-    Object.entries(currentGameState.units).forEach(([unitType, count]) => {
-      const inMovement = unitsInMovement[unitType as UnitType] || 0;
-      const inBase = Math.max(0, count - inMovement);
-      if (inBase > 0) {
-        unitsInBase[unitType as UnitType] = inBase;
-      }
-    });
+    if (currentGameState.units) {
+      Object.entries(currentGameState.units).forEach(([unitType, count]) => {
+        const inMovement = unitsInMovement[unitType as UnitType] || 0;
+        const inBase = Math.max(0, count - inMovement);
+        if (inBase > 0) {
+          unitsInBase[unitType as UnitType] = inBase;
+        }
+      });
+    }
 
     const buildings: Partial<Record<BuildingType, number>> = {};
-    Object.entries(currentGameState.buildings).forEach(([buildingType, state]) => {
-      if (state.level > 0) {
-        buildings[buildingType as BuildingType] = state.level;
-      }
-    });
+    if (currentGameState.buildings) {
+      Object.entries(currentGameState.buildings).forEach(([buildingType, state]) => {
+        if (state.level > 0) {
+          buildings[buildingType as BuildingType] = state.level;
+        }
+      });
+    }
 
     const response: P2PSpyResponse = {
       type: MultiplayerActionType.SPY_RESPONSE,
       spyId: `spy-response-${now}`,
       requesterId: requesterPeerId,
       targetId: localPlayerId || '',
-      targetName: currentGameState.playerName,
-      targetScore: currentGameState.empirePoints,
-      resources: { ...currentGameState.resources },
+      targetName: currentGameState.playerName || 'Unknown',
+      targetScore: currentGameState.empirePoints || 0,
+      resources: currentGameState.resources ? { ...currentGameState.resources } : {},
       units: unitsInBase,
       buildings,
       timestamp: now,
@@ -147,6 +151,11 @@ export const useP2PSpy = ({ gameState, onUpdateState, onSpyReportReceived }: Use
     console.log(`[P2P Spy] 📥 SPY_REQUEST recibido del peerId de Trystero: ${senderPeerId} - requesterName: ${payload.requesterName}`);
 
     const currentGameState = gameStateRef.current;
+    if (!currentGameState) {
+      console.error('[P2P Spy] Error: gameState no disponible');
+      return;
+    }
+    
     const now = Date.now();
 
     console.log(`[P2P Spy] 📥 Petición de espionaje recibida de ${payload.requesterName} (${payload.requesterId}) - Score: ${payload.requesterScore}`);
@@ -193,21 +202,29 @@ export const useP2PSpy = ({ gameState, onUpdateState, onSpyReportReceived }: Use
 
     const newLogs2 = addGameLog(newLogs1, logResponseSent);
 
-    if (onUpdateStateRef.current) {
-      onUpdateStateRef.current({ logs: newLogs2 });
-    } else if (typeof (window as any)._updateGameState === 'function') {
-      (window as any)._updateGameState({ logs: newLogs2 });
+    try {
+      if (onUpdateStateRef.current) {
+        onUpdateStateRef.current({ logs: newLogs2 });
+      } else if (typeof (window as any)._updateGameState === 'function') {
+        (window as any)._updateGameState({ logs: newLogs2 });
+      }
+    } catch (e) {
+      console.error('[P2P Spy] Error al actualizar logs:', e);
     }
 
     const myLocalId = localPlayerIdRef.current;
     console.log(`[P2P Spy] 📤 Enviando respuesta al peerId de Trystero: ${action.playerId}`);
     
-    sendToPeer(action.playerId, {
-      type: MultiplayerActionType.SPY_RESPONSE,
-      payload: response,
-      playerId: myLocalId || '',
-      timestamp: Date.now(),
-    });
+    try {
+      sendToPeer(action.playerId, {
+        type: MultiplayerActionType.SPY_RESPONSE,
+        payload: response,
+        playerId: myLocalId || '',
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      console.error('[P2P Spy] Error al enviar respuesta:', e);
+    }
   }, [localPlayerId, buildSpyResponse, sendToPeer]);
 
   const handleSpyResponse = useCallback((
@@ -271,20 +288,24 @@ export const useP2PSpy = ({ gameState, onUpdateState, onSpyReportReceived }: Use
 
       const newLogs = addGameLog(currentGameState.logs || [], combatLog);
 
-      if (onUpdateStateRef.current) {
-        onUpdateStateRef.current({
-          spyReports: newSpyReports,
-          logs: newLogs,
-        });
-      } else if (typeof (window as any)._updateGameState === 'function') {
-        (window as any)._updateGameState({
-          spyReports: newSpyReports,
-          logs: newLogs,
-        });
-      }
+      try {
+        if (onUpdateStateRef.current) {
+          onUpdateStateRef.current({
+            spyReports: newSpyReports,
+            logs: newLogs,
+          });
+        } else if (typeof (window as any)._updateGameState === 'function') {
+          (window as any)._updateGameState({
+            spyReports: newSpyReports,
+            logs: newLogs,
+          });
+        }
 
-      if (onSpyReportReceivedRef.current) {
-        onSpyReportReceivedRef.current(report);
+        if (onSpyReportReceivedRef.current) {
+          onSpyReportReceivedRef.current(report);
+        }
+      } catch (e) {
+        console.error('[P2P Spy] Error al actualizar estado con informe de espionaje:', e);
       }
     }
   }, [localPlayerId]);
