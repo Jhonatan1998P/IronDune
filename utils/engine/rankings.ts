@@ -368,7 +368,8 @@ const getTier = (rank: number): RankingEntry['tier'] => {
 };
 
 export const getCurrentStandings = (state: GameState, bots: StaticBot[], category: RankingCategory): RankingEntry[] => {
-    const previousPlayerRank = state.rankingData.lastPlayerRank;
+    // Null safety for rankingData
+    const previousPlayerRank = state.rankingData?.lastPlayerRank ?? 9999;
 
     const entries: RankingEntry[] = bots.map(bot => {
         const score = bot.stats[category];

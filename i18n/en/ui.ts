@@ -237,6 +237,7 @@ export const ui = {
         strategic_profile: "Strategic Profile",
         technical_specs: "Technical Specs",
         target_outside_range: "Target outside combat range (50% - 150%)",
+        p2p_war_not_available: "P2P War not available - use direct attacks",
         instant_arrival_desc: "Reduce travel time by 80%",
         total_troops: "Total Troops",
         select_target_zone: "Select Target Zone",

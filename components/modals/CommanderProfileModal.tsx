@@ -9,6 +9,7 @@ import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions
 import { addSpyReport, addGameLog } from '../../utils';
 import { UNIT_DEFS } from '../../data/units';
 import { useP2PSpy } from '../../hooks/useP2PSpy';
+import { P2PAttackModal } from '../modals/P2PAttackModal';
 
 // Mapa persistente para almacenar costos de espionaje por bot (no se pierde al desmontar)
 const SPY_COST_CACHE = new Map<string, number>();
@@ -38,6 +39,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     const [isSpying, setIsSpying] = useState(false);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
     const [p2pSpyPending, setP2pSpyPending] = useState(false);
+    const [p2pAttackTarget, setP2PAttackTarget] = useState<{ id: string; name: string; score: number } | null>(null);
 
     const { sendSpyRequest } = useP2PSpy({
         gameState,
@@ -62,6 +64,24 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     }, [entry.id, entry.score]);
     
     const canAffordSpy = gameState.resources[ResourceType.GOLD] >= spyCost;
+
+    // Handler para ataque P2P (abre el modal de ataque P2P)
+    const handleP2PAttack = () => {
+        if (!isP2PTarget) return;
+        setP2PAttackTarget({ id: entry.id, name: entry.name, score: entry.score });
+    };
+
+    // Handler para ataque a bot (usa el modal existente)
+    const handleBotAttack = () => {
+        if (isP2PTarget) return;
+        onAttack();
+    };
+
+    // Handler para declarar guerra a bot
+    const handleBotDeclareWar = () => {
+        if (isP2PTarget) return;
+        onDeclareWar();
+    };
 
     const handleP2PSpy = () => {
         if (!canAffordSpy || isSpying || p2pSpyPending) return;
@@ -377,24 +397,44 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                     </div>
                                 )}
 
-                                <GlassButton
-                                    onClick={onAttack}
-                                    disabled={!inRange || isNewbie}
-                                    variant={isWarTarget ? "danger" : "primary"}
-                                    className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase"
-                                >
-                                    {isWarTarget ? t.reports.hostile : t.common.actions.attack}
-                                </GlassButton>
-
-                                {!isWarTarget && (
+                                {/* Botón de ATACAR - Diferente para P2P vs Bots */}
+                                {isP2PTarget ? (
                                     <GlassButton
-                                        onClick={onDeclareWar}
+                                        onClick={handleP2PAttack}
+                                        disabled={!inRange || isNewbie}
+                                        variant={isWarTarget ? "danger" : "primary"}
+                                        className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase"
+                                    >
+                                        {isWarTarget ? t.reports.hostile : t.common.actions.attack}
+                                    </GlassButton>
+                                ) : (
+                                    <GlassButton
+                                        onClick={handleBotAttack}
+                                        disabled={!inRange || isNewbie}
+                                        variant={isWarTarget ? "danger" : "primary"}
+                                        className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase"
+                                    >
+                                        {isWarTarget ? t.reports.hostile : t.common.actions.attack}
+                                    </GlassButton>
+                                )}
+
+                                {/* Botón de DECLARAR GUERRA - Solo para Bots, no para P2P */}
+                                {!isP2PTarget && !isWarTarget && (
+                                    <GlassButton
+                                        onClick={handleBotDeclareWar}
                                         disabled={hasActiveWar || !inRange || isNewbie}
                                         variant="neutral"
                                         className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-red-900/50 text-red-400 hover:bg-red-900/20"
                                     >
                                         {t.common.war.declare_title}
                                     </GlassButton>
+                                )}
+
+                                {/* Info: Guerra P2P no disponible */}
+                                {isP2PTarget && (
+                                    <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest text-center bg-slate-900/40 p-2 rounded border border-white/5">
+                                        {t.common.ui.p2p_war_not_available || 'Guerra P2P no disponible - usa ataques directos'}
+                                    </p>
                                 )}
 
                                 <div className="flex flex-col items-center gap-1">
@@ -424,6 +464,21 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     </div>
                 </div>
             </div>
+
+            {/* P2P Attack Modal - Solo se muestra para objetivos P2P */}
+            {isP2PTarget && p2pAttackTarget && (
+                <P2PAttackModal
+                    target={p2pAttackTarget}
+                    gameState={gameState}
+                    onClose={() => setP2PAttackTarget(null)}
+                    onAttackSent={(newState) => {
+                        setP2PAttackTarget(null);
+                        if (onUpdateState && newState) {
+                            onUpdateState(newState);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };
