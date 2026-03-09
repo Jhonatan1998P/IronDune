@@ -24,13 +24,15 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
     Object.values(ResourceType).forEach((res) => {
         const prod = (prodRates[res] || 0) * timeMultiplier;
         const upkeep = (upkeepCosts[res] || 0) * timeMultiplier;
-        let netChange = prod - upkeep;
+        const netChange = prod - upkeep;
         
         // Diamond Production: Handle damaged state
         if (res === ResourceType.DIAMOND) {
             const diamondMine = state.buildings[BuildingType.DIAMOND_MINE];
             if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
-                netChange = 0;
+                // Si la mina está dañada, solo se resta el mantenimiento
+                newResources[res] = Math.max(0, newResources[res] - upkeep);
+                return;
             }
         }
 
@@ -38,7 +40,15 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
             resourcesMinedIncrement.value += prod;
         }
         
-        newResources[res] = Math.max(0, Math.min(maxStorage[res], newResources[res] + netChange));
+        if (netChange > 0) {
+            // Permitir conservar el desbordamiento si ya existía (ej. recompensas)
+            // pero no añadir más producción si ya se superó el cap.
+            const availableSpace = Math.max(0, maxStorage[res] - newResources[res]);
+            newResources[res] = newResources[res] + Math.min(netChange, availableSpace);
+        } else {
+            // El mantenimiento siempre se resta
+            newResources[res] = Math.max(0, newResources[res] + netChange);
+        }
     });
 
     // 2. Bank Logic

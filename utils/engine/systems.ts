@@ -28,7 +28,10 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
     // 1. Constructions
     const updatedConstructions = state.activeConstructions.filter(c => {
         if (now >= c.endTime) {
-            newBuildings[c.buildingType] = { level: newBuildings[c.buildingType].level + c.count };
+            newBuildings[c.buildingType] = { 
+                ...newBuildings[c.buildingType],
+                level: newBuildings[c.buildingType].level + c.count 
+            };
             return false;
         }
         return true;

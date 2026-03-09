@@ -56,34 +56,35 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     Object.values(ResourceType).forEach((res) => {
         const prod = (prodRates[res] || 0) * effectiveTimeSecs;
         const upkeep = (upkeepCosts[res] || 0) * effectiveTimeSecs;
-        let netChange = prod - upkeep;
+        const netChange = prod - upkeep;
 
         if (res === ResourceType.DIAMOND) {
             const diamondMine = newState.buildings[BuildingType.DIAMOND_MINE];
             if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
-                netChange = 0;
+                // No hay producción de diamantes si la mina está dañada
+                newState.resources[res] = Math.max(0, newState.resources[res] - upkeep);
+                return;
             }
         }
 
         const prevAmount = newState.resources[res];
-        // Si prev ya supera el cap (por cambio de empirePoints), primero clampear
-        const clampedPrev = Math.min(prevAmount, maxStorage[res]);
         
-        // El estado interno debe conservar su parte fraccional para precisión matemática
-        newState.resources[res] = Math.max(0, Math.min(maxStorage[res], clampedPrev + netChange));
-        
-        // El delta (para reportes) usa enteros usando truncado/suelo para evitar confusiones
-        const delta = Math.floor(newState.resources[res]) - Math.floor(clampedPrev);
-
-        if (delta > 0) {
-            // Report only what was ACTUALLY added (respecting storage cap)
-            report.resourcesGained[res] = delta;
-        } else if (delta < 0) {
-            // Record net consumption (upkeep exceeded production)
-            report.resourcesConsumed[res] = Math.abs(delta);
+        if (netChange > 0) {
+            // Permitir conservar el desbordamiento (overflow) si ya existía,
+            // pero solo añadir producción si hay espacio bajo el cap.
+            const availableSpace = Math.max(0, maxStorage[res] - prevAmount);
+            const actualGain = Math.min(netChange, availableSpace);
+            newState.resources[res] = prevAmount + actualGain;
+            report.resourcesGained[res] = Math.floor(newState.resources[res]) - Math.floor(prevAmount);
+        } else if (netChange < 0) {
+            // El mantenimiento siempre se resta
+            newState.resources[res] = Math.max(0, prevAmount + netChange);
+            report.resourcesConsumed[res] = Math.floor(prevAmount) - Math.floor(newState.resources[res]);
         }
 
-        console.log(`[Offline] ${res}: prev=${prevAmount} clampedPrev=${clampedPrev} cap=${maxStorage[res]} netChange=${netChange} delta=${delta}`);
+        if (report.resourcesGained[res] > 0 || report.resourcesConsumed[res] > 0) {
+            console.log(`[Offline] ${res}: current=${prevAmount.toFixed(2)} cap=${maxStorage[res]} netChange=${netChange.toFixed(2)} gain=${report.resourcesGained[res]}`);
+        }
     });
 
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
@@ -106,7 +107,10 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     const remainingConstructions: typeof newState.activeConstructions = [];
     for (const c of newState.activeConstructions) {
         if (now >= c.endTime) {
-            newState.buildings[c.buildingType] = { level: newState.buildings[c.buildingType].level + c.count };
+            newState.buildings[c.buildingType] = { 
+                ...newState.buildings[c.buildingType],
+                level: newState.buildings[c.buildingType].level + c.count 
+            };
         } else {
             remainingConstructions.push(c);
         }

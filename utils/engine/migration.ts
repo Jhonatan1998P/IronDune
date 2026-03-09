@@ -1,5 +1,5 @@
 
-import { BuildingType, GameState, ResourceType, TechType, UnitType, LogEntry, SpyReport, IncomingAttack, Grudge, WarState, ActiveMission, ActiveRecruitment, ActiveConstruction, ActiveResearch, BuildingState, LifetimeStats, DiplomaticActions, GiftCodeRedeemed, RankingData } from '../../types';
+import { BuildingType, GameState, ResourceType, TechType, UnitType, LogEntry, SpyReport, IncomingAttack, Grudge, WarState, ActiveMission, BuildingState, RankingData, LifetimeStats, DiplomaticActions } from '../../types';
 import { SAVE_VERSION, WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';
 import { INITIAL_GAME_STATE } from '../../data/initialState';
 import { initializeRankingState, RankingCategory, StaticBot, BotEvent } from './rankings';
@@ -9,7 +9,6 @@ import { logMigrationError } from './errorLogger';
 // ============================================
 // CONFIGURACIÓN Y CONSTANTES DE VALIDACIÓN
 // ============================================
-const LEGACY_STORAGE_KEY = 'ironDune_static_rankings_v3';
 const VALID_PERSONALITIES = Object.values(BotPersonality);
 const VALID_BOT_EVENTS = Object.values(BotEvent);
 const REQUIRED_RANKING_CATEGORIES = Object.values(RankingCategory);
@@ -28,7 +27,6 @@ const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
 
 // Score limits - aligned with rankings.ts to allow unlimited growth
 const BOT_SCORE_MAX = Number.MAX_SAFE_INTEGER; // Allow unlimited growth
-const SUSPICIOUS_SCORE_THRESHOLD = Number.MAX_SAFE_INTEGER; // Disabled - scores are validated by number type only
 
 // ============================================
 // UTILIDADES DE VALIDACIÓN ROBUSTA
@@ -147,10 +145,10 @@ const logMigration = (level: 'info' | 'warn' | 'error', message: string, data?: 
     logFn(`${MIGRATION_LOG_PREFIX} [${timestamp}] ${level.toUpperCase()}: ${message}`, data ?? '');
 };
 
-const logFieldMigration = (field: string, status: 'ok' | 'fixed' | 'default' | 'error', details?: string) => {
+const logFieldMigration = (field: string, status: 'ok' | 'fixed' | 'default' | 'error', details?: string, silent: boolean = false) => {
     if (status === 'error') {
         logMigration('warn', `Field "${field}" migration failed${details ? `: ${details}` : ''}`);
-    } else if (status !== 'ok') {
+    } else if (status !== 'ok' && !silent) {
         logMigration('info', `Field "${field}" ${status === 'fixed' ? 'fixed' : 'set to default'}${details ? `: ${details}` : ''}`);
     }
 };
@@ -180,12 +178,6 @@ const createMigrationReport = (): MigrationReport => ({
 // SANITIZACIÓN DE DATOS ESPECÍFICOS
 // ============================================
 
-const isSuspiciousScore = (score: number): boolean => {
-    // Only flag as suspicious if score is invalid (NaN, Infinity) or negative
-    // High scores are valid - bots can grow indefinitely
-    return !isValidNumber(score, 0);
-};
-
 const calculateProgressiveScore = (rank: number): number => {
     const minScore = 1000;
     const maxScore = BOT_SCORE_MAX; // Now uses Number.MAX_SAFE_INTEGER for unlimited growth
@@ -193,7 +185,7 @@ const calculateProgressiveScore = (rank: number): number => {
     return Math.floor(minScore + posRatio * (maxScore - minScore));
 };
 
-export const sanitizeBot = (bot: any, index: number): StaticBot => {
+export const sanitizeBot = (bot: any, index: number, silent: boolean = false): StaticBot => {
     const sanitizedStats = { ...DEFAULT_BOT_STATS };
 
     const rank = safeNumber(bot.lastRank, index + 1, 1, 200);
@@ -205,30 +197,30 @@ export const sanitizeBot = (bot: any, index: number): StaticBot => {
             if (isValidNumber(botScore, 0)) {
                 // Valid score - keep it as is (no artificial caps)
                 sanitizedStats[cat] = botScore;
-                logFieldMigration(`bot.stats.${cat}`, 'ok');
+                logFieldMigration(`bot.stats.${cat}`, 'ok', undefined, silent);
             } else {
                 // Invalid score (NaN, negative, missing) - use progressive score based on rank
                 sanitizedStats[cat] = progressiveScore;
-                logFieldMigration(`bot.stats.${cat}`, 'default', 'Invalid or missing value');
+                logFieldMigration(`bot.stats.${cat}`, 'default', 'Invalid or missing value', silent);
             }
         });
     } else {
         sanitizedStats[RankingCategory.DOMINION] = progressiveScore;
-        logFieldMigration('bot.stats', 'default', 'Missing or invalid stats object');
+        logFieldMigration('bot.stats', 'default', 'Missing or invalid stats object', silent);
     }
 
     const personality = isValidEnum(bot.personality, VALID_PERSONALITIES) 
         ? bot.personality 
         : BotPersonality.WARLORD;
     if (personality !== bot.personality) {
-        logFieldMigration('bot.personality', 'default', `Invalid personality: ${bot.personality}`);
+        logFieldMigration('bot.personality', 'default', `Invalid personality: ${bot.personality}`, silent);
     }
 
     const currentEvent = isValidEnum(bot.currentEvent, VALID_BOT_EVENTS)
         ? bot.currentEvent
         : BotEvent.PEACEFUL_PERIOD;
     if (currentEvent !== bot.currentEvent) {
-        logFieldMigration('bot.currentEvent', 'default', `Invalid event: ${bot.currentEvent}`);
+        logFieldMigration('bot.currentEvent', 'default', `Invalid event: ${bot.currentEvent}`, silent);
     }
 
     return {
@@ -247,7 +239,7 @@ export const sanitizeBot = (bot: any, index: number): StaticBot => {
     };
 };
 
-export const sanitizeRankingData = (rankingData: any, saveVersion?: number): RankingData => {
+export const sanitizeRankingData = (rankingData: any, saveVersion?: number, silent: boolean = false): RankingData => {
     const now = Date.now();
 
     const FORCE_RANKING_RESET_VERSION = 6;
@@ -270,7 +262,7 @@ export const sanitizeRankingData = (rankingData: any, saveVersion?: number): Ran
 
     const sanitizedBots = rankingData.bots
         .filter((bot: any) => isValidObject(bot))
-        .map((bot: any, index: number) => sanitizeBot(bot, index));
+        .map((bot: any, index: number) => sanitizeBot(bot, index, silent));
 
     if (sanitizedBots.length === 0) {
         logMigration('warn', 'No valid bots after sanitization, initializing fresh');
@@ -291,11 +283,11 @@ export const sanitizeRankingData = (rankingData: any, saveVersion?: number): Ran
 // MIGRACIÓN DE SISTEMAS ESPECÍFICOS
 // ============================================
 
-const migrateResources = (savedResources: any, defaultResources: Record<ResourceType, number>): Record<ResourceType, number> => {
+const migrateResources = (savedResources: any, defaultResources: Record<ResourceType, number>, silent: boolean = false): Record<ResourceType, number> => {
     const resources = { ...defaultResources };
     
     if (!isValidObject(savedResources)) {
-        logFieldMigration('resources', 'default', 'Invalid or missing resources object');
+        logFieldMigration('resources', 'default', 'Invalid or missing resources object', silent);
         return resources;
     }
 
@@ -303,20 +295,20 @@ const migrateResources = (savedResources: any, defaultResources: Record<Resource
         const savedValue = savedResources[type];
         if (isValidNumber(savedValue, 0)) {
             resources[type] = savedValue;
-            logFieldMigration(`resources.${type}`, 'ok');
+            logFieldMigration(`resources.${type}`, 'ok', undefined, silent);
         } else {
-            logFieldMigration(`resources.${type}`, 'default', `Invalid value: ${savedValue}`);
+            logFieldMigration(`resources.${type}`, 'default', `Invalid value: ${savedValue}`, silent);
         }
     });
 
     return resources;
 };
 
-const migrateUnits = (savedUnits: any, defaultUnits: Record<UnitType, number>): Record<UnitType, number> => {
+const migrateUnits = (savedUnits: any, defaultUnits: Record<UnitType, number>, silent: boolean = false): Record<UnitType, number> => {
     const units = { ...defaultUnits };
     
     if (!isValidObject(savedUnits)) {
-        logFieldMigration('units', 'default', 'Invalid or missing units object');
+        logFieldMigration('units', 'default', 'Invalid or missing units object', silent);
         return units;
     }
 
@@ -324,20 +316,20 @@ const migrateUnits = (savedUnits: any, defaultUnits: Record<UnitType, number>): 
         const savedValue = savedUnits[type];
         if (isValidNumber(savedValue, 0)) {
             units[type] = savedValue;
-            logFieldMigration(`units.${type}`, 'ok');
+            logFieldMigration(`units.${type}`, 'ok', undefined, silent);
         } else {
-            logFieldMigration(`units.${type}`, 'default', `Invalid value: ${savedValue}`);
+            logFieldMigration(`units.${type}`, 'default', `Invalid value: ${savedValue}`, silent);
         }
     });
 
     return units;
 };
 
-const migrateBuildings = (savedBuildings: any, defaultBuildings: Record<BuildingType, BuildingState>): Record<BuildingType, BuildingState> => {
+const migrateBuildings = (savedBuildings: any, defaultBuildings: Record<BuildingType, BuildingState>, silent: boolean = false): Record<BuildingType, BuildingState> => {
     const buildings = JSON.parse(JSON.stringify(defaultBuildings));
     
     if (!isValidObject(savedBuildings)) {
-        logFieldMigration('buildings', 'default', 'Invalid or missing buildings object');
+        logFieldMigration('buildings', 'default', 'Invalid or missing buildings object', silent);
         return buildings;
     }
 
@@ -347,31 +339,31 @@ const migrateBuildings = (savedBuildings: any, defaultBuildings: Record<Building
         if (isValidObject(savedBuilding)) {
             if (isValidNumber(savedBuilding.level, 0)) {
                 buildings[type].level = savedBuilding.level;
-                logFieldMigration(`buildings.${type}.level`, 'ok');
+                logFieldMigration(`buildings.${type}.level`, 'ok', undefined, silent);
             } else {
-                logFieldMigration(`buildings.${type}.level`, 'default', `Invalid level: ${savedBuilding.level}`);
+                logFieldMigration(`buildings.${type}.level`, 'default', `Invalid level: ${savedBuilding.level}`, silent);
             }
             
             if (isValidBoolean(savedBuilding.isDamaged)) {
                 buildings[type].isDamaged = savedBuilding.isDamaged;
-                logFieldMigration(`buildings.${type}.isDamaged`, 'ok');
+                logFieldMigration(`buildings.${type}.isDamaged`, 'ok', undefined, silent);
             } else {
                 buildings[type].isDamaged = false;
-                logFieldMigration(`buildings.${type}.isDamaged`, 'default', 'Missing or invalid boolean');
+                logFieldMigration(`buildings.${type}.isDamaged`, 'default', 'Missing or invalid boolean', silent);
             }
         } else {
-            logFieldMigration(`buildings.${type}`, 'default', 'Missing or invalid building object');
+            logFieldMigration(`buildings.${type}`, 'default', 'Missing or invalid building object', silent);
         }
     });
 
     return buildings;
 };
 
-const migrateMaxResources = (savedMaxResources: any, defaultMaxResources: Record<ResourceType, number>): Record<ResourceType, number> => {
+const migrateMaxResources = (savedMaxResources: any, defaultMaxResources: Record<ResourceType, number>, silent: boolean = false): Record<ResourceType, number> => {
     const maxResources = { ...defaultMaxResources };
     
     if (!isValidObject(savedMaxResources)) {
-        logFieldMigration('maxResources', 'default', 'Invalid or missing maxResources object');
+        logFieldMigration('maxResources', 'default', 'Invalid or missing maxResources object', silent);
         return maxResources;
     }
 
@@ -379,18 +371,18 @@ const migrateMaxResources = (savedMaxResources: any, defaultMaxResources: Record
         const savedValue = savedMaxResources[type];
         if (isValidNumber(savedValue, 0)) {
             maxResources[type] = savedValue;
-            logFieldMigration(`maxResources.${type}`, 'ok');
+            logFieldMigration(`maxResources.${type}`, 'ok', undefined, silent);
         } else {
-            logFieldMigration(`maxResources.${type}`, 'default', `Invalid value: ${savedValue}`);
+            logFieldMigration(`maxResources.${type}`, 'default', `Invalid value: ${savedValue}`, silent);
         }
     });
 
     return maxResources;
 };
 
-const migrateIncomingAttacks = (savedAttacks: any): IncomingAttack[] => {
+const migrateIncomingAttacks = (savedAttacks: any, silent: boolean = false): IncomingAttack[] => {
     if (!isValidArray(savedAttacks)) {
-        logFieldMigration('incomingAttacks', 'default', 'Invalid or missing array');
+        logFieldMigration('incomingAttacks', 'default', 'Invalid or missing array', silent);
         return [];
     }
 
@@ -410,9 +402,9 @@ const migrateIncomingAttacks = (savedAttacks: any): IncomingAttack[] => {
         }));
 };
 
-const migrateGrudges = (savedGrudges: any): Grudge[] => {
+const migrateGrudges = (savedGrudges: any, silent: boolean = false): Grudge[] => {
     if (!isValidArray(savedGrudges)) {
-        logFieldMigration('grudges', 'default', 'Invalid or missing array');
+        logFieldMigration('grudges', 'default', 'Invalid or missing array', silent);
         return [];
     }
 
@@ -433,9 +425,9 @@ const migrateGrudges = (savedGrudges: any): Grudge[] => {
         }));
 };
 
-const migrateSpyReports = (savedReports: any): SpyReport[] => {
+const migrateSpyReports = (savedReports: any, silent: boolean = false): SpyReport[] => {
     if (!isValidArray(savedReports)) {
-        logFieldMigration('spyReports', 'default', 'Invalid or missing array');
+        logFieldMigration('spyReports', 'default', 'Invalid or missing array', silent);
         return [];
     }
 
@@ -458,9 +450,9 @@ const migrateSpyReports = (savedReports: any): SpyReport[] => {
         }));
 };
 
-const migrateActiveMissions = (savedMissions: any): ActiveMission[] => {
+const migrateActiveMissions = (savedMissions: any, silent: boolean = false): ActiveMission[] => {
     if (!isValidArray(savedMissions)) {
-        logFieldMigration('activeMissions', 'default', 'Invalid or missing array');
+        logFieldMigration('activeMissions', 'default', 'Invalid or missing array', silent);
         return [];
     }
 
@@ -482,9 +474,10 @@ const migrateActiveMissions = (savedMissions: any): ActiveMission[] => {
         }));
 };
 
-const migrateWarState = (savedWar: any): WarState | null => {
+const migrateWarState = (savedWar: any, silent: boolean = false): WarState | null => {
+    if (savedWar === null || savedWar === undefined) return null;
     if (!isValidObject(savedWar)) {
-        logFieldMigration('activeWar', 'default', 'Invalid or missing war object');
+        logFieldMigration('activeWar', 'default', 'Invalid or missing war object', silent);
         return null;
     }
 
@@ -533,7 +526,7 @@ const migrateWarState = (savedWar: any): WarState | null => {
     };
 };
 
-const migrateLifetimeStats = (savedStats: any): LifetimeStats => {
+const migrateLifetimeStats = (savedStats: any, silent: boolean = false): LifetimeStats => {
     const defaultStats: LifetimeStats = {
         enemiesKilled: 0,
         unitsLost: 0,
@@ -543,7 +536,7 @@ const migrateLifetimeStats = (savedStats: any): LifetimeStats => {
     };
 
     if (!isValidObject(savedStats)) {
-        logFieldMigration('lifetimeStats', 'default', 'Invalid or missing object');
+        logFieldMigration('lifetimeStats', 'default', 'Invalid or missing object', silent);
         return defaultStats;
     }
 
@@ -556,14 +549,13 @@ const migrateLifetimeStats = (savedStats: any): LifetimeStats => {
     };
 };
 
-const migrateDiplomaticActions = (savedActions: any): DiplomaticActions => {
+const migrateDiplomaticActions = (savedActions: any, silent: boolean = false): DiplomaticActions => {
     if (!isValidObject(savedActions)) {
-        logFieldMigration('diplomaticActions', 'default', 'Invalid or missing object');
+        logFieldMigration('diplomaticActions', 'default', 'Invalid or missing object', silent);
         return {};
     }
 
     const actions: DiplomaticActions = {};
-    const now = Date.now();
 
     Object.entries(savedActions).forEach(([botId, data]) => {
         if (isValidObject(data)) {
@@ -578,13 +570,15 @@ const migrateDiplomaticActions = (savedActions: any): DiplomaticActions => {
     return actions;
 };
 
-const migrateLogs = (savedLogs: any): LogEntry[] => {
+const migrateLogs = (savedLogs: any, silent: boolean = false): LogEntry[] => {
     if (!isValidArray(savedLogs)) {
-        logFieldMigration('logs', 'default', 'Invalid or missing array');
+        logFieldMigration('logs', 'default', 'Invalid or missing array', silent);
         return [];
     }
 
     const now = Date.now();
+    const validLogTypes = [...VALID_LOG_TYPES];
+
     return savedLogs
         .filter((log: any) => isValidObject(log) && isValidString(log.id) && isValidNumber(log.timestamp))
         .map((log: any) => ({
@@ -592,7 +586,7 @@ const migrateLogs = (savedLogs: any): LogEntry[] => {
             messageKey: safeString(log.messageKey, 'unknown', 1, 200),
             params: isValidObject(log.params) ? log.params : {},
             timestamp: log.timestamp,
-            type: isValidEnum(log.type, VALID_LOG_TYPES) ? log.type : 'info',
+            type: isValidEnum(log.type, validLogTypes) ? log.type : 'info',
             archived: safeBoolean(log.archived, false)
         }));
 };
@@ -613,9 +607,10 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
     try {
         // 2. Migrate Save Version
         const savedVersion = safeNumber(saved.saveVersion, 0, 0);
+        const silent = savedVersion >= SAVE_VERSION;
         
         // Log if save is already at current version - useful for debugging
-        if (savedVersion >= SAVE_VERSION) {
+        if (silent) {
             logMigration('info', `Save at version ${savedVersion}, running validation only`);
         } else {
             logMigration('info', `Migrating from save version: ${savedVersion}`);
@@ -639,21 +634,21 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         cleanState.nextAttackTime = safeNumber(saved.nextAttackTime, now + (3 * 60 * 60 * 1000), 0);
 
         // 4. Migrate Complex Systems using helper functions
-        cleanState.incomingAttacks = migrateIncomingAttacks(saved.incomingAttacks);
-        cleanState.grudges = migrateGrudges(saved.grudges);
-        cleanState.spyReports = migrateSpyReports(saved.spyReports);
-        cleanState.activeMissions = migrateActiveMissions(saved.activeMissions);
-        cleanState.activeWar = migrateWarState(saved.activeWar);
-        cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats);
-        cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions);
-        cleanState.logs = migrateLogs(saved.logs);
+        cleanState.incomingAttacks = migrateIncomingAttacks(saved.incomingAttacks, silent);
+        cleanState.grudges = migrateGrudges(saved.grudges, silent);
+        cleanState.spyReports = migrateSpyReports(saved.spyReports, silent);
+        cleanState.activeMissions = migrateActiveMissions(saved.activeMissions, silent);
+        cleanState.activeWar = migrateWarState(saved.activeWar, silent);
+        cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats, silent);
+        cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions, silent);
+        cleanState.logs = migrateLogs(saved.logs, silent);
         cleanState.allyReinforcements = isValidArray(saved.allyReinforcements) ? saved.allyReinforcements : [];
 
         // 5. Migrate Resources, Units, Buildings
-        cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources);
-        cleanState.maxResources = migrateMaxResources(saved.maxResources, INITIAL_GAME_STATE.maxResources);
-        cleanState.units = migrateUnits(saved.units, INITIAL_GAME_STATE.units);
-        cleanState.buildings = migrateBuildings(saved.buildings, INITIAL_GAME_STATE.buildings);
+        cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources, silent);
+        cleanState.maxResources = migrateMaxResources(saved.maxResources, INITIAL_GAME_STATE.maxResources, silent);
+        cleanState.units = migrateUnits(saved.units, INITIAL_GAME_STATE.units, silent);
+        cleanState.buildings = migrateBuildings(saved.buildings, INITIAL_GAME_STATE.buildings, silent);
 
         // 6. Enemy Attack System
         cleanState.enemyAttackCounts = isValidObject(saved.enemyAttackCounts) ? saved.enemyAttackCounts : {};
@@ -688,7 +683,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         cleanState.tutorialClaimable = safeBoolean(saved.tutorialClaimable, false);
 
         // 12. Rankings
-        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion);
+        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion, silent);
 
         // 13. Gift Codes
         cleanState.redeemedGiftCodes = isValidArray(saved.redeemedGiftCodes) ? saved.redeemedGiftCodes : [];
@@ -700,7 +695,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
                 level: 1,
                 isDamaged: cleanState.buildings[BuildingType.DIAMOND_MINE].isDamaged || false
             };
-            logFieldMigration('buildings.DIAMOND_MINE.level', 'fixed', 'Ensured minimum level 1');
+            logFieldMigration('buildings.DIAMOND_MINE.level', 'fixed', 'Ensured minimum level 1', silent);
         }
 
         // 15. Ensure all building states have proper structure
@@ -730,22 +725,15 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         report.fieldsError++;
         
         // Log detailed error information
-        logMigrationError({
-            error,
+        logMigrationError(`Full save migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`, {
             location: { file: 'utils/engine/migration.ts', function: 'sanitizeAndMigrateSave' },
             saveVersion: saved?.saveVersion,
-            migrationStage: 'Full save migration',
             savedData: savedDataForLogging || saved,
-            recoveryAction: 'Returned safe initial state to prevent application crash. All game data has been reset to default values.',
+            recoveryAction: 'Returned safe initial state to prevent application crash.',
             suggestions: [
-                'Try clearing browser localStorage using: localStorage.clear() in browser console, then start a new game',
-                'Check if the save file was manually modified or corrupted during export/import',
-                'Ensure your browser is up to date (Chrome, Firefox, Safari, Edge latest versions supported)',
-                'Try importing the save file again using the import function',
-                'If using a backup save, try an older backup from before the issue started',
-                'Disable browser extensions that might interfere with localStorage',
-                'Try a different browser to isolate the issue',
-                'Contact support with the attached err.log file for detailed analysis'
+                'Try clearing browser localStorage using: localStorage.clear()',
+                'Check if the save file was manually modified or corrupted',
+                'Ensure your browser is up to date'
             ]
         });
         

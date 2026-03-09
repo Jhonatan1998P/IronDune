@@ -242,49 +242,60 @@ export const usePersistence = (
         // Pass parsed data for detailed error logging if migration fails
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
         
-        // DO NOT calculate offline progress on import!
-        // The imported save already represents a specific point in time.
-        // Calculating offline would incorrectly add resources that were already accounted for.
+        console.log(`[ImportSave] Iniciando importación. lastSaveTime en archivo: ${migratedState.lastSaveTime} (${new Date(migratedState.lastSaveTime).toLocaleString()})`);
+        
+        // Calculate offline progress to account for time passed since export
+        const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+        
+        console.log(`[ImportSave] Offline calculado. Tiempo transcurrido: ${(report.timeElapsed / 1000 / 60).toFixed(1)}m. Reporte:`, report.resourcesGained);
         
         // Cargar spyReports desde localStorage
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {
-          migratedState.spyReports = storedSpyReports;
+          newState.spyReports = storedSpyReports;
         }
         
         // Cargar logs/informes desde localStorage
         const storedLogs = loadLogsFromStorage();
         if (storedLogs.length > 0) {
-          migratedState.logs = [...storedLogs, ...migratedState.logs]
+          newState.logs = [...storedLogs, ...newState.logs, ...newLogs]
               .filter((log, index, self) => 
                   index === self.findIndex(l => l.id === log.id)
               )
               .sort((a, b) => b.timestamp - a.timestamp)
               .slice(0, 100);
+        } else if (newLogs.length > 0) {
+          newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
         }
 
-        console.log('[ImportSave] Recursos después de migración (sin offline):', {
-            MONEY: migratedState.resources.MONEY,
-            OIL: migratedState.resources.OIL,
-            AMMO: migratedState.resources.AMMO,
-            GOLD: migratedState.resources.GOLD,
-            DIAMOND: migratedState.resources.DIAMOND,
-            Bank: migratedState.bankBalance
+        console.log('[ImportSave] Recursos después de migración y offline:', {
+            MONEY: newState.resources.MONEY,
+            OIL: newState.resources.OIL,
+            AMMO: newState.resources.AMMO,
+            GOLD: newState.resources.GOLD,
+            DIAMOND: newState.resources.DIAMOND,
+            Bank: newState.bankBalance
         });
 
-        // Update lastSaveTime to now so future loads calculate offline correctly
-        migratedState.lastSaveTime = Date.now();
+        if (newLogs.length > 0) {
+            setHasNewReports(true);
+        }
 
-        setGameState(migratedState);
-        // Don't show offline report for imports - no offline time to report
-        setOfflineReport(null);
+        setGameState(newState);
+        
+        if (report.timeElapsed > 60000) {
+            setOfflineReport(report);
+        } else {
+            setOfflineReport(null);
+        }
 
-        localStorage.setItem('ironDuneSave', JSON.stringify(migratedState));
+        localStorage.setItem('ironDuneSave', JSON.stringify(newState));
         setHasSave(true);
         lastTickRef.current = Date.now();
         setStatus('PLAYING');
         return true;
     } catch (e) {
+        console.error("[ImportSave] Error fatal durante la importación:", e);
         return false;
     }
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
