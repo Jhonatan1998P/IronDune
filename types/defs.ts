@@ -569,6 +569,10 @@ export interface TranslationDictionary {
       enemy_suffix: string;
       log_desertion: string;
       log_intel_acquired: string;
+      log_p2p_spy_request_sent: string;
+      log_p2p_spy_request_received: string;
+      log_p2p_spy_response_sent: string;
+      log_p2p_spy_success: string;
       intel_target: string;
       intel_strength: string;
       intel_composition: string;
