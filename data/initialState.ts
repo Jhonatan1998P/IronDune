@@ -74,6 +74,11 @@ export const INITIAL_GAME_STATE: GameState = {
   rankingData: initializeRankingState(),
   diplomaticActions: {},
   lastReputationDecayTime: Date.now(),
+  
+  // Reputation History System (New)
+  reputationHistory: {},
+  interactionRecords: {},
+  
   lifetimeStats: {
     enemiesKilled: 0,
     unitsLost: 0,

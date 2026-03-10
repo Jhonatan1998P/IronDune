@@ -3,7 +3,8 @@ import { GameState } from '../../types';
 import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
-import { Icons } from '../UIComponents';
+import { Icons, SmartTooltip } from '../UIComponents';
+import { ReputationIcon } from '../reputation';
 import { formatNumber } from '../../utils';
 import { PvpAttackModal } from '../PvpAttackModal';
 import { executeDeclareWar } from '../../utils/engine/actions';
@@ -149,6 +150,10 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
         const rankStyle = getRankStyle(entry.rank);
         const ratio = entry.score / Math.max(1, gameState.empirePoints);
         const inRange = ratio >= 0.5 && ratio <= 1.5;
+        
+        // Get bot reputation from gameState
+        const bot = gameState.rankingData.bots.find(b => b.id === entry.id);
+        const reputation = bot?.reputation ?? 50;
 
         return (
             <div 
@@ -202,8 +207,29 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                         <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">{t.features.rankings.score}</div>
                         <div className="font-mono font-bold text-white text-lg">{formatNumber(entry.score)}</div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
+                        {/* Reputation Icon */}
+                        {!entry.isPlayer && !entry.isP2P && (
+                            <SmartTooltip
+                                content={
+                                    <div className="text-xs">
+                                        <div className="font-bold text-cyan-400 mb-1">{t.common.ui.reputation}</div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">Valor:</span>
+                                            <span className="font-bold text-white">{reputation}%</span>
+                                        </div>
+                                    </div>
+                                }
+                                triggerMode="hover"
+                            >
+                                <div className="shrink-0">
+                                    <ReputationIcon reputation={reputation} size="sm" />
+                                </div>
+                            </SmartTooltip>
+                        )}
+                        
+                        {/* Trend indicator */}
                         {entry.trend !== 0 && (
                             <div className={`flex items-center text-xs font-bold ${entry.trend > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {entry.trend > 0 ? <Icons.TrendUp className="w-4 h-4" /> : <Icons.TrendDown className="w-4 h-4" />}

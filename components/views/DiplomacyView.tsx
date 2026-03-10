@@ -1,16 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
-import { RankingCategory, getFlagEmoji, BotEvent } from '../../utils/engine/rankings';
+import { RankingCategory, getFlagEmoji, BotEvent, StaticBot } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
-import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info } from 'lucide-react';
+import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info, History } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
-import { calculateGiftCost, calculateDecayMultiplier } from '../../utils/engine/diplomacy';
+import { ReputationBar, ReputationIcon } from '../reputation';
+import { BotInteractionModal } from '../modals/BotInteractionModal';
+import { BottomSheet } from '../modals/BottomSheet';
+import { BotCard } from '../diplomacy/BotCard';
+import { calculateGiftCost } from '../../utils/engine/diplomacy';
+import { calculateDecayMultiplier } from '../../utils/engine/reputation';
+import { getInteractionRecord, getRelationshipSummary } from '../../utils/engine/reputationHistory';
 import { formatNumber } from '../../utils';
 import {
     REPUTATION_DECAY_INTERVAL_MS,
     REPUTATION_DECAY_AMOUNT,
     REPUTATION_DECAY_BOOST_THRESHOLD,
+    REPUTATION_DECAY_MAX_THRESHOLD,
     REPUTATION_DECAY_MAX_MULTIPLIER,
     REPUTATION_ALLY_THRESHOLD,
     REPUTATION_ENEMY_THRESHOLD,
@@ -29,8 +36,29 @@ const DiplomacyView: React.FC = () => {
     const [isMobile, setIsMobile] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [_cooldownTick, setCooldownTick] = useState(0);
+    const [selectedBot, setSelectedBot] = useState<StaticBot | null>(null);
+    const [bottomSheetBot, setBottomSheetBot] = useState<StaticBot | null>(null);
 
     const bots = state.rankingData.bots;
+
+    // Handlers para acciones desde bottom sheet
+    const handleGiftFromSheet = async (botId: string) => {
+        setActionLoading(botId);
+        await sendDiplomaticGift(botId);
+        setActionLoading(null);
+    };
+
+    const handleAllianceFromSheet = async (botId: string) => {
+        setActionLoading(botId);
+        await proposeDiplomaticAlliance(botId);
+        setActionLoading(null);
+    };
+
+    const handlePeaceFromSheet = async (botId: string) => {
+        setActionLoading(botId);
+        await proposeDiplomaticPeace(botId);
+        setActionLoading(null);
+    };
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -84,10 +112,11 @@ const DiplomacyView: React.FC = () => {
     }, [bots, search, personalityFilter, sortBy, sortDir]);
 
     const stats = useMemo(() => {
-        const totalRep = bots.reduce((acc, b) => acc + (b.reputation || 50), 0);
+        const totalRep = bots.reduce((acc, b) => acc + (b.reputation ?? 50), 0);
         const avgRep = totalRep / bots.length;
-        const enemies = bots.filter(b => (b.reputation || 50) < 30).length;
-        const allies = bots.filter(b => (b.reputation || 50) > 70).length;
+        // Usar constantes correctas: aliados >= 75, enemigos <= 30
+        const enemies = bots.filter(b => (b.reputation ?? 50) <= REPUTATION_ENEMY_THRESHOLD).length;
+        const allies = bots.filter(b => (b.reputation ?? 50) >= REPUTATION_ALLY_THRESHOLD).length;
         return { avgRep, enemies, allies };
     }, [bots]);
 
@@ -106,17 +135,19 @@ const DiplomacyView: React.FC = () => {
     }, [currentPage, filteredBots, itemsPerPage]);
 
     const getReputationColor = (rep: number = 50) => {
-        if (rep > 70) return 'text-green-400';
-        if (rep < 30) return 'text-red-400';
-        return 'text-yellow-400';
+        // Colores basados en umbrales de constantes
+        if (rep >= REPUTATION_ALLY_THRESHOLD) return 'text-green-400'; // 75+
+        if (rep <= REPUTATION_ENEMY_THRESHOLD) return 'text-red-400'; // 0-30
+        return 'text-yellow-400'; // 31-74
     };
 
     const getReputationLabel = (rep: number = 50) => {
-        if (rep > 85) return t.common.ui.reputation_loyal_ally || 'Aliado Leal';
-        if (rep > 70) return t.common.ui.reputation_friendly || 'Amistoso';
-        if (rep > 40) return t.common.ui.reputation_neutral || 'Neutral';
-        if (rep > 15) return t.common.ui.reputation_hostile || 'Hostil';
-        return t.common.ui.reputation_mortal_enemy || 'Enemigo Mortal';
+        // Etiquetas consistentes con los umbrales de constantes
+        if (rep >= REPUTATION_DECAY_MAX_THRESHOLD) return t.common.ui.reputation_loyal_ally || 'Aliado Leal'; // 85+
+        if (rep >= REPUTATION_ALLY_THRESHOLD) return t.common.ui.reputation_friendly || 'Amistoso'; // 75-84
+        if (rep > 50) return t.common.ui.reputation_neutral || 'Neutral'; // 51-74
+        if (rep > REPUTATION_ENEMY_THRESHOLD) return t.common.ui.reputation_hostile || 'Hostil'; // 31-50
+        return t.common.ui.reputation_mortal_enemy || 'Enemigo Mortal'; // 0-30
     };
 
     const getPersonalityLabel = (personality: BotPersonality): string => {
@@ -387,9 +418,21 @@ const DiplomacyView: React.FC = () => {
                     const peaceCheck = canProposePeace(bot.id);
                     const giftCost = getGiftCost(bot);
                     const resourceCheck = hasEnoughResources(bot);
-                    
+
                     return (
-                        <div key={bot.id} className="bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 flex flex-col space-y-2 md:space-y-3 shadow-md">
+                        <BotCard
+                            key={bot.id}
+                            bot={bot}
+                            isMobile={isMobile}
+                            onSwipeRight={() => {
+                                if (giftCheck.allowed) {
+                                    handleGiftFromSheet(bot.id);
+                                }
+                            }}
+                            onSwipeLeft={() => setBottomSheetBot(bot)}
+                            onClick={() => isMobile && setBottomSheetBot(bot)}
+                            onHistoryClick={() => setSelectedBot(bot)}
+                        >
                             <div className="flex justify-between items-start gap-2">
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0">
                                     <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-700 rounded-full flex items-center justify-center border-2 border-gray-600 overflow-hidden shrink-0">
@@ -405,9 +448,19 @@ const DiplomacyView: React.FC = () => {
                                         <div className="text-xs text-gray-400 uppercase tracking-wider truncate">{getPersonalityLabel(bot.personality)}</div>
                                     </div>
                                 </div>
-                                <div className={`text-right shrink-0 ${getReputationColor(bot.reputation ?? 50)}`}>
-                                    <div className="text-xl md:text-2xl font-black">{(bot.reputation ?? 50).toFixed(0)}</div>
-                                    <div className="text-[9px] md:text-[10px] font-bold uppercase">{getReputationLabel(bot.reputation ?? 50)}</div>
+                                <div className="flex items-center gap-2">
+                                    {/* Botón para ver historial */}
+                                    <button
+                                        onClick={() => setSelectedBot(bot)}
+                                        className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors"
+                                        title={t.common.ui.reputation_history || 'Ver historial'}
+                                    >
+                                        <History className="w-4 h-4 text-gray-400 hover:text-cyan-400" />
+                                    </button>
+                                    <div className={`text-right shrink-0 ${getReputationColor(bot.reputation ?? 50)}`}>
+                                        <div className="text-xl md:text-2xl font-black">{(bot.reputation ?? 50).toFixed(0)}</div>
+                                        <div className="text-[9px] md:text-[10px] font-bold uppercase">{getReputationLabel(bot.reputation ?? 50)}</div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -595,7 +648,7 @@ const DiplomacyView: React.FC = () => {
                                     </button>
                                 </SmartTooltip>
                             </div>
-                        </div>
+                        </BotCard>
                     );
                 })}
                 {filteredBots.length === 0 && (
@@ -604,6 +657,31 @@ const DiplomacyView: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal de Historial de Interacciones */}
+            {selectedBot && (
+                <BotInteractionModal
+                    bot={selectedBot}
+                    gameState={state}
+                    onClose={() => setSelectedBot(null)}
+                />
+            )}
+
+            {/* Bottom Sheet para Mobile */}
+            {bottomSheetBot && (
+                <BottomSheet
+                    bot={bottomSheetBot}
+                    isOpen={!!bottomSheetBot}
+                    onClose={() => setBottomSheetBot(null)}
+                    onGift={() => handleGiftFromSheet(bottomSheetBot.id)}
+                    onAlliance={() => handleAllianceFromSheet(bottomSheetBot.id)}
+                    onPeace={() => handlePeaceFromSheet(bottomSheetBot.id)}
+                    onHistory={() => setSelectedBot(bottomSheetBot)}
+                    canGift={canSendGift(bottomSheetBot.id).allowed && hasEnoughResources(bottomSheetBot)}
+                    canAlliance={canProposeAlliance(bottomSheetBot.id).allowed && (bottomSheetBot.reputation ?? 50) >= DIPLOMACY_ALLIANCE_REP_REQUIREMENT}
+                    canPeace={canProposePeace(bottomSheetBot.id).allowed}
+                />
+            )}
         </div>
     );
 };

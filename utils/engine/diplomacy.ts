@@ -2,6 +2,13 @@
 import { GameState, LogEntry, ResourceType } from '../../types';
 import { StaticBot, RankingCategory } from './rankings';
 import {
+    calculateDecayMultiplier,
+    applyGiftReputation,
+    applyAllianceReputation,
+    applyPeaceReputation,
+    clampReputation
+} from './reputation';
+import {
     REPUTATION_MIN,
     REPUTATION_MAX,
     REPUTATION_DECAY_INTERVAL_MS,
@@ -36,15 +43,6 @@ export interface ReputationDecayResult {
     decayLogs: LogEntry[];
     newLastDecayTime: number;
 }
-
-export const calculateDecayMultiplier = (reputation: number): number => {
-    if (reputation >= REPUTATION_DECAY_BOOST_THRESHOLD) {
-        return 1.0;
-    }
-    const ratio = reputation / REPUTATION_DECAY_BOOST_THRESHOLD;
-    const multiplier = 1.0 + (REPUTATION_DECAY_MAX_MULTIPLIER - 1.0) * (1.0 - ratio);
-    return multiplier;
-};
 
 export const processReputationDecay = (
     bots: StaticBot[],
@@ -118,8 +116,8 @@ export const sendGift = (
     const lastGiftTime = (state.diplomaticActions?.[botId]?.lastGiftTime ?? 0);
     if (now - lastGiftTime < DIPLOMACY_GIFT_COOLDOWN_MS) {
         const remainingMinutes = Math.ceil((DIPLOMACY_GIFT_COOLDOWN_MS - (now - lastGiftTime)) / 60000);
-        return { 
-            success: false, 
+        return {
+            success: false,
             messageKey: 'diplomacy_gift_cooldown',
             params: { minutes: remainingMinutes },
             giftCost
@@ -136,15 +134,14 @@ export const sendGift = (
         newResources[resType] = (newResources[resType] ?? 0) - costAmount;
     }
 
-    const newRep = Math.min(
-        REPUTATION_MAX,
-        (bot.reputation ?? 50) + DIPLOMACY_GIFT_REPUTATION_GAIN
-    );
+    // Use centralized reputation system
+    const result = applyGiftReputation(bot, DIPLOMACY_GIFT_REPUTATION_GAIN);
+    const newRep = result.newReputation;
 
     return {
         success: true,
         messageKey: 'diplomacy_gift_sent',
-        params: { botName: bot.name, reputation: DIPLOMACY_GIFT_REPUTATION_GAIN },
+        params: { botName: bot.name, reputation: result.change },
         newReputation: newRep,
         newResources,
         giftCost
@@ -175,10 +172,9 @@ export const proposeAlliance = (
         return { success: false, messageKey: 'diplomacy_alliance_cooldown' };
     }
 
-    const newRep = Math.min(
-        REPUTATION_MAX,
-        currentRep + DIPLOMACY_ALLIANCE_REP_GAIN
-    );
+    // Use centralized reputation system
+    const result = applyAllianceReputation(bot, DIPLOMACY_ALLIANCE_REP_GAIN);
+    const newRep = result.newReputation;
 
     return {
         success: true,
@@ -199,17 +195,16 @@ export const proposePeace = (
     }
 
     const currentRep = bot.reputation ?? 50;
-    
+
     if (currentRep >= DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT && currentRep < 50) {
         const lastPeaceTime = (state.diplomaticActions?.[botId]?.lastPeaceTime ?? 0);
         if (now - lastPeaceTime < DIPLOMACY_PEACE_COOLDOWN_MS) {
             return { success: false, messageKey: 'diplomacy_peace_cooldown' };
         }
 
-        const newRep = Math.min(
-            50,
-            currentRep + DIPLOMACY_PEACE_REP_GAIN
-        );
+        // Use centralized reputation system
+        const result = applyPeaceReputation(bot, DIPLOMACY_PEACE_REP_GAIN);
+        const newRep = result.newReputation;
 
         return {
             success: true,
@@ -218,7 +213,7 @@ export const proposePeace = (
             newReputation: newRep
         };
     }
-    
+
     if (currentRep >= 50) {
         return {
             success: true,
@@ -232,11 +227,10 @@ export const proposePeace = (
         return { success: false, messageKey: 'diplomacy_peace_cooldown' };
     }
 
+    // Reduced gain for hostile bots
     const reducedGain = Math.floor(DIPLOMACY_PEACE_REP_GAIN / 2);
-    const newRep = Math.min(
-        50,
-        currentRep + reducedGain
-    );
+    const result = applyPeaceReputation(bot, reducedGain);
+    const newRep = result.newReputation;
 
     return {
         success: true,

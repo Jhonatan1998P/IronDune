@@ -747,7 +747,11 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             cleanState.tutorialClaimable = saved.tutorialClaimable ?? false;
             
             cleanState.rankingData = saved.rankingData ?? INITIAL_GAME_STATE.rankingData;
-            
+
+            // Reputation History System (New)
+            cleanState.reputationHistory = saved.reputationHistory ?? {};
+            cleanState.interactionRecords = saved.interactionRecords ?? {};
+
             cleanState.redeemedGiftCodes = saved.redeemedGiftCodes ?? [];
             cleanState.giftCodeCooldowns = saved.giftCodeCooldowns ?? {};
         }

@@ -10,17 +10,20 @@ export default defineConfig({
     allowedHosts: true,
   },
   build: {
+    // ============================================
+    // CONFIGURACION ACTUAL: 4 ARCHIVOS
+    // ============================================
+    // Separa vendors grandes, consolida el resto
     rollupOptions: {
       output: {
         manualChunks: {
+          // React - 193 kB (cache a largo plazo)
           'vendor-react': ['react', 'react-dom'],
-          'vendor-ui': ['lucide-react'],
-        },
-        entryFileNames: 'assets/[name].[hash].js',
-        chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: 'assets/[name].[hash].[ext]'
+          // Iconos - 23 kB (estable)
+          'vendor-ui': ['lucide-react']
+        }
       }
     },
-    chunkSizeWarningLimit: 500
+    chunkSizeWarningLimit: 700
   }
 })

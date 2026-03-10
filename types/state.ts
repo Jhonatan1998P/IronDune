@@ -2,6 +2,8 @@
 import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
 import type { MarketEvent, MarketOffer } from './defs';
 import { StaticBot } from '../utils/engine/rankings';
+import { ReputationHistory } from '../utils/engine/reputation';
+import { AllInteractions } from '../utils/engine/reputationHistory';
 
 export interface BuildingState {
   level: number;
@@ -283,6 +285,10 @@ export interface GameState {
   // Diplomacy System
   diplomaticActions: DiplomaticActions;
   lastReputationDecayTime: number;
+
+  // Reputation History System (New)
+  reputationHistory: ReputationHistory; // Track reputation changes per bot
+  interactionRecords: AllInteractions; // Track all interactions per bot
 
   lifetimeStats: LifetimeStats; 
 
