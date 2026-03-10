@@ -18,6 +18,8 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
+import { recordReputationChange } from '../utils/engine/reputationHistory';
+import { ReputationChangeType } from '../utils/engine/reputation';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -317,7 +319,7 @@ export const useGameActions = (
                   ? { ...prev.resources, ...result.newResources }
                   : prev.resources;
               
-              return {
+              const intermediateState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -327,6 +329,18 @@ export const useGameActions = (
                   resources: newResources,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
+
+              return recordReputationChange(
+                  intermediateState,
+                  botId,
+                  {
+                      type: ReputationChangeType.GIFT,
+                      amount: result.params?.reputation || 0,
+                      timestamp: now,
+                      reason: 'gift_sent'
+                  },
+                  now
+              );
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -363,7 +377,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              return {
+              const intermediateState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -372,6 +386,18 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
+
+              return recordReputationChange(
+                  intermediateState,
+                  botId,
+                  {
+                      type: ReputationChangeType.ALLIANCE,
+                      amount: result.params?.reputation || 0,
+                      timestamp: now,
+                      reason: 'alliance_proposed'
+                  },
+                  now
+              );
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -408,7 +434,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              return {
+              const intermediateState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -417,6 +443,18 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
+
+              return recordReputationChange(
+                  intermediateState,
+                  botId,
+                  {
+                      type: ReputationChangeType.PEACE,
+                      amount: result.params?.reputation || 0,
+                      timestamp: now,
+                      reason: 'peace_proposed'
+                  },
+                  now
+              );
           });
           return { success: true, messageKey: result.messageKey, params: result.params };
       }

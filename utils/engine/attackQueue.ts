@@ -2,6 +2,8 @@ import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult,
 import { resolveMission } from './missions';
 import { simulateCombat } from './combat';
 import { calculateActiveReinforcements } from './allianceReinforcements';
+import { recordReputationChange } from './reputationHistory';
+import { applyDefendReputation, applyAllyDefenseReputation } from './reputation';
 import { PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from '../../constants';
 
 export const getQueuedOutgoingAttacks = (state: GameState, now: number): ActiveMission[] => {
@@ -123,7 +125,7 @@ export const processIncomingAttackInQueue = (
     initialPlayerUnits: Record<UnitType, number>,
     now: number
 ): { newState: GameState; result: any; logs: LogEntry[] } => {
-    const newState = JSON.parse(JSON.stringify(state)) as GameState;
+    let newState = JSON.parse(JSON.stringify(state)) as GameState;
     const logs: LogEntry[] = [];
 
     const playerUnits = initialPlayerUnits;
@@ -140,6 +142,65 @@ export const processIncomingAttackInQueue = (
     }
 
     const battleResult = simulateDefenseCombat(playerUnits, enemyUnits, 1.0, allyArmies);
+
+    // --- REPUTATION UPDATES ---
+    const playerWon = battleResult.winner === 'PLAYER';
+    
+    // 1. Attacker reputation change (if it's a known bot)
+    const attackerBot = newState.rankingData.bots.find(b => 
+        (attack.attackerId && b.id === attack.attackerId) || 
+        b.name === attack.attackerName
+    );
+    
+    if (attackerBot) {
+        const repResult = applyDefendReputation(attackerBot, playerWon);
+        attackerBot.reputation = repResult.newReputation;
+        
+        newState = recordReputationChange(
+            newState,
+            attackerBot.id,
+            {
+                type: repResult.changeType,
+                amount: repResult.change,
+                timestamp: now,
+                reason: playerWon ? 'defense_win' : 'defense_loss'
+            },
+            now
+        );
+        
+        // Ensure ranking bots are also updated in the array
+        newState.rankingData.bots = newState.rankingData.bots.map(b => 
+            b.id === attackerBot.id ? { ...b, reputation: repResult.newReputation } : b
+        );
+    }
+
+    // 2. Allies reputation change (for helping)
+    if (allyArmies) {
+        Object.keys(allyArmies).forEach(botId => {
+            const allyBot = newState.rankingData.bots.find(b => b.id === botId);
+            if (allyBot) {
+                const repResult = applyAllyDefenseReputation(allyBot);
+                allyBot.reputation = repResult.newReputation;
+                
+                newState = recordReputationChange(
+                    newState,
+                    allyBot.id,
+                    {
+                        type: repResult.changeType,
+                        amount: repResult.change,
+                        timestamp: now,
+                        reason: 'ally_defense_support'
+                    },
+                    now
+                );
+                
+                // Update in ranking bots array
+                newState.rankingData.bots = newState.rankingData.bots.map(b => 
+                    b.id === allyBot.id ? { ...b, reputation: repResult.newReputation } : b
+                );
+            }
+        });
+    }
 
     const survivingUnits: Partial<Record<UnitType, number>> = {};
     Object.entries(battleResult.finalPlayerArmy).forEach(([uType, count]) => {

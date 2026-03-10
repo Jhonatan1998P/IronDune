@@ -349,6 +349,25 @@ export const applyDefendReputation = (
 };
 
 /**
+ * Apply reputation change to an ally that helped defend the player
+ */
+export const applyAllyDefenseReputation = (
+    bot: StaticBot,
+    baseGain: number = REPUTATION_DEFEND_BONUS
+): ReputationChangeResult => {
+    const personality = bot.personality || BotPersonality.WARLORD;
+    const gain = applyPersonalityModifier(baseGain, personality, 'defendWin');
+    const newRep = clampReputation((bot.reputation ?? 50) + gain);
+    
+    return {
+        success: true,
+        newReputation: newRep,
+        change: gain,
+        changeType: ReputationChangeType.DEFEND_WIN // Using DEFEND_WIN for ally success
+    };
+};
+
+/**
  * Apply reputation decay
  */
 export const applyReputationDecay = (

@@ -81,7 +81,11 @@ export const recordReputationChange = (
             updatedRecord.relationshipTrend = 'IMPROVING';
             break;
         case ReputationChangeType.ALLIANCE:
+            updatedRecord.alliancesProposed += 1;
+            updatedRecord.relationshipTrend = 'IMPROVING';
+            break;
         case ReputationChangeType.PEACE:
+            updatedRecord.peaceProposed += 1;
             updatedRecord.relationshipTrend = 'IMPROVING';
             break;
         case ReputationChangeType.ATTACK_WIN:
@@ -201,7 +205,6 @@ export const exportInteractionData = (
     const currentRep = bot.reputation ?? 50;
     
     return {
-        botId,
         botName: bot.name,
         currentReputation: currentRep,
         ...summary.record,

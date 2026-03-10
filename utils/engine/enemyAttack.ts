@@ -270,6 +270,7 @@ export const processEnemyAttackCheck = (state: GameState, now: number): { stateU
         const attack: IncomingAttack = {
             id: `enemy-attack-${bot.id}-${now}`,
             attackerName: bot.name,
+            attackerId: bot.id,
             attackerScore: botScore,
             units: army,
             startTime: now,

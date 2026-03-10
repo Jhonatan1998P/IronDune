@@ -54,6 +54,8 @@ import { generateBotArmy, calculateResourceCost } from './missions';
 import { calculateMaxBankCapacity } from './modifiers';
 import { simulateCombat } from './combat';
 import { BotPersonality } from '../../types/enums';
+import { recordReputationChange } from './reputationHistory';
+import { applyDefendReputation, applyAllyDefenseReputation } from './reputation';
 import { 
     isValidWarState, 
     sanitizeWarState, 
@@ -750,7 +752,13 @@ export const processWarTick = (state: GameState, now: number): WarTickResult => 
                 resources: newResources,
                 buildings: newBuildings,
                 lifetimeStats: newLifetimeStats,
-                incomingAttacks: currentIncomingAttacks
+                incomingAttacks: currentIncomingAttacks,
+                reputationHistory: state.reputationHistory,
+                interactionRecords: state.interactionRecords,
+                rankingData: {
+                    ...state.rankingData,
+                    bots: [...state.rankingData.bots]
+                }
             },
             logs,
             errors,
@@ -928,6 +936,71 @@ const processIncomingAttacks = (
                 const combat = attack.isWarWave && activeWar
                     ? resolveWarCombat(units, attack.units, 1.0, state)
                     : resolveRaidCombat(units, attack.units, buildings, 1.0, state);
+
+                // --- REPUTATION UPDATES ---
+                const playerWon = combat.winner === 'PLAYER';
+                
+                // 1. Attacker reputation change (if it's a known bot)
+                let attackerBot = state.rankingData.bots.find(b => 
+                    (attack.attackerId && b.id === attack.attackerId) || 
+                    b.name === attack.attackerName
+                );
+                
+                if (attackerBot) {
+                    const repResult = applyDefendReputation(attackerBot, playerWon);
+                    attackerBot.reputation = repResult.newReputation;
+                    
+                    const updatedState = recordReputationChange(
+                        state,
+                        attackerBot.id,
+                        {
+                            type: repResult.changeType,
+                            amount: repResult.change,
+                            timestamp: now,
+                            reason: playerWon ? 'defense_win' : 'defense_loss'
+                        },
+                        now
+                    );
+                    
+                    state.reputationHistory = updatedState.reputationHistory;
+                    state.interactionRecords = updatedState.interactionRecords;
+                    
+                    // Update in ranking bots array to ensure it's reflected in the UI and state updates
+                    state.rankingData.bots = state.rankingData.bots.map(b => 
+                        b.id === attackerBot!.id ? { ...b, reputation: repResult.newReputation } : b
+                    );
+                }
+
+                // 2. Allies reputation change (for helping)
+                if (combat.initialAllyArmies) {
+                    Object.keys(combat.initialAllyArmies).forEach(botId => {
+                        const allyBot = state.rankingData.bots.find(b => b.id === botId);
+                        if (allyBot) {
+                            const repResult = applyAllyDefenseReputation(allyBot);
+                            allyBot.reputation = repResult.newReputation;
+                            
+                            const updatedState = recordReputationChange(
+                                state,
+                                allyBot.id,
+                                {
+                                    type: repResult.changeType,
+                                    amount: repResult.change,
+                                    timestamp: now,
+                                    reason: 'ally_defense_support'
+                                },
+                                now
+                            );
+                            
+                            state.reputationHistory = updatedState.reputationHistory;
+                            state.interactionRecords = updatedState.interactionRecords;
+
+                            // Update in ranking bots array
+                            state.rankingData.bots = state.rankingData.bots.map(b => 
+                                b.id === allyBot.id ? { ...b, reputation: repResult.newReputation } : b
+                            );
+                        }
+                    });
+                }
 
                 // Apply casualties to player units
                 if (combat.totalPlayerCasualties) {

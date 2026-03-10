@@ -1,6 +1,8 @@
 
 import { BuildingType, GameState, LogEntry, UnitType, WarState, ActiveMission, IncomingAttack } from '../../types';
 import { resolveMission } from './missions';
+import { recordReputationChange } from './reputationHistory';
+import { ReputationChangeType } from './reputation';
 import { 
     getQueuedIncomingAttacks, 
     processIncomingAttackInQueue
@@ -189,14 +191,36 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             }
 
             if (outcome.reputationChanges && outcome.reputationChanges.length > 0) {
-                updatedRankingBots = updatedRankingBots.map(bot => {
-                    const change = outcome.reputationChanges?.find(r => r.botId === bot.id);
-                    if (change) {
+                let tempState: GameState = { 
+                    ...state, 
+                    rankingData: { ...state.rankingData, bots: updatedRankingBots },
+                    reputationHistory: { ...state.reputationHistory },
+                    interactionRecords: { ...state.interactionRecords }
+                };
+
+                outcome.reputationChanges.forEach(change => {
+                    const bot = updatedRankingBots.find(b => b.id === change.botId);
+                    if (bot) {
                         const newRep = Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, (bot.reputation || 50) + change.change));
-                        return { ...bot, reputation: newRep };
+                        bot.reputation = newRep;
+                        
+                        tempState = recordReputationChange(
+                            tempState,
+                            change.botId,
+                            {
+                                type: change.type,
+                                amount: change.change,
+                                timestamp: item.endTime,
+                                reason: change.reason
+                            },
+                            item.endTime
+                        );
                     }
-                    return bot;
                 });
+
+                updatedRankingBots = [...tempState.rankingData.bots];
+                state.reputationHistory = tempState.reputationHistory;
+                state.interactionRecords = tempState.interactionRecords;
 
                 const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);

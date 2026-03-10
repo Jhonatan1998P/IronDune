@@ -6,6 +6,7 @@ import { simulateCombat } from './combat';
 import { PVP_LOOT_FACTOR, WAR_PLAYER_ATTACKS, SCORE_TO_RESOURCE_VALUE, BOT_BUDGET_RATIO, TIER_THRESHOLDS, PLUNDERABLE_BUILDINGS, PLUNDER_RATES, BOT_BUILDINGS_PER_SCORE, REPUTATION_ATTACK_PENALTY, REPUTATION_DEFEAT_PENALTY, REPUTATION_WIN_BONUS, REPUTATION_DEFEND_BONUS, SPY_RESOURCE_RATIOS } from '../../constants';
 import { BASE_PRICES, calculateTotalUnitCost } from './market';
 import { calculateRetaliationTime, getRetaliationChance } from './nemesis';
+import { ReputationChangeType } from './reputation';
 import { BotPersonality } from '../../types/enums';
 import { StaticBot } from './rankings';
 
@@ -238,23 +239,15 @@ const PERSONALITY_BUDGET_SPLIT: Record<BotPersonality, { attackRatio: number; de
     [BotPersonality.ROGUE]: { attackRatio: 0.60, defenseRatio: 0.40 }
 };
 
-/**
- * Calcula para cada tipo de unidad cuántas unidades del bando enemigo
- * tienen rapidFire contra ella. Devuelve un mapa UnitType -> cantidad total.
- * Se usa para sesgar la composición del bot hacia unidades que counteren
- * lo que el jugador trae.
- */
 const buildRapidFireCounterMap = (
     enemyArmy: Partial<Record<UnitType, number>>
 ): Partial<Record<UnitType, number>> => {
-    // counterMap[X] = total de unidades enemigas a las que X hace rapidFire
     const counterMap: Partial<Record<UnitType, number>> = {};
 
     Object.entries(enemyArmy).forEach(([uKey, count]) => {
         if (!count || count <= 0) return;
         const uType = uKey as UnitType;
 
-        // Busca qué unidades del bot tienen rapidFire contra este tipo enemigo
         Object.values(UnitType).forEach(botUnit => {
             const rf = UNIT_DEFS[botUnit]?.rapidFire;
             if (rf && rf[uType] !== undefined) {
@@ -286,13 +279,10 @@ const getSmartUnitComposition = (
         return 'light';
     };
 
-    // Si hay un ejército enemigo conocido, calculamos cuántas unidades countera cada tipo nuestro.
-    // Esto permite al bot adaptar su composición a lo que el jugador trae.
     const counterMap = playerArmy && Object.keys(playerArmy).length > 0
         ? buildRapidFireCounterMap(playerArmy)
         : null;
 
-    // Calcula el total de unidades enemigas para normalizar el bonus de counter.
     const totalPlayerUnits = playerArmy
         ? Object.values(playerArmy).reduce((acc, v) => acc + (v || 0), 0)
         : 0;
@@ -321,12 +311,9 @@ const getSmartUnitComposition = (
             score += 20;
         }
 
-        // --- ADAPTIVE AI: bonus si esta unidad hace rapidFire a unidades del jugador ---
-        // El bonus es proporcional a qué fracción del ejército enemigo countera esta unidad.
-        // Máximo +50 puntos (cuando esta unidad countera el 100% del ejército enemigo).
         if (counterMap && totalPlayerUnits > 0) {
             const counteredUnits = counterMap[metric.type] || 0;
-            const counterRatio = counteredUnits / totalPlayerUnits; // 0.0 a 1.0
+            const counterRatio = counteredUnits / totalPlayerUnits;
             score += counterRatio * 50;
         }
         
@@ -427,10 +414,7 @@ export const generateBotArmy = (
     personality?: BotPersonality,
     playerArmy?: Partial<Record<UnitType, number>>
 ): Partial<Record<UnitType, number>> => {
-
-    // Unified formula: score * 4000 * multiplier for all military calculations
     const totalBudget = targetScore * 4000 * budgetMultiplier;
-
     const availableUnits = getUnitsByScoreRange(targetScore);
     const activePersonality = personality || BotPersonality.WARLORD;
     const budgetSplit = PERSONALITY_BUDGET_SPLIT[activePersonality];
@@ -438,25 +422,10 @@ export const generateBotArmy = (
     const attackBudget = totalBudget * budgetSplit.attackRatio;
     const defenseBudget = totalBudget * budgetSplit.defenseRatio;
 
-    // El ataque se adapta al ejército del jugador (Adaptive AI).
-    // La defensa no necesita adaptarse (el bot no sabe con qué atacará el jugador).
-    const attackArmy = getSmartUnitComposition(
-        attackBudget,
-        activePersonality,
-        false,
-        availableUnits,
-        playerArmy
-    );
-
-    const defenseArmy = getSmartUnitComposition(
-        defenseBudget,
-        activePersonality,
-        true,
-        availableUnits
-    );
+    const attackArmy = getSmartUnitComposition(attackBudget, activePersonality, false, availableUnits, playerArmy);
+    const defenseArmy = getSmartUnitComposition(defenseBudget, activePersonality, true, availableUnits);
 
     const combinedArmy: Partial<Record<UnitType, number>> = { ...attackArmy };
-
     Object.entries(defenseArmy).forEach(([uType, count]) => {
         const key = uType as UnitType;
         combinedArmy[key] = (combinedArmy[key] || 0) + (count || 0);
@@ -467,7 +436,6 @@ export const generateBotArmy = (
 
 export const generateBotBuildings = (score: number): Partial<Record<BuildingType, number>> => {
     const totalBuildings = Math.max(10, Math.floor(score / BOT_BUILDINGS_PER_SCORE));
-
     const weights = {
         [BuildingType.HOUSE]: 50,
         [BuildingType.FACTORY]: 20,
@@ -481,7 +449,6 @@ export const generateBotBuildings = (score: number): Partial<Record<BuildingType
     const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
 
     let remaining = totalBuildings;
-    
     PLUNDERABLE_BUILDINGS.forEach(bType => {
         const weight = weights[bType as keyof typeof weights] || 0;
         const count = Math.floor(totalBuildings * (weight / totalWeight));
@@ -490,7 +457,6 @@ export const generateBotBuildings = (score: number): Partial<Record<BuildingType
     });
 
     buildings[BuildingType.HOUSE] = (buildings[BuildingType.HOUSE] || 0) + remaining;
-
     return buildings;
 };
 
@@ -500,7 +466,6 @@ export const generateEnemyForce = (playerUnits: Partial<Record<UnitType, number>
 
     const baseMultiplier = isAmbush ? (1.2 + (patrolLevel * 0.15)) : (0.4 + (patrolLevel * 0.15));
     const enemyBudget = playerBudget * baseMultiplier;
-
     const targetScore = Math.max(10, enemyBudget / SCORE_TO_RESOURCE_VALUE);
 
     return generateBotArmy(targetScore, 1.0);
@@ -538,7 +503,7 @@ export const resolveMission = (
     warVictory?: boolean,
     warDefeat?: boolean,
     newGrudge?: any,
-    reputationChanges?: { botId: string, change: number }[]
+    reputationChanges?: { botId: string, change: number, type: ReputationChangeType, reason: string }[]
 } => {
     
     let resultResources = { ...currentResources };
@@ -553,7 +518,7 @@ export const resolveMission = (
     let warVictory = false;
     let warDefeat = false;
     let newGrudge: any = undefined;
-    let reputationChanges: { botId: string, change: number }[] = [];
+    let reputationChanges: { botId: string, change: number, type: ReputationChangeType, reason: string }[] = [];
 
     if (mission.type === 'PVP_ATTACK' && mission.targetScore !== undefined) {
         let botArmy: Partial<Record<UnitType, number>> = {};
@@ -637,16 +602,10 @@ export const resolveMission = (
                     }
                 });
 
-                logParams = { 
-                    combatResult: battleResult, 
-                    buildingLoot: stolenBuildings, 
-                    loot: {}, 
-                    targetName: mission.targetName 
-                };
+                logParams = { combatResult: battleResult, buildingLoot: stolenBuildings, loot: {}, targetName: mission.targetName };
 
                 const targetBot = rankingBots.find(b => b.id === mission.targetId);
                 if (targetBot) {
-                    // Roll for retaliation based on personality
                     const retaliationChance = getRetaliationChance(targetBot.personality);
                     const willRetaliate = Math.random() < retaliationChance;
 
@@ -662,7 +621,7 @@ export const resolveMission = (
                             notified: false
                         };
                     }
-                    reputationChanges.push({ botId: targetBot.id, change: REPUTATION_ATTACK_PENALTY });
+                    reputationChanges.push({ botId: targetBot.id, change: REPUTATION_ATTACK_PENALTY, type: ReputationChangeType.DEFEND_LOSS, reason: 'player_attack_win' });
                 }
             }
         } else {
@@ -672,11 +631,10 @@ export const resolveMission = (
             if (isWarAttack) warDefeat = true;
             logParams = { combatResult: battleResult, targetName: mission.targetName };
             if (!isWarAttack && mission.targetId) {
-                reputationChanges.push({ botId: mission.targetId, change: REPUTATION_WIN_BONUS });
+                reputationChanges.push({ botId: mission.targetId, change: REPUTATION_WIN_BONUS, type: ReputationChangeType.DEFEND_WIN, reason: 'player_attack_loss' });
             }
         }
         
-        // Si se creó una venganza, agregar el log correspondiente
         if (newGrudge) {
             logParams.grudgeData = {
                 attacker: newGrudge.botName,
@@ -803,16 +761,10 @@ export const calculateSpyCost = (botScore: number): number => {
     return Math.floor(Math.random() * (maxCost - minCost) + minCost);
 };
 
-export const generateSpyReport = (
-    bot: StaticBot,
-    now: number
-): SpyReport => {
+export const generateSpyReport = (bot: StaticBot, now: number): SpyReport => {
     const personality = bot.personality || BotPersonality.WARLORD;
     const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
-    
-    // Unified formula: score * 4000 for all military calculations
     const defenseBudget = bot.stats.DOMINION * 4000 * defenseRatio;
-
     const fullMilitaryBudget = bot.stats.DOMINION * 4000;
     const resourceRatios = SPY_RESOURCE_RATIOS[personality];
     const moneyBudget = fullMilitaryBudget * resourceRatios.money;
@@ -829,14 +781,7 @@ export const generateSpyReport = (
     };
 
     const availableUnits = getUnitsByScoreRange(bot.stats.DOMINION);
-
-    const defenseArmy = getSmartUnitComposition(
-        defenseBudget,
-        personality,
-        true,
-        availableUnits
-    );
-
+    const defenseArmy = getSmartUnitComposition(defenseBudget, personality, true, availableUnits);
     const totalBuildings = Math.max(10, Math.floor(bot.stats.DOMINION / 10));
     const buildingWeights: Partial<Record<BuildingType, number>> = {
         [BuildingType.HOUSE]: 50,
@@ -866,23 +811,13 @@ export const generateSpyReport = (
     };
 };
 
-export const getSpyReportForBot = (
-    botId: string,
-    spyReports: SpyReport[],
-    now: number
-): SpyReport | undefined => {
+export const getSpyReportForBot = (botId: string, spyReports: SpyReport[], now: number): SpyReport | undefined => {
     return spyReports.find(r => r.botId === botId && r.expiresAt > now);
 };
 
-export const getBotDefensiveArmy = (
-    bot: StaticBot,
-    spyReports: SpyReport[],
-    now: number
-): Partial<Record<UnitType, number>> => {
+export const getBotDefensiveArmy = (bot: StaticBot, spyReports: SpyReport[], now: number): Partial<Record<UnitType, number>> => {
     const activeReport = getSpyReportForBot(bot.id, spyReports, now);
-    if (activeReport) {
-        return activeReport.units;
-    }
+    if (activeReport) return activeReport.units;
     
     const personality = bot.personality || BotPersonality.WARLORD;
     const defenseRatio = PERSONALITY_BUDGET_SPLIT[personality].defenseRatio;
