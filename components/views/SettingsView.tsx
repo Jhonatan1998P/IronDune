@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GameState } from '../../types';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
 

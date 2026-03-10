@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../../context/GameContext';
 import { useMultiplayerSync } from '../../hooks/useMultiplayer';
 import { useP2PGameSync } from '../../hooks/useP2PGameSync';
 import { useP2PBattleResolver } from '../../hooks/useP2PBattleResolver';

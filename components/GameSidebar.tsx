@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './UIComponents';
-import { useLanguage } from '../context/useLanguageHook';
-import { useGame } from '../context/useGameHook';
+import { useLanguage } from '../context/LanguageContext';
+import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
 
 export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat';

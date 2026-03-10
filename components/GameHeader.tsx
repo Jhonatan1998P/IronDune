@@ -1,10 +1,10 @@
 
 import React, { useMemo } from 'react';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../context/GameContext';
 import { ResourceType } from '../types';
 import { ResourceDisplay, SmartTooltip, Icons } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../context/LanguageContext';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
 import { getIncomeStats } from '../utils/engine/selectors';
 import { MultiplayerButton } from './MultiplayerButton';

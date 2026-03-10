@@ -1,6 +1,6 @@
 import React from 'react';
 import { OfflineReport, GameState } from '../types';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../context/LanguageContext';
 import { formatDuration, formatNumber } from '../utils';
 import { Icons, GlassButton } from './UIComponents';
 import { TECH_DEFS } from '../data/techs';

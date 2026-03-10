@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { GameState, UnitType } from '../../types';
 import { UNIT_DEFS } from '../../data/units';
 import { Icons } from '../UIComponents';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../../context/LanguageContext';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
 import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
 import { P2P_ATTACK_TRAVEL_TIME_MS, P2P_MAX_ATTACKS_PER_TARGET_PER_DAY } from '../../constants';
 
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../../context/GameContext';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 
 interface P2PAttackModalProps {

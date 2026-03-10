@@ -7,7 +7,7 @@
 
 import React, { useEffect, Suspense, lazy, useMemo, useCallback } from 'react';
 import { TabType } from '../GameSidebar';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../../context/GameContext';
 import { UnitType, GameState } from '../../types';
 
 // Lazy load all views for better code splitting

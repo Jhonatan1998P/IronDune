@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LogEntry, UnitType } from '../../types';
-import { useLanguage } from '../context/useLanguageHook';
-import { useGame } from '../context/useGameHook';
+import { useLanguage } from '../../context/LanguageContext';
+import { useGame } from '../../context/GameContext';
 import { Icons } from '../UIComponents';
 import { FilterType, FilterTab } from '../reports/FilterTab';
 import { ReportItem } from '../reports/ReportItem';

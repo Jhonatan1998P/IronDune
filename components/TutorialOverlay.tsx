@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../context/GameContext';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { TabType } from './GameSidebar';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../context/LanguageContext';
 import { GameState } from '../types';
 
 interface TutorialOverlayProps {

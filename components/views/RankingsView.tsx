@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { GameState } from '../../types';
 import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
 import { ReputationIcon } from '../reputation';
 import { formatNumber } from '../../utils';

@@ -1,8 +1,8 @@
 
 import React, { useState, useRef } from 'react';
 import { TUTORIAL_STEPS } from '../data/tutorial';
-import { useLanguage } from '../context/useLanguageHook';
-import { useGame } from '../context/useGameHook';
+import { useLanguage } from '../context/LanguageContext';
+import { useGame } from '../context/GameContext';
 import { GlassButton, Icons } from './UIComponents';
 import { formatNumber } from '../utils';
 import { BUILDING_DEFS } from '../data/buildings';

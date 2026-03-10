@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
 import { gameEventBus } from '../utils/eventBus';
 import { MultiplayerActionType, GiftResourcePayload } from '../types/multiplayer';

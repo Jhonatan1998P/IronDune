@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useGame } from '../context/useGameHook';
+import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
 import { simulateCombat } from '../utils/engine/combat';
 import { P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops } from '../types/multiplayer';

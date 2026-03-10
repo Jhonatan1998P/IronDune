@@ -8,7 +8,7 @@
 import React from 'react';
 import { SmartTooltip } from '../UIComponents';
 import { getReputationColor, getReputationBgColor, getReputationCategory, ReputationCategory } from '../../utils/engine/reputation';
-import { useLanguage } from '../context/useLanguageHook';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface ReputationBarProps {
     reputation: number;

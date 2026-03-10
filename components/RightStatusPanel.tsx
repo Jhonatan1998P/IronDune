@@ -1,6 +1,6 @@
 import React from 'react';
-import { useGame } from '../context/useGameHook';
-import { useLanguage } from '../context/useLanguageHook';
+import { useGame } from '../context/GameContext';
+import { useLanguage } from '../context/LanguageContext';
 import { formatDuration, formatNumber } from '../utils';
 import { Icons, SpeedUpButton } from './UIComponents';
 import { BUILDING_DEFS } from '../data/buildings';
