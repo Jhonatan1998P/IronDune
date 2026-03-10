@@ -25,12 +25,44 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
     let updatedGrudges = [...state.grudges || []]; // Ensure it exists
     let updatedRankingBots = [...state.rankingData.bots];
 
+    // Debug logging
+    if (state.activeConstructions.length > 0 || state.activeRecruitments.length > 0 || state.activeResearch) {
+        console.log('[SystemTick] Processing active items', {
+            now,
+            constructions: state.activeConstructions.map(c => ({
+                id: c.id,
+                type: c.buildingType,
+                endTime: c.endTime,
+                timeRemaining: c.endTime - now
+            })),
+            recruitments: state.activeRecruitments.map(r => ({
+                id: r.id,
+                type: r.unitType,
+                endTime: r.endTime,
+                timeRemaining: r.endTime - now
+            })),
+            research: state.activeResearch ? {
+                techId: state.activeResearch.techId,
+                endTime: state.activeResearch.endTime,
+                timeRemaining: state.activeResearch.endTime - now
+            } : null
+        });
+    }
+
     // 1. Constructions
     const updatedConstructions = state.activeConstructions.filter(c => {
         if (now >= c.endTime) {
-            newBuildings[c.buildingType] = { 
+            console.log('[SystemTick] Construction completed', {
+                id: c.id,
+                type: c.buildingType,
+                count: c.count,
+                endTime: c.endTime,
+                now,
+                diff: now - c.endTime
+            });
+            newBuildings[c.buildingType] = {
                 ...newBuildings[c.buildingType],
-                level: newBuildings[c.buildingType].level + c.count 
+                level: newBuildings[c.buildingType].level + c.count
             };
             return false;
         }
