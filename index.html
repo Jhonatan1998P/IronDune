@@ -7,7 +7,31 @@
     <title>Iron Dune: Operations</title>
     <meta name="description" content="Next-Gen Browser Strategy Game" />
     <meta name="theme-color" content="#020617" />
+    
+    <!-- Resource Hints para mejor rendimiento -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    
+    <!-- Preload de fuentes críticas -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap" />
+    <link rel="preload" as="script" href="https://cdn.tailwindcss.com" />
+    
+    <!-- Preload de módulos críticos -->
+    <link rel="modulepreload" href="/index.tsx" />
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2306b6d4'/><text x='50' y='70' font-family='Arial' font-size='60' font-weight='bold' text-anchor='middle' fill='%23000'>ID</text></svg>" />
+    
+    <!-- Meta tags de rendimiento para móviles -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Preload de Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -62,7 +86,7 @@
     </script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap');
-      
+
       :root {
         --glass-border: rgba(255, 255, 255, 0.08);
         --glass-bg: rgba(15, 23, 42, 0.65);
@@ -77,7 +101,7 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      
+
       .font-tech {
         font-family: 'Orbitron', sans-serif;
       }
@@ -112,7 +136,7 @@
         border: 1px solid var(--glass-border);
         box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
       }
-      
+
       .glass-button {
         background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
         border: 1px solid rgba(255,255,255,0.1);
@@ -120,7 +144,7 @@
         position: relative;
         overflow: hidden;
       }
-      
+
       .glass-button::after {
         content: '';
         position: absolute;
@@ -131,7 +155,7 @@
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
         transition: 0.5s;
       }
-      
+
       .glass-button:hover::after {
         left: 100%;
       }
@@ -142,8 +166,8 @@
 
       /* CRT / HUD Effects */
       .bg-grid-pattern {
-        background-image: 
-          linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px), 
+        background-image:
+          linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
           linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
         background-size: 30px 30px;
       }
@@ -163,9 +187,9 @@
         );
         background-size: 100% 4px;
         position: absolute;
-        top: 0; 
-        left: 0; 
-        right: 0; 
+        top: 0;
+        left: 0;
+        right: 0;
         bottom: 0;
         pointer-events: none;
         z-index: 5;
@@ -183,6 +207,12 @@
       /* Safe Area for Mobile */
       .safe-area-bottom {
         padding-bottom: env(safe-area-inset-bottom, 20px);
+      }
+      
+      /* Critical CSS para evitar layout shift */
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
       }
     </style>
 <script type="importmap">

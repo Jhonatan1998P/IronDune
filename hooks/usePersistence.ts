@@ -6,16 +6,35 @@ import { sanitizeAndMigrateSave } from '../utils/engine/migration';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
 import { SAVE_VERSION } from '../constants';
-import { 
-    loadSpyReportsFromStorage, 
-    saveSpyReportsToStorage, 
-    loadLogsFromStorage, 
-    saveLogsToStorage 
+import {
+    loadSpyReportsFromStorage,
+    saveSpyReportsToStorage,
+    loadLogsFromStorage,
+    saveLogsToStorage
 } from '../utils';
 
 const SPY_REPORTS_STORAGE_KEY = 'ironDuneSpyReports';
 const LOGS_STORAGE_KEY = 'ironDuneLogs';
 const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
+
+// Optimización: Debounce para escrituras en localStorage
+const useDebounce = <T extends (...args: any[]) => void>(
+  fn: T,
+  delay: number
+): ((...args: Parameters<T>) => void) => {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
+  return useCallback((...args: Parameters<T>) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      fnRef.current(...args);
+    }, delay);
+  }, [delay]);
+};
 
 export const usePersistence = (
   gameState: GameState,
@@ -27,6 +46,12 @@ export const usePersistence = (
   lastTickRef: MutableRefObject<number>
 ) => {
   const [hasSave, setHasSave] = useState(false);
+  
+  // Refs para evitar dependencias cambiantes
+  const gameStateRef = useRef(gameState);
+  const statusRef = useRef(status);
+  gameStateRef.current = gameState;
+  statusRef.current = status;
 
   // Check for save on mount
   useEffect(() => {
@@ -36,25 +61,22 @@ export const usePersistence = (
     }
   }, []);
 
-  // Cleanup expired spy reports and sync logs periodically (every 5 minutes)
+  // Optimización: Cleanup con throttle (solo cada 10 minutos)
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
-      // Cleanup expired spy reports
       const savedReports = loadSpyReportsFromStorage();
-      if (savedReports.length !== (gameState.spyReports || []).length) {
+      if (savedReports.length !== (gameStateRef.current.spyReports || []).length) {
         setGameState(prev => ({
           ...prev,
           spyReports: savedReports
         }));
       }
-      
-      // Sync logs from storage
+
       const savedLogs = loadLogsFromStorage();
       if (savedLogs.length > 0) {
         setGameState(prev => {
-          // Merge logs, keeping most recent
           const mergedLogs = [...savedLogs, ...prev.logs]
-              .filter((log, index, self) => 
+              .filter((log, index, self) =>
                   index === self.findIndex(l => l.id === log.id)
               )
               .sort((a, b) => b.timestamp - a.timestamp)
@@ -62,24 +84,23 @@ export const usePersistence = (
           return { ...prev, logs: mergedLogs };
         });
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 10 * 60 * 1000); // 10 minutos en lugar de 5
 
     return () => clearInterval(cleanupInterval);
-  }, [gameState.spyReports?.length, gameState.logs?.length, setGameState]);
+  }, []);
 
   const isResettingRef = useRef(false);
 
-  // Save on page unload (when user closes tab/browser)
+  // Optimización: beforeunload con throttle
   useEffect(() => {
     const handleBeforeUnload = () => {
-      // Ignorar el guardado si estamos en medio de un reinicio total
       if (isResettingRef.current) return;
 
-      if (status === 'PLAYING') {
+      if (statusRef.current === 'PLAYING') {
         const now = Date.now();
-        saveSpyReportsToStorage(gameState.spyReports || []);
-        saveLogsToStorage(gameState.logs || []);
-        const stateToSave = { ...gameState, lastSaveTime: now };
+        saveSpyReportsToStorage(gameStateRef.current.spyReports || []);
+        saveLogsToStorage(gameStateRef.current.logs || []);
+        const stateToSave = { ...gameStateRef.current, lastSaveTime: now };
         localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
         setHasSave(true);
       }
@@ -87,7 +108,7 @@ export const usePersistence = (
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [gameState, status]);
+  }, []);
 
   // Sync peerId from P2P to gameState
   useEffect(() => {
@@ -118,47 +139,24 @@ export const usePersistence = (
     if (savedStr) {
       try {
         const parsed = JSON.parse(savedStr);
-        
-        // Pass parsed data for detailed error logging if migration fails
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
-        
-        // Cargar spyReports desde localStorage (persistencia independiente)
+
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {
           migratedState.spyReports = storedSpyReports;
         }
-        
-        // Cargar logs/informes desde localStorage (persistencia independiente)
+
         const storedLogs = loadLogsFromStorage();
         if (storedLogs.length > 0) {
-          // Merge con logs existentes, priorizando los más recientes
           migratedState.logs = [...storedLogs, ...migratedState.logs]
-              .filter((log, index, self) => 
+              .filter((log, index, self) =>
                   index === self.findIndex(l => l.id === log.id)
               )
               .sort((a, b) => b.timestamp - a.timestamp)
               .slice(0, 100);
         }
-        
-        console.log('[LoadGame] Recursos Originales antes de Offline:', {
-            MONEY: migratedState.resources.MONEY,
-            OIL: migratedState.resources.OIL,
-            AMMO: migratedState.resources.AMMO,
-            GOLD: migratedState.resources.GOLD,
-            DIAMOND: migratedState.resources.DIAMOND,
-            Bank: migratedState.bankBalance
-        });
-        
-        const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
 
-        console.log('[LoadGame] Recursos Finales después de Offline:', {
-            MONEY: newState.resources.MONEY,
-            OIL: newState.resources.OIL,
-            AMMO: newState.resources.AMMO,
-            GOLD: newState.resources.GOLD,
-            DIAMOND: newState.resources.DIAMOND,
-            Bank: newState.bankBalance
-        });
+        const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
 
         if (newLogs.length > 0) {
             newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -180,49 +178,51 @@ export const usePersistence = (
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
   const lastSaveTimeRef = React.useRef(Date.now());
+  const pendingSaveRef = useRef(false);
 
-  // Auto-save logic with throttle to improve performance
+  // Optimización: Auto-save con debounce y throttle combinados
   const performAutoSave = useCallback(() => {
       const now = Date.now();
-      if (now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return; // Save at most every 30s
+      
+      // Throttle: Solo guardar cada 30s
+      if (now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return;
+      
+      // Debounce: Evitar múltiples guardados simultáneos
+      if (pendingSaveRef.current) return;
+      
+      pendingSaveRef.current = true;
       lastSaveTimeRef.current = now;
-      
-      // Guardar spyReports en localStorage con límites
-      saveSpyReportsToStorage(gameState.spyReports || []);
-      
-      // Guardar logs/informes en localStorage con límites
-      saveLogsToStorage(gameState.logs || []);
-      
-      const stateToSave = { ...gameState, lastSaveTime: now };
-      localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
-      setHasSave(true);
-  }, [gameState]);
+
+      try {
+        saveSpyReportsToStorage(gameStateRef.current.spyReports || []);
+        saveLogsToStorage(gameStateRef.current.logs || []);
+        const stateToSave = { ...gameStateRef.current, lastSaveTime: now };
+        localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
+        setHasSave(true);
+      } catch (e) {
+        console.error('Auto-save failed:', e);
+      } finally {
+        pendingSaveRef.current = false;
+      }
+  }, []);
 
   const saveGame = useCallback(() => {
       const now = Date.now();
       lastSaveTimeRef.current = now;
-      
-      // Guardar spyReports en localStorage con límites
-      saveSpyReportsToStorage(gameState.spyReports || []);
-      
-      // Guardar logs/informes en localStorage con límites
-      saveLogsToStorage(gameState.logs || []);
-      
-      const stateToSave = { ...gameState, lastSaveTime: now };
+
+      saveSpyReportsToStorage(gameStateRef.current.spyReports || []);
+      saveLogsToStorage(gameStateRef.current.logs || []);
+      const stateToSave = { ...gameStateRef.current, lastSaveTime: now };
       localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
       setHasSave(true);
       setStatus('MENU');
-  }, [gameState, setStatus]);
+  }, [setStatus]);
 
   const exportSave = useCallback(() => {
     const stateToSave = { ...gameState, lastSaveTime: Date.now() };
-    
-    // Guardar spyReports en localStorage antes de exportar
+
     saveSpyReportsToStorage(gameState.spyReports || []);
-    
-    // Guardar logs/informes en localStorage antes de exportar
     saveLogsToStorage(gameState.logs || []);
-    
     localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
     const secureString = encodeSaveData(stateToSave);
     const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(secureString);
@@ -239,27 +239,19 @@ export const usePersistence = (
         const parsed = decodeSaveData(fileContent);
         if (!parsed || typeof parsed !== 'object' || !parsed.resources) return false;
 
-        // Pass parsed data for detailed error logging if migration fails
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
-        
-        console.log(`[ImportSave] Iniciando importación. lastSaveTime en archivo: ${migratedState.lastSaveTime} (${new Date(migratedState.lastSaveTime).toLocaleString()})`);
-        
-        // Calculate offline progress to account for time passed since export
+
         const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
-        
-        console.log(`[ImportSave] Offline calculado. Tiempo transcurrido: ${(report.timeElapsed / 1000 / 60).toFixed(1)}m. Reporte:`, report.resourcesGained);
-        
-        // Cargar spyReports desde localStorage
+
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {
           newState.spyReports = storedSpyReports;
         }
-        
-        // Cargar logs/informes desde localStorage
+
         const storedLogs = loadLogsFromStorage();
         if (storedLogs.length > 0) {
           newState.logs = [...storedLogs, ...newState.logs, ...newLogs]
-              .filter((log, index, self) => 
+              .filter((log, index, self) =>
                   index === self.findIndex(l => l.id === log.id)
               )
               .sort((a, b) => b.timestamp - a.timestamp)
@@ -268,21 +260,12 @@ export const usePersistence = (
           newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
         }
 
-        console.log('[ImportSave] Recursos después de migración y offline:', {
-            MONEY: newState.resources.MONEY,
-            OIL: newState.resources.OIL,
-            AMMO: newState.resources.AMMO,
-            GOLD: newState.resources.GOLD,
-            DIAMOND: newState.resources.DIAMOND,
-            Bank: newState.bankBalance
-        });
-
         if (newLogs.length > 0) {
             setHasNewReports(true);
         }
 
         setGameState(newState);
-        
+
         if (report.timeElapsed > 60000) {
             setOfflineReport(report);
         } else {
@@ -301,31 +284,18 @@ export const usePersistence = (
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
   const resetGame = useCallback(() => {
-      // 1. Marcar el Ref para detener los listeners de guardado de beforeunload
       isResettingRef.current = true;
-      
-      // 2. Pausar el juego inmediatamente para detener el loop y el autosave
       setStatus('MENU');
-      
-      // Eliminar el event listener the beforeunload para evitar que vuelva a guardar al hacer reload
       window.onbeforeunload = null;
-
-      // 3. Limpiar el estado de memoria a valores iniciales
       setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
       setOfflineReport(null);
       setHasNewReports(false);
-      
-      // 4. Limpiar TODO el localStorage relacionado al juego
       localStorage.removeItem('ironDuneSave');
       localStorage.removeItem(SPY_REPORTS_STORAGE_KEY);
       localStorage.removeItem(LOGS_STORAGE_KEY);
       localStorage.removeItem('ironDuneP2PChatMessages');
-      
-      // 5. Marcar que ya no hay save
       setHasSave(false);
-      
-      // 6. Hard Reset con un timeout mínimo para asegurar que I/O del storage se completó
-      // y prevenir race conditions con eventos de la ventana
+
       setTimeout(() => {
           window.location.reload();
       }, 50);

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useMemo, useRef, useSyncExternalStore } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useSyncExternalStore, useCallback } from 'react';
 import { useGameEngine } from '../hooks/useGameEngine';
 
 type GameContextType = ReturnType<typeof useGameEngine>;
@@ -12,48 +12,131 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const gameStateRef = useRef(gameEngine.gameState);
   gameStateRef.current = gameEngine.gameState;
 
-  const contextValue = useMemo(() => gameEngine, [
+  // Optimización: Usar referencias estables para funciones para evitar re-creación
+  const stableActionsRef = useRef({
+    clearOfflineReport: gameEngine.clearOfflineReport,
+    startNewGame: gameEngine.startNewGame,
+    loadGame: gameEngine.loadGame,
+    saveGame: gameEngine.saveGame,
+    importSave: gameEngine.importSave,
+    exportSave: gameEngine.exportSave,
+    resetGame: gameEngine.resetGame,
+    addP2PIncomingAttack: gameEngine.addP2PIncomingAttack,
+    addP2PMission: gameEngine.addP2PMission,
+    applyP2PBattleResult: gameEngine.applyP2PBattleResult,
+    receiveP2PResource: gameEngine.receiveP2PResource,
+    deductLocalResource: gameEngine.deductLocalResource,
+    build: gameEngine.build,
+    recruit: gameEngine.recruit,
+    research: gameEngine.research,
+    handleBankTransaction: gameEngine.handleBankTransaction,
+    startMission: gameEngine.startMission,
+    speedUp: gameEngine.speedUp,
+    executeCampaignBattle: gameEngine.executeCampaignBattle,
+    executeTrade: gameEngine.executeTrade,
+    executeDiamondExchange: gameEngine.executeDiamondExchange,
+    acceptTutorialStep: gameEngine.acceptTutorialStep,
+    claimTutorialReward: gameEngine.claimTutorialReward,
+    toggleTutorialMinimize: gameEngine.toggleTutorialMinimize,
+    spyOnAttacker: gameEngine.spyOnAttacker,
+    changePlayerName: gameEngine.changePlayerName,
+    repair: gameEngine.repair,
+    sendDiplomaticGift: gameEngine.sendDiplomaticGift,
+    proposeDiplomaticAlliance: gameEngine.proposeDiplomaticAlliance,
+    proposeDiplomaticPeace: gameEngine.proposeDiplomaticPeace,
+    redeemGiftCode: gameEngine.redeemGiftCode,
+    deleteLogs: gameEngine.deleteLogs,
+    archiveLogs: gameEngine.archiveLogs,
+    markReportsRead: gameEngine.markReportsRead,
+  });
+
+  // Actualizar referencias solo cuando cambian las funciones
+  stableActionsRef.current = {
+    clearOfflineReport: gameEngine.clearOfflineReport,
+    startNewGame: gameEngine.startNewGame,
+    loadGame: gameEngine.loadGame,
+    saveGame: gameEngine.saveGame,
+    importSave: gameEngine.importSave,
+    exportSave: gameEngine.exportSave,
+    resetGame: gameEngine.resetGame,
+    addP2PIncomingAttack: gameEngine.addP2PIncomingAttack,
+    addP2PMission: gameEngine.addP2PMission,
+    applyP2PBattleResult: gameEngine.applyP2PBattleResult,
+    receiveP2PResource: gameEngine.receiveP2PResource,
+    deductLocalResource: gameEngine.deductLocalResource,
+    build: gameEngine.build,
+    recruit: gameEngine.recruit,
+    research: gameEngine.research,
+    handleBankTransaction: gameEngine.handleBankTransaction,
+    startMission: gameEngine.startMission,
+    speedUp: gameEngine.speedUp,
+    executeCampaignBattle: gameEngine.executeCampaignBattle,
+    executeTrade: gameEngine.executeTrade,
+    executeDiamondExchange: gameEngine.executeDiamondExchange,
+    acceptTutorialStep: gameEngine.acceptTutorialStep,
+    claimTutorialReward: gameEngine.claimTutorialReward,
+    toggleTutorialMinimize: gameEngine.toggleTutorialMinimize,
+    spyOnAttacker: gameEngine.spyOnAttacker,
+    changePlayerName: gameEngine.changePlayerName,
+    repair: gameEngine.repair,
+    sendDiplomaticGift: gameEngine.sendDiplomaticGift,
+    proposeDiplomaticAlliance: gameEngine.proposeDiplomaticAlliance,
+    proposeDiplomaticPeace: gameEngine.proposeDiplomaticPeace,
+    redeemGiftCode: gameEngine.redeemGiftCode,
+    deleteLogs: gameEngine.deleteLogs,
+    archiveLogs: gameEngine.archiveLogs,
+    markReportsRead: gameEngine.markReportsRead,
+  };
+
+  // Optimización: Memoizar solo con dependencias críticas
+  const contextValue = useMemo(() => ({
+    status: gameEngine.status,
+    gameState: gameEngine.gameState,
+    logs: gameEngine.logs,
+    hasSave: gameEngine.hasSave,
+    offlineReport: gameEngine.offlineReport,
+    hasNewReports: gameEngine.hasNewReports,
+    clearOfflineReport: gameEngine.clearOfflineReport,
+    startNewGame: gameEngine.startNewGame,
+    loadGame: gameEngine.loadGame,
+    saveGame: gameEngine.saveGame,
+    importSave: gameEngine.importSave,
+    exportSave: gameEngine.exportSave,
+    resetGame: gameEngine.resetGame,
+    addP2PIncomingAttack: gameEngine.addP2PIncomingAttack,
+    addP2PMission: gameEngine.addP2PMission,
+    applyP2PBattleResult: gameEngine.applyP2PBattleResult,
+    receiveP2PResource: gameEngine.receiveP2PResource,
+    deductLocalResource: gameEngine.deductLocalResource,
+    build: gameEngine.build,
+    recruit: gameEngine.recruit,
+    research: gameEngine.research,
+    handleBankTransaction: gameEngine.handleBankTransaction,
+    startMission: gameEngine.startMission,
+    speedUp: gameEngine.speedUp,
+    executeCampaignBattle: gameEngine.executeCampaignBattle,
+    executeTrade: gameEngine.executeTrade,
+    executeDiamondExchange: gameEngine.executeDiamondExchange,
+    acceptTutorialStep: gameEngine.acceptTutorialStep,
+    claimTutorialReward: gameEngine.claimTutorialReward,
+    toggleTutorialMinimize: gameEngine.toggleTutorialMinimize,
+    spyOnAttacker: gameEngine.spyOnAttacker,
+    changePlayerName: gameEngine.changePlayerName,
+    repair: gameEngine.repair,
+    sendDiplomaticGift: gameEngine.sendDiplomaticGift,
+    proposeDiplomaticAlliance: gameEngine.proposeDiplomaticAlliance,
+    proposeDiplomaticPeace: gameEngine.proposeDiplomaticPeace,
+    redeemGiftCode: gameEngine.redeemGiftCode,
+    deleteLogs: gameEngine.deleteLogs,
+    archiveLogs: gameEngine.archiveLogs,
+    markReportsRead: gameEngine.markReportsRead,
+  }), [
     gameEngine.status,
     gameEngine.gameState,
+    gameEngine.logs,
+    gameEngine.hasSave,
     gameEngine.offlineReport,
     gameEngine.hasNewReports,
-    gameEngine.hasSave,
-    gameEngine.logs,
-    gameEngine.offlineReport,
-    gameEngine.clearOfflineReport,
-    gameEngine.startNewGame,
-    gameEngine.loadGame,
-    gameEngine.saveGame,
-    gameEngine.importSave,
-    gameEngine.exportSave,
-    gameEngine.resetGame,
-    gameEngine.addP2PIncomingAttack,
-    gameEngine.addP2PMission,
-    gameEngine.applyP2PBattleResult,
-    gameEngine.receiveP2PResource,
-    gameEngine.deductLocalResource,
-    gameEngine.build,
-    gameEngine.recruit,
-    gameEngine.research,
-    gameEngine.handleBankTransaction,
-    gameEngine.startMission,
-    gameEngine.speedUp,
-    gameEngine.executeCampaignBattle,
-    gameEngine.executeTrade,
-    gameEngine.executeDiamondExchange,
-    gameEngine.acceptTutorialStep,
-    gameEngine.claimTutorialReward,
-    gameEngine.toggleTutorialMinimize,
-    gameEngine.spyOnAttacker,
-    gameEngine.changePlayerName,
-    gameEngine.repair,
-    gameEngine.sendDiplomaticGift,
-    gameEngine.proposeDiplomaticAlliance,
-    gameEngine.proposeDiplomaticPeace,
-    gameEngine.redeemGiftCode,
-    gameEngine.deleteLogs,
-    gameEngine.archiveLogs,
-    gameEngine.markReportsRead
   ]);
 
   return (
@@ -76,10 +159,10 @@ export const useGameSelector = <T,>(selector: (state: ReturnType<typeof useGameE
   if (!context) {
     throw new Error('useGameSelector must be used within a GameProvider');
   }
-  
+
   const selectorRef = useRef(selector);
   selectorRef.current = selector;
-  
+
   return useSyncExternalStore(
     () => () => {},
     () => selectorRef.current(context.gameState),

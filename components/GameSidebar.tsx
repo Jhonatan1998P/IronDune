@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
@@ -20,34 +20,49 @@ const NavIcons = {
     Diplomacy: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
 };
 
+// Optimización: Throttle para eventos de chat
+const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, setHasUnreadChat: (has: boolean) => void) => {
+  const lastTriggerTime = useRef(0);
+  const THROTTLE_MS = 500;
+
+  useEffect(() => {
+    const handleChatUpdate = () => {
+      const now = Date.now();
+      // Throttle: solo actualizar cada 500ms
+      if (now - lastTriggerTime.current < THROTTLE_MS) return;
+      
+      if (activeTabRef.current !== 'chat') {
+        setHasUnreadChat(true);
+        lastTriggerTime.current = now;
+      }
+    };
+    
+    gameEventBus.on('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+    return () => gameEventBus.off('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
+  }, [setHasUnreadChat]);
+};
+
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
   const { hasNewReports, gameState } = useGame();
 
   const hasActiveWar = !!gameState.activeWar;
-
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
-
-  // Clear unread indicator when user opens chat
   const activeTabRef = useRef(activeTab);
+  
+  // Update ref when activeTab changes
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  
+  // Clear unread when chat is active
   useEffect(() => {
     if (activeTab === 'chat') setHasUnreadChat(false);
   }, [activeTab]);
 
-  // Listen for new incoming chat messages
-  useEffect(() => {
-    const handleChatUpdate = () => {
-      if (activeTabRef.current !== 'chat') {
-        setHasUnreadChat(true);
-      }
-    };
-    gameEventBus.on('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
-    return () => gameEventBus.off('LOCAL_CHAT_UPDATED' as any, handleChatUpdate);
-  }, []);
+  // Optimización: Event listener con throttle
+  useThrottledChatEvent(activeTabRef, setHasUnreadChat);
 
-  // Configuration for Desktop Groups
-  const navGroups = [
+  // Optimización: Memoizar configuración de navegación
+  const navGroups = useMemo(() => [
       {
           title: t.common.ui.base_command,
           items: [
@@ -81,12 +96,16 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
               { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
-  ];
+  ], [t]);
+
+  const handleTabClick = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+  }, [setActiveTab]);
 
   return (
     <nav className="hidden md:flex w-64 border-r border-white/10 flex-col shrink-0 z-20 h-full bg-slate-900/60 backdrop-blur-2xl shadow-[5px_0_30px_rgba(0,0,0,0.3)]">
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-          
+
           {hasActiveWar && (
               <div className="animate-[fadeIn_0.5s_ease-out]">
                   <div className="text-[10px] text-red-500 font-bold uppercase tracking-widest mb-2 px-2 flex items-center gap-2">
@@ -95,11 +114,11 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
                   </div>
                   <button
                     id="tab-war"
-                    onClick={() => setActiveTab('war')}
+                    onClick={() => handleTabClick('war')}
                     className={`
                       w-full px-4 py-3 rounded-lg flex items-center gap-3 transition-all group relative overflow-hidden border
-                      ${activeTab === 'war' 
-                        ? 'bg-red-900/30 border-red-500/50 text-red-400 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' 
+                      ${activeTab === 'war'
+                        ? 'bg-red-900/30 border-red-500/50 text-red-400 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]'
                         : 'bg-red-950/20 text-red-500 hover:text-red-300 hover:bg-red-900/20 border-red-900/30'}
                     `}
                   >
@@ -118,12 +137,12 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
                       {group.items.map(item => (
                         <button
                           key={item.id}
-                          id={`tab-${item.id}`} 
-                          onClick={() => setActiveTab(item.id)}
+                          id={`tab-${item.id}`}
+                          onClick={() => handleTabClick(item.id)}
                           className={`
                             w-full px-4 py-2.5 rounded-lg flex items-center gap-3 transition-all group relative overflow-hidden
-                            ${activeTab === item.id 
-                              ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 shadow-[inset_0_0_15px_rgba(6,182,212,0.1)]' 
+                            ${activeTab === item.id
+                              ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 shadow-[inset_0_0_15px_rgba(6,182,212,0.1)]'
                               : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}
                           `}
                         >
@@ -131,7 +150,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
                           <span className="uppercase font-tech text-xs font-bold tracking-widest relative z-10 text-left flex-1">
                             {item.label}
                           </span>
-                          
+
                           {item.id === 'reports' && hasNewReports && (
                               <span className="flex h-2 w-2">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -156,12 +175,12 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
           <div>
               <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 px-2">{t.common.ui.system}</div>
               <button
-                  id="tab-settings" 
-                  onClick={() => setActiveTab('settings')}
+                  id="tab-settings"
+                  onClick={() => handleTabClick('settings')}
                   className={`
                     w-full px-4 py-2.5 rounded-lg flex items-center gap-3 transition-all group relative overflow-hidden
-                    ${activeTab === 'settings' 
-                      ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300' 
+                    ${activeTab === 'settings'
+                      ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-300'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}
                   `}
                 >
@@ -172,7 +191,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
               </button>
           </div>
         </div>
-        
+
         <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-md">
           <div className="flex items-center gap-2 text-[10px] text-emerald-500/80 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>

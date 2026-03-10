@@ -1,11 +1,11 @@
 /**
  * ViewRouter - Enrutador de Vistas
- * 
+ *
  * Maneja la renderización de las diferentes vistas del juego basándose en la pestaña activa.
  * Cada case del switch renderiza el componente correspondiente a cada sección del juego.
  */
 
-import React, { useEffect, Suspense, lazy, useMemo, useCallback } from 'react';
+import React, { useEffect, Suspense, lazy, useMemo, useCallback, useRef } from 'react';
 import { TabType } from '../GameSidebar';
 import { useGame } from '../../context/GameContext';
 import { UnitType, GameState } from '../../types';
@@ -27,14 +27,14 @@ const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ d
 const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 
-const ViewLoader: React.FC = () => (
+const ViewLoader: React.FC = React.memo(() => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin"></div>
             <span className="text-cyan-400/70 text-sm font-mono animate-pulse">CARGANDO...</span>
         </div>
     </div>
-);
+));
 
 interface ViewRouterProps {
     activeTab: TabType;
@@ -61,6 +61,64 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     chat: MultiplayerChatView
 };
 
+// Optimización: Memoizar props por tipo de vista
+const useViewProps = (
+    activeTab: TabType,
+    gameState: GameState,
+    logs: any[],
+    simEnemyArmy: Partial<Record<UnitType, number>> | null,
+    simPlayerArmy: Partial<Record<UnitType, number>> | null,
+    actions: any,
+    onSimulateRequest: (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => void
+) => {
+    const actionsRef = useRef(actions);
+    actionsRef.current = actions;
+
+    return useMemo(() => {
+        switch (activeTab) {
+            case 'buildings':
+                return { gameState, onAction: actionsRef.current.build, onSpeedUp: actionsRef.current.speedUp, onRepair: actionsRef.current.repair };
+            case 'units':
+                return { gameState, onAction: actionsRef.current.recruit, onSpeedUp: actionsRef.current.speedUp };
+            case 'missions':
+                return { gameState, onStartMission: actionsRef.current.startMission };
+            case 'research':
+                return { gameState, onAction: actionsRef.current.research, onSpeedUp: actionsRef.current.speedUp };
+            case 'finance':
+                return { gameState, onBankAction: actionsRef.current.handleBankTransaction };
+            case 'market':
+                return { gameState, onExecuteTrade: actionsRef.current.executeTrade, onDiamondExchange: actionsRef.current.executeDiamondExchange };
+            case 'reports':
+                return { logs, onDelete: actionsRef.current.deleteLogs, onArchive: actionsRef.current.archiveLogs, onSimulate: onSimulateRequest };
+            case 'simulator':
+                return { initialEnemyArmy: simEnemyArmy, initialPlayerArmy: simPlayerArmy };
+            case 'campaign':
+                return { gameState, onExecuteBattle: actionsRef.current.executeCampaignBattle, onSpeedUp: actionsRef.current.speedUp };
+            case 'rankings':
+                return { gameState, onAttack: actionsRef.current.build }; // Placeholder
+            case 'war':
+                return { gameState, onSpy: actionsRef.current.spyOnAttacker, onSimulate: onSimulateRequest };
+            case 'diplomacy':
+                return {};
+            case 'settings':
+                return { gameState, changePlayerName: actionsRef.current.changePlayerName, redeemGiftCode: actionsRef.current.redeemGiftCode, saveGame: actionsRef.current.saveGame, resetGame: actionsRef.current.resetGame, exportSave: actionsRef.current.exportSave };
+            case 'p2p':
+                return { playerName: gameState.playerName, playerScore: gameState.empirePoints, playerFlag: gameState.playerFlag };
+            case 'chat':
+                return { gameState };
+            default:
+                return {};
+        }
+    }, [
+        activeTab,
+        gameState,
+        logs,
+        simEnemyArmy,
+        simPlayerArmy,
+        onSimulateRequest
+    ]);
+};
+
 export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, simEnemyArmy, simPlayerArmy, onSimulateRequest }) => {
     const {
         gameState, logs,
@@ -70,62 +128,38 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
         deleteLogs, archiveLogs, markReportsRead,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     } = useGame();
-    
+
     const handleSimulate = useCallback((enemy: Partial<Record<UnitType, number>>, player: Partial<Record<UnitType, number>>) => {
         onSimulateRequest(enemy, player);
     }, [onSimulateRequest]);
 
-    const handleAttack = useCallback((_: any, newState: GameState) => {
-        (window as any)._updateGameState?.(newState);
-    }, []);
+    const actions = useMemo(() => ({
+        build, recruit, research, handleBankTransaction,
+        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        speedUp, spyOnAttacker, repair,
+        deleteLogs, archiveLogs,
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+    }), [
+        build, recruit, research, handleBankTransaction,
+        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        speedUp, spyOnAttacker, repair,
+        deleteLogs, archiveLogs,
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+    ]);
 
     useEffect(() => {
         if (activeTab === 'reports') markReportsRead();
     }, [activeTab, markReportsRead]);
 
-    const viewProps = useMemo(() => {
-        switch (activeTab) {
-            case 'buildings':
-                return { gameState, onAction: build, onSpeedUp: speedUp, onRepair: repair };
-            case 'units':
-                return { gameState, onAction: recruit, onSpeedUp: speedUp };
-            case 'missions':
-                return { gameState, onStartMission: startMission };
-            case 'research':
-                return { gameState, onAction: research, onSpeedUp: speedUp };
-            case 'finance':
-                return { gameState, onBankAction: handleBankTransaction };
-            case 'market':
-                return { gameState, onExecuteTrade: executeTrade, onDiamondExchange: executeDiamondExchange };
-            case 'reports':
-                return { logs, onDelete: deleteLogs, onArchive: archiveLogs, onSimulate: handleSimulate };
-            case 'simulator':
-                return { initialEnemyArmy: simEnemyArmy, initialPlayerArmy: simPlayerArmy };
-            case 'campaign':
-                return { gameState, onExecuteBattle: executeCampaignBattle, onSpeedUp: speedUp };
-            case 'rankings':
-                return { gameState, onAttack: handleAttack };
-            case 'war':
-                return { gameState, onSpy: spyOnAttacker, onSimulate: handleSimulate };
-            case 'diplomacy':
-                return {};
-            case 'settings':
-                return { gameState, changePlayerName, redeemGiftCode, saveGame, resetGame, exportSave };
-            case 'p2p':
-                return { playerName: gameState.playerName, playerScore: gameState.empirePoints, playerFlag: gameState.playerFlag };
-            case 'chat':
-                return { gameState };
-            default:
-                return {};
-        }
-    }, [
-        activeTab, gameState, logs, simEnemyArmy, simPlayerArmy,
-        build, recruit, research, handleBankTransaction,
-        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
-        speedUp, spyOnAttacker, repair,
-        deleteLogs, archiveLogs, handleSimulate, handleAttack,
-        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
-    ]);
+    const viewProps = useViewProps(
+        activeTab,
+        gameState,
+        logs,
+        simEnemyArmy,
+        simPlayerArmy,
+        actions,
+        handleSimulate
+    );
 
     const LazyComponent = VIEW_COMPONENTS[activeTab];
 
