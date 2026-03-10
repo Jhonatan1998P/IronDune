@@ -14,6 +14,29 @@ import { processAttackQueue } from './attackQueue';
 // Overflow factor for inflation detection (must match migration.ts)
 const OVERFLOW_FACTOR = 10;
 
+const createResourceLog = (title: string, resources: Record<ResourceType, number> | Partial<Record<ResourceType, number>>, type: LogEntry['type'] = 'economy', offsetMs: number = 0): LogEntry => {
+    const resourceNames: Record<ResourceType, string> = {
+        [ResourceType.MONEY]: 'Dinero',
+        [ResourceType.OIL]: 'Petróleo',
+        [ResourceType.AMMO]: 'Munición',
+        [ResourceType.GOLD]: 'Oro',
+        [ResourceType.DIAMOND]: 'Diamante'
+    };
+
+    const parts = Object.entries(resources)
+        .map(([res, val]) => `${resourceNames[res as ResourceType]}: ${Math.floor(val as number).toLocaleString()}`);
+    
+    const message = `${title}: ${parts.join(' | ')}`;
+
+    return {
+        id: `offline-log-${Date.now()}-${Math.random()}`,
+        messageKey: 'raw_message',
+        params: { message },
+        timestamp: Date.now() + offsetMs,
+        type,
+    };
+};
+
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
     const timeElapsed = now - state.lastSaveTime;
@@ -42,6 +65,9 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
 
     const newLogs: LogEntry[] = [];
 
+    // Log 1: Cantidad base de recursos (más antiguo en el bloque)
+    newLogs.push(createResourceLog('CANTIDAD BASE DE RECURSOS (PRE-OFFLINE)', state.resources, 'economy', -3));
+
     // CRITICAL FIX: Validate time elapsed to prevent exploitation and bugs
     const MAX_OFFLINE_MS = 24 * 60 * 60 * 1000; // 24 hours absolute maximum
     if (timeElapsed < 0) {
@@ -63,6 +89,10 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
 
     if (timeElapsed < 60000) {
+        // Incluso si ha pasado poco tiempo, mostramos los logs de estado actual si el usuario lo requiere al importar/continuar
+        newLogs.push(createResourceLog('PRODUCCIÓN OFFLINE GENERADA', {}, 'economy', -2));
+        newLogs.push(createResourceLog('RECURSOS TRAS AÑADIR PRODUCCIÓN OFFLINE', state.resources, 'economy', -1));
+        newLogs.push(createResourceLog('ESTADO FINAL DE RECURSOS EN LA CUENTA', state.resources, 'economy', 0));
         return { newState: state, report, newLogs };
     }
 
@@ -152,6 +182,16 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             console.log(`[Offline] ${res}: current=${prevAmount.toFixed(2)} cap=${maxStorage[res]} netChange=${netChange.toFixed(2)} gain=${report.resourcesGained[res]} consumed=${report.resourcesConsumed[res]}`);
         }
     });
+
+    // Log 2: Producción offline generada
+    const netProduction: Partial<Record<ResourceType, number>> = {};
+    Object.values(ResourceType).forEach(res => {
+        netProduction[res] = (report.resourcesGained[res] || 0) - (report.resourcesConsumed[res] || 0);
+    });
+    newLogs.push(createResourceLog('PRODUCCIÓN OFFLINE GENERADA', netProduction, 'economy', -2));
+
+    // Log 3: Cantidad final después de añadir producción
+    newLogs.push(createResourceLog('RECURSOS TRAS AÑADIR PRODUCCIÓN OFFLINE', newState.resources, 'economy', -1));
 
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
@@ -290,6 +330,9 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         resourcesConsumed: report.resourcesConsumed,
         bankInterestEarned: report.bankInterestEarned
     });
+
+    // Log 4: Cantidad final de recursos en la cuenta (el más reciente)
+    newLogs.push(createResourceLog('ESTADO FINAL DE RECURSOS EN LA CUENTA', newState.resources, 'economy', 0));
 
     return { newState, report, newLogs };
 };

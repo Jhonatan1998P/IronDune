@@ -75,6 +75,8 @@ export const TerminalLogs: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
     const getLogMessage = (log: LogEntry) => {
         const { messageKey, params, type } = log;
 
+        if (messageKey === 'raw_message') return params?.message || '';
+
         // Explicit Overrides for hardcoded system keys
         if (messageKey === 'log_battle_win') return `${t.common.actions.attack} - ${t.campaign.victory_title}`;
         if (messageKey === 'log_battle_loss') return `${t.common.actions.attack} - ${t.campaign.defeat_title}`;
