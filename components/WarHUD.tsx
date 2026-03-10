@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/useGameHook';
 import { WAR_DURATION_MS, WAR_PLAYER_ATTACKS } from '../constants';
 import { formatDuration, formatNumber } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { PvpAttackModal } from './PvpAttackModal';
 
 export const WarHUD: React.FC = () => {

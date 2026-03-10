@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { GameState, ResourceType, TechType, UnitType } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { GlassButton, Icons, SpeedUpButton } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
 

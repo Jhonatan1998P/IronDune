@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { GameState, ResourceType, BuildingType, BuildingDef, TranslationDictionary } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { Card, GlassButton, CostDisplay, QuantitySelector, Icons } from '../UIComponents';
 import { GameTooltip } from '../GameTooltip';
 import { formatDuration } from '../../utils';

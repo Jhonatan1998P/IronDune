@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LogEntry, BuildingType, TechType, UnitType } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { Icons } from '../UIComponents';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { TECH_DEFS } from '../../data/techs';

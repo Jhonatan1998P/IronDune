@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useP2PBattle } from '../../hooks/useP2PBattle';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
 import { UNIT_DEFS } from '../../data/units';
 import { UNIT_PRIORITY } from '../../utils/engine/combat';

@@ -18,7 +18,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { UNIT_DEFS } from '../../data/units';
 import { UnitType, BattleResult, UnitDef, TranslationDictionary, LogEntry } from '../../types';
 import { calculateCombatStats, simulateCombat } from '../../hooks/useGameEngine';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { CombatReportContent } from '../reports/CombatReportModal';

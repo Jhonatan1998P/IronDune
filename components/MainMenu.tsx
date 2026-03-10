@@ -1,7 +1,7 @@
 
 import React, { useRef, useState } from 'react';
-import { useLanguage } from '../context/LanguageContext';
-import { useGame } from '../context/GameContext';
+import { useLanguage } from '../context/useLanguageHook';
+import { useGame } from '../context/useGameHook';
 import { GlassButton, Icons } from './UIComponents';
 
 export const MainMenu: React.FC = () => {

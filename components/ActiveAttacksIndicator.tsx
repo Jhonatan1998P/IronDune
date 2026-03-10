@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/useGameHook';
 import { formatDuration } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { TacticalInterceptModal } from './modals/TacticalInterceptModal';
 import { Icons } from './UIComponents';
 import { ActiveMission, IncomingAttack, UnitType } from '../types';

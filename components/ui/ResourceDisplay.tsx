@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { formatNumber } from '../../utils';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { SmartTooltip } from './SmartTooltip';
 
 export const ResourceDisplay: React.FC<{ label: string; value: number; max: number; color: string; production?: number; upkeep?: number; icon?: React.ReactNode; resourceType?: string }> = React.memo(({ label, value, max, color, production = 0, upkeep = 0, icon, resourceType }) => {

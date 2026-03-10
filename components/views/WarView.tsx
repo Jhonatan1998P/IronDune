@@ -2,7 +2,7 @@
 import React from 'react';
 import { GameState, ResourceType, UnitType } from '../../types';
 import { UNIT_DEFS } from '../../data/units';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { GlassButton, Icons, SpeedUpButton } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';

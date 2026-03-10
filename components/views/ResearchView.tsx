@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { TECH_DEFS } from '../../data/techs';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { BuildingType, GameState, ResourceType, TechCategory, TechDef } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { Card, GlassButton, Icons, CostDisplay } from '../UIComponents';
 import { GameTooltip } from '../GameTooltip';
 import { formatDuration } from '../../utils';

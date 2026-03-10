@@ -7,7 +7,7 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { X, Gift, Handshake, Heart, Target, Zap, Shield, History } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { StaticBot, RankingCategory } from '../../utils/engine/rankings';
 import { formatNumber } from '../../utils';
 import { getFlagEmoji } from '../../utils/engine/rankings';

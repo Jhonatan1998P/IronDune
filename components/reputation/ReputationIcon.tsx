@@ -9,7 +9,7 @@ import React from 'react';
 import { Heart, Handshake, Shield, Target, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { SmartTooltip } from '../UIComponents';
 import { getReputationColor, getReputationCategory, ReputationCategory } from '../../utils/engine/reputation';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 
 interface ReputationIconProps {
     reputation: number;

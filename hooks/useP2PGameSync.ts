@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/useGameHook';
 import { useMultiplayer } from './useMultiplayer';
 import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
 import { IncomingAttack } from '../types/state';

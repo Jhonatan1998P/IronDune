@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useGame } from '../../context/GameContext';
+import { useGame } from '../context/useGameHook';
 import { RankingCategory, getFlagEmoji, BotEvent, StaticBot } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
 import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info, History } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { Icons, SmartTooltip } from '../UIComponents';
 import { ReputationBar, ReputationIcon } from '../reputation';
 import { BotInteractionModal } from '../modals/BotInteractionModal';

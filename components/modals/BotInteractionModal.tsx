@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { X, TrendingUp, TrendingDown, Minus, Gift, Handshake, Sword, Shield, Clock } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../context/useLanguageHook';
 import { StaticBot } from '../../utils/engine/rankings';
 import { getInteractionRecord, getRelationshipSummary, exportInteractionData } from '../../utils/engine/reputationHistory';
 import { GameState } from '../../types';
