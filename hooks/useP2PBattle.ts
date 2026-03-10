@@ -139,9 +139,8 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
         });
         records.sort((a, b) => b.timestamp - a.timestamp);
         setHistory(records.slice(0, MAX_HISTORY));
-        console.log('[P2PBattle] Loaded', records.length, 'history records from IndexedDB');
       } catch (e) {
-        console.warn('[P2PBattle] Failed to load history:', e);
+        // Failed to load history
       }
     }
   }, [yjs.isReady, yjs.doc]);
@@ -198,7 +197,7 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
           }
         });
       } catch (e) {
-        console.warn('[P2PBattle] Failed to persist history:', e);
+        // Failed to persist history
       }
     }
   }, [yjs]);
@@ -216,8 +215,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     opponentScore: number,
     opponentPeerId: string
   ) => {
-    console.log('[P2PBattle] Resolving combat for battle:', battleId);
-
     const attackerArmy = isChallenger ? myArmy : opponentArmy;
     const defenderArmy = isChallenger ? opponentArmy : myArmy;
 
@@ -313,7 +310,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
   const challengePlayer = useCallback((targetPeerId: string) => {
     if (!isConnected || !localPlayerId) return;
     if (battle.status !== 'IDLE') {
-      console.warn('[P2PBattle] Cannot challenge: already in battle');
       return;
     }
 
@@ -356,12 +352,9 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     // Timeout: auto-cancel if no response
     challengeTimeoutRef.current = setTimeout(() => {
       if (battleRef.current.status === 'CHALLENGING') {
-        console.log('[P2PBattle] Challenge timed out');
         resetBattle();
       }
     }, CHALLENGE_TIMEOUT_MS);
-
-    console.log('[P2PBattle] Challenge sent to:', targetPeerId, 'battleId:', battleId);
   }, [isConnected, localPlayerId, playerName, empirePoints, battle.status, remotePlayers, sendToPeer, resetBattle]);
 
   // ============================================================================
@@ -408,12 +401,11 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     // Start army lock timeout
     armyLockTimeoutRef.current = setTimeout(() => {
       if (battleRef.current.status === 'PREPARING' || battleRef.current.status === 'WAITING_LOCK') {
-        console.log('[P2PBattle] Army lock timed out - cancelling');
         cancelBattle('Tiempo de preparación agotado');
       }
     }, ARMY_LOCK_TIMEOUT_MS);
 
-    console.log('[P2PBattle] Challenge accepted:', battleId);
+    setPendingChallenge(null);
   }, [pendingChallenge, localPlayerId, playerName, empirePoints, sendToPeer]);
 
   const declineChallenge = useCallback(() => {
@@ -432,7 +424,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     });
 
     setPendingChallenge(null);
-    console.log('[P2PBattle] Challenge declined:', pendingChallenge.battleId);
   }, [pendingChallenge, localPlayerId, sendToPeer]);
 
   // ============================================================================
@@ -486,8 +477,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
         }
       }, 500);
     }
-
-    console.log('[P2PBattle] Army locked, status:', newStatus);
   }, [battle, localPlayerId, sendToPeer, resolveCombat]);
 
   // ============================================================================
@@ -513,7 +502,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     }
 
     resetBattle();
-    console.log('[P2PBattle] Battle cancelled:', reason);
   }, [battle, localPlayerId, sendToPeer, resetBattle]);
 
   // ============================================================================
@@ -545,7 +533,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
           }
 
           setPendingChallenge(payload);
-          console.log('[P2PBattle] Received challenge from:', payload.challengerName);
           break;
         }
 
@@ -569,8 +556,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
               cancelBattle('Tiempo de preparación agotado');
             }
           }, ARMY_LOCK_TIMEOUT_MS);
-
-          console.log('[P2PBattle] Challenge accepted by:', payload.accepterName);
           break;
         }
 
@@ -580,7 +565,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
           if (battleRef.current.battleId !== payload.battleId) return;
 
           resetBattle();
-          console.log('[P2PBattle] Challenge declined:', payload.reason);
           break;
         }
 
@@ -616,8 +600,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
               }
             }, 500);
           }
-
-          console.log('[P2PBattle] Opponent army locked, status:', newStatus);
           break;
         }
 
@@ -660,8 +642,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
             opponentCasualties: oppCasualties,
             timestamp: Date.now(),
           });
-
-          console.log('[P2PBattle] Result synced, winner:', localWinner);
           break;
         }
 
@@ -671,7 +651,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
           if (battleRef.current.battleId !== payload.battleId) return;
 
           resetBattle();
-          console.log('[P2PBattle] Battle cancelled by opponent:', payload.reason);
           break;
         }
       }

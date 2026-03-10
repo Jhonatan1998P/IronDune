@@ -17,14 +17,6 @@ export const useP2PAttack = () => {
       clientSentTime,
     };
     
-    console.log('[P2PAttack] Sending attack:', {
-      attackId: attack.attackId,
-      startTime: attack.startTime,
-      endTime: attack.endTime,
-      travelDuration: attack.endTime - attack.startTime,
-      clientSentTime,
-    });
-    
     sendToPeer(targetPeerId, {
       type: 'P2P_ATTACK',
       payload: action,

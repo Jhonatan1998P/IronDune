@@ -25,7 +25,6 @@ const loadChatFromStorage = (): ChatMessage[] => {
     }
     return [];
   } catch (e) {
-    console.error('Failed to load P2P chat messages from localStorage:', e);
     return [];
   }
 };
@@ -35,7 +34,6 @@ const saveChatToStorage = (messages: ChatMessage[]) => {
     const limited = messages.slice(-MAX_CHAT_MESSAGES);
     localStorage.setItem(P2P_CHAT_STORAGE_KEY, JSON.stringify(limited));
   } catch (e) {
-    console.error('Failed to save P2P chat messages to localStorage:', e);
   }
 };
 

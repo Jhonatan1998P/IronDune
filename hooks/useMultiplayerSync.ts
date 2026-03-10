@@ -38,7 +38,6 @@ export const useMultiplayerSync = ({
   useEffect(() => {
     // Detectar reconexión - cuando isConnected cambia de false a true
     if (isConnected && !wasConnectedRef.current) {
-      console.log('[MultiplayerSync] Connection established (first time or reconnect)');
       wasConnectedRef.current = true;
       // Resetear para forzar sync inmediato
       lastSyncRef.current = null;
@@ -61,7 +60,6 @@ export const useMultiplayerSync = ({
     }
 
     // Sincronizar cuando los datos cambian o después de reconexión / timeout
-    console.log('[MultiplayerSync] Syncing player (1-minute update tick):', playerName, empirePoints, playerFlag);
     syncPlayerWithData(playerName, empirePoints, playerFlag);
     lastSyncRef.current = { name: playerName, flag: playerFlag, level: empirePoints, timestamp: now };
   }, [enabled, isConnected, playerName, playerFlag, empirePoints, syncPlayerWithData]);

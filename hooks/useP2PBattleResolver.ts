@@ -184,8 +184,6 @@ export const useP2PBattleResolver = () => {
 
             const gs = gameStateRef.current;
 
-            console.log('[P2PBattleResolver] Defender did not respond in time, applying W.O. result');
-
             // Log that the defender fled/disconnected
             gameEventBus.emit('ADD_LOG' as any, {
                 messageKey: 'combat_p2p_defenseFail',
@@ -244,17 +242,13 @@ export const useP2PBattleResolver = () => {
             const data = payload as P2PBattleDefenderTroops;
             if (data.attackerId !== localPlayerIdRef.current) return;
 
-            console.log('[P2PBattleResolver] Received defender troops for attack:', data.attackId, 'units:', data.defenderUnits);
-
             // Buscar en el ref (siempre fresco)
             const mission = activeMissionsRef.current.find(m => m.id === data.attackId);
             if (!mission) {
-                console.log('[P2PBattleResolver] Mission not found for attack:', data.attackId);
                 return;
             }
             if (resolvedAttacksRef.current.has(mission.id)) return;
 
-            console.log('[P2PBattleResolver] Executing battle with REAL defender units:', data.defenderUnits);
             executeBattleResolutionRef.current(mission, data.defenderUnits, data.defenderBuildings);
         };
 

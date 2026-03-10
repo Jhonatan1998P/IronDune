@@ -81,14 +81,6 @@ export const useP2PGameSync = () => {
     // por la latencia de red para sincronizar ambos relojes:
     const defenderEndTime = request.endTime + networkLatency;
 
-    console.log('[P2PGameSync] convertToIncomingAttack:', {
-      requestEndTime: request.endTime,
-      clientSentTime,
-      networkLatency: `${(networkLatency / 1000).toFixed(1)}s`,
-      defenderEndTime,
-      timeRemaining: `${((defenderEndTime - now) / 1000).toFixed(1)}s`,
-    });
-
     return {
       id: request.attackId,
       attackerName: request.attackerName,
@@ -117,7 +109,6 @@ export const useP2PGameSync = () => {
       // Verificar integridad antes de aplicar
       const verification = verifyBattleResult(result, gs.units, gs.buildings);
       if (!verification.valid) {
-        console.warn('[P2PGameSync] Battle result rejected:', verification.reason, result);
         return;
       }
 
@@ -132,12 +123,9 @@ export const useP2PGameSync = () => {
 
       const senderPeerId: string | undefined = (payload as any)._senderPeerId;
 
-      console.log('[P2PGameSync] REQUEST_TROOPS received — attackId:', request.attackId,
-        'targetId:', request.targetId, 'myId:', myId, 'senderPeerId:', senderPeerId);
-
       const hasAttack = gs.incomingAttacks.some(a => a.id === request.attackId);
       if (!hasAttack) {
-          console.log('[P2PGameSync] Attack not found in incomingAttacks, responding anyway (Trystero routing guarantees target)');
+          // Attack not found in incomingAttacks, responding anyway (Trystero routing guarantees target)
       }
 
       const snapshot: Partial<Record<UnitType, number>> = {};
@@ -172,9 +160,6 @@ export const useP2PGameSync = () => {
       const myId = localPlayerIdRef.current;
 
       const senderPeerId: string | undefined = request._senderPeerId;
-
-      console.log('[P2PGameSync] SPY_REQUEST received — spyId:', request.spyId,
-        'from:', request.attackerName, 'senderPeerId:', senderPeerId);
 
       // Snapshot de unidades (solo las que tienen > 0)
       const unitSnapshot: Partial<Record<UnitType, number>> = {};
@@ -213,8 +198,6 @@ export const useP2PGameSync = () => {
         playerId: myId || '',
         timestamp: Date.now(),
       });
-
-      console.log('[P2PGameSync] SPY_RESPONSE sent to:', replyTarget);
     };
 
     const handleChatMessage = (payload: any) => {
@@ -256,7 +239,6 @@ export const useP2PGameSync = () => {
           }
         }
       } catch (e) {
-        console.error('Error saving background chat message:', e);
       }
     };
 

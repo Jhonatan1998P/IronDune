@@ -32,7 +32,7 @@ const MAX_REASONABLE_RESOURCES: Record<ResourceType, number> = {
 };
 
 // Factor máximo de overflow permitido (recursos sobre el cap = cap * OVERFLOW_FACTOR)
-const OVERFLOW_FACTOR = 10; // Permitir hasta 10x el cap máximo como overflow legítimo
+// const OVERFLOW_FACTOR = 10; // Permitir hasta 10x el cap máximo como overflow legítimo
 
 const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
     [RankingCategory.DOMINION]: 1000,
@@ -656,9 +656,8 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         
         if (versionChanged) {
             logMigration('info', `VERSION CHANGE DETECTED: Migrating from version ${savedVersion} to ${SAVE_VERSION}`);
-        } else {
-            logMigration('info', `Save at version ${SAVE_VERSION} - running validation and critical fixes only`);
         }
+        // Logs eliminados para evitar spam cuando la versión es la misma y no hay cambios críticos
 
         const silent = !versionChanged;
 
@@ -854,7 +853,9 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             version: cleanState.saveVersion
         });
 
-        logMigration('info', `Migration completed successfully. Version: ${SAVE_VERSION}, Hash: ${report.dataHash}`);
+        if (versionChanged) {
+            logMigration('info', `Migration completed successfully. Version: ${SAVE_VERSION}, Hash: ${report.dataHash}`);
+        }
 
     } catch (error) {
         logMigration('error', `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -141,7 +141,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     const currentId = localPlayerIdRef.current;
     const allPlayers = Array.from(playersRef.current.values());
     const filtered = currentId ? allPlayers.filter(p => p.id !== currentId) : allPlayers;
-    console.log('[Multiplayer] updateRemotePlayers - total:', allPlayers.length, 'filtered:', filtered.length, 'remotePlayers:', filtered);
     setRemotePlayers(filtered);
   }, []);
 
@@ -149,16 +148,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   const broadcastPresence = useCallback((usePlayerId?: string) => {
     const idToUse = usePlayerId || localPlayerIdRef.current;
     if (!sendActionRef.current || !idToUse || !isConnectedRef.current) {
-      console.warn('[Multiplayer] broadcastPresence skipped:', { 
-        hasSendAction: !!sendActionRef.current, 
-        idToUse, 
-        isConnected: isConnectedRef.current 
-      });
       return;
     }
 
     const playerData = playersRef.current.get(idToUse);
-    console.log('[Multiplayer] broadcastPresence:', playerData);
     if (playerData) {
       try {
         sendActionRef.current({
@@ -168,7 +161,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           timestamp: Date.now(),
         } as any);
       } catch (e) {
-        console.warn('Error broadcasting presence:', e);
       }
     }
   }, []);
@@ -185,7 +177,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     try {
       sendActionRef.current(actionWithPlayer as any);
     } catch (e) {
-      console.warn('Error broadcasting action:', e);
     }
   }, []);
 
@@ -201,7 +192,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     try {
       sendActionRef.current(actionWithPlayer as any, peerId);
     } catch (e) {
-      console.warn('Error sending to peer:', e);
     }
   }, []);
 
@@ -228,7 +218,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   const syncPlayerWithData = useCallback((playerName: string, empirePoints: number, playerFlag?: string) => {
     const currentId = localPlayerIdRef.current;
     if (!currentId || !isConnectedRef.current) {
-      console.warn('[Multiplayer] syncPlayerWithData skipped:', { currentId, isConnected: isConnectedRef.current });
       return;
     }
 
@@ -240,7 +229,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       lastSeen: Date.now(),
     };
 
-    console.log('[Multiplayer] syncPlayerWithData:', playerData);
     playersRef.current.set(currentId, playerData);
     broadcastPresence();
   }, [broadcastPresence]);
@@ -252,7 +240,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       try {
         roomRef.current.leave();
       } catch (e) {
-        console.warn('Error leaving room:', e);
       }
       roomRef.current = null;
     }
@@ -268,7 +255,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // INICIALIZACIÓN
   const initRoom = useCallback((roomId: string): boolean => {
     if (isConnecting || (isConnected && currentRoomIdRef.current === roomId)) {
-      console.warn('Already connecting or connected to this room');
       return false;
     }
 
@@ -293,7 +279,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       room = joinRoom(TRYSTERO_CONFIG, roomId);
       roomRef.current = room;
     } catch (error) {
-      console.error('Error connecting to room:', error);
       if (room) {
         try { room.leave(); } catch (e) {}
       }
@@ -311,7 +296,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     // Peer Join
     room.onPeerJoin((peerId: string) => {
-      console.log('[Multiplayer] ✅ PEER JOINED:', peerId, 'at', new Date().toLocaleTimeString());
       setPeers(prev => [...new Set([...prev, peerId])]);
       
       // Registrar el peer en playersRef inmediatamente
@@ -326,9 +310,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       // Enviar REQUEST_PRESENCE al nuevo peer
       try {
         sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any, peerId);
-        console.log('[Multiplayer] Sent REQUEST_PRESENCE to:', peerId);
       } catch (e) {
-        console.warn('Error sending REQUEST_PRESENCE:', e);
       }
       
       // Broadcast inmediato de nuestra presencia al peer nuevo (unicast)
@@ -341,10 +323,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
             playerId: playerId,
             timestamp: Date.now(),
           } as any, peerId);
-          console.log('[Multiplayer] Sent PRESENCE_UPDATE to:', peerId, playerData);
         }
       } catch (e) {
-        console.warn('Error sending presence to new peer:', e);
       }
       
       // Broadcast general a todos los peers
@@ -354,17 +334,14 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     // Peer Leave - Limpieza completa del jugador que se sale
     room.onPeerLeave((peerId: string) => {
-      console.log('[Multiplayer] ❌ PEER LEFT:', peerId, 'at', new Date().toLocaleTimeString());
       setPeers(prev => prev.filter(p => p !== peerId));
       // Eliminar completamente del playersRef - NO mantener datos residuales
       playersRef.current.delete(peerId);
-      console.log('[Multiplayer] Deleted peer from playersRef, remaining:', playersRef.current.size);
       updateRemotePlayers();
     });
 
     // Obtener lista inicial de peers (solo para conexiones iniciales, NO reconexiones)
     const initialPeers = room.getPeers();
-    console.log('[Multiplayer] Initial peers in room:', initialPeers);
     if (initialPeers.length > 0) {
       // Ya hay peers en la sala - registrarlos temporalmente
       initialPeers.forEach((peerId: string) => {
@@ -380,11 +357,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       
       // Solicitar presencia a todos los peers existentes
       setTimeout(() => {
-        console.log('[Multiplayer] Requesting presence from existing peers:', initialPeers);
         try {
           sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any);
         } catch (e) {
-          console.warn('Error requesting presence:', e);
         }
       }, 100);
     }
@@ -392,10 +367,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     // Recepción de Acciones
     getAction((action: any, peerId: string) => {
       if (action.playerId === playerId) {
-        console.log('[Multiplayer] Ignoring own action:', action.type);
         return;
       }
-      console.log('[Multiplayer] 📩 Action received:', action.type, 'from:', peerId, 'payload:', action.payload);
 
       switch (action.type) {
         case 'PRESENCE_UPDATE':
@@ -409,12 +382,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
               flag: playerData.flag,
               lastSeen: Date.now(),
             });
-            console.log('[Multiplayer] ✅ Updated player presence:', peerId, playersRef.current.get(peerId));
             updateRemotePlayers();
           }
           break;
         case 'REQUEST_PRESENCE':
-          console.log('[Multiplayer] Sending presence in response to REQUEST_PRESENCE from:', peerId);
           // Enviar nuestra presencia inmediatamente
           broadcastPresence(playerId);
           break;
@@ -436,29 +407,23 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           }
           break;
         case 'P2P_ATTACK':
-          console.log('[Multiplayer] Received P2P_ATTACK from peerId:', peerId);
           // Augment payload with sender's Trystero peerId so downstream handlers
           // can reply to the correct peer (localPlayerId ≠ Trystero peerId)
           gameEventBus.emit('INCOMING_P2P_ATTACK' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_RESULT':
-          console.log('[Multiplayer] Received P2P_BATTLE_RESULT from peerId:', peerId);
           gameEventBus.emit('P2P_BATTLE_RESULT' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_REQUEST_TROOPS':
-          console.log('[Multiplayer] Received P2P_BATTLE_REQUEST_TROOPS from peerId:', peerId);
           gameEventBus.emit('P2P_BATTLE_REQUEST_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_BATTLE_DEFENDER_TROOPS':
-          console.log('[Multiplayer] Received P2P_BATTLE_DEFENDER_TROOPS from peerId:', peerId);
           gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_SPY_REQUEST':
-          console.log('[Multiplayer] Received P2P_SPY_REQUEST from peerId:', peerId);
           gameEventBus.emit('P2P_SPY_REQUEST' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_SPY_RESPONSE':
-          console.log('[Multiplayer] Received P2P_SPY_RESPONSE from peerId:', peerId);
           gameEventBus.emit('P2P_SPY_RESPONSE' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'CHAT_MESSAGE':
@@ -488,22 +453,17 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     const playerData: PlayerPresence = { id: playerId, name: 'Player', level: 0, lastSeen: Date.now() };
     playersRef.current.set(playerId, playerData);
 
-    console.log('[Multiplayer] Connected to room:', roomId, 'with playerId:', playerId);
-
     // Broadcast inicial para que otros peers nos vean
     pendingTimeoutsRef.current.broadcastTimeout = setTimeout(() => {
-      console.log('[Multiplayer] Initial presence broadcast');
       broadcastPresence(playerId);
     }, 100);
 
     // Segundo broadcast + REQUEST_PRESENCE a todos los peers existentes
     setTimeout(() => {
-      console.log('[Multiplayer] Second broadcast + requesting presence from peers');
       broadcastPresence(playerId);
       try {
         sendAction({ type: 'REQUEST_PRESENCE', payload: null, playerId, timestamp: Date.now() } as any);
       } catch (e) {
-        console.warn('Error sending REQUEST_PRESENCE:', e);
       }
     }, 300);
 
@@ -512,12 +472,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     // Log periódico del estado de la sala (para debugging)
     const statusInterval = setInterval(() => {
-      console.log('[Multiplayer] 📊 Room status:', {
-        roomId,
-        peers: peers.length,
-        remotePlayers: remotePlayers.length,
-        isConnected: isConnectedRef.current,
-      });
     }, 10000);
 
     // Guardar el interval ID para cleanup
@@ -533,15 +487,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // Es CRÍTICO para sincronizar después de una reconexión
   useEffect(() => {
     if (isConnected && localPlayerIdRef.current) {
-      console.log('[Multiplayer] isConnected changed to true - checking if sync is needed');
       // Pequeño delay para asegurar que sendActionRef esté listo
       const timeout = setTimeout(() => {
         const playerData = playersRef.current.get(localPlayerIdRef.current!);
-        console.log('[Multiplayer] Current player data in playersRef:', playerData);
         // Si los datos son por defecto, forzamos un broadcast de todos modos
         // useMultiplayerSync debería ejecutar syncPlayerWithData pronto
         if (playerData && (playerData.name === 'Player' || playerData.level === 0)) {
-          console.log('[Multiplayer] Player data is default, waiting for useMultiplayerSync...');
         }
       }, 500);
       return () => clearTimeout(timeout);
@@ -551,7 +502,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // FUNCIONES PÚBLICAS
   const createRoom = useCallback((roomId?: string): string => {
     const id = roomId || `sb_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    console.log('[Multiplayer] Creating room:', id);
     if (initRoom(id)) return id;
     return '';
   }, [initRoom]);
@@ -561,12 +511,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       gameEventBus.emit('SHOW_TOAST' as any, { message: 'Código inválido', type: 'error' });
       return false;
     }
-    console.log('[Multiplayer] Joining room:', roomId);
     return initRoom(roomId.trim());
   }, [initRoom]);
 
   const leave = useCallback(() => {
-    console.log('[Multiplayer] Leaving room');
     cleanupRoom();
     setCurrentRoomId(null);
     setLocalPlayerId(null);
@@ -585,7 +533,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       gameEventBus.emit('SHOW_TOAST' as any, { message: 'Ya estás conectado', type: 'info' });
       return false;
     }
-    console.log('[Multiplayer] Reconnecting to room:', currentRoomIdRef.current);
     return initRoom(currentRoomIdRef.current);
   }, [initRoom]);
 
@@ -594,7 +541,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       gameEventBus.emit('SHOW_TOAST' as any, { message: 'Ya estás en la sala global', type: 'info' });
       return false;
     }
-    console.log('[Multiplayer] Returning to global room');
     if (roomRef.current) {
       cleanupRoom();
       setCurrentRoomId(null);
@@ -609,12 +555,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   // CLEANUP AL DESMONTAR
   useEffect(() => {
-    console.log('[Multiplayer] Provider mounted - instance:', Math.random().toString(36).substr(2, 5));
     // Auto-join sala global al montar
-    console.log('[Multiplayer] Auto-joining global room:', GLOBAL_ROOM_ID);
     initRoom(GLOBAL_ROOM_ID);
     return () => {
-      console.log('[Multiplayer] Provider unmounting - cleaning up room, isConnected:', isConnectedRef.current);
       cleanupRoom();
       isConnectedRef.current = false;
       localPlayerIdRef.current = null;

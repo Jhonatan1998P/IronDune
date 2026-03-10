@@ -2,7 +2,7 @@
 
 **Session ID:** ses_326ee31d7ffe01pucaWp0hUTSl
 **Created:** 3/10/2026, 6:45:48 PM
-**Updated:** 3/10/2026, 6:48:08 PM
+**Updated:** 3/10/2026, 7:19:50 PM
 
 ---
 
@@ -242,6 +242,73 @@ He implementado los logs solicitados para el proceso de importación y continuac
 4.  **Organización y Estructura:** Se han añadido desplazamientos (offsets) en los timestamps de cada log para asegurar que aparezcan en el orden lógico correcto en la terminal (el estado final arriba, seguido de los pasos anteriores).
 
 Estos logs aparecerán automáticamente tanto al **continuar** una partida guardada como al **importar** un archivo de guardado desde el menú principal.
+
+---
+
+## User
+
+porque siempre se ejecutan estos logs Migration] [2026-03-10T19:18:16.993Z] INFO: Save at version 6 - running validation and critical fixes only 
+index.B4cNj10x.js:21 [Migration] [2026-03-10T19:18:16.995Z] INFO: Migration completed successfully. Version: 6, Hash: eyJyZXNvdXJjZXMiOnsi 
+
+---
+
+## Assistant
+
+I'll search for the log strings in the codebase, starting with `utils/engine/migration.ts`, to understand why the migration logs are consistently appearing.
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+I'll examine the `sanitizeAndMigrateSave` function in `utils/engine/migration.ts` to determine why it consistently executes, likely during the loading or importing of game states.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+`sanitizeAndMigrateSave` executes on every load or import to maintain data integrity, but its logs clutter the console. I'll silence these logs when the `savedVersion` matches the current `SAVE_VERSION`, only allowing them to appear if a critical fix (like resource capping) is triggered or during an actual version change, as the user requested logs for import/continuation but not for every minor state check. I'll modify `utils/engine/migration.ts` to implement this.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll also remove the final "Migration completed successfully" log when the version hasn't changed, ensuring only critical logs appear during normal operation. I'll check if `OVERFLOW_FACTOR` is used in `offline.ts` and potentially remove it from `migration.ts` as it's currently unused there.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll remove the unused `OVERFLOW_FACTOR` from `migration.ts` to clear the LSP error, then re-run the build to confirm everything is correct.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Build.
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Los logs de migración aparecían siempre porque el sistema de integridad de datos valida el estado del juego en cada carga o importación para asegurar que no haya datos corruptos o valores inflados (como el bug de recursos infinitos).
+
+He realizado los siguientes cambios para limpiar la consola:
+
+1.  **Silenciado de Logs de Rutina:** He modificado `utils/engine/migration.ts` para que los logs de "Migration completed" y "Save at version X" solo se muestren cuando hay un **cambio real de versión** o cuando el sistema detecta y corrige una **anomalía crítica** (como recursos por encima del límite permitido).
+2.  **Mantenimiento de Logs de Seguridad:** Si el sistema detecta valores inválidos que requieren corrección inmediata, seguirá emitiendo un `WARN` para que sepas que se ha aplicado un parche de seguridad, pero en condiciones normales la consola estará limpia.
+3.  **Foco en logs solicitados:** Ahora, al importar o continuar, los logs predominantes serán los nuevos logs estructurados en español que muestran el balance de recursos (Base, Producción, Final), que son los que realmente aportan información sobre el estado de tu partida.
 
 ---
 
