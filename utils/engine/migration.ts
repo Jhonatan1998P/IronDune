@@ -605,111 +605,180 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
     }
 
     try {
-        // 2. Migrate Save Version
+        // 2. Get Save Version - CRITICAL: Only migrate if version changed
         const savedVersion = safeNumber(saved.saveVersion, 0, 0);
-        const silent = savedVersion >= SAVE_VERSION;
+        const versionChanged = savedVersion !== SAVE_VERSION;
         
-        // Log if save is already at current version - useful for debugging
-        if (silent) {
-            logMigration('info', `Save at version ${savedVersion}, running validation only`);
+        if (versionChanged) {
+            logMigration('info', `VERSION CHANGE DETECTED: Migrating from version ${savedVersion} to ${SAVE_VERSION}`);
         } else {
-            logMigration('info', `Migrating from save version: ${savedVersion}`);
+            logMigration('info', `Save at version ${SAVE_VERSION} - running validation and critical fixes only`);
         }
 
-        // 3. Migrate Primitives
-        cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);
-        cleanState.peerId = safeStringOrNull(saved.peerId);
-        cleanState.hasChangedName = safeBoolean(saved.hasChangedName, false);
-        cleanState.bankBalance = safeNumber(saved.bankBalance, 0, 0);
-        cleanState.currentInterestRate = safeNumber(saved.currentInterestRate, 0.05, 0, 1);
-        cleanState.nextRateChangeTime = safeNumber(saved.nextRateChangeTime, now, 0);
-        cleanState.lastInterestPayoutTime = safeNumber(saved.lastInterestPayoutTime, now, 0);
-        cleanState.empirePoints = safeNumber(saved.empirePoints, 0, 0);
-        cleanState.lastSaveTime = safeNumber(saved.lastSaveTime, now, 0);
-        cleanState.lastReputationDecayTime = safeNumber(saved.lastReputationDecayTime, now, 0);
-        cleanState.campaignProgress = safeNumber(saved.campaignProgress, 1, 1);
-        cleanState.lastCampaignMissionFinishedTime = safeNumber(saved.lastCampaignMissionFinishedTime, 0, 0);
-        cleanState.isTutorialMinimized = safeBoolean(saved.isTutorialMinimized, false);
-        cleanState.tutorialAccepted = safeBoolean(saved.tutorialAccepted, false);
-        cleanState.nextAttackTime = safeNumber(saved.nextAttackTime, now + (3 * 60 * 60 * 1000), 0);
+        const silent = !versionChanged;
 
-        // 4. Migrate Complex Systems using helper functions
-        cleanState.incomingAttacks = migrateIncomingAttacks(saved.incomingAttacks, silent);
-        cleanState.grudges = migrateGrudges(saved.grudges, silent);
-        cleanState.spyReports = migrateSpyReports(saved.spyReports, silent);
-        cleanState.activeMissions = migrateActiveMissions(saved.activeMissions, silent);
-        cleanState.activeWar = migrateWarState(saved.activeWar, silent);
-        cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats, silent);
-        cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions, silent);
-        cleanState.logs = migrateLogs(saved.logs, silent);
-        cleanState.allyReinforcements = isValidArray(saved.allyReinforcements) ? saved.allyReinforcements : [];
+        // 3. CONDITIONAL MIGRATION: Only migrate data if version changed
+        if (versionChanged) {
+            // 3A. Migrate Primitives (only on version change)
+            cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);
+            cleanState.peerId = safeStringOrNull(saved.peerId);
+            cleanState.hasChangedName = safeBoolean(saved.hasChangedName, false);
+            cleanState.bankBalance = safeNumber(saved.bankBalance, 0, 0);
+            cleanState.currentInterestRate = safeNumber(saved.currentInterestRate, 0.05, 0, 1);
+            cleanState.nextRateChangeTime = safeNumber(saved.nextRateChangeTime, now, 0);
+            cleanState.lastInterestPayoutTime = safeNumber(saved.lastInterestPayoutTime, now, 0);
+            cleanState.empirePoints = safeNumber(saved.empirePoints, 0, 0);
+            cleanState.lastSaveTime = safeNumber(saved.lastSaveTime, now, 0);
+            cleanState.lastReputationDecayTime = safeNumber(saved.lastReputationDecayTime, now, 0);
+            cleanState.campaignProgress = safeNumber(saved.campaignProgress, 1, 1);
+            cleanState.lastCampaignMissionFinishedTime = safeNumber(saved.lastCampaignMissionFinishedTime, 0, 0);
+            cleanState.isTutorialMinimized = safeBoolean(saved.isTutorialMinimized, false);
+            cleanState.tutorialAccepted = safeBoolean(saved.tutorialAccepted, false);
+            cleanState.nextAttackTime = safeNumber(saved.nextAttackTime, now + (3 * 60 * 60 * 1000), 0);
 
-        // 5. Migrate Resources, Units, Buildings
-        cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources, silent);
-        cleanState.maxResources = migrateMaxResources(saved.maxResources, INITIAL_GAME_STATE.maxResources, silent);
-        cleanState.units = migrateUnits(saved.units, INITIAL_GAME_STATE.units, silent);
-        cleanState.buildings = migrateBuildings(saved.buildings, INITIAL_GAME_STATE.buildings, silent);
+            // 3B. Migrate Complex Systems using helper functions (only on version change)
+            cleanState.incomingAttacks = migrateIncomingAttacks(saved.incomingAttacks, silent);
+            cleanState.grudges = migrateGrudges(saved.grudges, silent);
+            cleanState.spyReports = migrateSpyReports(saved.spyReports, silent);
+            cleanState.activeMissions = migrateActiveMissions(saved.activeMissions, silent);
+            cleanState.activeWar = migrateWarState(saved.activeWar, silent);
+            cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats, silent);
+            cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions, silent);
+            cleanState.logs = migrateLogs(saved.logs, silent);
+            cleanState.allyReinforcements = isValidArray(saved.allyReinforcements) ? saved.allyReinforcements : [];
 
-        // 6. Enemy Attack System
-        cleanState.enemyAttackCounts = isValidObject(saved.enemyAttackCounts) ? saved.enemyAttackCounts : {};
-        cleanState.lastEnemyAttackCheckTime = safeNumber(saved.lastEnemyAttackCheckTime, now, 0);
-        cleanState.lastEnemyAttackResetTime = safeNumber(saved.lastEnemyAttackResetTime, now, 0);
+            // 3C. Migrate Resources, Units, Buildings (only on version change)
+            cleanState.resources = migrateResources(saved.resources, INITIAL_GAME_STATE.resources, silent);
+            cleanState.maxResources = migrateMaxResources(saved.maxResources, INITIAL_GAME_STATE.maxResources, silent);
+            cleanState.units = migrateUnits(saved.units, INITIAL_GAME_STATE.units, silent);
+            cleanState.buildings = migrateBuildings(saved.buildings, INITIAL_GAME_STATE.buildings, silent);
 
-        // 7. Attack Counts
-        cleanState.targetAttackCounts = isValidObject(saved.targetAttackCounts) ? saved.targetAttackCounts : {};
-        cleanState.lastAttackResetTime = safeNumber(saved.lastAttackResetTime, now, 0);
+            // 3D. Enemy Attack System (only on version change)
+            cleanState.enemyAttackCounts = isValidObject(saved.enemyAttackCounts) ? saved.enemyAttackCounts : {};
+            cleanState.lastEnemyAttackCheckTime = safeNumber(saved.lastEnemyAttackCheckTime, now, 0);
+            cleanState.lastEnemyAttackResetTime = safeNumber(saved.lastEnemyAttackResetTime, now, 0);
 
-        // 8. Techs
-        if (isValidArray(saved.researchedTechs)) {
-            cleanState.researchedTechs = saved.researchedTechs.filter((id: string) => 
-                VALID_TECH_TYPES.includes(id as TechType)
-            );
+            // 3E. Attack Counts (only on version change)
+            cleanState.targetAttackCounts = isValidObject(saved.targetAttackCounts) ? saved.targetAttackCounts : {};
+            cleanState.lastAttackResetTime = safeNumber(saved.lastAttackResetTime, now, 0);
+
+            // 3F. Techs (only on version change)
+            if (isValidArray(saved.researchedTechs)) {
+                cleanState.researchedTechs = saved.researchedTechs.filter((id: string) => 
+                    VALID_TECH_TYPES.includes(id as TechType)
+                );
+            }
+            cleanState.techLevels = isValidObject(saved.techLevels) ? saved.techLevels : {};
+            cleanState.activeResearch = isValidObject(saved.activeResearch) ? saved.activeResearch : null;
+
+            // 3G. Active Recruitments & Constructions (only on version change)
+            cleanState.activeRecruitments = isValidArray(saved.activeRecruitments) ? saved.activeRecruitments : [];
+            cleanState.activeConstructions = isValidArray(saved.activeConstructions) ? saved.activeConstructions : [];
+
+            // 3H. Market (only on version change)
+            cleanState.marketOffers = isValidArray(saved.marketOffers) ? saved.marketOffers : [];
+            cleanState.activeMarketEvent = isValidObject(saved.activeMarketEvent) ? saved.activeMarketEvent : null;
+            cleanState.marketNextRefreshTime = safeNumber(saved.marketNextRefreshTime, now, 0);
+
+            // 3I. Tutorial State (only on version change)
+            cleanState.completedTutorials = isValidArray(saved.completedTutorials) ? saved.completedTutorials : [];
+            cleanState.currentTutorialId = isValidString(saved.currentTutorialId) ? saved.currentTutorialId : null;
+            cleanState.tutorialClaimable = safeBoolean(saved.tutorialClaimable, false);
+
+            // 3J. Rankings (only on version change)
+            cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion, silent);
+
+            // 3K. Gift Codes (only on version change)
+            cleanState.redeemedGiftCodes = isValidArray(saved.redeemedGiftCodes) ? saved.redeemedGiftCodes : [];
+            cleanState.giftCodeCooldowns = isValidObject(saved.giftCodeCooldowns) ? saved.giftCodeCooldowns : {};
+        } else {
+            // NO VERSION CHANGE: Keep existing data without modifications (except critical fixes)
+            cleanState.playerName = saved.playerName || INITIAL_GAME_STATE.playerName;
+            cleanState.peerId = saved.peerId || null;
+            cleanState.hasChangedName = saved.hasChangedName ?? false;
+            cleanState.bankBalance = saved.bankBalance ?? 0;
+            cleanState.currentInterestRate = saved.currentInterestRate ?? 0.05;
+            cleanState.nextRateChangeTime = saved.nextRateChangeTime ?? now;
+            cleanState.lastInterestPayoutTime = saved.lastInterestPayoutTime ?? now;
+            cleanState.empirePoints = saved.empirePoints ?? 0;
+            cleanState.lastSaveTime = saved.lastSaveTime ?? now;
+            cleanState.lastReputationDecayTime = saved.lastReputationDecayTime ?? now;
+            cleanState.campaignProgress = saved.campaignProgress ?? 1;
+            cleanState.lastCampaignMissionFinishedTime = saved.lastCampaignMissionFinishedTime ?? 0;
+            cleanState.isTutorialMinimized = saved.isTutorialMinimized ?? false;
+            cleanState.tutorialAccepted = saved.tutorialAccepted ?? false;
+            cleanState.nextAttackTime = saved.nextAttackTime ?? now + (3 * 60 * 60 * 1000);
+            
+            cleanState.incomingAttacks = saved.incomingAttacks ?? [];
+            cleanState.grudges = saved.grudges ?? [];
+            cleanState.spyReports = saved.spyReports ?? [];
+            cleanState.activeMissions = saved.activeMissions ?? [];
+            cleanState.activeWar = saved.activeWar ?? null;
+            cleanState.lifetimeStats = saved.lifetimeStats ?? INITIAL_GAME_STATE.lifetimeStats;
+            cleanState.diplomaticActions = saved.diplomaticActions ?? {};
+            cleanState.logs = saved.logs ?? [];
+            cleanState.allyReinforcements = saved.allyReinforcements ?? [];
+            
+            cleanState.resources = saved.resources ?? INITIAL_GAME_STATE.resources;
+            cleanState.maxResources = saved.maxResources ?? INITIAL_GAME_STATE.maxResources;
+            cleanState.units = saved.units ?? INITIAL_GAME_STATE.units;
+            cleanState.buildings = saved.buildings ?? INITIAL_GAME_STATE.buildings;
+            
+            cleanState.enemyAttackCounts = saved.enemyAttackCounts ?? {};
+            cleanState.lastEnemyAttackCheckTime = saved.lastEnemyAttackCheckTime ?? now;
+            cleanState.lastEnemyAttackResetTime = saved.lastEnemyAttackResetTime ?? now;
+            
+            cleanState.targetAttackCounts = saved.targetAttackCounts ?? {};
+            cleanState.lastAttackResetTime = saved.lastAttackResetTime ?? now;
+            
+            cleanState.researchedTechs = saved.researchedTechs ?? [];
+            cleanState.techLevels = saved.techLevels ?? {};
+            cleanState.activeResearch = saved.activeResearch ?? null;
+            
+            cleanState.activeRecruitments = saved.activeRecruitments ?? [];
+            cleanState.activeConstructions = saved.activeConstructions ?? [];
+            
+            cleanState.marketOffers = saved.marketOffers ?? [];
+            cleanState.activeMarketEvent = saved.activeMarketEvent ?? null;
+            cleanState.marketNextRefreshTime = saved.marketNextRefreshTime ?? now;
+            
+            cleanState.completedTutorials = saved.completedTutorials ?? [];
+            cleanState.currentTutorialId = saved.currentTutorialId ?? null;
+            cleanState.tutorialClaimable = saved.tutorialClaimable ?? false;
+            
+            cleanState.rankingData = saved.rankingData ?? INITIAL_GAME_STATE.rankingData;
+            
+            cleanState.redeemedGiftCodes = saved.redeemedGiftCodes ?? [];
+            cleanState.giftCodeCooldowns = saved.giftCodeCooldowns ?? {};
         }
-        cleanState.techLevels = isValidObject(saved.techLevels) ? saved.techLevels : {};
-        cleanState.activeResearch = isValidObject(saved.activeResearch) ? saved.activeResearch : null;
 
-        // 9. Active Recruitments & Constructions
-        cleanState.activeRecruitments = isValidArray(saved.activeRecruitments) ? saved.activeRecruitments : [];
-        cleanState.activeConstructions = isValidArray(saved.activeConstructions) ? saved.activeConstructions : [];
-
-        // 10. Market
-        cleanState.marketOffers = isValidArray(saved.marketOffers) ? saved.marketOffers : [];
-        cleanState.activeMarketEvent = isValidObject(saved.activeMarketEvent) ? saved.activeMarketEvent : null;
-        cleanState.marketNextRefreshTime = safeNumber(saved.marketNextRefreshTime, now, 0);
-
-        // 11. Tutorial State
-        cleanState.completedTutorials = isValidArray(saved.completedTutorials) ? saved.completedTutorials : [];
-        cleanState.currentTutorialId = isValidString(saved.currentTutorialId) ? saved.currentTutorialId : null;
-        cleanState.tutorialClaimable = safeBoolean(saved.tutorialClaimable, false);
-
-        // 12. Rankings
-        cleanState.rankingData = sanitizeRankingData(saved.rankingData, savedVersion, silent);
-
-        // 13. Gift Codes
-        cleanState.redeemedGiftCodes = isValidArray(saved.redeemedGiftCodes) ? saved.redeemedGiftCodes : [];
-        cleanState.giftCodeCooldowns = isValidObject(saved.giftCodeCooldowns) ? saved.giftCodeCooldowns : {};
-
-        // 14. CRITICAL FIX: Ensure Diamond Mine is at least Level 1
-        if (cleanState.buildings[BuildingType.DIAMOND_MINE].level < 1) {
+        // 4. CRITICAL FIXES: Always apply these regardless of version change
+        // These are essential data integrity checks that must happen on every load
+        
+        // 4A. Ensure Diamond Mine is at least Level 1
+        if (!cleanState.buildings[BuildingType.DIAMOND_MINE] || cleanState.buildings[BuildingType.DIAMOND_MINE].level < 1) {
             cleanState.buildings[BuildingType.DIAMOND_MINE] = {
                 level: 1,
-                isDamaged: cleanState.buildings[BuildingType.DIAMOND_MINE].isDamaged || false
+                isDamaged: cleanState.buildings[BuildingType.DIAMOND_MINE]?.isDamaged || false
             };
-            logFieldMigration('buildings.DIAMOND_MINE.level', 'fixed', 'Ensured minimum level 1', silent);
+            logMigration('warn', `CRITICAL FIX: Ensured Diamond Mine is at least Level 1`);
         }
 
-        // 15. Ensure all building states have proper structure
+        // 4B. Ensure all building states have proper structure
         Object.keys(cleanState.buildings).forEach((key) => {
             const k = key as BuildingType;
+            if (!cleanState.buildings[k]) {
+                cleanState.buildings[k] = { level: 0, isDamaged: false };
+            }
             if (typeof cleanState.buildings[k].isDamaged !== 'boolean') {
                 cleanState.buildings[k] = { ...cleanState.buildings[k], isDamaged: false };
             }
         });
 
-        // 16. Force update version
+        // 5. Force update version to current
         cleanState.saveVersion = SAVE_VERSION;
 
-        // 17. Generate data hash for integrity verification
+        // 6. Generate data hash for integrity verification
         report.dataHash = generateDataHash({
             resources: cleanState.resources,
             buildings: Object.keys(cleanState.buildings).length,
@@ -717,7 +786,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             version: cleanState.saveVersion
         });
 
-        logMigration('info', `Migration completed successfully. Hash: ${report.dataHash}`);
+        logMigration('info', `Migration completed successfully. Version: ${SAVE_VERSION}, Hash: ${report.dataHash}`);
 
     } catch (error) {
         logMigration('error', `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
