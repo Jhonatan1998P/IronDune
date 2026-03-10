@@ -18,6 +18,22 @@ const VALID_BUILDING_TYPES = Object.values(BuildingType);
 const VALID_TECH_TYPES = Object.values(TechType);
 const VALID_LOG_TYPES = ['info', 'combat', 'build', 'research', 'finance', 'mission', 'market', 'tutorial', 'economy', 'war', 'intel'] as const;
 
+// ============================================
+// CONSTANTES PARA VALIDACIÓN DE RECURSOS
+// ============================================
+// Límites máximos razonables para recursos (basados en producción máxima posible)
+// Estos valores son MUY por encima de lo normal para no afectar jugadores legítimos
+const MAX_REASONABLE_RESOURCES: Record<ResourceType, number> = {
+    [ResourceType.MONEY]: 10_000_000_000,      // 10 billones (máximo razonable con overflow)
+    [ResourceType.OIL]: 500_000_000,           // 500 millones
+    [ResourceType.AMMO]: 100_000_000,          // 100 millones
+    [ResourceType.GOLD]: 50_000_000,           // 50 millones
+    [ResourceType.DIAMOND]: 100_000            // 100 mil (extremadamente raro)
+};
+
+// Factor máximo de overflow permitido (recursos sobre el cap = cap * OVERFLOW_FACTOR)
+const OVERFLOW_FACTOR = 10; // Permitir hasta 10x el cap máximo como overflow legítimo
+
 const DEFAULT_BOT_STATS: Record<RankingCategory, number> = {
     [RankingCategory.DOMINION]: 1000,
     [RankingCategory.MILITARY]: 500,
@@ -283,9 +299,31 @@ export const sanitizeRankingData = (rankingData: any, saveVersion?: number, sile
 // MIGRACIÓN DE SISTEMAS ESPECÍFICOS
 // ============================================
 
+/**
+ * CRITICAL FIX: Validates and caps inflated resources to prevent absurd resource amounts
+ * This function runs on EVERY load/import to catch corruption and exploitation
+ * Returns true if any resources were capped
+ */
+const validateAndCapInflatedResources = (resources: Record<ResourceType, number>, silent: boolean = false): boolean => {
+    let fixed = false;
+
+    VALID_RESOURCE_TYPES.forEach(type => {
+        const currentValue = resources[type];
+        const maxValue = MAX_REASONABLE_RESOURCES[type];
+
+        if (isValidNumber(currentValue, 0) && currentValue > maxValue) {
+            resources[type] = maxValue;
+            logFieldMigration(`resources.${type}`, 'fixed', `Inflated value ${currentValue} capped to ${maxValue}`, silent);
+            fixed = true;
+        }
+    });
+
+    return fixed;
+};
+
 const migrateResources = (savedResources: any, defaultResources: Record<ResourceType, number>, silent: boolean = false): Record<ResourceType, number> => {
     const resources = { ...defaultResources };
-    
+
     if (!isValidObject(savedResources)) {
         logFieldMigration('resources', 'default', 'Invalid or missing resources object', silent);
         return resources;
@@ -294,8 +332,15 @@ const migrateResources = (savedResources: any, defaultResources: Record<Resource
     VALID_RESOURCE_TYPES.forEach(type => {
         const savedValue = savedResources[type];
         if (isValidNumber(savedValue, 0)) {
-            resources[type] = savedValue;
-            logFieldMigration(`resources.${type}`, 'ok', undefined, silent);
+            // CRITICAL FIX: Detect and cap inflated resources
+            const maxValue = MAX_REASONABLE_RESOURCES[type];
+            if (savedValue > maxValue) {
+                resources[type] = maxValue;
+                logFieldMigration(`resources.${type}`, 'fixed', `Inflated value ${savedValue} capped to ${maxValue}`, silent);
+            } else {
+                resources[type] = savedValue;
+                logFieldMigration(`resources.${type}`, 'ok', undefined, silent);
+            }
         } else {
             logFieldMigration(`resources.${type}`, 'default', `Invalid value: ${savedValue}`, silent);
         }
@@ -628,8 +673,9 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             cleanState.nextRateChangeTime = safeNumber(saved.nextRateChangeTime, now, 0);
             cleanState.lastInterestPayoutTime = safeNumber(saved.lastInterestPayoutTime, now, 0);
             cleanState.empirePoints = safeNumber(saved.empirePoints, 0, 0);
-            cleanState.lastSaveTime = safeNumber(saved.lastSaveTime, now, 0);
-            cleanState.lastReputationDecayTime = safeNumber(saved.lastReputationDecayTime, now, 0);
+            // CRITICAL FIX: Handle corrupted timestamps (0 or invalid)
+            cleanState.lastSaveTime = safeNumber(saved.lastSaveTime, now, 1); // Min 1 to reject 0
+            cleanState.lastReputationDecayTime = safeNumber(saved.lastReputationDecayTime, now, 1);
             cleanState.campaignProgress = safeNumber(saved.campaignProgress, 1, 1);
             cleanState.lastCampaignMissionFinishedTime = safeNumber(saved.lastCampaignMissionFinishedTime, 0, 0);
             cleanState.isTutorialMinimized = safeBoolean(saved.isTutorialMinimized, false);
@@ -708,6 +754,15 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             cleanState.isTutorialMinimized = saved.isTutorialMinimized ?? false;
             cleanState.tutorialAccepted = saved.tutorialAccepted ?? false;
             cleanState.nextAttackTime = saved.nextAttackTime ?? now + (3 * 60 * 60 * 1000);
+
+            // CRITICAL FIX: Handle corrupted lastSaveTime (0 or invalid)
+            // Using ?? doesn't work for 0, so we need explicit check
+            cleanState.lastSaveTime = (saved.lastSaveTime && saved.lastSaveTime > 0) 
+                ? saved.lastSaveTime 
+                : now;
+            cleanState.lastReputationDecayTime = (saved.lastReputationDecayTime && saved.lastReputationDecayTime > 0)
+                ? saved.lastReputationDecayTime
+                : now;
             
             cleanState.incomingAttacks = saved.incomingAttacks ?? [];
             cleanState.grudges = saved.grudges ?? [];
@@ -754,6 +809,15 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
 
             cleanState.redeemedGiftCodes = saved.redeemedGiftCodes ?? [];
             cleanState.giftCodeCooldowns = saved.giftCodeCooldowns ?? {};
+        }
+
+        // ============================================
+        // CRITICAL FIX: ALWAYS validate resources for inflation (regardless of version change)
+        // This is the main fix for the "absurd resources on load/import" bug
+        // ============================================
+        const inflationFixed = validateAndCapInflatedResources(cleanState.resources, silent);
+        if (inflationFixed) {
+            logMigration('warn', 'CRITICAL FIX: Inflated resources detected and capped during load/import');
         }
 
         // 4. CRITICAL FIXES: Always apply these regardless of version change

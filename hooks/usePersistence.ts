@@ -43,7 +43,9 @@ export const usePersistence = (
   setStatus: React.Dispatch<React.SetStateAction<GameStatus>>,
   setOfflineReport: React.Dispatch<React.SetStateAction<OfflineReport | null>>,
   setHasNewReports: (has: boolean) => void,
-  lastTickRef: MutableRefObject<number>
+  lastTickRef: MutableRefObject<number>,
+  isLoopRunningRef?: MutableRefObject<boolean>,
+  animationFrameRef?: MutableRefObject<number | undefined>
 ) => {
   const [hasSave, setHasSave] = useState(false);
   
@@ -138,8 +140,21 @@ export const usePersistence = (
     const savedStr = localStorage.getItem('ironDuneSave');
     if (savedStr) {
       try {
+        console.log('[LoadGame] Starting load process...');
         const parsed = JSON.parse(savedStr);
+        console.log('[LoadGame] Parsed save data', {
+          saveVersion: parsed.saveVersion,
+          lastSaveTime: parsed.lastSaveTime,
+          resources: parsed.resources,
+          now: Date.now(),
+          timeSinceSave: Date.now() - parsed.lastSaveTime
+        });
+        
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
+        console.log('[LoadGame] After migration', {
+          resources: migratedState.resources,
+          lastSaveTime: migratedState.lastSaveTime
+        });
 
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {
@@ -156,7 +171,16 @@ export const usePersistence = (
               .slice(0, 100);
         }
 
+        console.log('[LoadGame] Before offline calculation', {
+          resources: migratedState.resources,
+          lastSaveTime: migratedState.lastSaveTime
+        });
         const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+        console.log('[LoadGame] After offline calculation', {
+          resources: newState.resources,
+          resourcesGained: report.resourcesGained,
+          timeElapsed: report.timeElapsed
+        });
 
         if (newLogs.length > 0) {
             newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -207,16 +231,98 @@ export const usePersistence = (
   }, []);
 
   const saveGame = useCallback(() => {
+      console.log('[SaveGame] === INICIANDO GUARDADO ===');
+      
+      // 1. DETENER EXPLÍCITAMENTE EL GAME LOOP
+      if (isLoopRunningRef) {
+          isLoopRunningRef.current = false;
+          console.log('[SaveGame] Game loop marcado como detenido');
+      }
+      
+      // 2. CANCELAR ANIMATION FRAME PENDIENTE
+      if (animationFrameRef && animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = undefined;
+          console.log('[SaveGame] Animation frame cancelado');
+      }
+      
       const now = Date.now();
       lastSaveTimeRef.current = now;
 
-      saveSpyReportsToStorage(gameStateRef.current.spyReports || []);
-      saveLogsToStorage(gameStateRef.current.logs || []);
-      const stateToSave = { ...gameStateRef.current, lastSaveTime: now };
-      localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
-      setHasSave(true);
+      // 3. OBTENER EL ESTADO ACTUAL COMPLETO DIRECTAMENTE DE gameStateRef
+      // Esto asegura que capturamos el estado más reciente
+      const currentState = gameStateRef.current;
+      
+      console.log('[SaveGame] Estado actual capturado:', {
+          saveVersion: currentState.saveVersion,
+          playerName: currentState.playerName,
+          lastSaveTime: currentState.lastSaveTime,
+          resources: currentState.resources,
+          buildings: Object.keys(currentState.buildings).length,
+          units: Object.keys(currentState.units).length,
+          researchedTechs: currentState.researchedTechs.length,
+          activeMissions: currentState.activeMissions.length,
+          incomingAttacks: currentState.incomingAttacks.length,
+          spyReports: currentState.spyReports?.length || 0,
+          logs: currentState.logs?.length || 0,
+          rankingData: {
+              bots: currentState.rankingData?.bots?.length || 0,
+              lastUpdateTime: currentState.rankingData?.lastUpdateTime
+          },
+          activeWar: currentState.activeWar ? 'ACTIVE' : 'NONE',
+          campaignProgress: currentState.campaignProgress,
+          empirePoints: currentState.empirePoints,
+          bankBalance: currentState.bankBalance
+      });
+
+      // 4. GUARDAR SPY REPORTS Y LOGS EN ALMACENAMIENTO SEPARADO
+      saveSpyReportsToStorage(currentState.spyReports || []);
+      console.log('[SaveGame] Spy reports guardados:', currentState.spyReports?.length || 0);
+      
+      saveLogsToStorage(currentState.logs || []);
+      console.log('[SaveGame] Logs guardados:', currentState.logs?.length || 0);
+
+      // 5. CREAR ESTADO COMPLETO PARA GUARDAR
+      const stateToSave = { 
+          ...currentState, 
+          lastSaveTime: now 
+      };
+
+      // 6. VERIFICAR QUE TODOS LOS CAMPOS CRÍTICOS ESTÉN PRESENTES
+      const requiredFields = [
+          'saveVersion', 'playerName', 'resources', 'buildings', 'units',
+          'researchedTechs', 'techLevels', 'activeMissions', 'incomingAttacks',
+          'grudges', 'spyReports', 'logs', 'rankingData', 'diplomaticActions',
+          'lifetimeStats', 'lastSaveTime', 'empirePoints', 'bankBalance',
+          'campaignProgress', 'activeWar', 'enemyAttackCounts', 'targetAttackCounts',
+          'activeRecruitments', 'activeConstructions', 'activeResearch'
+      ];
+      
+      const missingFields = requiredFields.filter(field => !(field in stateToSave));
+      if (missingFields.length > 0) {
+          console.error('[SaveGame] CAMPOS FALTANTES EN EL GUARDADO:', missingFields);
+      } else {
+          console.log('[SaveGame] ✓ Todos los campos críticos presentes');
+      }
+
+      // 7. GUARDAR EN LOCALSTORAGE
+      try {
+          localStorage.setItem('ironDuneSave', JSON.stringify(stateToSave));
+          console.log('[SaveGame] ✓ Estado guardado en localStorage:', {
+              size: JSON.stringify(stateToSave).length,
+              lastSaveTime: stateToSave.lastSaveTime
+          });
+          setHasSave(true);
+      } catch (e) {
+          console.error('[SaveGame] ERROR al guardar en localStorage:', e);
+      }
+
+      // 8. CAMBIAR A MENU DESPUÉS DE GUARDAR
+      console.log('[SaveGame] Cambiando a MENU...');
       setStatus('MENU');
-  }, [setStatus]);
+      
+      console.log('[SaveGame] === GUARDADO COMPLETADO ===');
+  }, [setStatus, setHasSave, isLoopRunningRef, animationFrameRef]);
 
   const exportSave = useCallback(() => {
     const stateToSave = { ...gameState, lastSaveTime: Date.now() };
@@ -236,12 +342,30 @@ export const usePersistence = (
 
   const importSave = useCallback((fileContent: string): boolean => {
     try {
+        console.log('[ImportSave] Starting import process...');
         const parsed = decodeSaveData(fileContent);
         if (!parsed || typeof parsed !== 'object' || !parsed.resources) return false;
 
+        console.log('[ImportSave] Parsed import data', {
+          saveVersion: parsed.saveVersion,
+          lastSaveTime: parsed.lastSaveTime,
+          resources: parsed.resources,
+          now: Date.now(),
+          timeSinceSave: Date.now() - parsed.lastSaveTime
+        });
+
         const migratedState = sanitizeAndMigrateSave(parsed, parsed);
+        console.log('[ImportSave] After migration', {
+          resources: migratedState.resources,
+          lastSaveTime: migratedState.lastSaveTime
+        });
 
         const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+        console.log('[ImportSave] After offline calculation', {
+          resources: newState.resources,
+          resourcesGained: report.resourcesGained,
+          timeElapsed: report.timeElapsed
+        });
 
         const storedSpyReports = loadSpyReportsFromStorage();
         if (storedSpyReports.length > 0) {

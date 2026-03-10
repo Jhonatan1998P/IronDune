@@ -38,17 +38,29 @@ export const useGameLoop = (
   const targetFPS = useRef<number>(getTargetFPS());
   const frameInterval = useRef<number>(1000 / targetFPS.current);
   const lastFrameTime = useRef<number>(0);
+  const isLoopRunningRef = useRef<boolean>(false);
 
   // Optimización: Game loop con requestAnimationFrame y throttling
   useEffect(() => {
-    if (status !== 'PLAYING') return;
+    if (status !== 'PLAYING') {
+      // CRITICAL FIX: Cancel animation frame when not playing (save/exit)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      isLoopRunningRef.current = false;
+      return;
+    }
 
     lastTickRef.current = Date.now();
     lastFrameTime.current = Date.now();
+    isLoopRunningRef.current = true;
 
     let overlap = 0;
 
     const gameLoop = (currentTime: number) => {
+      if (!isLoopRunningRef.current) return;
+
       const deltaTime = currentTime - lastFrameTime.current;
 
       // Solo actualizar si pasó suficiente tiempo para el target FPS
@@ -92,6 +104,7 @@ export const useGameLoop = (
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      isLoopRunningRef.current = false;
     };
   }, [status, setGameState]);
 
@@ -109,5 +122,5 @@ export const useGameLoop = (
     return () => clearInterval(reportTimer);
   }, [status, setHasNewReports]);
 
-  return { lastTickRef };
+  return { lastTickRef, isLoopRunningRef, animationFrameRef };
 };

@@ -11,10 +11,13 @@ import { processNemesisTick } from './nemesis';
 import { processEnemyAttackCheck } from './enemyAttack';
 import { processAttackQueue } from './attackQueue';
 
+// Overflow factor for inflation detection (must match migration.ts)
+const OVERFLOW_FACTOR = 10;
+
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
     const timeElapsed = now - state.lastSaveTime;
-    
+
     const report: OfflineReport = {
         timeElapsed,
         resourcesGained: {
@@ -39,19 +42,64 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
 
     const newLogs: LogEntry[] = [];
 
+    // CRITICAL FIX: Validate time elapsed to prevent exploitation and bugs
+    const MAX_OFFLINE_MS = 24 * 60 * 60 * 1000; // 24 hours absolute maximum
+    if (timeElapsed < 0) {
+        console.error('[Offline] CRITICAL: Negative time elapsed detected!', {
+            now,
+            lastSaveTime: state.lastSaveTime,
+            timeElapsed
+        });
+        return { newState: state, report, newLogs };
+    }
+
+    if (timeElapsed > MAX_OFFLINE_MS) {
+        console.warn('[Offline] Excessive time elapsed detected! Capping to 24 hours.', {
+            timeElapsed,
+            timeElapsedHours: timeElapsed / (60 * 60 * 1000),
+            lastSaveTime: state.lastSaveTime,
+            now
+        });
+    }
+
     if (timeElapsed < 60000) {
         return { newState: state, report, newLogs };
     }
 
     let newState = { ...state };
-    
+
+    // CRITICAL FIX: Log the exact offline duration for debugging
+    console.log('[Offline] Starting offline calculation', {
+        timeElapsedMs: timeElapsed,
+        timeElapsedHours: timeElapsed / (60 * 60 * 1000),
+        lastSaveTime: state.lastSaveTime,
+        now,
+        saveVersion: state.saveVersion
+    });
+
     const effectiveTimeMs = Math.min(timeElapsed, OFFLINE_PRODUCTION_LIMIT_MS);
     const effectiveTimeSecs = effectiveTimeMs / 1000;
+
+    // CRITICAL FIX: Log if time was capped
+    if (timeElapsed > OFFLINE_PRODUCTION_LIMIT_MS) {
+        console.log('[Offline] Time capped to 6 hours maximum', {
+            originalTimeHours: timeElapsed / (60 * 60 * 1000),
+            cappedTimeHours: effectiveTimeMs / (60 * 60 * 1000)
+        });
+    }
 
     const multipliers = calculateTechMultipliers(newState.researchedTechs, newState.techLevels);
     const prodRates = calculateProductionRates(newState.buildings, multipliers);
     const upkeepCosts = calculateUpkeepCosts(newState.units);
     const maxStorage = calculateMaxStorage(newState.buildings, multipliers, newState.empirePoints);
+
+    // CRITICAL FIX: Log production rates and storage caps for debugging
+    console.log('[Offline] Production rates and caps', {
+        prodRates,
+        upkeepCosts,
+        maxStorage,
+        resourcesBefore: { ...newState.resources }
+    });
 
     Object.values(ResourceType).forEach((res) => {
         const prod = (prodRates[res] || 0) * effectiveTimeSecs;
@@ -62,13 +110,26 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             const diamondMine = newState.buildings[BuildingType.DIAMOND_MINE];
             if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
                 // No hay producción de diamantes si la mina está dañada
+                const prevDiamond = newState.resources[res];
                 newState.resources[res] = Math.max(0, newState.resources[res] - upkeep);
+                report.resourcesConsumed[res] = Math.floor(prevDiamond) - Math.floor(newState.resources[res]);
+                console.log(`[Offline] ${res}: Mine damaged - consuming ${report.resourcesConsumed[res]}`);
                 return;
             }
         }
 
         const prevAmount = newState.resources[res];
-        
+
+        // CRITICAL FIX: Detect and log potential inflation
+        if (prevAmount > maxStorage[res] * OVERFLOW_FACTOR) {
+            console.warn(`[Offline] ${res}: Potential inflation detected!`, {
+                current: prevAmount,
+                maxStorage: maxStorage[res],
+                overflowFactor: OVERFLOW_FACTOR,
+                ratio: prevAmount / maxStorage[res]
+            });
+        }
+
         if (netChange > 0) {
             // Permitir conservar el desbordamiento (overflow) si ya existía,
             // pero solo añadir producción si hay espacio bajo el cap.
@@ -76,6 +137,11 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
             const actualGain = Math.min(netChange, availableSpace);
             newState.resources[res] = prevAmount + actualGain;
             report.resourcesGained[res] = Math.floor(newState.resources[res]) - Math.floor(prevAmount);
+            
+            // CRITICAL FIX: Log if overflow is being preserved
+            if (prevAmount > maxStorage[res]) {
+                console.log(`[Offline] ${res}: Preserving overflow - prev=${prevAmount}, cap=${maxStorage[res]}, gain=${actualGain}`);
+            }
         } else if (netChange < 0) {
             // El mantenimiento siempre se resta
             newState.resources[res] = Math.max(0, prevAmount + netChange);
@@ -83,7 +149,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         }
 
         if (report.resourcesGained[res] > 0 || report.resourcesConsumed[res] > 0) {
-            console.log(`[Offline] ${res}: current=${prevAmount.toFixed(2)} cap=${maxStorage[res]} netChange=${netChange.toFixed(2)} gain=${report.resourcesGained[res]}`);
+            console.log(`[Offline] ${res}: current=${prevAmount.toFixed(2)} cap=${maxStorage[res]} netChange=${netChange.toFixed(2)} gain=${report.resourcesGained[res]} consumed=${report.resourcesConsumed[res]}`);
         }
     });
 
@@ -214,6 +280,16 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     // Without this, the offline progress can be calculated multiple times,
     // causing resources to be added repeatedly (the "millions of resources" bug)
     newState.lastSaveTime = now;
+
+    // CRITICAL FIX: Log final state for debugging
+    console.log('[Offline] Calculation completed', {
+        timeElapsedHours: timeElapsed / (60 * 60 * 1000),
+        effectiveTimeHours: effectiveTimeMs / (60 * 60 * 1000),
+        resourcesAfter: { ...newState.resources },
+        resourcesGained: report.resourcesGained,
+        resourcesConsumed: report.resourcesConsumed,
+        bankInterestEarned: report.bankInterestEarned
+    });
 
     return { newState, report, newLogs };
 };

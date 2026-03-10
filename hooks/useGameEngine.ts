@@ -28,7 +28,7 @@ export const useGameEngine = () => {
   const [hasNewReports, setHasNewReports] = useState(false);
 
   // --- 1. CORE LOOP ---
-  const { lastTickRef } = useGameLoop(status, setGameState, setHasNewReports);
+  const { lastTickRef, isLoopRunningRef, animationFrameRef } = useGameLoop(status, setGameState, setHasNewReports);
 
   // --- 2. LOGGING (Shared Dependency) ---
   const addLog = useCallback((messageKey: string, type: LogEntry['type'] = 'info', params?: any) => {
@@ -60,13 +60,15 @@ export const useGameEngine = () => {
 
   // --- 4. PERSISTENCE ---
   const persistence = usePersistence(
-      gameState, 
+      gameState,
       setGameState,
       status,
-      setStatus, 
-      setOfflineReport, 
-      setHasNewReports, 
-      lastTickRef
+      setStatus,
+      setOfflineReport,
+      setHasNewReports,
+      lastTickRef,
+      isLoopRunningRef,
+      animationFrameRef
   );
 
   // --- 5. EVENT BUS ---
