@@ -39,6 +39,12 @@ export const useGameLoop = (
   const frameInterval = useRef<number>(1000 / targetFPS.current);
   const lastFrameTime = useRef<number>(0);
   const isLoopRunningRef = useRef<boolean>(false);
+  const statusRef = useRef<GameStatus>(status);
+
+  // Keep status ref updated
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   // Optimización: Game loop con requestAnimationFrame y throttling
   useEffect(() => {
@@ -59,7 +65,11 @@ export const useGameLoop = (
     let overlap = 0;
 
     const gameLoop = (currentTime: number) => {
-      if (!isLoopRunningRef.current) return;
+      // Check if we should still be running using ref (not closure value)
+      if (statusRef.current !== 'PLAYING') {
+        isLoopRunningRef.current = false;
+        return;
+      }
 
       const deltaTime = currentTime - lastFrameTime.current;
 
@@ -95,18 +105,21 @@ export const useGameLoop = (
         }
       }
 
+      // Schedule next frame
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
 
+    // Start the loop
     animationFrameRef.current = requestAnimationFrame(gameLoop);
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
       isLoopRunningRef.current = false;
     };
-  }, [status, setGameState]);
+  }, [status, setGameState, setHasNewReports]);
 
   // Optimización: Report throttled a 200ms
   useEffect(() => {
