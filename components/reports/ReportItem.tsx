@@ -210,21 +210,55 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
                                          <span className="font-mono text-indigo-400 text-[9px] sm:text-[10px] bg-indigo-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">{t.reports.intel_strength}: {formatNumber(log.params?.score ?? 0)}</span>
                                      </div>
                                      
-                                     <div className="space-y-1.5 sm:space-y-2">
-                                         <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.reports.intel_composition}</div>
-                                         <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                                             {log.params.units && Object.entries(log.params.units).map(([uType, count]) => {
-                                                 const def = UNIT_DEFS[uType as UnitType];
-                                                 const name = t.units[def?.translationKey]?.name || uType;
-                                                 return (
-                                                     <span key={uType} className="bg-black/40 px-2 py-1 rounded-md text-slate-300 border border-indigo-500/10 flex gap-1.5 items-center text-[9px] sm:text-[10px] font-bold">
-                                                         <span className="truncate max-w-[60px] sm:max-w-none">{name}</span>
-                                                         <span className="text-white font-mono">{count as number}</span>
-                                                     </span>
-                                                 );
-                                             })}
+                                         <div className="space-y-1.5 sm:space-y-2">
+                                             <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.reports.intel_composition}</div>
+                                             <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                                 {log.params.units && Object.entries(log.params.units).map(([uType, count]) => {
+                                                     const def = UNIT_DEFS[uType as UnitType];
+                                                     const name = t.units[def?.translationKey]?.name || uType;
+                                                     return (
+                                                         <span key={uType} className="bg-black/40 px-2 py-1 rounded-md text-slate-300 border border-indigo-500/10 flex gap-1.5 items-center text-[9px] sm:text-[10px] font-bold">
+                                                             <span className="truncate max-w-[60px] sm:max-w-none">{name}</span>
+                                                             <span className="text-white font-mono">{count as number}</span>
+                                                         </span>
+                                                     );
+                                                 })}
+                                                 {(!log.params.units || Object.keys(log.params.units).length === 0) && (
+                                                     <span className="text-indigo-400/60 text-[9px] italic">---</span>
+                                                 )}
+                                             </div>
                                          </div>
-                                     </div>
+
+                                         {/* Recursos detectados */}
+                                         {log.params.resources && Object.keys(log.params.resources).length > 0 && (
+                                             <div className="space-y-1.5 sm:space-y-2 mt-2 pt-2 border-t border-indigo-500/10">
+                                                 <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.common.ui.spy_estimated_resources}</div>
+                                                 <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                                     {Object.entries(log.params.resources).map(([res, val]) => (
+                                                         <span key={res} className="bg-black/40 px-2 py-1 rounded-md text-slate-300 border border-indigo-500/10 flex gap-1.5 items-center text-[9px] sm:text-[10px] font-bold">
+                                                             {getResourceIcon(res)}
+                                                             <span className="text-white font-mono">{formatNumber(val as number)}</span>
+                                                         </span>
+                                                     ))}
+                                                 </div>
+                                             </div>
+                                         )}
+
+                                         {/* Edificios detectados */}
+                                         {log.params.buildings && Object.keys(log.params.buildings).length > 0 && (
+                                             <div className="space-y-1.5 sm:space-y-2 mt-2 pt-2 border-t border-indigo-500/10">
+                                                 <div className="text-[8px] sm:text-[9px] text-indigo-400/80 uppercase tracking-widest">{t.common.ui.spy_buildings}</div>
+                                                 <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                                     {Object.entries(log.params.buildings).map(([bType, level]) => (
+                                                         <span key={bType} className="bg-black/40 px-2 py-1 rounded-md text-slate-300 border border-indigo-500/10 flex gap-1.5 items-center text-[9px] sm:text-[10px] font-bold">
+                                                             <Icons.Base className="w-3 h-3 text-indigo-400" />
+                                                             <span className="truncate max-w-[60px] sm:max-w-none">{t.common.resources[bType as keyof typeof t.common.resources] || bType}</span>
+                                                             <span className="text-indigo-400 font-mono">Lvl {level as number}</span>
+                                                         </span>
+                                                     ))}
+                                                 </div>
+                                             </div>
+                                         )}
 
                                       {onSimulate && log.params?.units && (
                                           <button

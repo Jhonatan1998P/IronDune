@@ -3,9 +3,8 @@ import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
 import { useLanguage } from '../context/LanguageContext';
 import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
-import { IncomingAttack, LogEntry } from '../types/state';
+import { IncomingAttack } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
-import { addGameLog } from '../utils';
 import type { UnitType, BuildingType, ResourceType } from '../types/enums';
 
 // ============================================================================
@@ -224,21 +223,8 @@ export const useP2PGameSync = () => {
           type: 'warning' 
         });
 
-        // Añadir Log
-        const spyLog: LogEntry = {
-          id: `spy-det-${Date.now()}-${request.attackerId}`,
-          messageKey: 'log_p2p_spy_detected',
-          type: 'intel',
-          timestamp: Date.now(),
-          params: { attackerName }
-        };
-
-        if (typeof window !== 'undefined' && (window as any)._updateGameState) {
-            (window as any)._updateGameState({
-                ...gs,
-                logs: addGameLog(gs.logs || [], spyLog)
-            });
-        }
+        // NOTA: No añadimos log a la vista de informes para el defensor por petición del usuario
+        // Solo se mantiene el toast y el log de consola para rastreo técnico
       } catch (error) {
         console.error('[P2P-SPY] Defensor: Error manejando P2P_SPY_REQUEST:', error);
       }

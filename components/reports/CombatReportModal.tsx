@@ -141,6 +141,109 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         );
     }
 
+    // Reporte de INTELIGENCIA (Espionaje)
+    if (log.type === 'intel') {
+        const params = log.params || {};
+        return (
+            <div className={`flex flex-col flex-1 w-full bg-slate-950 ${embedded ? '' : 'md:rounded-2xl overflow-hidden relative'} border-x-0 border-b-0 md:border-2 border-indigo-500/50`}>
+                <div className="p-4 sm:p-6 md:p-8 text-center border-b border-white/10 bg-gradient-to-b from-indigo-900/30 to-transparent">
+                    <h2 className="font-tech text-xl sm:text-2xl md:text-3xl uppercase tracking-widest font-bold mb-2 text-indigo-400">
+                        {t.common.ui.spy_report_title || 'Intelligence Report'}
+                    </h2>
+                    <p className="text-[10px] sm:text-xs font-mono text-slate-400">{new Date(log.timestamp).toLocaleString()}</p>
+                </div>
+
+                <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 w-full flex flex-col">
+                    {/* Objetivo e Info Principal */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="bg-indigo-950/20 border border-indigo-500/30 p-3 sm:p-4 rounded-xl flex flex-col items-center">
+                            <span className="text-[9px] sm:text-[10px] text-indigo-400 uppercase tracking-widest mb-1 font-bold">{t.reports.intel_target}</span>
+                            <span className="text-white font-tech text-sm sm:text-lg uppercase tracking-wider">{params.targetName || '---'}</span>
+                        </div>
+                        <div className="bg-indigo-950/20 border border-indigo-500/30 p-3 sm:p-4 rounded-xl flex flex-col items-center">
+                            <span className="text-[9px] sm:text-[10px] text-indigo-400 uppercase tracking-widest mb-1 font-bold">{t.reports.intel_strength}</span>
+                            <span className="text-white font-mono text-sm sm:text-lg font-bold">{formatNumber(params.score || 0)}</span>
+                        </div>
+                    </div>
+
+                    {/* Unidades Detectadas */}
+                    <div className="bg-black/30 p-4 sm:p-6 rounded-xl border border-white/5 shadow-inner">
+                        <h3 className="text-[10px] sm:text-sm text-indigo-400 uppercase tracking-widest font-bold mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+                            <Icons.Army className="w-4 h-4" /> {t.common.ui.spy_detected_units || 'Detected Units'}
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+                            {params.units && Object.entries(params.units).map(([uType, count]) => {
+                                const def = UNIT_DEFS[uType as UnitType];
+                                const name = t.units[def?.translationKey]?.name || uType;
+                                return (
+                                    <div key={uType} className="flex justify-between items-center bg-indigo-900/10 p-2 sm:p-3 rounded-lg border border-indigo-500/10">
+                                        <span className="text-[10px] sm:text-xs text-slate-300 truncate pr-2">{name}</span>
+                                        <span className="text-white font-mono font-bold text-xs sm:text-sm">{formatNumber(count as number)}</span>
+                                    </div>
+                                );
+                            })}
+                            {(!params.units || Object.keys(params.units).length === 0) && (
+                                <div className="col-span-full text-center py-4 text-slate-500 italic text-xs">
+                                    ---
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        {/* Recursos Estimados */}
+                        <div className="bg-black/30 p-4 sm:p-6 rounded-xl border border-white/5 shadow-inner">
+                            <h3 className="text-[10px] sm:text-sm text-indigo-400 uppercase tracking-widest font-bold mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+                                <Icons.Resources.Money className="w-4 h-4" /> {t.common.ui.spy_estimated_resources || 'Resources'}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                {params.resources && Object.entries(params.resources).map(([res, val]) => (
+                                    <div key={res} className="flex flex-col items-center bg-indigo-900/10 p-2 sm:p-3 rounded-lg border border-indigo-500/10">
+                                        <div className="mb-1 sm:mb-2">{getResourceIcon(res)}</div>
+                                        <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase mb-1">{t.common.resources[res as keyof typeof t.common.resources] || res}</span>
+                                        <span className="text-white font-mono font-bold text-xs sm:text-sm">{formatNumber(val as number)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Edificios */}
+                        <div className="bg-black/30 p-4 sm:p-6 rounded-xl border border-white/5 shadow-inner">
+                            <h3 className="text-[10px] sm:text-sm text-indigo-400 uppercase tracking-widest font-bold mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+                                <Icons.Base className="w-4 h-4" /> {t.common.ui.spy_buildings || 'Infrastructure'}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                {params.buildings && Object.entries(params.buildings).map(([bType, level]) => {
+                                    const bDef = BUILDING_DEFS[bType as BuildingType];
+                                    const name = t.buildings[bDef?.translationKey]?.name || bType;
+                                    return (
+                                        <div key={bType} className="flex flex-col items-center bg-indigo-900/10 p-2 sm:p-3 rounded-lg border border-indigo-500/10">
+                                            <Icons.Base className="w-4 h-4 text-indigo-400 mb-1.5" />
+                                            <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase text-center truncate w-full mb-1">{name}</span>
+                                            <span className="text-indigo-300 font-mono font-bold text-xs sm:text-sm">Lvl {level as number}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                {!embedded && (
+                    <div className="p-3 sm:p-4 md:p-6 bg-slate-950 border-t border-white/10 shrink-0 flex gap-3 mt-auto">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 sm:py-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all rounded-xl border border-indigo-500/30"
+                        >
+                            {t.common.actions.acknowledge}
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     // Reporte de MISION/PATRULLA (sin combatResult)
     if (!log.params?.combatResult) {
         const msg = t.missions.patrol[log.messageKey as keyof typeof t.missions.patrol] || log.messageKey;

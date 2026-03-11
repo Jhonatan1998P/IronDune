@@ -86,14 +86,17 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
                     const combatLog: LogEntry = {
                         id: `intel-${response.timestamp || Date.now()}-${response.targetId}`,
-                        messageKey: 'log_p2p_spy_success',
+                        messageKey: 'log_intel_acquired', // Usar la clave estándar de informes de inteligencia
                         type: 'intel',
                         timestamp: response.timestamp || Date.now(),
                         params: {
                             targetName: response.targetName || 'Unknown',
                             units: newReport.units,
+                            resources: newReport.resources, // Añadir recursos
+                            buildings: newReport.buildings, // Añadir edificios
                             score: response.targetScore || 0,
-                            botId: response.targetId
+                            botId: response.targetId,
+                            isP2P: true
                         }
                     };
                     const newLogs = addGameLog(gameState.logs || [], combatLog);

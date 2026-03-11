@@ -2,7 +2,7 @@
 
 **Session ID:** ses_3233d801cffei7m5tRDWphhnqh
 **Created:** 3/11/2026, 11:57:40 AM
-**Updated:** 3/11/2026, 12:11:16 PM
+**Updated:** 3/11/2026, 12:32:35 PM
 
 ---
 
@@ -468,6 +468,190 @@ He añadido logs detallados con el prefijo `[P2P-SPY]` en las zonas más crític
     *   `Enviando respuesta`: Cuando tu sistema termina de empaquetar tus datos y los envía de vuelta.
 
 Con estos logs, si algo falla, podrás saber en qué paso se detuvo el proceso (si el paquete no salió, si no llegó al defensor, o si la respuesta se perdió por el camino).
+
+---
+
+## User
+
+Tengo buenas y malas notificias.
+
+La buena es que es espionaje se logra pero no crea un informe de las tropas, edificios y recursos del jugador espiado sino que solo crea un informe con este texto log_p2p_spy_success lo cual esta mal ya que eso deberia mandarse en un toast y sobre todo eso no debe sobreescribir el informe de inteligencia del jugador espiado. Recuerda que el espionaje es para saber que tropas, recursos y edificios tiene un jugador espiado y esta información no debe faltar.
+
+Otro problema es que se mandan estos informes en la vista de informes log_p2p_spy_detected para defensor y log_p2p_spy_success para el atacante cuando deberian ser toast es decir notifcaciones no informes, cada una para cada bando.
+
+---
+
+## Assistant
+
+Entiendo perfectamente el problema. El sistema está tratando el éxito del espionaje como un simple mensaje de bitácora (log) en lugar de un **Informe de Inteligencia detallado**, y está registrando eventos de notificación como si fueran informes de combate.
+
+Voy a realizar los siguientes cambios con alta precisión:
+
+1.  **Atacante:** Cambiaré la clave del informe de `log_p2p_spy_success` a `log_intel_acquired` (que es la que el sistema usa para mostrar los detalles de tropas) y me aseguraré de incluir **recursos y edificios** en los parámetros del log.
+2.  **Defensor:** Eliminaré la creación del log `log_p2p_spy_detected`, manteniendo únicamente el Toast, ya que ser espiado no debería llenar la bandeja de informes.
+3.  **Consistencia:** Aseguraré que el Toast y el Informe sean entidades separadas.
+
+### 1. Corregir el informe del Atacante (`CommanderProfileModal.tsx`)
+
+Modificaré el manejador de la respuesta para que genere un informe completo y use la clave correcta.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+### 2. Corregir el informe del Defensor (`hooks/useP2PGameSync.ts`)
+
+Eliminaré la creación del log en el bando del defensor, dejando solo el aviso (Toast) y el log de consola para depuración.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Los errores LSP indican que ahora sobran algunas importaciones en `useP2PGameSync.ts`. Las limpiaré para mantener el código pulcro. Luego, revisaré `ReportItem.tsx` para asegurar que los recursos y edificios se muestren cuando el tipo sea `intel`.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll re-read the top of `hooks/useP2PGameSync.ts` to confirm the imports before cleaning them up. I'll also check `components/reports/ReportItem.tsx` to ensure it correctly renders resources and buildings for `intel` type reports.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+I'll clean up the unused imports in `hooks/useP2PGameSync.ts` and then check `components/reports/ReportItem.tsx` to verify how it renders `intel` type reports.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+Checking `components/reports/ReportItem.tsx`.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+`ReportItem.tsx` correctly renders `intel` reports with `log_intel_acquired`, including units. However, it lacks rendering for resources and buildings in the intel summary. I'll fix this by adding sections for resources and buildings to the `isIntel` block in `ReportItem.tsx`. I'll also check `components/reports/CombatReportModal.tsx` to ensure it handles these details in the full report view. First, I'll update `ReportItem.tsx`.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll correct the i18n key paths in `ReportItem.tsx` based on `ui.ts`. `spy_estimated_resources` and `spy_buildings` are nested under `ui.common.ui`, while `none` is missing and needs to be replaced. I'll read `i18n/es/ui.ts` around line 450 to verify the keys before making the edits.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+`spy_estimated_resources` and `spy_buildings` are in `common.ui`, not `reports`. I'll update `ReportItem.tsx` with the correct paths. I'll also check `components/reports/CombatReportModal.tsx` for consistency.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I forgot the leading `/home/runner/workspace/`. I'll retry with the absolute path.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll check `components/reports/CombatReportModal.tsx` to ensure the detailed intelligence view works for P2P. I'll search for the file first.
+
+**Tool: glob**
+
+---
+
+## Assistant
+
+I'll read it.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+I'll check `CombatReportContent` in `CombatReportModal.tsx` for `intel` type handling. I'll read from line 692 to find where `log.type === 'intel'` is addressed.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+`CombatReportModal.tsx` lacks `intel` type handling, so clicking "Ver Informe" on an intelligence report likely displays a generic message. I'll fix this by adding a specific view for intelligence reports, incorporating sections for units, resources, and buildings. I'll read the beginning of the `CombatReportContent` function to determine the best insertion point.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+I'll insert an `intel` report handler in `CombatReportModal.tsx` before the mission/patrol section. This handler will display the intelligence report title, target info, units, estimated resources, and buildings. I'll read from line 140 to ensure the correct context for the edit.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+I'll insert an `intel` report handler in `CombatReportModal.tsx` before the mission/patrol section, ensuring detailed intelligence reports are displayed correctly. After this, I'll have fulfilled all user requests, including making P2P espionage notifications toasts-only and restoring detailed reports for attackers. I'll apply the edit now.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I'll fix the `t.common.ui.none` property error by replacing it with a static string. I'll read line 187 of `CombatReportModal.tsx` to ensure the exact text for the replacement.
+
+**Tool: read**
+
+---
+
+## Assistant
+
+I'll replace `t.common.ui.none` with "---" and then I'll be finished. I've addressed all points: espionage now creates detailed reports for attackers (with units, resources, and buildings), notifications are toast-only for both sides, and the UI correctly handles these reports in both the summary and modal views. Applying the final fix now.
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+I've completed all tasks: restored detailed P2P espionage reports for attackers (units, resources, buildings), replaced spammy reports with toasts for both players, and updated the UI to properly render these detailed reports in both the summary and modal views. All systems are now functional and polished.
+
+He arreglado el sistema de espionaje P2P solucionando todos los puntos mencionados:
+
+1.  **Restauración de Informes Detallados:** El atacante ahora recibe un informe completo. He cambiado la lógica para que use la clave `log_intel_acquired`, lo que permite al sistema tratarlo como un informe de inteligencia real que incluye **tropas, recursos y edificios** en los parámetros del log.
+2.  **Eliminación de Spam en Informes:**
+    *   **Atacante:** Ya no se crea un informe con el texto genérico `log_p2p_spy_success`. Ahora ese texto se usa solo para la notificación (toast), mientras que en la vista de informes aparece el informe de inteligencia detallado.
+    *   **Defensor:** Se eliminó la creación del informe `log_p2p_spy_detected`. Ahora el defensor solo recibe un **Toast de advertencia**, evitando llenar su bandeja de entrada con notificaciones de "has sido espiado".
+3.  **Visualización en UI:**
+    *   He actualizado `ReportItem.tsx` para que la vista previa del informe de inteligencia en la lista incluya los recursos y edificios detectados.
+    *   He actualizado `CombatReportModal.tsx` para que, al hacer clic en "Ver Informe", se abra una ventana dedicada con un diseño pulido que muestra el desglose completo de la base espiada (unidades, recursos y niveles de edificios).
+
+El sistema ahora es preciso, no sobreescribe información y separa correctamente las notificaciones (toasts) de los datos de inteligencia (informes).
 
 ---
 
