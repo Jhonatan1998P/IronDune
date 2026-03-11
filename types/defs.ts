@@ -6,6 +6,7 @@ export interface Cost {
   money: number;
   oil: number;
   ammo: number;
+  gold?: number;
   diamond?: number;
 }
 

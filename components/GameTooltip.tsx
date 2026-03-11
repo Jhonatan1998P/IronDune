@@ -135,7 +135,7 @@ export const GameTooltip: React.FC<GameTooltipProps> = ({
                     <div className="space-y-1">
                         {Object.entries(cost).map(([type, val]) => {
                             const amount = val as number;
-                            if (amount === 0) return null;
+                            if (!amount || amount <= 0 || isNaN(amount)) return null;
 
                             const current = getResourceValue(resources, type);
                             const affordable = current >= amount;

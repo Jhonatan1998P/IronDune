@@ -217,13 +217,22 @@ export const calculateMaxAffordableUnits = (
 export const calculateResearchCost = (
     def: TechDef, 
     currentLevel: number
-): { money: number; oil: number; ammo: number } => {
+): { money: number; oil: number; ammo: number; gold?: number; diamond?: number } => {
     const multiplier = Math.pow(def.costMultiplier || 1, currentLevel);
-    return {
+    const cost: { money: number; oil: number; ammo: number; gold?: number; diamond?: number } = {
         money: Math.floor(def.cost.money * multiplier),
         oil: Math.floor(def.cost.oil * multiplier),
-        ammo: Math.floor(def.cost.ammo * multiplier)
+        ammo: Math.floor(def.cost.ammo * multiplier),
     };
+    
+    if (def.cost.gold) {
+        cost.gold = Math.floor(def.cost.gold * multiplier);
+    }
+    if (def.cost.diamond) {
+        cost.diamond = Math.floor(def.cost.diamond * multiplier);
+    }
+    
+    return cost;
 };
 
 export const calculateEspionageCost = (targetScore: number, playerLevel: number): number => {

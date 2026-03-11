@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GameState, ResourceType, BuildingType, UnitType } from '../types';
+import { GameState, ResourceType, BuildingType, UnitType, TechType } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
@@ -130,15 +130,15 @@ describe('Producción Online y Offline - Tests de Integración', () => {
             
             // Con techs de producción (nivel 5)
             const advancedMultipliers = calculateTechMultipliers(
-                ['EFFICIENT_WORKFLOWS' as any],
-                { 'EFFICIENT_WORKFLOWS': 5 }
+                [TechType.DEEP_DRILLING as any],
+                { [TechType.DEEP_DRILLING]: 5 }
             );
             const advancedRates = calculateProductionRates(state.buildings, advancedMultipliers);
             
-            // Con nivel 5 de tech (+5% por nivel = +25%), la producción debería ser 25% mayor
-            expect(advancedRates[ResourceType.MONEY]).toBeGreaterThan(baseRates[ResourceType.MONEY]);
-            expect(advancedRates[ResourceType.MONEY]).toBeCloseTo(
-                baseRates[ResourceType.MONEY] * 1.25,
+            // Con nivel 5 de tech (+5% por nivel = +25%), la producción de oil debería ser 25% mayor
+            expect(advancedRates[ResourceType.OIL]).toBeGreaterThan(baseRates[ResourceType.OIL]);
+            expect(advancedRates[ResourceType.OIL]).toBeCloseTo(
+                baseRates[ResourceType.OIL] * 1.25,
                 0
             );
         });

@@ -26,16 +26,14 @@ export const data = {
       phantom_sub: { name: "Submarino Fantasma", stats: "Mata-Barcos. Vulnerable a Destructores." }
     },
     techs: {
-      efficient_workflows: { name: "Optimización Económica", description: "Algoritmos avanzados para la gestión de capital. +5% Dinero por nivel." },
       deep_drilling: { name: "Perforación Avanzada", description: "Técnicas de extracción de próxima generación. +5% Petróleo por nivel." },
       gold_refining: { name: "Purificación de Metales", description: "Procesamiento de pureza avanzada. +5% Oro por nivel." },
       mass_production: { name: "Automatización Industrial", description: "Robótica de línea de ensamblaje. +5% Munición por nivel." },
       logistics_raiding: { name: "Doctrina de Op. Encubiertas", description: "Optimización de robo y redadas. +1% Capacidad de robo por nivel." },
       
       warehousing_1: { name: "Almacenamiento de Alta Densidad", description: "Mejores algoritmos de estiba. +20% Capacidad Total." },
-      resource_management: { name: "Logística Cuántica", description: "Asignación de recursos sin desperdicio. +10% Almacén Global." },
-      strategic_command: { name: "Red de Comando Global", description: "Algoritmos logísticos avanzados. +1 Ranura de Misión de Campaña simultánea por nivel. Requiere 500K Puntos de Imperio." },
-      patrol_training: { name: "Reconocimiento de Sector", description: "Conciencia situacional mejorada. +5% Daño en Patrullas por Nivel (Max 10)." },
+      strategic_command: { name: "Red de Comando Global", description: "Algoritmos logísticos avanzados. +1 Ranura de Misión de Campaña simultánea por nivel. Requiere 5K Puntos de Imperio." },
+      patrol_training: { name: "Reconocimiento de Sector", description: "Conciencia situacional mejorada. +5% Vida, Ataque y Defensa en Patrullas por Nivel (Max 10)." },
       basic_training: { name: "Fundamentos de Infantería", description: "Ejercicios de combate básicos. Requisito para Marines." },
       marksmanship: { name: "Ópticas y Apuntado Avanzado", description: "Sistemas de puntería de precisión letal." },
       camouflage: { name: "Sistemas de Camuflaje Adaptativo", description: "Tecnología de sigilo óptico para tropas de tierra." },
@@ -46,9 +44,9 @@ export const data = {
       combustion_engine: { name: "Propulsión Pesada", description: "Motores de alto torque para vehículos blindados." },
       heavy_plating: { name: "Blindaje de Chasis Reforzado", description: "Blindaje cerámico de alta densidad para tanques." },
       composite_armor: { name: "Blindaje Compuesto Reactivo", description: "Sistemas de defensa avanzada por capas y reactiva." },
-      naval_engineering: { name: "Arquitectura Marítima", description: "Planos de próxima generación para embarcaciones." },
-      sonar_tech: { name: "Matrices de Sonar Profundo", description: "Detección acústica submarina avanzada." },
-      stealth_hull: { name: "Cascos de Amortiguación Acústica", description: "Material absorbente de radar para submarinos." },
+      naval_engineering: { name: "Arquitectura Marítima", description: "Planos de próxima generación para embarcaciones. Requiere 25K Pts de Imperio." },
+      sonar_tech: { name: "Matrices de Sonar Profundo", description: "Detección acústica submarina avanzada. Requiere 50K Pts de Imperio." },
+      stealth_hull: { name: "Cascos de Amortiguación Acústica", description: "Material absorbente de radar para submarinos. Requiere 80K Pts de Imperio." },
       aerodynamics: { name: "Aerodinámica Avanzada", description: "Teoría de vuelo hipersónico y diseño de rotores." },
       jet_engines: { name: "Turbinas Supersónicas", description: "Sistemas de propulsión a reacción de alta velocidad." },
       precision_bombing: { name: "Fijación de Objetivos por Láser", description: "Computadoras de puntería orbital exacta." },
@@ -58,7 +56,7 @@ export const data = {
       unlock_titan_mbt: { name: "Desplegar: Tanque Titán", description: "Autoriza el reclutamiento de tanques de batalla principales." },
       unlock_wraith_gunship: { name: "Desplegar: Cañonera Espectro", description: "Autoriza el ensamblaje de helicópteros de ataque." },
       unlock_ace_fighter: { name: "Desplegar: Caza As", description: "Autoriza el ensamblaje de cazas de superioridad aérea." },
-      unlock_aegis_destroyer: { name: "Desplegar: Destructor Aegis", description: "Autoriza la construcción de destructores navales." },
-      unlock_phantom_sub: { name: "Desplegar: Submarino Fantasma", description: "Autoriza la construcción de submarinos sigilosos." },
+      unlock_aegis_destroyer: { name: "Desplegar: Destructor Aegis", description: "Cazador de élite. Requiere 65K Pts de Imperio." },
+      unlock_phantom_sub: { name: "Desplegar: Submarino Fantasma", description: "La cima tecnológica marítima. Requiere 100K Pts de Imperio." },
     }
 };

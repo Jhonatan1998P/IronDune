@@ -684,8 +684,13 @@ export const resolveMission = (
         else if (roll < 55) {
             logKey = 'log_patrol_ambush';
             logType = 'combat';
+            
+            let patrolMultiplier = 1.0;
+            const patrolTechLevel = techLevels[TechType.PATROL_TRAINING] || 0;
+            if (patrolTechLevel > 0) patrolMultiplier += (patrolTechLevel * 0.05);
+
             const enemyForces = generateEnemyForce(mission.units, patrolLevel, true);
-            const battleResult = simulateCombat(mission.units, enemyForces, 0.7);
+            const battleResult = simulateCombat(mission.units, enemyForces, patrolMultiplier, undefined, patrolMultiplier, patrolMultiplier);
             unitsToReturn = battleResult.finalPlayerArmy;
             if (battleResult.winner === 'PLAYER') {
                 logKey = 'log_patrol_battle_win';
@@ -708,11 +713,12 @@ export const resolveMission = (
             }
         } 
         else if (roll < 75) {
-            let damageMultiplier = 1.0;
+            let patrolMultiplier = 1.0;
             const patrolTechLevel = techLevels[TechType.PATROL_TRAINING] || 0;
-            if (patrolTechLevel > 0) damageMultiplier += (patrolTechLevel * 0.05);
+            if (patrolTechLevel > 0) patrolMultiplier += (patrolTechLevel * 0.05);
+
             const enemyForces = generateEnemyForce(mission.units, patrolLevel, false);
-            const battleResult = simulateCombat(mission.units, enemyForces, damageMultiplier);
+            const battleResult = simulateCombat(mission.units, enemyForces, patrolMultiplier, undefined, patrolMultiplier, patrolMultiplier);
             unitsToReturn = battleResult.finalPlayerArmy;
             logType = 'combat';
             if (battleResult.winner === 'PLAYER') {

@@ -114,12 +114,9 @@ describe('Sistema de Guardado - Verificación Completa', () => {
             
             // Tecnologías
             researchedTechs: [
-                TechType.RESOURCE_MANAGEMENT,
-                TechType.EFFICIENT_WORKFLOWS,
                 TechType.DEEP_DRILLING
             ],
             techLevels: {
-                [TechType.EFFICIENT_WORKFLOWS]: 5,
                 [TechType.DEEP_DRILLING]: 3
             },
             

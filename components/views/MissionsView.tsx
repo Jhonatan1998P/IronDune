@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { UNIT_DEFS } from '../../data/units';
-import { GameState, MissionDuration, UnitType } from '../../types';
+import { GameState, MissionDuration, UnitType, TechType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
@@ -46,11 +46,15 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
         });
     };
 
+    const patrolTechLevel = gameState.techLevels[TechType.PATROL_TRAINING] || 0;
+    const patrolBonus = patrolTechLevel * 5;
+
     const calculateSquadPower = () => {
         let power = 0;
+        const multiplier = 1 + (patrolBonus / 100);
         Object.entries(selectedUnits).forEach(([u, count]) => {
             const def = UNIT_DEFS[u as UnitType];
-            power += (def.attack + def.defense + def.hp) * (count as number);
+            power += ((def.attack * multiplier) + (def.defense * multiplier) + (def.hp * multiplier)) * (count as number);
         });
         return power;
     };
@@ -67,9 +71,16 @@ export const MissionsView: React.FC<{ gameState: GameState, onStartMission: (uni
             <div className="w-full lg:w-1/3 flex flex-col gap-4">
                 <div className="flex flex-col glass-panel rounded-xl border border-white/10 overflow-hidden shadow-lg">
                     <div className="p-4 bg-black/40 border-b border-white/10 shrink-0 flex justify-between items-center">
-                        <h2 className="font-tech text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
-                            <Icons.Army /> {t.missions.patrol.select_units}
-                        </h2>
+                        <div className="flex flex-col">
+                            <h2 className="font-tech text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
+                                <Icons.Army /> {t.missions.patrol.select_units}
+                            </h2>
+                            {patrolBonus > 0 && (
+                                <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-tight ml-6 animate-pulse">
+                                    Bonus de Reconocimiento: +{patrolBonus}%
+                                </span>
+                            )}
+                        </div>
                         <span className="text-[10px] text-slate-500 font-bold bg-black/50 px-2 py-1 rounded border border-white/5 uppercase tracking-widest">{t.common.ui.total}: {totalSelected}</span>
                     </div>
 

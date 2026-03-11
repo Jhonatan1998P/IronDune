@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { TECH_DEFS } from '../../data/techs';
 import { BUILDING_DEFS } from '../../data/buildings';
-import { BuildingType, GameState, ResourceType, TechCategory, TechDef } from '../../types';
+import { BuildingType, GameState, ResourceType, TechCategory, TechDef, TechType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton, Icons, CostDisplay } from '../UIComponents';
 import { GameTooltip } from '../GameTooltip';
-import { formatDuration } from '../../utils';
+import { formatDuration, formatNumber } from '../../utils';
 import { calculateResearchCost } from '../../utils/formulas';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 
@@ -240,17 +240,29 @@ export const ResearchView: React.FC<{ gameState: GameState; onAction: (techId: a
                 const isMaxed = currentLevel >= maxLevel;
 
                 const universityLvl = gameState.buildings[BuildingType.UNIVERSITY].level;
-                const universityMet = universityLvl >= def.reqUniversityLevel;
+                let requiredUniversityLvl = def.reqUniversityLevel;
+                // SPECIAL CASE: STRATEGIC_COMMAND requires University level = 3 + (currentLevel)
+                if (def.id === TechType.STRATEGIC_COMMAND) {
+                    requiredUniversityLvl = 3 + currentLevel;
+                }
+
+                const universityMet = universityLvl >= requiredUniversityLvl;
                 const universityName = t.buildings[BUILDING_DEFS[BuildingType.UNIVERSITY].translationKey]?.name;
                 
-                const reqList = [{ label: `${universityName} Lv.${def.reqUniversityLevel}`, met: universityMet }];
+                const reqList = [{ label: `${universityName} Lv.${requiredUniversityLvl}`, met: universityMet }];
 
                 if (def.reqBuildings) {
                     Object.entries(def.reqBuildings).forEach(([bType, lvl]) => {
+                        let requiredLvl = lvl as number;
+                        // SPECIAL CASE: PATROL_TRAINING requires Barracks level = Next Research Level
+                        if (def.id === TechType.PATROL_TRAINING && bType === BuildingType.BARRACKS) {
+                            requiredLvl = currentLevel + 1;
+                        }
+
                         const bDef = BUILDING_DEFS[bType as BuildingType];
                         const bName = bDef && t.buildings[bDef.translationKey] ? t.buildings[bDef.translationKey].name : bType;
-                        const met = gameState.buildings[bType as BuildingType].level >= (lvl as number);
-                        reqList.push({ label: `${bName} Lv.${lvl}`, met });
+                        const met = gameState.buildings[bType as BuildingType].level >= requiredLvl;
+                        reqList.push({ label: `${bName} Lv.${requiredLvl}`, met });
                     });
                 }
                 if (def.reqTechs) {
@@ -270,9 +282,19 @@ export const ResearchView: React.FC<{ gameState: GameState; onAction: (techId: a
                 const canAfford = 
                     calculatedCost.money <= gameState.resources[ResourceType.MONEY] &&
                     calculatedCost.oil <= gameState.resources[ResourceType.OIL] &&
-                    calculatedCost.ammo <= gameState.resources[ResourceType.AMMO];
+                    calculatedCost.ammo <= gameState.resources[ResourceType.AMMO] &&
+                    (!calculatedCost.gold || calculatedCost.gold <= gameState.resources[ResourceType.GOLD]) &&
+                    (!calculatedCost.diamond || calculatedCost.diamond <= gameState.resources[ResourceType.DIAMOND]);
 
                 const showAsResearched = (maxLevel === 1 && isResearched) || isMaxed;
+
+                // NEW: Empire Points Requirement List Item
+                if (def.reqEmpirePoints) {
+                    reqList.push({ 
+                        label: `${t.common.ui.total_score}: ${formatNumber(def.reqEmpirePoints)}`, 
+                        met: gameState.empirePoints >= def.reqEmpirePoints 
+                    });
+                }
 
                 const tooltipContent = (
                     <GameTooltip 

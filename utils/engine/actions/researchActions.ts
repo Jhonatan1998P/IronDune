@@ -15,11 +15,21 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
     if (state.activeResearch) return { success: false, errorKey: 'research_busy' };
 
     // Validations
-    if (state.buildings[BuildingType.UNIVERSITY].level < def.reqUniversityLevel) return { success: false, errorKey: 'req_building' };
+    let reqUniversityLvl = def.reqUniversityLevel;
+    // SPECIAL CASE: STRATEGIC_COMMAND requires University level = 3 + (currentLevel)
+    if (techId === TechType.STRATEGIC_COMMAND) {
+        reqUniversityLvl = 3 + currentLevel;
+    }
+    if (state.buildings[BuildingType.UNIVERSITY].level < reqUniversityLvl) return { success: false, errorKey: 'req_building' };
     
     if (def.reqBuildings) {
         for (const [bType, lvl] of Object.entries(def.reqBuildings)) {
-            if (state.buildings[bType as BuildingType].level < (lvl as number)) return { success: false, errorKey: 'req_building' };
+            let requiredLvl = lvl as number;
+            // SPECIAL CASE: PATROL_TRAINING requires Barracks level = Next Research Level
+            if (techId === TechType.PATROL_TRAINING && bType === BuildingType.BARRACKS) {
+                requiredLvl = currentLevel + 1;
+            }
+            if (state.buildings[bType as BuildingType].level < requiredLvl) return { success: false, errorKey: 'req_building' };
         }
     }
     
@@ -36,7 +46,9 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
 
     if (state.resources[ResourceType.MONEY] < calculatedCost.money || 
         state.resources[ResourceType.OIL] < calculatedCost.oil || 
-        state.resources[ResourceType.AMMO] < calculatedCost.ammo) {
+        state.resources[ResourceType.AMMO] < calculatedCost.ammo ||
+        (calculatedCost.gold && state.resources[ResourceType.GOLD] < calculatedCost.gold) ||
+        (calculatedCost.diamond && state.resources[ResourceType.DIAMOND] < calculatedCost.diamond)) {
         return { success: false, errorKey: 'insufficient_funds' };
     }
 
@@ -47,6 +59,8 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
             [ResourceType.MONEY]: state.resources[ResourceType.MONEY] - calculatedCost.money,
             [ResourceType.OIL]: state.resources[ResourceType.OIL] - calculatedCost.oil,
             [ResourceType.AMMO]: state.resources[ResourceType.AMMO] - calculatedCost.ammo,
+            [ResourceType.GOLD]: state.resources[ResourceType.GOLD] - (calculatedCost.gold || 0),
+            [ResourceType.DIAMOND]: state.resources[ResourceType.DIAMOND] - (calculatedCost.diamond || 0),
         },
         activeResearch: { techId, startTime: Date.now(), endTime: Date.now() + def.researchTime }
     };

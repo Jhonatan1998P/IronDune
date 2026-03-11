@@ -152,10 +152,37 @@ export const simulateCombat = (
     initialPlayerArmy: Partial<Record<UnitType, number>>,
     initialEnemyArmy: Partial<Record<UnitType, number>>,
     playerDamageMultiplier: number = 1.0,
-    initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>> // allyId -> army
+    initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>, // allyId -> army
+    playerHpMultiplier: number = 1.0,
+    playerDefenseMultiplier: number = 1.0
 ): BattleResult => {
 
-    const playerEntities = createArmyEntities(initialPlayerArmy, 'PLAYER', 0);
+    const playerEntities: BattleEntity[] = [];
+    let idCounter = 0;
+
+    for (const [uKey, count] of Object.entries(initialPlayerArmy)) {
+        if (!count || count <= 0) continue;
+        const uType = uKey as UnitType;
+        const def = UNIT_DEFS[uType];
+        if (!def) continue;
+
+        for (let i = 0; i < count; i++) {
+            const hp = def.hp * playerHpMultiplier;
+            const defense = def.defense * playerDefenseMultiplier;
+            playerEntities.push({
+                id: idCounter++,
+                type: uType,
+                side: 'PLAYER',
+                hp: hp,
+                maxHp: hp,
+                defense: defense,
+                maxDefense: defense,
+                isDead: false,
+                markedForDeath: false,
+                def,
+            });
+        }
+    }
     
     // Create ally entities if provided
     let allyEntities: BattleEntity[] = [];

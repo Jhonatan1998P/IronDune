@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { BuildingType, GameState, ResourceType, TechType, UnitType } from '../../types';
+import { BuildingType, GameState, ResourceType, UnitType } from '../../types';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
 import { useLanguage } from '../../context/LanguageContext';
@@ -60,7 +60,6 @@ export const FinanceView: React.FC<{ gameState: GameState; onBankAction: (amount
 
         // 1. Calcular Ingresos por Edificios
         let moneyProdMult = 1.0;
-        if (gameState.researchedTechs.includes(TechType.EFFICIENT_WORKFLOWS)) moneyProdMult += 0.1;
 
         (Object.keys(gameState.buildings) as BuildingType[]).forEach((bType) => {
             const qty = gameState.buildings[bType].level;
