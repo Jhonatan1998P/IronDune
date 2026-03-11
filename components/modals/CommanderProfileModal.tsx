@@ -55,7 +55,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         return newCost;
     }, [entry.id, entry.score]);
     
-    const canAffordSpy = gameState.resources[ResourceType.GOLD] >= spyCost;
+    const canAffordSpy = (gameState?.resources?.[ResourceType.GOLD] ?? 0) >= spyCost;
 
     useEffect(() => {
         if (!pendingSpyId) return;
@@ -73,9 +73,9 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     isP2P: true,
                     createdAt: response.timestamp,
                     expiresAt: response.timestamp + SPY_EXPIRY_MS,
-                    units: response.units,
-                    resources: response.resources,
-                    buildings: response.buildings
+                    units: response.units || {},
+                    resources: response.resources || {},
+                    buildings: response.buildings || {}
                 };
 
                 const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
@@ -93,6 +93,11 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     }
                 };
                 const newLogs = addGameLog(gameState.logs || [], combatLog);
+                
+                gameEventBus.emit('SHOW_TOAST' as any, { 
+                    message: `Intel acquired from ${response.targetName}!`, 
+                    type: 'success' 
+                });
 
                 if (onUpdateState) {
                     onUpdateState({
@@ -118,27 +123,26 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     }, [pendingSpyId, gameState, onUpdateState]);
 
     const handleSpy = () => {
-        if (!canAffordSpy || isSpying) return;
+        if (!gameState || !canAffordSpy || isSpying) return;
 
         if (entry.isP2P) {
             setIsSpying(true);
             const spyId = `spy-${entry.id}-${now}`;
             setPendingSpyId(spyId);
             
+            const updatedResources = {
+                ...gameState.resources,
+                [ResourceType.GOLD]: (gameState.resources?.[ResourceType.GOLD] ?? 0) - spyCost
+            };
+
             if (onUpdateState) {
                 onUpdateState({
-                    resources: {
-                        ...gameState.resources,
-                        [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
-                    }
+                    resources: updatedResources
                 });
             } else if (typeof (window as any)._updateGameState === 'function') {
                 (window as any)._updateGameState({
                     ...gameState,
-                    resources: {
-                        ...gameState.resources,
-                        [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
-                    }
+                    resources: updatedResources
                 });
             }
 

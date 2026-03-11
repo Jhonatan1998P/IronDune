@@ -95,7 +95,14 @@ const useViewProps = (
             case 'campaign':
                 return { gameState, onExecuteBattle: actionsRef.current.executeCampaignBattle, onSpeedUp: actionsRef.current.speedUp };
             case 'rankings':
-                return { gameState, onAttack: actionsRef.current.build }; // Placeholder
+                return { gameState, onAttack: (target: any, newState: GameState) => {
+                    // Si viene un newState, lo aplicamos
+                    if (newState) {
+                        (window as any)._updateGameState?.(newState);
+                    }
+                }, onUpdateState: (newState: GameState) => {
+                    (window as any)._updateGameState?.(newState);
+                }};
             case 'war':
                 return { gameState, onSpy: actionsRef.current.spyOnAttacker, onSimulate: onSimulateRequest };
             case 'diplomacy':

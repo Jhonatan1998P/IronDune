@@ -426,6 +426,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         case 'P2P_SPY_RESPONSE':
           gameEventBus.emit('P2P_SPY_RESPONSE' as any, { ...action.payload, _senderPeerId: peerId });
           break;
+          break;
         case 'CHAT_MESSAGE':
           const chatPayload = action.payload as ChatMessagePayload;
           gameEventBus.emit('P2P_CHAT_MESSAGE' as any, { 

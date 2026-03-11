@@ -12,15 +12,16 @@ import { CommanderProfileModal } from '../modals/CommanderProfileModal';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { P2PAttackModal } from '../modals/P2PAttackModal';
 
-interface RankingsViewProps {
+ interface RankingsViewProps {
     gameState: GameState;
     onAttack?: (target: any, newState: GameState) => void;
+    onUpdateState?: (newState: GameState) => void;
 }
 
 const ITEMS_PER_PAGE_MOBILE = 10;
 const ITEMS_PER_PAGE_DESKTOP = 20;
 
-export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack }) => {
+export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack, onUpdateState }) => {
     const { t } = useLanguage();
     const [category, setCategory] = useState<RankingCategory>(RankingCategory.DOMINION);
     const [currentPage, setCurrentPage] = useState(1);
@@ -290,9 +291,10 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack 
                     onDeclareWar={handleDeclareWar}
                     onAttack={handlePrepareAttack}
                     onUpdateState={(updates) => {
-                        if (onAttack) {
-                            const newState = { ...gameState, ...updates };
-                            onAttack(profileEntry, newState);
+                        if (onUpdateState) {
+                            onUpdateState({ ...gameState, ...updates });
+                        } else if (onAttack) {
+                            onAttack(profileEntry, { ...gameState, ...updates });
                         }
                     }}
                 />

@@ -44,15 +44,11 @@ export const useGameLoop = (
   // Keep status ref updated
   useEffect(() => {
     statusRef.current = status;
-    console.log('[GameLoop] statusRef updated to:', status);
   }, [status]);
 
   // Optimización: Game loop con requestAnimationFrame y throttling
   useEffect(() => {
-    console.log('[GameLoop] useEffect triggered, status:', status);
-    
     if (status !== 'PLAYING') {
-      console.log('[GameLoop] Not PLAYING, canceling animation frame');
       // CRITICAL FIX: Cancel animation frame when not playing (save/exit)
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -66,14 +62,11 @@ export const useGameLoop = (
     lastFrameTime.current = performance.now();
     isLoopRunningRef.current = true;
     
-    console.log('[GameLoop] Starting game loop, target FPS:', targetFPS.current, 'frameInterval:', frameInterval.current);
-
     let overlap = 0;
 
     const gameLoop = (currentTime: number) => {
       // Check if we should still be running using ref (not closure value)
       if (statusRef.current !== 'PLAYING' || !isLoopRunningRef.current) {
-        console.log('[GameLoop] Stopping loop. Status:', statusRef.current, 'RunningRef:', isLoopRunningRef.current);
         isLoopRunningRef.current = false;
         return;
       }
@@ -87,11 +80,6 @@ export const useGameLoop = (
         const now = Date.now();
         const deltaTimeMs = now - lastTickRef.current + overlap;
         lastTickRef.current = now;
-
-        // Debug log cada segundo
-        if (deltaTimeMs >= 1000) {
-          console.log('[GameLoop] Tick processed, deltaTimeMs:', deltaTimeMs, 'overlap:', overlap);
-        }
 
         // Skip si el delta es muy pequeño (evitar micro-actualizaciones)
         if (deltaTimeMs >= TICK_RATE_MS) {
@@ -123,12 +111,10 @@ export const useGameLoop = (
 
     // Start the loop
     animationFrameRef.current = requestAnimationFrame(gameLoop);
-    console.log('[GameLoop] Animation frame scheduled, ID:', animationFrameRef.current);
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
-        console.log('[GameLoop] Cleanup: canceled animation frame');
         animationFrameRef.current = undefined;
       }
       isLoopRunningRef.current = false;

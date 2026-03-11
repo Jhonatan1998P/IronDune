@@ -665,6 +665,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         if (versionChanged) {
             // 3A. Migrate Primitives (only on version change)
             cleanState.playerName = safeString(saved.playerName, 'Commander', 2, 20);
+            cleanState.playerFlag = safeStringOrNull(saved.playerFlag) || undefined;
             cleanState.peerId = safeStringOrNull(saved.peerId);
             cleanState.hasChangedName = safeBoolean(saved.hasChangedName, false);
             cleanState.bankBalance = safeNumber(saved.bankBalance, 0, 0);
@@ -739,6 +740,7 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
         } else {
             // NO VERSION CHANGE: Keep existing data without modifications (except critical fixes)
             cleanState.playerName = saved.playerName || INITIAL_GAME_STATE.playerName;
+            cleanState.playerFlag = saved.playerFlag;
             cleanState.peerId = saved.peerId || null;
             cleanState.hasChangedName = saved.hasChangedName ?? false;
             cleanState.bankBalance = saved.bankBalance ?? 0;

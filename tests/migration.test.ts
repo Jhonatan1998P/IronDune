@@ -439,7 +439,7 @@ describe('Migrate War State', () => {
             },
             playerUnitLosses: 50,
             enemyUnitLosses: 75,
-            currentEnemyGarrison: { [UnitType.SOLDIER]: 100 }
+            currentEnemyGarrison: { [UnitType.CYBER_MARINE]: 100 }
         };
 
         const result = migrateWarState(savedWar);
@@ -712,6 +712,7 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
         const saved = {
             saveVersion: 5,
             playerName: 'TestCommander',
+            playerFlag: 'US',
             hasChangedName: true,
             resources: {
                 [ResourceType.MONEY]: 10000,
@@ -725,8 +726,8 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
                 [BuildingType.DIAMOND_MINE]: { level: 5, isDamaged: false }
             },
             units: {
-                [UnitType.SOLDIER]: 100,
-                [UnitType.TANK]: 20
+                [UnitType.CYBER_MARINE]: 100,
+                [UnitType.TITAN_MBT]: 20
             },
             bankBalance: 5000,
             empirePoints: 1500,
@@ -754,6 +755,7 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
         const result = sanitizeAndMigrateSave(saved);
 
         expect(result.playerName).toBe('TestCommander');
+        expect(result.playerFlag).toBe('US');
         expect(result.hasChangedName).toBe(true);
         expect(result.resources[ResourceType.MONEY]).toBe(10000);
         expect(result.buildings[BuildingType.HOUSE].level).toBe(10);
@@ -781,7 +783,9 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
 
     it('should ensure Diamond Mine minimum level 1', () => {
         const saved = {
-            saveVersion: 10,
+            saveVersion: SAVE_VERSION,
+            playerName: 'SameVersionPlayer',
+            playerFlag: 'ES',
             buildings: {
                 [BuildingType.DIAMOND_MINE]: { level: 0, isDamaged: false }
             }
@@ -789,6 +793,8 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
 
         const result = sanitizeAndMigrateSave(saved);
 
+        expect(result.playerName).toBe('SameVersionPlayer');
+        expect(result.playerFlag).toBe('ES');
         expect(result.buildings[BuildingType.DIAMOND_MINE].level).toBeGreaterThanOrEqual(1);
     });
 
@@ -859,7 +865,7 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
                     botPersonality: BotPersonality.ROGUE,
                     createdAt: Date.now(),
                     expiresAt: Date.now() + 600000,
-                    units: { [UnitType.SOLDIER]: 50 },
+                    units: { [UnitType.CYBER_MARINE]: 50 },
                     resources: { [ResourceType.MONEY]: 1000 },
                     buildings: { [BuildingType.HOUSE]: 5 }
                 }
@@ -882,7 +888,7 @@ describe('Sanitize And Migrate Save - Full Integration', () => {
                     startTime: Date.now(),
                     endTime: Date.now() + 300000,
                     duration: 5,
-                    units: { [UnitType.SOLDIER]: 10 }
+                    units: { [UnitType.CYBER_MARINE]: 10 }
                 }
             ]
         };
