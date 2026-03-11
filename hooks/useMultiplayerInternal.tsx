@@ -341,7 +341,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     });
 
     // Obtener lista inicial de peers (solo para conexiones iniciales, NO reconexiones)
-    const initialPeers = room.getPeers();
+    const initialPeersObj = room.getPeers();
+    const initialPeers = Object.keys(initialPeersObj);
     if (initialPeers.length > 0) {
       // Ya hay peers en la sala - registrarlos temporalmente
       initialPeers.forEach((peerId: string) => {
@@ -421,11 +422,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
           gameEventBus.emit('P2P_BATTLE_DEFENDER_TROOPS' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_SPY_REQUEST':
+          console.log(`[P2P-SPY] Red: Recibida solicitud de ${peerId}`, action.payload);
           gameEventBus.emit('P2P_SPY_REQUEST' as any, { ...action.payload, _senderPeerId: peerId });
           break;
         case 'P2P_SPY_RESPONSE':
+          console.log(`[P2P-SPY] Red: Recibida respuesta de ${peerId}`, action.payload);
           gameEventBus.emit('P2P_SPY_RESPONSE' as any, { ...action.payload, _senderPeerId: peerId });
-          break;
           break;
         case 'CHAT_MESSAGE':
           const chatPayload = action.payload as ChatMessagePayload;
@@ -487,17 +489,17 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // Este efecto se ejecuta CADA vez que isConnected cambia a true
   // Es CRÍTICO para sincronizar después de una reconexión
   useEffect(() => {
-    if (isConnected && localPlayerIdRef.current) {
-      // Pequeño delay para asegurar que sendActionRef esté listo
-      const timeout = setTimeout(() => {
-        const playerData = playersRef.current.get(localPlayerIdRef.current!);
-        // Si los datos son por defecto, forzamos un broadcast de todos modos
-        // useMultiplayerSync debería ejecutar syncPlayerWithData pronto
-        if (playerData && (playerData.name === 'Player' || playerData.level === 0)) {
-        }
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
+    if (!isConnected || !localPlayerIdRef.current) return;
+
+    // Pequeño delay para asegurar que sendActionRef esté listo
+    const timeout = setTimeout(() => {
+      const playerData = playersRef.current.get(localPlayerIdRef.current!);
+      // Si los datos son por defecto, forzamos un broadcast de todos modos
+      // useMultiplayerSync debería ejecutar syncPlayerWithData pronto
+      if (playerData && (playerData.name === 'Player' || playerData.level === 0)) {
+      }
+    }, 500);
+    return () => clearTimeout(timeout);
   }, [isConnected]);
 
   // FUNCIONES PÚBLICAS

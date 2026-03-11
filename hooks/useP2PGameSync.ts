@@ -158,73 +158,89 @@ export const useP2PGameSync = () => {
     // Handler: Responder a solicitud de espionaje P2P
     // Cuando otro jugador nos espía, respondemos con nuestros datos reales
     const handleSpyRequest = (payload: any) => {
-      const request = payload as P2PSpyRequest & { _senderPeerId?: string };
-      const gs = gameStateRef.current;
-      const myId = localPlayerIdRef.current;
+      try {
+        const request = payload as P2PSpyRequest & { _senderPeerId?: string };
+        const gs = gameStateRef.current;
+        const myId = localPlayerIdRef.current;
+        
+        console.log(`[P2P-SPY] Defensor: Procesando solicitud de espionaje de ${request.attackerName}`, request);
 
-      const senderPeerId: string | undefined = request._senderPeerId;
+        if (!gs || !request) {
+          console.warn('[P2P-SPY] Defensor: Estado no disponible o solicitud inválida');
+          return;
+        }
 
-      // Snapshot de unidades (solo las que tienen > 0)
-      const unitSnapshot: Partial<Record<UnitType, number>> = {};
-      for (const [k, v] of Object.entries(gs.units)) {
-        if (v > 0) unitSnapshot[k as UnitType] = v;
-      }
+        const senderPeerId: string | undefined = request._senderPeerId;
+        
+        // ... snapshots ...
+        const unitSnapshot: Partial<Record<UnitType, number>> = {};
+        if (gs.units) {
+          for (const [k, v] of Object.entries(gs.units)) {
+            if (v > 0) unitSnapshot[k as UnitType] = v;
+          }
+        }
+        const resourceSnapshot: Partial<Record<ResourceType, number>> = {};
+        if (gs.resources) {
+          for (const [k, v] of Object.entries(gs.resources)) {
+            if (v > 0) resourceSnapshot[k as ResourceType] = Math.floor(v);
+          }
+        }
+        const buildingSnapshot: Partial<Record<BuildingType, number>> = {};
+        if (gs.buildings) {
+          for (const [k, v] of Object.entries(gs.buildings)) {
+            if (v && v.level > 0) buildingSnapshot[k as BuildingType] = v.level;
+          }
+        }
 
-      // Snapshot de recursos
-      const resourceSnapshot: Partial<Record<ResourceType, number>> = {};
-      for (const [k, v] of Object.entries(gs.resources)) {
-        if (v > 0) resourceSnapshot[k as ResourceType] = Math.floor(v);
-      }
+        const reply: P2PSpyResponse = {
+          type: 'P2P_SPY_RESPONSE',
+          spyId: request.spyId,
+          targetId: myId || 'UNKNOWN',
+          targetName: gs.playerName || 'Unknown',
+          targetScore: gs.empirePoints || 0,
+          units: unitSnapshot,
+          resources: resourceSnapshot,
+          buildings: buildingSnapshot,
+          timestamp: Date.now(),
+        };
 
-      // Snapshot de edificios (convertir BuildingState.level a número simple)
-      const buildingSnapshot: Partial<Record<BuildingType, number>> = {};
-      for (const [k, v] of Object.entries(gs.buildings)) {
-        if (v && v.level > 0) buildingSnapshot[k as BuildingType] = v.level;
-      }
+        const replyTarget = senderPeerId || request.attackerId;
+        console.log(`[P2P-SPY] Defensor: Enviando respuesta a ${replyTarget}`, reply);
+        
+        sendToPeerRef.current(replyTarget, {
+          type: 'P2P_SPY_RESPONSE',
+          payload: reply,
+          playerId: myId || '',
+          timestamp: Date.now(),
+        });
 
-      const reply: P2PSpyResponse = {
-        type: 'P2P_SPY_RESPONSE',
-        spyId: request.spyId,
-        targetId: myId || 'UNKNOWN',
-        targetName: gs.playerName || 'Unknown',
-        targetScore: gs.empirePoints || 0,
-        units: unitSnapshot,
-        resources: resourceSnapshot,
-        buildings: buildingSnapshot,
-        timestamp: Date.now(),
-      };
+        // NOTIFICAR A LA VÍCTIMA (Nosotros)
+        const attackerName = request.attackerName || 'Unknown Commander';
+        
+        // Mostrar Toast con fallback de seguridad
+        const toastMsg = (t.common.actions as any)?.toast_p2p_spy_detected || 'You have been spied on by {attackerName}!';
+        gameEventBus.emit('SHOW_TOAST' as any, { 
+          message: toastMsg.replace('{attackerName}', attackerName), 
+          type: 'warning' 
+        });
 
-      const replyTarget = senderPeerId || request.attackerId;
-      sendToPeerRef.current(replyTarget, {
-        type: 'P2P_SPY_RESPONSE',
-        payload: reply,
-        playerId: myId || '',
-        timestamp: Date.now(),
-      });
+        // Añadir Log
+        const spyLog: LogEntry = {
+          id: `spy-det-${Date.now()}-${request.attackerId}`,
+          messageKey: 'log_p2p_spy_detected',
+          type: 'intel',
+          timestamp: Date.now(),
+          params: { attackerName }
+        };
 
-      // NOTIFICAR A LA VÍCTIMA (Nosotros)
-      const attackerName = request.attackerName || 'Unknown Commander';
-      
-      // Mostrar Toast
-      gameEventBus.emit('SHOW_TOAST' as any, { 
-        message: (t.common.actions as any).toast_p2p_spy_detected.replace('{attackerName}', attackerName), 
-        type: 'warning' 
-      });
-
-      // Añadir Log
-      const spyLog: LogEntry = {
-        id: `spy-det-${Date.now()}-${request.attackerId}`,
-        messageKey: 'log_p2p_spy_detected',
-        type: 'intel',
-        timestamp: Date.now(),
-        params: { attackerName }
-      };
-
-      if (typeof window !== 'undefined' && (window as any)._updateGameState) {
-          (window as any)._updateGameState({
-              ...gs,
-              logs: addGameLog(gs.logs || [], spyLog)
-          });
+        if (typeof window !== 'undefined' && (window as any)._updateGameState) {
+            (window as any)._updateGameState({
+                ...gs,
+                logs: addGameLog(gs.logs || [], spyLog)
+            });
+        }
+      } catch (error) {
+        console.error('[P2P-SPY] Defensor: Error manejando P2P_SPY_REQUEST:', error);
       }
     };
 

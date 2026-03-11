@@ -61,58 +61,71 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         if (!pendingSpyId) return;
         
         const handleSpyResponse = (payload: any) => {
-            const response = payload as P2PSpyResponse;
-            if (response.spyId === pendingSpyId) {
-                const SPY_EXPIRY_MS = 10 * 60 * 1000;
+            try {
+                const response = payload as P2PSpyResponse;
+                console.log(`[P2P-SPY] Atacante: Recibida respuesta para ${response.spyId}`, response);
                 
-                const newReport: SpyReport = {
-                    id: response.spyId,
-                    botId: response.targetId,
-                    botName: response.targetName,
-                    botScore: response.targetScore,
-                    isP2P: true,
-                    createdAt: response.timestamp,
-                    expiresAt: response.timestamp + SPY_EXPIRY_MS,
-                    units: response.units || {},
-                    resources: response.resources || {},
-                    buildings: response.buildings || {}
-                };
+                if (response.spyId === pendingSpyId) {
+                    console.log('[P2P-SPY] Atacante: Coincidencia de spyId, procesando informe...');
+                    const SPY_EXPIRY_MS = 10 * 60 * 1000;
+                    
+                    const newReport: SpyReport = {
+                        id: response.spyId,
+                        botId: response.targetId,
+                        botName: response.targetName || 'Unknown',
+                        botScore: response.targetScore || 0,
+                        isP2P: true,
+                        createdAt: response.timestamp || Date.now(),
+                        expiresAt: (response.timestamp || Date.now()) + SPY_EXPIRY_MS,
+                        units: response.units || {},
+                        resources: response.resources || {},
+                        buildings: response.buildings || {}
+                    };
 
-                const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
+                    const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
 
-                const combatLog: LogEntry = {
-                    id: `intel-${response.timestamp}-${response.targetId}`,
-                    messageKey: 'log_p2p_spy_success',
-                    type: 'intel',
-                    timestamp: response.timestamp,
-                    params: {
-                        targetName: response.targetName,
-                        units: newReport.units,
-                        score: response.targetScore,
-                        botId: response.targetId
+                    const combatLog: LogEntry = {
+                        id: `intel-${response.timestamp || Date.now()}-${response.targetId}`,
+                        messageKey: 'log_p2p_spy_success',
+                        type: 'intel',
+                        timestamp: response.timestamp || Date.now(),
+                        params: {
+                            targetName: response.targetName || 'Unknown',
+                            units: newReport.units,
+                            score: response.targetScore || 0,
+                            botId: response.targetId
+                        }
+                    };
+                    const newLogs = addGameLog(gameState.logs || [], combatLog);
+                    
+                    const toastMsg = (t.common.actions as any).toast_p2p_spy_success || 'Intelligence acquired from {targetName}!';
+                    gameEventBus.emit('SHOW_TOAST' as any, { 
+                        message: toastMsg.replace('{targetName}', response.targetName || 'Unknown'), 
+                        type: 'success' 
+                    });
+
+                    // IMPORTANTE: Asegurarnos de mantener los recursos actualizados (el oro ya se restó en handleSpy)
+                    const updates = {
+                        spyReports: newSpyReports,
+                        logs: newLogs,
+                        resources: gameState.resources // Mantener recursos actuales
+                    };
+
+                    if (onUpdateState) {
+                        onUpdateState(updates);
+                    } else if (typeof (window as any)._updateGameState === 'function') {
+                        (window as any)._updateGameState({
+                            ...gameState,
+                            ...updates
+                        });
                     }
-                };
-                const newLogs = addGameLog(gameState.logs || [], combatLog);
-                
-                gameEventBus.emit('SHOW_TOAST' as any, { 
-                    message: (t.common.actions as any).toast_p2p_spy_success.replace('{targetName}', response.targetName), 
-                    type: 'success' 
-                });
 
-                if (onUpdateState) {
-                    onUpdateState({
-                        spyReports: newSpyReports,
-                        logs: newLogs
-                    });
-                } else if (typeof (window as any)._updateGameState === 'function') {
-                    (window as any)._updateGameState({
-                        ...gameState,
-                        spyReports: newSpyReports,
-                        logs: newLogs
-                    });
+                    setShowSpyReport(true);
+                    setIsSpying(false);
+                    setPendingSpyId(null);
                 }
-
-                setShowSpyReport(true);
+            } catch (error) {
+                console.error('Error handling P2P_SPY_RESPONSE:', error);
                 setIsSpying(false);
                 setPendingSpyId(null);
             }
@@ -130,6 +143,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             const spyId = `spy-${entry.id}-${now}`;
             setPendingSpyId(spyId);
             
+            console.log(`[P2P-SPY] Atacante: Iniciando espionaje a ${entry.name} (${entry.id})`, { spyId });
+
             const updatedResources = {
                 ...gameState.resources,
                 [ResourceType.GOLD]: (gameState.resources?.[ResourceType.GOLD] ?? 0) - spyCost
@@ -155,6 +170,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                 timestamp: now,
             };
             
+            console.log(`[P2P-SPY] Atacante: Enviando solicitud a red`, request);
+
             sendToPeer(entry.id, {
                 type: 'P2P_SPY_REQUEST',
                 payload: request,
@@ -165,6 +182,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             setTimeout(() => {
                 setPendingSpyId((currentId) => {
                     if (currentId === spyId) {
+                        console.warn(`[P2P-SPY] Atacante: Tiempo de espera agotado para ${spyId}`);
                         setIsSpying(false);
                         return null;
                     }
