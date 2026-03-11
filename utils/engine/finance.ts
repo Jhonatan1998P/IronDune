@@ -1,7 +1,7 @@
 
 import { BuildingType, GameState, ResourceType } from '../../types';
 import { ActionResult } from './actions';
-import { calculateMaxBankCapacity } from './modifiers';
+import { calculateMaxBankCapacity } from '../../constants';
 
 export const executeBankTransaction = (state: GameState, amount: number, type: 'deposit' | 'withdraw'): ActionResult => {
     const bankLevel = state.buildings[BuildingType.BANK].level;

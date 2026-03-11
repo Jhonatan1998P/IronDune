@@ -20,7 +20,7 @@ import { UNIT_DEFS } from '../../data/units';
 import { useLanguage } from '../../context/LanguageContext';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
-import { calculateMaxBankCapacity } from '../../utils/engine/modifiers';
+import { calculateMaxBankCapacity, calculateHourlyInterest } from '../../constants';
 
 /**
  * Componente principal de la vista de finanzas
@@ -85,8 +85,7 @@ export const FinanceView: React.FC<{ gameState: GameState; onBankAction: (amount
         // 2. Calcular Interés Bancario (Ingreso Pasivo)
         if (gameState.bankBalance > 0 && hasBank) {
             // Tasa actual es por 24 horas. 
-            // Interés por hora = (Balance * Tasa) / 24
-            const hourlyInterest = (gameState.bankBalance * gameState.currentInterestRate) / 24;
+            const hourlyInterest = calculateHourlyInterest(gameState.bankBalance, gameState.currentInterestRate);
             if (hourlyInterest > 0) {
                 report.income.push({
                     source: `${t.common.ui.bank_yield} (${(gameState.currentInterestRate * 100).toFixed(2)}%)`,

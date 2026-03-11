@@ -48,10 +48,10 @@ import {
     REPUTATION_MAX,
     SCORE_TO_RESOURCE_VALUE,
     ENEMY_ATTACK_POWER_RATIO_MIN,
-    ENEMY_ATTACK_POWER_RATIO_LIMIT
+    ENEMY_ATTACK_POWER_RATIO_LIMIT,
+    calculateMaxBankCapacity
 } from '../../constants';
 import { generateBotArmy, calculateResourceCost } from './missions';
-import { calculateMaxBankCapacity } from './modifiers';
 import { simulateCombat } from './combat';
 import { BotPersonality } from '../../types/enums';
 import { recordReputationChange } from './reputationHistory';

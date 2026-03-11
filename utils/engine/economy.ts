@@ -1,11 +1,14 @@
 
 import { BuildingType, GameState, ResourceType } from '../../types';
-import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts, calculateMaxBankCapacity } from './modifiers';
+import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
 import { generateMarketState } from './market';
-
-const RATE_CHANGE_INTERVAL = 24 * 60 * 60 * 1000; // 24 Hours
-const MIN_INTEREST_RATE = 0.025; // 2.5%
-const MAX_INTEREST_RATE = 0.10; // 10%
+import { 
+    BANK_RATE_CHANGE_INTERVAL_MS, 
+    BANK_INTEREST_RATE_MIN, 
+    BANK_INTEREST_RATE_MAX,
+    calculateMaxBankCapacity,
+    calculateInterestEarned
+} from '../../constants';
 
 /**
  * Handles resource production, consumption, bank interest, and market refreshes.
@@ -58,17 +61,15 @@ export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: n
     const bankLevel = state.buildings[BuildingType.BANK].level;
 
     if (now >= state.nextRateChangeTime) {
-       // Interest rate changes every 24 hours: Random between 2.5% (0.025) and 10% (0.10)
-       newRate = Math.random() * (MAX_INTEREST_RATE - MIN_INTEREST_RATE) + MIN_INTEREST_RATE;
-       newNextRateChange = now + RATE_CHANGE_INTERVAL;
+       // Interest rate changes every 24 hours: Random between 10% (0.10) and 20% (0.20)
+       newRate = Math.random() * (BANK_INTEREST_RATE_MAX - BANK_INTEREST_RATE_MIN) + BANK_INTEREST_RATE_MIN;
+       newNextRateChange = now + BANK_RATE_CHANGE_INTERVAL_MS;
     }
 
     if (newBankBalance > 0 && bankLevel > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(state.empirePoints, bankLevel);
         if (newBankBalance < maxBankCapacity) {
-            // newRate is the daily interest rate (e.g. 0.045 for 4.5% per 24 hours)
-            const timeInDays = deltaTimeMs / (24 * 60 * 60 * 1000); // fraction of a day passed
-            const interestEarned = newBankBalance * newRate * timeInDays;
+            const interestEarned = calculateInterestEarned(newBankBalance, newRate, deltaTimeMs);
             newBankBalance = Math.min(maxBankCapacity, newBankBalance + interestEarned);
         }
     }

@@ -1,6 +1,6 @@
 
 import { GameState, ResourceType, BuildingType } from '../types';
-import { SAVE_VERSION } from '../constants';
+import { SAVE_VERSION, UNLIMITED_CAPACITY, BANK_INTEREST_RATE_MIN, BANK_RATE_CHANGE_INTERVAL_MS } from '../constants';
 import { INITIAL_BUILDINGS } from './buildings';
 import { INITIAL_UNITS } from './units';
 import { TUTORIAL_STEPS } from './tutorial';
@@ -15,10 +15,10 @@ export const INITIAL_RESOURCES: Record<ResourceType, number> = {
 };
 
 export const INITIAL_MAX_RESOURCES: Record<ResourceType, number> = {
-  [ResourceType.MONEY]: 1000000,
-  [ResourceType.AMMO]: 50000,
-  [ResourceType.OIL]: 10000,
-  [ResourceType.GOLD]: 1000,
+  [ResourceType.MONEY]: UNLIMITED_CAPACITY,
+  [ResourceType.AMMO]: UNLIMITED_CAPACITY,
+  [ResourceType.OIL]: UNLIMITED_CAPACITY,
+  [ResourceType.GOLD]: UNLIMITED_CAPACITY,
   [ResourceType.DIAMOND]: 10,
 };
 
@@ -43,8 +43,8 @@ export const INITIAL_GAME_STATE: GameState = {
   activeRecruitments: [],
   activeConstructions: [],
   bankBalance: 0,
-  currentInterestRate: 0.05,
-  nextRateChangeTime: Date.now() + (24 * 60 * 60 * 1000),
+  currentInterestRate: BANK_INTEREST_RATE_MIN,
+  nextRateChangeTime: Date.now() + BANK_RATE_CHANGE_INTERVAL_MS,
   lastInterestPayoutTime: Date.now(),
   empirePoints: 0,
   lastSaveTime: Date.now(),

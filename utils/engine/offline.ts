@@ -1,9 +1,11 @@
 import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry } from '../../types';
-import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts, calculateMaxBankCapacity } from './modifiers';
+import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
 import { 
     OFFLINE_PRODUCTION_LIMIT_MS,
     ATTACK_COOLDOWN_MIN_MS,
-    ATTACK_COOLDOWN_MAX_MS
+    ATTACK_COOLDOWN_MAX_MS,
+    calculateMaxBankCapacity,
+    calculateInterestEarned
 } from '../../constants';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
@@ -196,9 +198,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
         if (newState.bankBalance < maxBankCapacity) {
-            // currentInterestRate es el interés diario (24 horas)
-            const timeInDays = effectiveTimeMs / (24 * 60 * 60 * 1000); // fracción de un día que pasó offline
-            const interestEarned = newState.bankBalance * newState.currentInterestRate * timeInDays;
+            const interestEarned = calculateInterestEarned(newState.bankBalance, newState.currentInterestRate, effectiveTimeMs);
             
             const actualInterest = Math.min(maxBankCapacity - newState.bankBalance, interestEarned);
             

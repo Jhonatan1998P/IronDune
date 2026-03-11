@@ -2,8 +2,9 @@
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
 import { BuildingType, ResourceType, TechType, UnitType } from '../../types';
-import { INITIAL_MAX_RESOURCES } from '../../data/initialState';
-import { BANK_LEVEL_CAPACITIES } from '../../constants';
+import { UNLIMITED_CAPACITY, calculateMaxBankCapacity } from '../../constants';
+
+export { calculateMaxBankCapacity };
 
 export interface Multipliers {
     storageMult: number;
@@ -38,84 +39,27 @@ export const calculateTechMultipliers = (researchedTechs: TechType[], techLevels
     return { storageMult, moneyProdMult, oilProdMult, ammoProdMult, goldProdMult };
 };
 
-// Base Constants for Formula
-const FORMULA_BASE_CAP: Record<ResourceType, number> = {
-    [ResourceType.MONEY]: 1000000,
-    [ResourceType.AMMO]: 100000,
-    [ResourceType.OIL]: 50000,
-    [ResourceType.GOLD]: 25000,
-    [ResourceType.DIAMOND]: 50 // Base cap for diamonds
-};
-
-// Diamond Mine Production: 1 diamond per hour at level 1
-const DIAMOND_MINE_PRODUCTION_PER_LEVEL = 1; // 1 diamond/hour per level
-const DIAMOND_CAPACITY_MULTIPLIER = 10; // Capacity = 10x production
-
 // Calculates Wallet Storage (Resources)
 export const calculateMaxStorage = (
     buildings: Record<BuildingType, { level: number }>,
-    multipliers: Multipliers,
-    empirePoints: number
+    _multipliers: Multipliers,
+    _empirePoints: number
 ): Record<ResourceType, number> => {
 
-    const bankLevel = buildings[BuildingType.BANK].level;
     const diamondMineLevel = buildings[BuildingType.DIAMOND_MINE]?.level || 0;
 
-    // Diamond capacity is ALWAYS 10x the mine production (1 per level per hour)
-    // Level 1 = 10 capacity, Level 2 = 20 capacity, etc.
-    const diamondCapacity = diamondMineLevel * DIAMOND_MINE_PRODUCTION_PER_LEVEL * DIAMOND_CAPACITY_MULTIPLIER;
+    // Diamond capacity is strictly based on mine level: +10 per level
+    const diamondCapacity = diamondMineLevel * 10;
 
-    // SCENARIO A: NO BANK (Starter Pack)
-    if (bankLevel === 0) {
-        const maxResources = { ...INITIAL_MAX_RESOURCES };
-        Object.keys(maxResources).forEach(r => {
-            // No storage mult for diamond initial
-            if (r !== ResourceType.DIAMOND) {
-                maxResources[r as ResourceType] = Math.floor(maxResources[r as ResourceType] * multipliers.storageMult);
-            }
-        });
-        // Diamond capacity still based on mine level even without bank
-        maxResources[ResourceType.DIAMOND] = Math.max(INITIAL_MAX_RESOURCES.DIAMOND, diamondCapacity);
-        return maxResources;
-    }
-
-    // SCENARIO B: HAS BANK (Dynamic Formula for Wallet)
-    const maxResources = { ...INITIAL_MAX_RESOURCES };
-
-    const pointsRatio = Math.max(1, empirePoints / 100);
-    const bankMultiplier = 1 + (0.05 * bankLevel);
-
-    Object.values(ResourceType).forEach(res => {
-        const base = FORMULA_BASE_CAP[res];
-        let val = (pointsRatio * base) * bankMultiplier;
-
-        // Apply Tech Multiplier (After formula)
-        if (res !== ResourceType.DIAMOND) {
-            val *= multipliers.storageMult;
-        } else {
-            // SPECIAL CASE FOR DIAMONDS:
-            // Capacity = 10x Diamond Mine Production
-            // Level 1 Mine = 10 capacity, Level 2 = 20, Level 3 = 30, etc.
-            val = Math.max(INITIAL_MAX_RESOURCES.DIAMOND, diamondCapacity);
-        }
-
-        maxResources[res] = Math.floor(val);
-    });
+    const maxResources: Record<ResourceType, number> = {
+        [ResourceType.MONEY]: UNLIMITED_CAPACITY,
+        [ResourceType.OIL]: UNLIMITED_CAPACITY,
+        [ResourceType.AMMO]: UNLIMITED_CAPACITY,
+        [ResourceType.GOLD]: UNLIMITED_CAPACITY,
+        [ResourceType.DIAMOND]: Math.max(10, diamondCapacity)
+    };
 
     return maxResources;
-};
-
-// Calculates Bank Vault Capacity (Financial Deposits)
-export const calculateMaxBankCapacity = (empirePoints: number, bankLevel: number): number => {
-    if (bankLevel <= 0) return 0;
-    
-    // Fixed table lookup based on request
-    if (bankLevel < BANK_LEVEL_CAPACITIES.length) {
-        return BANK_LEVEL_CAPACITIES[bankLevel];
-    }
-    
-    // Fallback for levels beyond 15 (just repeat max or extrapolate if needed)
-    return BANK_LEVEL_CAPACITIES[BANK_LEVEL_CAPACITIES.length - 1];
 };
 
 export const calculateProductionRates = (buildings: Record<BuildingType, { level: number }>, multipliers: Multipliers): Record<ResourceType, number> => {

@@ -2,9 +2,8 @@
 import { BuildingType, BotPersonality } from "./types/enums";
 
 // --- CONFIGURATION CONSTANTS ---
-// Data definitions have been moved to the 'data/' directory to respect SRP.
-
 export const TICK_RATE_MS = 1000;
+export const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // NEWBIE PROTECTION
 export const NEWBIE_PROTECTION_THRESHOLD = 1200; // Points required to enable Threat and PvP
@@ -20,7 +19,7 @@ export const MAX_ATTACKS_PER_TARGET = 3; // Limit attacks per target per day (bo
 
 // P2P COMBAT RULES
 export const P2P_MAX_ATTACKS_PER_TARGET_PER_DAY = 6; // Max normal P2P attacks per target per day
-export const P2P_ATTACK_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours reset
+export const P2P_ATTACK_RESET_INTERVAL_MS = ONE_DAY_MS; // 24 hours reset
 export const P2P_ATTACK_COUNTS_STORAGE_KEY = 'ironDuneP2PAttackCounts'; // localStorage key
 
 // P2P Building plunder rates (by attack number: 1st=33%, 2nd=25%, 3rd-6th=15%)
@@ -55,6 +54,9 @@ export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wa
 // OFFLINE PROGRESSION LIMITS
 export const OFFLINE_PRODUCTION_LIMIT_MS = 6 * 60 * 60 * 1000; // 6 Hours Cap for Resources/Upkeep
 
+// UNLIMITED CAPACITY (Used for Money, Oil, Ammo, Gold)
+export const UNLIMITED_CAPACITY = 999_999_999_999_999;
+
 // RVE & BALANCING CONSTANTS (V1.2.2)
 export const SCORE_TO_RESOURCE_VALUE = 9000; // 1 Point = $9,000 Resource Value (Attack Budget Formula)
 export const BOT_BUDGET_RATIO = 1.0; // Bots invest 100% of Total Value into Army
@@ -75,6 +77,10 @@ export const TIER_THRESHOLDS = {
 };
 
 // BANK CONFIGURATION (Fixed Capacities)
+export const BANK_RATE_CHANGE_INTERVAL_MS = ONE_DAY_MS; // 24 Hours
+export const BANK_INTEREST_RATE_MIN = 0.10; // 10%
+export const BANK_INTEREST_RATE_MAX = 0.20; // 20%
+
 // Index 0 is unused (Level 0), Index 1 is Level 1, etc.
 export const BANK_LEVEL_CAPACITIES = [
     0, // Level 0
@@ -94,6 +100,25 @@ export const BANK_LEVEL_CAPACITIES = [
     20000000000, // Level 14: 20.00K Mill
     50000000000 // Level 15: 50.00K Mill (50 Bill)
 ];
+
+// BANK FORMULAS
+export const calculateMaxBankCapacity = (_empirePoints: number, bankLevel: number): number => {
+    if (bankLevel <= 0) return 0;
+    if (bankLevel < BANK_LEVEL_CAPACITIES.length) {
+        return BANK_LEVEL_CAPACITIES[bankLevel];
+    }
+    return BANK_LEVEL_CAPACITIES[BANK_LEVEL_CAPACITIES.length - 1];
+};
+
+export const calculateInterestEarned = (balance: number, rate: number, deltaTimeMs: number): number => {
+    if (balance <= 0 || rate <= 0) return 0;
+    const timeInDays = deltaTimeMs / ONE_DAY_MS;
+    return balance * rate * timeInDays;
+};
+
+export const calculateHourlyInterest = (balance: number, rate: number): number => {
+    return (balance * rate) / 24;
+};
 
 export const SAVE_VERSION = 6;
 
@@ -120,7 +145,7 @@ export const ALLY_REINFORCEMENT_MAX_RATIO = 1.5; // Maximum 150% of player's sco
 export const ENEMY_ATTACK_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes - check if enemies attack
 export const ENEMY_ATTACK_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours - min time between attacks from same bot
 export const ENEMY_ATTACK_MAX_PER_BOT = 3; // Max attacks per bot per 24h cycle
-export const ENEMY_ATTACK_RESET_MS = 24 * 60 * 60 * 1000; // 24 hours - reset attack counter
+export const ENEMY_ATTACK_RESET_MS = ONE_DAY_MS; // 24 hours - reset attack counter
 export const ENEMY_ATTACK_BASE_CHANCE = 0.20; // 20% base chance to attack at rep 30
 export const ENEMY_ATTACK_CHANCE_MULTIPLIER = 0.015; // +1.5% chance per rep point below 30
 export const ENEMY_ATTACK_POWER_RATIO_MIN = 0.5; // Bots can only attack if their power is >= 50% of player
@@ -137,7 +162,7 @@ export const ENEMY_ATTACK_CHANCE_ROGUE = 1.2; // 20% more likely (opportunistic)
 // RETALIATION SYSTEM (UPDATED)
 export const RETALIATION_TIME_MIN_MS = 15 * 60 * 1000; // 15 minutes minimum
 export const RETALIATION_TIME_MAX_MS = 45 * 60 * 1000; // 45 minutes maximum
-export const RETALIATION_GRUDGE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours to hold a grudge
+export const RETALIATION_GRUDGE_DURATION_MS = ONE_DAY_MS; // 24 hours to hold a grudge
 
 // Personality-based retaliation multipliers (affects army strength)
 export const RETALIATION_MULTIPLIER_WARLORD = 1.1; // 10% stronger
