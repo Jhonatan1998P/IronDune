@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
+import { useLanguage } from '../context/LanguageContext';
 import { gameEventBus } from '../utils/eventBus';
 import { MultiplayerActionType, GiftResourcePayload } from '../types/multiplayer';
 import { ResourceType } from '../types/enums';
+import { GameEventType } from '../types/events';
 import { calculateTechMultipliers, calculateProductionRates } from '../utils/engine/modifiers';
 
 // ============================================================================
@@ -56,13 +58,19 @@ const saveGiftLimits = (state: GiftLimitState) => {
 
 export const useP2PGiftResource = () => {
   const { gameState, receiveP2PResource, deductLocalResource } = useGame();
-  const { sendToPeer, localPlayerId, isConnected } = useMultiplayer();
+  const { sendToPeer, localPlayerId, isConnected, remotePlayers } = useMultiplayer();
+  const { t } = useLanguage();
 
   // Ref para acceder a las funciones más recientes en el listener del eventBus
   const receiveP2PResourceRef = useRef(receiveP2PResource);
   const deductLocalResourceRef = useRef(deductLocalResource);
+  const gameStateRef = useRef(gameState);
+  const remotePlayersRef = useRef(remotePlayers);
+  
   useEffect(() => { receiveP2PResourceRef.current = receiveP2PResource; }, [receiveP2PResource]);
   useEffect(() => { deductLocalResourceRef.current = deductLocalResource; }, [deductLocalResource]);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
 
   // Escuchar recursos recibidos de otros jugadores
   useEffect(() => {
@@ -73,17 +81,33 @@ export const useP2PGiftResource = () => {
 
       receiveP2PResourceRef.current(resourceType, payload.amount);
 
-      const resourceLabel: Record<GiftableResource, string> = { OIL: 'petróleo', GOLD: 'oro', AMMO: 'munición' };
-      const label = resourceLabel[payload.resource as GiftableResource] ?? payload.resource;
+      const label = t.common.resources[payload.resource] || payload.resource;
+      const formattedAmount = Math.floor(payload.amount).toLocaleString();
+
+      // Notificación Toast
       gameEventBus.emit('SHOW_TOAST' as any, {
-        message: `${payload.senderName} te envió ${Math.floor(payload.amount).toLocaleString()} ${label}`,
+        message: (t.common.actions as any).toast_p2p_gift_received
+          .replace('{senderName}', payload.senderName)
+          .replace('{amount}', formattedAmount)
+          .replace('{resource}', label),
         type: 'success',
+      });
+
+      // Añadir Log al historial
+      gameEventBus.emit(GameEventType.ADD_LOG, {
+        messageKey: 'log_p2p_gift_received',
+        type: 'info',
+        params: {
+          senderName: payload.senderName,
+          amount: formattedAmount,
+          resource: label
+        }
       });
     };
 
     gameEventBus.on('RECEIVE_P2P_RESOURCE' as any, handleReceive);
     return () => gameEventBus.off('RECEIVE_P2P_RESOURCE' as any, handleReceive);
-  }, []);
+  }, [t]);
 
   /**
    * Calcula la tasa de producción por segundo de un recurso dado el estado actual del jugador.
@@ -170,7 +194,7 @@ export const useP2PGiftResource = () => {
     const payload: GiftResourcePayload = {
       resource,
       amount,
-      senderName: gameState.playerName || 'Aliado',
+      senderName: gameStateRef.current.playerName || 'Aliado',
     };
     sendToPeer(targetPeerId, {
       type: MultiplayerActionType.GIFT_RESOURCE,
@@ -179,8 +203,32 @@ export const useP2PGiftResource = () => {
       timestamp: Date.now(),
     });
 
+    // Notificaciones locales para el emisor
+    const label = t.common.resources[resource] || resource;
+    const formattedAmount = Math.floor(amount).toLocaleString();
+    const targetPlayer = remotePlayersRef.current?.find((p: any) => p.id === targetPeerId);
+    const targetName = targetPlayer?.name || 'Comandante';
+
+    gameEventBus.emit('SHOW_TOAST' as any, {
+      message: (t.common.actions as any).toast_p2p_gift_sent
+        .replace('{targetName}', targetName)
+        .replace('{amount}', formattedAmount)
+        .replace('{resource}', label),
+      type: 'success',
+    });
+
+    gameEventBus.emit(GameEventType.ADD_LOG, {
+      messageKey: 'log_p2p_gift_sent',
+      type: 'info',
+      params: {
+        targetName,
+        amount: formattedAmount,
+        resource: label
+      }
+    });
+
     return { success: true };
-  }, [isConnected, localPlayerId, gameState.resources, gameState.playerName, getRemainingLimit, sendToPeer]);
+  }, [isConnected, localPlayerId, getRemainingLimit, sendToPeer, t]);
 
   return {
     sendResource,

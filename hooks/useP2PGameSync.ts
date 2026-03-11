@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
+import { useLanguage } from '../context/LanguageContext';
 import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
-import { IncomingAttack } from '../types/state';
+import { IncomingAttack, LogEntry } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
+import { addGameLog } from '../utils';
 import type { UnitType, BuildingType, ResourceType } from '../types/enums';
 
 // ============================================================================
@@ -51,6 +53,7 @@ const verifyBattleResult = (
 export const useP2PGameSync = () => {
   const { addP2PIncomingAttack, applyP2PBattleResult, gameState } = useGame();
   const { sendToPeer, localPlayerId } = useMultiplayer();
+  const { t } = useLanguage();
 
   // Refs para evitar closures stale en los listeners del eventBus
   const gameStateRef = useRef(gameState);
@@ -198,6 +201,31 @@ export const useP2PGameSync = () => {
         playerId: myId || '',
         timestamp: Date.now(),
       });
+
+      // NOTIFICAR A LA VÍCTIMA (Nosotros)
+      const attackerName = request.attackerName || 'Unknown Commander';
+      
+      // Mostrar Toast
+      gameEventBus.emit('SHOW_TOAST' as any, { 
+        message: (t.common.actions as any).toast_p2p_spy_detected.replace('{attackerName}', attackerName), 
+        type: 'warning' 
+      });
+
+      // Añadir Log
+      const spyLog: LogEntry = {
+        id: `spy-det-${Date.now()}-${request.attackerId}`,
+        messageKey: 'log_p2p_spy_detected',
+        type: 'intel',
+        timestamp: Date.now(),
+        params: { attackerName }
+      };
+
+      if (typeof window !== 'undefined' && (window as any)._updateGameState) {
+          (window as any)._updateGameState({
+              ...gs,
+              logs: addGameLog(gs.logs || [], spyLog)
+          });
+      }
     };
 
     const handleChatMessage = (payload: any) => {

@@ -6,7 +6,7 @@ import { useP2PGiftResource } from '../../hooks/useP2PGiftResource';
 import { GameState } from '../../types';
 import { GlassButton, Icons } from '../UIComponents';
 import { MultiplayerMenu } from '../UI/MultiplayerMenu';
-import { Send, Users, MessageSquare, Shield, Gift, Droplets, Coins, Crosshair, AtSign } from 'lucide-react';
+import { Send, Users, MessageSquare, Shield, AtSign } from 'lucide-react';
 
 interface MultiplayerChatViewProps {
     gameState: GameState;
@@ -15,9 +15,9 @@ interface MultiplayerChatViewProps {
 type GiftableResource = 'OIL' | 'GOLD' | 'AMMO';
 
 const RESOURCE_META: Record<GiftableResource, { label: string; color: string; bg: string; border: string; Icon: React.FC<{ className?: string }> }> = {
-    OIL:  { label: 'Petróleo', color: 'text-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30',  Icon: ({ className }) => <Droplets className={className} /> },
-    GOLD: { label: 'Oro',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   Icon: ({ className }) => <Coins className={className} /> },
-    AMMO: { label: 'Munición', color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',     Icon: ({ className }) => <Crosshair className={className} /> },
+    OIL:  { label: 'Petróleo', color: 'text-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30',  Icon: ({ className }) => <Icons.Resources.Oil className={className} /> },
+    GOLD: { label: 'Oro',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   Icon: ({ className }) => <Icons.Resources.Gold className={className} /> },
+    AMMO: { label: 'Munición', color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',     Icon: ({ className }) => <Icons.Resources.Ammo className={className} /> },
 };
 
 const fmt = (n: number) => Math.floor(n).toLocaleString();
@@ -177,10 +177,10 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
         }
         const result = sendResource(resource, amount, giftTarget);
         if (result.success) {
-            setSendSuccess(`Enviaste ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name}`);
+            setSendSuccess(`Envío exitoso de ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name}`);
             
-            // Opcional: Anunciar en el chat
-            sendMessage(`🎁 He enviado ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name}`, gameState.playerName);
+            // Opcional: Anunciar en el chat sin emojis
+            sendMessage(`[SISTEMA] Envío de ${fmt(amount)} ${RESOURCE_META[resource].label.toLowerCase()} a ${targetPlayer.name} completado.`, gameState.playerName);
         } else {
             setSendError(result.reason ?? 'Error al enviar');
         }
@@ -248,7 +248,7 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
                         className={`p-1.5 rounded-lg border transition-colors ${showGiftPanel ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'hover:bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}
                         title="Enviar recursos"
                     >
-                        <Gift className="w-3.5 h-3.5" />
+                        <Icons.Gift className="w-3.5 h-3.5" />
                     </button>
                     <button 
                         onClick={() => setShowMenu(true)}
@@ -264,7 +264,7 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
                 <div className="shrink-0 bg-slate-950/60 border border-white/10 rounded-xl p-2.5 animate-[fadeIn_0.2s_ease-out]">
                     <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-1">
-                            <Gift className="w-3 h-3" /> Enviar Recursos
+                            <Icons.Gift className="w-3 h-3" /> Enviar Recursos
                         </span>
                         
                         {/* Selector de objetivo */}

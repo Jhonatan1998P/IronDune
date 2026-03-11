@@ -82,7 +82,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
                 const combatLog: LogEntry = {
                     id: `intel-${response.timestamp}-${response.targetId}`,
-                    messageKey: 'log_intel_acquired',
+                    messageKey: 'log_p2p_spy_success',
                     type: 'intel',
                     timestamp: response.timestamp,
                     params: {
@@ -95,7 +95,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                 const newLogs = addGameLog(gameState.logs || [], combatLog);
                 
                 gameEventBus.emit('SHOW_TOAST' as any, { 
-                    message: `Intel acquired from ${response.targetName}!`, 
+                    message: (t.common.actions as any).toast_p2p_spy_success.replace('{targetName}', response.targetName), 
                     type: 'success' 
                 });
 

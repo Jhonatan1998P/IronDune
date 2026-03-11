@@ -476,6 +476,10 @@ export interface TranslationDictionary {
       spy_estimated_resources: string;
       spy_buildings: string;
       spy_time_remaining: string;
+      toast_p2p_spy_success: string;
+      toast_p2p_spy_detected: string;
+      toast_p2p_gift_sent: string;
+      toast_p2p_gift_received: string;
       gift_codes: string;
       gift_code_placeholder: string;
       gift_code_redeem: string;
@@ -570,6 +574,10 @@ export interface TranslationDictionary {
       enemy_suffix: string;
       log_desertion: string;
       log_intel_acquired: string;
+      log_p2p_spy_success: string;
+      log_p2p_spy_detected: string;
+      log_p2p_gift_sent: string;
+      log_p2p_gift_received: string;
       intel_target: string;
       intel_strength: string;
       intel_composition: string;
