@@ -1,12 +1,55 @@
 
 import { UNIT_DEFS } from '../../../data/units';
-import { NEWBIE_PROTECTION_THRESHOLD, PVP_RANGE_MAX, PVP_RANGE_MIN, GLOBAL_ATTACK_TRAVEL_TIME_MS, MAP_MISSION_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../../../constants';
+import { 
+    NEWBIE_PROTECTION_THRESHOLD, 
+    PVP_RANGE_MAX, 
+    PVP_RANGE_MIN, 
+    GLOBAL_ATTACK_TRAVEL_TIME_MS, 
+    MAP_MISSION_TRAVEL_TIME_MS, 
+    MAX_ATTACKS_PER_TARGET,
+    SALVAGE_TRAVEL_TIME_MS 
+} from '../../../constants';
 import { GameState, LogEntry, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
 import { startWar } from '../war';
 import { calculateRecruitmentCost, calculateRecruitmentTime } from '../../formulas';
 import { ActionResult } from './types';
 
-// --- RECRUITMENT ---
+// --- SALVAGE ---
+export const executeSalvageMission = (state: GameState, lootId: string, drones: number): ActionResult => {
+    if (drones <= 0) return { success: false, errorKey: 'insufficient_units' };
+    
+    if ((state.units[UnitType.SALVAGER_DRONE] || 0) < drones) {
+        return { success: false, errorKey: 'insufficient_units' };
+    }
+
+    const lootField = state.logisticLootFields?.find(f => f.id === lootId);
+    if (!lootField) return { success: false, errorKey: 'invalid_mission' };
+
+    const missionId = `salvage-${Date.now()}`;
+    const now = Date.now();
+    const endTime = now + SALVAGE_TRAVEL_TIME_MS;
+
+    const newUnits = { ...state.units };
+    newUnits[UnitType.SALVAGER_DRONE] -= drones;
+
+    const newState: GameState = {
+        ...state,
+        units: newUnits,
+        activeMissions: [
+            ...state.activeMissions,
+            {
+                id: missionId,
+                type: 'SALVAGE',
+                startTime: now,
+                endTime,
+                duration: Math.floor(SALVAGE_TRAVEL_TIME_MS / 60000),
+                units: { [UnitType.SALVAGER_DRONE]: drones },
+                logisticLootId: lootId
+            }
+        ]
+    };
+    return { success: true, newState };
+};
 export const executeRecruit = (state: GameState, type: UnitType, amount: number): ActionResult => {
     if (amount <= 0) return { success: false };
     if (state.activeRecruitments.length >= 3) return { success: false, errorKey: 'queue_full' };

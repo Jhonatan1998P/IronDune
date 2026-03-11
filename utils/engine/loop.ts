@@ -4,9 +4,11 @@ import { processEconomyTick } from './economy';
 import { processSystemTick, recalculateProgression } from './systems';
 import { processWarTick } from './war';
 import { processNemesisTick } from './nemesis';
-import { processEnemyAttackCheck, initializeEnemyAttackState } from './enemyAttack';
+import { processEnemyAttackCheck } from './enemyAttack';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
+import { processLogisticLootTick } from './logisticLoot';
+import { processBotSalvageCheck } from './botSalvage';
 
 export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): { newState: GameState, newLogs: LogEntry[] } => {
     const now = Date.now();
@@ -26,6 +28,34 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     const { stateUpdates: warUpdates, logs: warLogs } = processWarTick(state, now);
     state = { ...state, ...warUpdates };
     currentLogs = [...currentLogs, ...warLogs];
+
+    // 3c. Bot Salvage Pass (Bots competing for loot)
+    const { stateUpdates: botSalvageUpdates, logs: botSalvageLogs } = processBotSalvageCheck(state, now);
+    state = { ...state, ...botSalvageUpdates };
+    currentLogs = [...currentLogs, ...botSalvageLogs];
+
+    // 3d. Logistic Loot Pass (Expiration, Cleanup and Auto-salvage)
+    // Se ejecuta después de todas las batallas y robos de bots
+    if (state.logisticLootFields && state.logisticLootFields.length > 0) {
+        const lootResult = processLogisticLootTick(state.logisticLootFields, now);
+        state.logisticLootFields = lootResult.active;
+        if (lootResult.autoSalvageValue > 0) {
+            state.bankBalance += lootResult.autoSalvageValue;
+            currentLogs.push({
+                id: `loot-expire-${now}`,
+                messageKey: 'log_debris_expired', 
+                type: 'economy',
+                timestamp: now,
+                params: { count: lootResult.expired.length, autoSalvageValue: lootResult.autoSalvageValue }
+            });
+        }
+        
+        lootResult.expired.forEach(expiredLoot => {
+            if (state.lifetimeLogisticStats) {
+                state.lifetimeLogisticStats.totalExpired += expiredLoot.totalValue;
+            }
+        });
+    }
 
     // 4. Nemesis System (Grudges & Retaliation)
     const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);

@@ -1,8 +1,8 @@
 
-import { BuildingType, GameState, LogEntry, UnitType, WarState, ActiveMission, IncomingAttack } from '../../types';
+import { BuildingType, GameState, LogEntry, UnitType, WarState, ActiveMission, IncomingAttack, ResourceType } from '../../types';
 import { resolveMission } from './missions';
+import { resolveSalvageMission } from './salvage';
 import { recordReputationChange } from './reputationHistory';
-import { ReputationChangeType } from './reputation';
 import { 
     getQueuedIncomingAttacks, 
     processIncomingAttackInQueue
@@ -90,6 +90,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
 
     let updatedMissions = [...state.activeMissions];
     let updatedIncomingAttacks = [...state.incomingAttacks];
+    let updatedLootFields = [...(state.logisticLootFields || [])];
 
     for (const item of attackQueue) {
         if (item.type === 'OUTGOING' && item.mission) {
@@ -97,6 +98,49 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             
             // Skip P2P missions - handled by useP2PBattleResolver
             if (mission.isP2P) {
+                continue;
+            }
+
+            if (mission.type === 'SALVAGE') {
+                const lootFieldId = mission.logisticLootId;
+                const lootField = updatedLootFields.find(f => f.id === lootFieldId);
+                const result = resolveSalvageMission(mission, lootField);
+                
+                if (result.success && result.remainingLoot) {
+                    Object.entries(result.resources).forEach(([rType, amt]) => {
+                        const res = rType as ResourceType;
+                        newResources[res] = Math.min(state.maxResources[res], (newResources[res] || 0) + (amt as number));
+                    });
+                    
+                    const fieldIdx = updatedLootFields.findIndex(f => f.id === lootFieldId);
+                    if (fieldIdx !== -1) {
+                        if (result.remainingLoot.totalValue > 0) {
+                            updatedLootFields[fieldIdx] = result.remainingLoot;
+                        } else {
+                            updatedLootFields.splice(fieldIdx, 1);
+                        }
+                    }
+                    
+                    logs.push({
+                        id: `salvage-success-${item.endTime}-${mission.id}`,
+                        messageKey: 'log_salvage_success',
+                        type: 'info',
+                        timestamp: item.endTime,
+                        params: { loot: result.resources, drones: result.dronesReturned }
+                    });
+                } else {
+                    logs.push({
+                        id: `salvage-fail-${item.endTime}-${mission.id}`,
+                        messageKey: 'log_salvage_failed',
+                        type: 'info',
+                        timestamp: item.endTime,
+                        params: { reason: result.reason }
+                    });
+                }
+                
+                // Devolver drones
+                newUnits[UnitType.SALVAGER_DRONE] = (newUnits[UnitType.SALVAGER_DRONE] || 0) + result.dronesReturned;
+                updatedMissions = updatedMissions.filter(m => m.id !== mission.id);
                 continue;
             }
 
@@ -116,6 +160,10 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             );
             
             Object.assign(newResources, outcome.resources);
+
+            if (outcome.generatedLogisticLoot) {
+                updatedLootFields.push(outcome.generatedLogisticLoot);
+            }
 
             Object.entries(outcome.unitsToAdd).forEach(([uType, qty]) => {
                 newUnits[uType as UnitType] = (newUnits[uType as UnitType] || 0) + (qty as number);
@@ -261,6 +309,10 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
 
             newLifetimeStats.unitsLost += Object.values(result.unitsLost || {}).reduce((a: any, b: any) => a + b, 0) as number;
 
+            if (result.generatedLogisticLoot) {
+                updatedLootFields.push(result.generatedLogisticLoot);
+            }
+
             logs.push(...attackLogs.map(log => ({ ...log, timestamp: item.endTime })));
 
             updatedIncomingAttacks = updatedIncomingAttacks.filter(a => a.id !== attack.id);
@@ -283,6 +335,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             lastCampaignMissionFinishedTime: newLastCampaignTime,
             lifetimeStats: newLifetimeStats,
             grudges: updatedGrudges,
+            logisticLootFields: updatedLootFields,
             rankingData: {
                 bots: updatedRankingBots,
                 lastUpdateTime: state.rankingData.lastUpdateTime

@@ -1,4 +1,4 @@
-import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry } from '../../types';
+import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry, TechType, UnitType, LogisticLootField } from '../../types';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
 import { 
     OFFLINE_PRODUCTION_LIMIT_MS,
@@ -12,6 +12,7 @@ import { processReputationDecay } from './diplomacy';
 import { processNemesisTick } from './nemesis';
 import { processEnemyAttackCheck } from './enemyAttack';
 import { processAttackQueue } from './attackQueue';
+import { processLogisticLootTick } from './logisticLoot';
 
 // Overflow factor for inflation detection (must match migration.ts)
 const OVERFLOW_FACTOR = 10;
@@ -304,6 +305,21 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     newState = queueState;
     report.queuedAttackResults = queuedResults;
     newLogs.push(...queueLogs);
+
+    // Final Cleanup of Logistic Loot (expired or emptied during offline battles)
+    if (newState.logisticLootFields && newState.logisticLootFields.length > 0) {
+        const lootResult = processLogisticLootTick(newState.logisticLootFields, now);
+        newState.logisticLootFields = lootResult.active;
+        if (lootResult.autoSalvageValue > 0) {
+            newState.bankBalance += lootResult.autoSalvageValue;
+            report.bankInterestEarned += lootResult.autoSalvageValue;
+        }
+        lootResult.expired.forEach((expiredLoot: LogisticLootField) => {
+            if (newState.lifetimeLogisticStats) {
+                newState.lifetimeLogisticStats.totalExpired += expiredLoot.totalValue;
+            }
+        });
+    }
 
     for (const result of queuedResults) {
         if (result.type === 'OUTGOING' && result.result.logKey) {

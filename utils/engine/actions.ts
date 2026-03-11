@@ -10,6 +10,7 @@ export {
     executeCampaignAttack, 
     executePvpAttack, 
     executeDeclareWar, 
+    executeSalvageMission,
     executeEspionage as executeWarEspionage, // Alias for backward compat
     executeEspionage // Export new name
 } from './actions/militaryActions';

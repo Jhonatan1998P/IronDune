@@ -352,6 +352,10 @@ export const ui = {
         log_attack_reset: "REINICIO DE ATAQUES: Los contadores de ataques enemigos han sido reiniciados.",
         log_ally_reinforcement: "REFUERZOS ALIADOS: ¡{allyName} está enviando ayuda!",
         log_new_ally: "NUEVO ALIADO: ¡Has ganado un nuevo aliado!",
+        log_salvage_success: "SALVAMENTO COMPLETADO: {drones} drones regresaron con botín.",
+        log_salvage_failed: "SALVAMENTO FALLIDO: La operación fue cancelada ({reason}).",
+        log_bot_salvage: "AVISO: {botName} ha recolectado suministros del {fieldName}.",
+        log_debris_expired: "LOGÍSTICA: {count} botines expirados. Autoliquidación: ${autoSalvageValue} ingresados.",
         
         // P2P Battle Messages
         combat_p2p_victory: "VICTORIA P2P: ¡Derrotaste a {defender}!",
@@ -372,6 +376,7 @@ export const ui = {
         nav_army: "Ejército",
         nav_map: "Mapa",
         nav_intel: "Intel",
+        nav_salvage: "Salvamento",
         app_title: "IRON DUNE",
         app_subtitle: "Enlace de Comando Activo",
         sys_monitor: "Monitor del Sistema",

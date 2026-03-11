@@ -192,6 +192,7 @@ export interface TranslationDictionary {
       nav_simulator: string; 
       nav_campaign: string;
       nav_market: string; 
+      nav_salvage: string;
       bank_balance: string; 
       income: string; 
       expenses: string; 
@@ -320,6 +321,10 @@ export interface TranslationDictionary {
       log_attack_reset: string;
       log_ally_reinforcement: string;
       log_new_ally: string;
+      log_salvage_success: string;
+      log_salvage_failed: string;
+      log_bot_salvage: string;
+      log_debris_expired: string;
       loot_estimated: string;
       loot_reroll: string;
       system_status: string;

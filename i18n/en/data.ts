@@ -23,7 +23,8 @@ export const data = {
       wraith_gunship: { name: "Wraith Gunship", stats: "Tank Killer. Dies to Fighters." },
       ace_fighter: { name: "Ace Fighter", stats: "Air Superiority." },
       aegis_destroyer: { name: "Aegis Destroyer", stats: "Hunter of Subs & Aircraft." },
-      phantom_sub: { name: "Phantom Sub", stats: "Ship Killer. Vulnerable to Destroyers." }
+      phantom_sub: { name: "Phantom Sub", stats: "Ship Killer. Vulnerable to Destroyers." },
+      salvager_drone: { name: "Salvager Drone", stats: "Logistics Unit. Collects Logistic Loot." }
     },
     techs: {
       efficient_workflows: { name: "Economic Optimization", description: "Advanced algorithms for capital management. +5% Money per level." },
@@ -60,5 +61,6 @@ export const data = {
       unlock_ace_fighter: { name: "Deploy: Ace Fighter", description: "Authorizes the assembly of air superiority fighters." },
       unlock_aegis_destroyer: { name: "Deploy: Aegis Destroyer", description: "Authorizes the construction of naval destroyers." },
       unlock_phantom_sub: { name: "Deploy: Phantom Sub", description: "Authorizes the construction of stealth submarines." },
+      unlock_salvager_drone: { name: "Salvage Logistics", description: "Enables the use of drones to collect Logistic Loot after battles." },
     }
 };

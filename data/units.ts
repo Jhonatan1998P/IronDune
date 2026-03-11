@@ -175,6 +175,26 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     },
     score: 1200,
   },
+
+  // ========================================================================
+  // TIER 0: LOGISTICS
+  // ========================================================================
+
+  [UnitType.SALVAGER_DRONE]: {
+    id: UnitType.SALVAGER_DRONE,
+    category: UnitCategory.GROUND,
+    translationKey: 'salvager_drone',
+    reqTech: TechType.UNLOCK_SALVAGER_DRONE,
+    hp: 500,
+    attack: 1,
+    defense: 100,
+    threshold: 0.0,
+    recruitTime: 90000,
+    cost: { money: 100000, oil: 500, ammo: 0 },
+    upkeep: { [ResourceType.MONEY]: rate(100), [ResourceType.OIL]: rate(15) },
+    rapidFire: {},
+    score: 10,
+  },
 };
 
 export const INITIAL_UNITS: Record<UnitType, number> = Object.values(UnitType).reduce((acc, type) => {

@@ -23,6 +23,7 @@ const UNIT_TIER_MAP: Record<UnitType, number> = {
     [UnitType.ACE_FIGHTER]: 4,
     [UnitType.AEGIS_DESTROYER]: 4,
     [UnitType.PHANTOM_SUB]: 5,
+    [UnitType.SALVAGER_DRONE]: 1,
 };
 
 /**
@@ -74,6 +75,7 @@ export const UNIT_PRIORITY: UnitType[] = [
     UnitType.ACE_FIGHTER,
     UnitType.AEGIS_DESTROYER,
     UnitType.PHANTOM_SUB,
+    UnitType.SALVAGER_DRONE,
 ];
 
 interface BattleEntity {

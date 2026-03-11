@@ -8,6 +8,7 @@ import {
     executeRecruit, 
     executeResearch, 
     executeStartMission, 
+    executeSalvageMission,
     executeCampaignAttack, 
     executeSpeedUp, 
     executeEspionage,
@@ -100,12 +101,21 @@ export const useGameActions = (
   }, [addLog, setGameState]);
 
   const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
-      setGameState(prev => {
-          const result = executeStartMission(prev, units, duration);
-          if (result.success && result.newState) return result.newState;
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
+    setGameState(prev => {
+        const result = executeStartMission(prev, units, duration);
+        if (result.success && result.newState) return result.newState;
+        if (result.errorKey) addLog(result.errorKey, 'info');
+        return prev;
+    });
+  }, [addLog, setGameState]);
+
+  const startSalvageMission = useCallback((lootId: string, drones: number) => {
+    setGameState(prev => {
+        const result = executeSalvageMission(prev, lootId, drones);
+        if (result.success && result.newState) return result.newState;
+        if (result.errorKey) addLog(result.errorKey, 'info');
+        return prev;
+    });
   }, [addLog, setGameState]);
 
   const executeCampaignBattle = useCallback((levelId: number, playerUnits: Partial<Record<UnitType, number>>) => {
@@ -730,7 +740,7 @@ export const useGameActions = (
     applyP2PBattleResult,
     receiveP2PResource,
     deductLocalResource,
-    build, recruit, research, handleBankTransaction, speedUp, startMission, 
+    build, recruit, research, handleBankTransaction, speedUp, startMission, startSalvageMission,
     executeCampaignBattle, executeTrade, executeDiamondExchange,
     acceptTutorialStep, claimTutorialReward, toggleTutorialMinimize, spyOnAttacker, repair,
     changePlayerName,

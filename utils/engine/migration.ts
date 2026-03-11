@@ -562,7 +562,9 @@ const migrateWarState = (savedWar: any, silent: boolean = false): WarState | nul
         playerVictories: safeNumber(savedWar.playerVictories, 0, 0, 20),
         enemyVictories: safeNumber(savedWar.enemyVictories, 0, 0, 20),
         playerAttacksLeft: playerAttacksLeft !== WAR_PLAYER_ATTACKS ? playerAttacksLeft : WAR_PLAYER_ATTACKS,
-        lootPool: sanitizeWarResources(savedWar.lootPool),
+        warLogisticLootIds: Array.isArray(savedWar.warLogisticLootIds) ? savedWar.warLogisticLootIds : [],
+        totalLogisticLootGenerated: sanitizeWarResources(savedWar.totalLogisticLootGenerated || savedWar.lootPool),
+        logisticLootHarvestedDuringWar: sanitizeWarResources(savedWar.logisticLootHarvestedDuringWar),
         playerResourceLosses: sanitizeWarResources(savedWar.playerResourceLosses),
         enemyResourceLosses: sanitizeWarResources(savedWar.enemyResourceLosses),
         playerUnitLosses: safeNumber(savedWar.playerUnitLosses, 0, 0),
@@ -737,6 +739,13 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             // 3K. Gift Codes (only on version change)
             cleanState.redeemedGiftCodes = isValidArray(saved.redeemedGiftCodes) ? saved.redeemedGiftCodes : [];
             cleanState.giftCodeCooldowns = isValidObject(saved.giftCodeCooldowns) ? saved.giftCodeCooldowns : {};
+
+            // 3L. Logistic Loot System (v7) (only on version change)
+            cleanState.logisticLootFields = isValidArray(saved.logisticLootFields) ? saved.logisticLootFields : [];
+            cleanState.visibleLogisticLootFields = isValidArray(saved.visibleLogisticLootFields) ? saved.visibleLogisticLootFields : [];
+            cleanState.lifetimeLogisticStats = isValidObject(saved.lifetimeLogisticStats) 
+                ? saved.lifetimeLogisticStats 
+                : INITIAL_GAME_STATE.lifetimeLogisticStats;
         } else {
             // NO VERSION CHANGE: Keep existing data without modifications (except critical fixes)
             cleanState.playerName = saved.playerName || INITIAL_GAME_STATE.playerName;
@@ -810,6 +819,11 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
 
             cleanState.redeemedGiftCodes = saved.redeemedGiftCodes ?? [];
             cleanState.giftCodeCooldowns = saved.giftCodeCooldowns ?? {};
+
+            // Logistic Loot System (v7)
+            cleanState.logisticLootFields = saved.logisticLootFields ?? [];
+            cleanState.visibleLogisticLootFields = saved.visibleLogisticLootFields ?? [];
+            cleanState.lifetimeLogisticStats = saved.lifetimeLogisticStats ?? INITIAL_GAME_STATE.lifetimeLogisticStats;
         }
 
         // ============================================

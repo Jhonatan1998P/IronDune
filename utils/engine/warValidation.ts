@@ -49,13 +49,13 @@ export const isValidWarState = (war: WarState | null): war is WarState => {
     if (typeof war.enemyVictories !== 'number' || war.enemyVictories < 0) return false;
     if (typeof war.playerAttacksLeft !== 'number' || war.playerAttacksLeft < 0) return false;
 
-    // Resource objects validation
-    if (!isValidResourceRecord(war.lootPool)) return false;
-    if (!isValidResourceRecord(war.playerResourceLosses)) return false;
-    if (!isValidResourceRecord(war.enemyResourceLosses)) return false;
-
     // Unit record validation
     if (!isValidUnitRecord(war.currentEnemyGarrison)) return false;
+
+    // Logistic Loot validation
+    if (!Array.isArray(war.warLogisticLootIds)) return false;
+    if (!isValidResourceRecord(war.totalLogisticLootGenerated)) return false;
+    if (!isValidResourceRecord(war.logisticLootHarvestedDuringWar)) return false;
 
     // Logical consistency checks
     if (war.currentWave > war.totalWaves && war.playerVictories === war.enemyVictories) {
@@ -198,20 +198,26 @@ export const sanitizeWarState = (war: WarState | null, playerScore: number): War
     sanitized.playerAttacksLeft = Math.max(0, Math.floor(sanitized.playerAttacksLeft || 0));
 
     // Sanitize resource records
-    sanitized.lootPool = sanitizeResourceRecord(sanitized.lootPool);
     sanitized.playerResourceLosses = sanitizeResourceRecord(sanitized.playerResourceLosses);
     sanitized.enemyResourceLosses = sanitizeResourceRecord(sanitized.enemyResourceLosses);
+    sanitized.totalLogisticLootGenerated = sanitizeResourceRecord(sanitized.totalLogisticLootGenerated);
+    sanitized.logisticLootHarvestedDuringWar = sanitizeResourceRecord(sanitized.logisticLootHarvestedDuringWar);
 
     // Sanitize unit records
     sanitized.currentEnemyGarrison = sanitizeUnitRecord(sanitized.currentEnemyGarrison);
 
-    // Apply loot pool cap (anti-exploit)
+    if (!Array.isArray(sanitized.warLogisticLootIds)) {
+        sanitized.warLogisticLootIds = [];
+    }
+
+    // Apply loot pool cap (anti-exploit) -- No longer applicable as we don't have loot pool, 
+    // but we can check totalLogisticLootGenerated
     const maxLootValue = playerScore * SCORE_TO_RESOURCE_VALUE * MAX_LOOT_POOL_MULTIPLIER;
-    const totalLootValue = Object.values(sanitized.lootPool).reduce((sum, val) => sum + val, 0);
+    const totalLootValue = Object.values(sanitized.totalLogisticLootGenerated).reduce((sum: number, val: number) => sum + val, 0);
     if (totalLootValue > maxLootValue) {
         const scale = maxLootValue / totalLootValue;
-        (Object.keys(sanitized.lootPool) as ResourceType[]).forEach(key => {
-            sanitized.lootPool[key] = Math.floor(sanitized.lootPool[key] * scale);
+        (Object.keys(sanitized.totalLogisticLootGenerated) as ResourceType[]).forEach(key => {
+            sanitized.totalLogisticLootGenerated[key] = Math.floor(sanitized.totalLogisticLootGenerated[key] * scale);
         });
     }
 

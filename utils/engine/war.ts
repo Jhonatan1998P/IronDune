@@ -22,8 +22,7 @@ import {
     WarState 
 } from '../../types';
 import {
-    RankingCategory,
-    calculateRankingScore
+    RankingCategory
 } from './rankings';
 import { calculateActiveReinforcements } from './allianceReinforcements';
 import { 
@@ -56,6 +55,7 @@ import { simulateCombat } from './combat';
 import { BotPersonality } from '../../types/enums';
 import { recordReputationChange } from './reputationHistory';
 import { applyDefendReputation, applyAllyDefenseReputation } from './reputation';
+import { generateLogisticLootFromCombat, mergeWarLogisticLoot } from './logisticLoot';
 import { 
     isValidWarState, 
     sanitizeWarState, 
@@ -64,7 +64,8 @@ import {
     correctWaveTiming,
     checkWarConsistency,
     isValidResourceRecord,
-    isValidUnitRecord
+    isValidUnitRecord,
+    isValidIncomingAttack
 } from './warValidation';
 
 // ============================================
@@ -90,6 +91,7 @@ interface LootDistributionResult {
 
 interface CombatResolution {
     winner: 'PLAYER' | 'ENEMY' | 'DRAW';
+    rounds: any[]; // ADDED TO SATISFY BattleResult
     playerCasualties?: Partial<Record<UnitType, number>>;
     enemyCasualties?: Partial<Record<UnitType, number>>;
     totalPlayerCasualties: Partial<Record<UnitType, number>>;
@@ -98,21 +100,21 @@ interface CombatResolution {
     enemyResourceLoss: Partial<Record<ResourceType, number>>;
     stolenBuildings: Partial<Record<BuildingType, number>>;
     diamondDamaged: boolean;
-    initialPlayerArmy?: Record<UnitType, number>;
-    initialEnemyArmy?: Partial<Record<UnitType, number>>;
-    finalPlayerArmy?: Record<UnitType, number>;
-    finalEnemyArmy?: Partial<Record<UnitType, number>>;
+    initialPlayerArmy: Partial<Record<UnitType, number>>;
+    initialEnemyArmy: Partial<Record<UnitType, number>>;
+    finalPlayerArmy: Partial<Record<UnitType, number>>;
+    finalEnemyArmy: Partial<Record<UnitType, number>>;
     // Allied reinforcements data (V1.5)
     initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
     finalAllyArmies?: Record<string, Partial<Record<UnitType, number>>>;
     totalAllyCasualties?: Record<string, Partial<Record<UnitType, number>>>;
     allyDamageDealt?: Record<string, number>;
-    playerTotalHpStart?: number;
-    playerTotalHpLost?: number;
-    enemyTotalHpStart?: number;
-    enemyTotalHpLost?: number;
-    playerDamageDealt?: number;
-    enemyDamageDealt?: number;
+    playerTotalHpStart: number;
+    playerTotalHpLost: number;
+    enemyTotalHpStart: number;
+    enemyTotalHpLost: number;
+    playerDamageDealt: number;
+    enemyDamageDealt: number;
     playerPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
 }
 
@@ -199,8 +201,16 @@ const createFallbackWave = (
         : now + GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
     // Minimal valid army
-    const minimalArmy: Partial<Record<UnitType, number>> = {
-        [UnitType.CYBER_MARINE]: Math.max(1, Math.floor(warState.enemyScore / 1000))
+    const minimalArmy: Record<UnitType, number> = {
+        [UnitType.CYBER_MARINE]: Math.max(1, Math.floor(warState.enemyScore / 1000)),
+        [UnitType.HEAVY_COMMANDO]: 0,
+        [UnitType.SCOUT_TANK]: 0,
+        [UnitType.TITAN_MBT]: 0,
+        [UnitType.WRAITH_GUNSHIP]: 0,
+        [UnitType.ACE_FIGHTER]: 0,
+        [UnitType.AEGIS_DESTROYER]: 0,
+        [UnitType.PHANTOM_SUB]: 0,
+        [UnitType.SALVAGER_DRONE]: 0
     };
 
     return {
@@ -295,17 +305,18 @@ export const startWar = (
             playerVictories: 0,
             enemyVictories: 0,
             playerAttacksLeft: WAR_PLAYER_ATTACKS,
-            lootPool: { ...zeroResources },
             playerResourceLosses: { ...zeroResources },
             enemyResourceLosses: { ...zeroResources },
             playerUnitLosses: 0,
             enemyUnitLosses: 0,
-            currentEnemyGarrison: initialGarrison
+            currentEnemyGarrison: initialGarrison,
+            warLogisticLootIds: [],
+            totalLogisticLootGenerated: { ...zeroResources },
+            logisticLootHarvestedDuringWar: { ...zeroResources }
         };
 
         // Validate war state before activation
-        const validation = validateWarState(warState, state.empirePoints);
-        if (!validation.valid) {
+        if (!isValidWarState(warState)) {
             return state;
         }
 
@@ -555,6 +566,12 @@ const resolveWarCombat = (
         enemyResourceLoss,
         stolenBuildings: {},
         diamondDamaged: false,
+        playerTotalHpStart: result.playerTotalHpStart || 0,
+        playerTotalHpLost: result.playerTotalHpLost || 0,
+        enemyTotalHpStart: result.enemyTotalHpStart || 0,
+        enemyTotalHpLost: result.enemyTotalHpLost || 0,
+        playerDamageDealt: result.playerDamageDealt || 0,
+        enemyDamageDealt: result.enemyDamageDealt || 0,
         playerPerformance: result.playerPerformance
     };
 };
@@ -632,7 +649,7 @@ const resolveRaidCombat = (
         enemyTotalHpStart: result.enemyTotalHpStart,
         enemyTotalHpLost: result.enemyTotalHpLost,
         playerDamageDealt: result.playerDamageDealt,
-        enemyDamageDealt: result.enemyDamageDealt,
+        enemyDamageDealt: result.enemyDamageDealt || 0,
         playerPerformance: result.playerPerformance
     };
 };
@@ -1025,7 +1042,6 @@ const processIncomingAttacks = (
                         const r = key as ResourceType;
                         activeWar.playerResourceLosses[r] += combat.playerResourceLoss[r] || 0;
                         activeWar.enemyResourceLosses[r] += combat.enemyResourceLoss[r] || 0;
-                        activeWar.lootPool[r] += (combat.playerResourceLoss[r] || 0) + (combat.enemyResourceLoss[r] || 0);
                     });
 
                     activeWar.playerUnitLosses += playerCasualtyCount;
@@ -1035,6 +1051,32 @@ const processIncomingAttacks = (
                         activeWar.playerVictories++;
                     } else {
                         activeWar.enemyVictories++;
+                    }
+                    
+                    // NUEVO: Generar Botín Logístico
+                    const lootField = generateLogisticLootFromCombat(
+                        combat,
+                        attack.isWarWave ? 'WAR' : 'RAID',
+                        attack.id,
+                        {
+                            attackerId: attack.attackerId || activeWar.enemyId,
+                            attackerName: attack.attackerName,
+                            defenderId: state.gameId,
+                            defenderName: state.playerName
+                        },
+                        activeWar.id,
+                        activeWar.currentWave
+                    );
+                    
+                    if (lootField) {
+                        state.logisticLootFields = [...(state.logisticLootFields || []), lootField];
+                        if (attack.isWarWave) {
+                            activeWar.warLogisticLootIds.push(lootField.id);
+                            for (const [res, amt] of Object.entries(lootField.resources)) {
+                                activeWar.totalLogisticLootGenerated[res as ResourceType] = 
+                                    (activeWar.totalLogisticLootGenerated[res as ResourceType] || 0) + (amt || 0);
+                            }
+                        }
                     }
 
                     logs.push({
@@ -1104,7 +1146,7 @@ const processIncomingAttacks = (
 
 interface WarProcessResult {
     warEnded: boolean;
-    updatedWar?: WarState;
+    updatedWar: WarState | null;
     finalResources?: Record<ResourceType, number>;
     finalBank?: number;
     remainingAttacks: IncomingAttack[];
@@ -1166,17 +1208,25 @@ const processWarState = (
             };
         }
 
-        // War is over - distribute loot
+        // War is over - distribute loot / generate mega debris
         const winner = activeWar.playerVictories > activeWar.enemyVictories ? 'PLAYER' : 'ENEMY';
-        const resolution = distributeWarLoot(
-            activeWar.lootPool,
-            winner,
-            resources,
-            state.maxResources,
-            state.bankBalance,
-            state.empirePoints,
-            buildings
-        );
+        
+        // Merge all war debris into a single mega field
+        const megaLoot = mergeWarLogisticLoot(state.logisticLootFields || [], activeWar.id);
+        
+        if (megaLoot) {
+            // Remove individual war debris and add mega debris
+            state.logisticLootFields = [
+                ...(state.logisticLootFields || []).filter(d => d.warId !== activeWar.id),
+                megaLoot
+            ];
+        }
+
+        // Ya no repartimos recursos automáticos de guerra, todo está en el botín logístico
+        const convertedAmount = 0;
+        const bankedAmount = 0;
+        const payoutMessage = 'War Ended. Logistic Loot is available in the Salvage Zone.';
+        const resultKey = winner === 'PLAYER' ? 'war_won' : 'war_lost';
 
         logs.push({
             id: `war-end-${now}`,
@@ -1184,21 +1234,22 @@ const processWarState = (
             type: 'war',
             timestamp: now,
             params: {
-                resultKey: resolution.resultKey,
-                result: resolution.payoutMessage,
+                resultKey,
+                result: payoutMessage,
                 winner,
                 warSummary: { 
                     ...activeWar, 
-                    convertedAmount: resolution.convertedAmount, 
-                    bankedAmount: resolution.bankedAmount 
+                    convertedAmount, 
+                    bankedAmount 
                 }
             }
         });
 
         return {
             warEnded: true,
-            finalResources: resolution.newResources,
-            finalBank: resolution.newBank,
+            updatedWar: null,
+            finalResources: resources,
+            finalBank: state.bankBalance,
             remainingAttacks: attacks.filter(a => !a.isWarWave)
         };
     }

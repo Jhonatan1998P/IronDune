@@ -16,7 +16,7 @@ export type MissionDuration = 5 | 15 | 30 | 60;
 
 export interface ActiveMission {
   id: string;
-  type: 'PATROL' | 'CAMPAIGN_ATTACK' | 'PVP_ATTACK';
+  type: 'PATROL' | 'CAMPAIGN_ATTACK' | 'PVP_ATTACK' | 'SALVAGE';
   startTime: number;
   endTime: number;
   duration: number; // in minutes
@@ -27,6 +27,9 @@ export interface ActiveMission {
   targetScore?: number; // For PvP (to calculate army size)
   isWarAttack?: boolean; // Flag for War specific attacks
   isP2P?: boolean; // Flag for P2P multiplayer missions
+  logisticLootId?: string; // Target ID for Salvage mission
+  cargoCapacity?: number; // Total capacity for Salvage mission
+  harvestedResources?: Partial<Record<ResourceType, number>>; // Resources gained from Salvage
 }
 
 export interface IncomingAttack {
@@ -150,6 +153,26 @@ export interface LifetimeStats {
   highestRankAchieved: number;
 }
 
+export interface LogisticLootField {
+    id: string;                                          
+    battleId: string;                                    
+    origin: 'WAR' | 'RAID' | 'P2P' | 'CAMPAIGN';       
+    resources: Partial<Record<ResourceType, number>>;    
+    createdAt: number;                                   
+    expiresAt: number;                                   
+    totalValue: number;                                  
+    attackerId: string;                                  
+    attackerName: string;
+    defenderId: string;                                  
+    defenderName: string;
+    isPartiallyHarvested: boolean;                       
+    harvestedBy: string[];                               
+    isP2P: boolean;                                      
+    p2pBroadcasted: boolean;                             
+    warId?: string;                                      
+    waveNumber?: number;                                 
+}
+
 export interface WarState {
     id: string;
     enemyId: string;
@@ -163,7 +186,6 @@ export interface WarState {
     playerVictories: number;
     enemyVictories: number;
     playerAttacksLeft: number; // Max 8 (can increase in Overtime)
-    lootPool: Record<ResourceType, number>; // The accumulated 50% pot
     
     // Detailed Statistics
     playerResourceLosses: Record<ResourceType, number>;
@@ -173,6 +195,11 @@ export interface WarState {
 
     // Persistence for Total War logic
     currentEnemyGarrison: Partial<Record<UnitType, number>>;
+
+    // Logistic Loot
+    warLogisticLootIds: string[];
+    totalLogisticLootGenerated: Record<ResourceType, number>;
+    logisticLootHarvestedDuringWar: Record<ResourceType, number>;
 }
 
 export interface RankingData {
@@ -291,6 +318,20 @@ export interface GameState {
   interactionRecords: AllInteractions; // Track all interactions per bot
 
   lifetimeStats: LifetimeStats; 
+
+  // Botín Logístico (Logistic Loot System)
+  logisticLootFields: LogisticLootField[];
+  visibleLogisticLootFields: (LogisticLootField & { isRemote: boolean })[];
+  
+  lifetimeLogisticStats: {
+      totalGenerated: number;
+      totalHarvested: number;
+      totalExpired: number;
+      totalDisputed: number;
+      totalDisputeWins: number;
+      fieldsCreated: number;
+      fieldsHarvested: number;
+  };
 
   // Gift Code System
   redeemedGiftCodes: GiftCodeRedeemed[];

@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -77,6 +77,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
               { id: 'units' as TabType, label: t.common.actions.recruit, icon: Icons.Army },
               { id: 'campaign' as TabType, label: t.common.ui.nav_campaign, icon: NavIcons.Map },
               { id: 'missions' as TabType, label: t.missions.patrol.title.split(' ')[0], icon: Icons.Radar },
+              { id: 'salvage' as TabType, label: t.common.ui.nav_salvage || 'Salvamento', icon: Icons.Radar, color: 'text-yellow-400' },
               { id: 'market' as TabType, label: t.common.ui.nav_market, icon: NavIcons.Market },
           ]
       },
@@ -259,6 +260,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
     // Secondary Tabs (Bottom Sheet)
     const secondaryItems = [
         { id: 'missions' as TabType, icon: Icons.Radar, label: t.missions.patrol.title.split(' ')[0] },
+        { id: 'salvage' as TabType, icon: Icons.Radar, label: t.common.ui.nav_salvage || 'Salvamento', color: 'text-yellow-400' },
         { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map },
         { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!gameState.activeWar, color: 'text-red-500' },
         { id: 'market' as TabType, icon: NavIcons.Market, label: t.common.ui.nav_market },

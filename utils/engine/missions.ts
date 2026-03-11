@@ -1,5 +1,5 @@
 
-import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, UnitPerformanceStats, BuildingType, SpyReport } from '../../types';
+import { ActiveMission, LogEntry, ResourceType, TechType, UnitType, WarState, UnitPerformanceStats, BuildingType, SpyReport, LogisticLootField } from '../../types';
 import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { simulateCombat } from './combat';
@@ -9,6 +9,7 @@ import { calculateRetaliationTime, getRetaliationChance } from './nemesis';
 import { ReputationChangeType } from './reputation';
 import { BotPersonality } from '../../types/enums';
 import { StaticBot } from './rankings';
+import { generateLogisticLootFromCombat } from './logisticLoot';
 
 export const calculateResourceCost = (units: Partial<Record<UnitType, number>>): Record<ResourceType, number> => {
     const cost: Record<ResourceType, number> = {
@@ -168,7 +169,8 @@ const UNIT_COUNTERS: Record<UnitType, UnitType[]> = {
     [UnitType.WRAITH_GUNSHIP]: [UnitType.WRAITH_GUNSHIP, UnitType.ACE_FIGHTER],
     [UnitType.ACE_FIGHTER]: [UnitType.ACE_FIGHTER, UnitType.AEGIS_DESTROYER],
     [UnitType.AEGIS_DESTROYER]: [UnitType.AEGIS_DESTROYER, UnitType.PHANTOM_SUB],
-    [UnitType.PHANTOM_SUB]: [UnitType.PHANTOM_SUB]
+    [UnitType.PHANTOM_SUB]: [UnitType.PHANTOM_SUB],
+    [UnitType.SALVAGER_DRONE]: []
 };
 
 const SYNERGY_BONUS: Record<string, UnitType[]> = {
@@ -503,7 +505,8 @@ export const resolveMission = (
     warVictory?: boolean,
     warDefeat?: boolean,
     newGrudge?: any,
-    reputationChanges?: { botId: string, change: number, type: ReputationChangeType, reason: string }[]
+    reputationChanges?: { botId: string, change: number, type: ReputationChangeType, reason: string }[],
+    generatedLogisticLoot?: LogisticLootField
 } => {
     
     let resultResources = { ...currentResources };
@@ -519,6 +522,7 @@ export const resolveMission = (
     let warDefeat = false;
     let newGrudge: any = undefined;
     let reputationChanges: { botId: string, change: number, type: ReputationChangeType, reason: string }[] = [];
+    let generatedLogisticLoot: LogisticLootField | undefined = undefined;
 
     if (mission.type === 'PVP_ATTACK' && mission.targetScore !== undefined) {
         let botArmy: Partial<Record<UnitType, number>> = {};
@@ -566,13 +570,7 @@ export const resolveMission = (
             activeWar.playerUnitLosses += pCount;
             activeWar.enemyUnitLosses += eCount;
 
-            warLootAdded = {
-                [ResourceType.MONEY]: pResLoss[ResourceType.MONEY] + eResLoss[ResourceType.MONEY],
-                [ResourceType.OIL]: pResLoss[ResourceType.OIL] + eResLoss[ResourceType.OIL],
-                [ResourceType.AMMO]: pResLoss[ResourceType.AMMO] + eResLoss[ResourceType.AMMO],
-                [ResourceType.GOLD]: pResLoss[ResourceType.GOLD] + eResLoss[ResourceType.GOLD],
-                [ResourceType.DIAMOND]: pResLoss[ResourceType.DIAMOND] + eResLoss[ResourceType.DIAMOND]
-            };
+            warLootAdded = {};
         }
 
         if (battleResult.winner === 'PLAYER') {
@@ -642,7 +640,19 @@ export const resolveMission = (
             };
         }
         
-        return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
+        generatedLogisticLoot = generateLogisticLootFromCombat(
+            battleResult as any, // Cast to any to bypass minor TS differences for now
+            'RAID',
+            mission.id,
+            {
+                attackerId: 'PLAYER',
+                attackerName: 'Player',
+                defenderId: mission.targetId || 'BOT',
+                defenderName: mission.targetName || 'Unknown'
+            }
+        ) || undefined;
+        
+        return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges, generatedLogisticLoot };
     }
 
     if (mission.type === 'CAMPAIGN_ATTACK' && mission.levelId) {
@@ -668,7 +678,20 @@ export const resolveMission = (
             const survivorsCount = Object.values(battleResult.finalPlayerArmy).reduce((a: number, b: number | undefined) => a + (b || 0), 0);
             if (survivorsCount === 0) logKey = 'log_wipeout';
         }
-        return { resources: resultResources, unitsToAdd: unitsToReturn, logKey, logType, logParams, newCampaignProgress };
+        
+        generatedLogisticLoot = generateLogisticLootFromCombat(
+            battleResult as any,
+            'CAMPAIGN',
+            mission.id,
+            {
+                attackerId: 'PLAYER',
+                attackerName: 'Player',
+                defenderId: `CAMPAIGN-${mission.levelId}`,
+                defenderName: `Campaign Target`
+            }
+        ) || undefined;
+        
+        return { resources: resultResources, unitsToAdd: unitsToReturn, logKey, logType, logParams, newCampaignProgress, generatedLogisticLoot };
     }
 
     if (mission.type === 'PATROL') {
@@ -756,7 +779,7 @@ export const resolveMission = (
         }
     }
 
-    return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges };
+    return { resources: resultResources, unitsToAdd: unitsToReturn, buildingsToAdd, logKey, logType, logParams, newCampaignProgress, warLootAdded, warVictory, warDefeat, newGrudge, reputationChanges, generatedLogisticLoot };
 };
 
 const SPY_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes

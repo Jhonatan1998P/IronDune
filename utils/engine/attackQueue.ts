@@ -1,10 +1,11 @@
-import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult, BattleResult, UnitType, ResourceType, BuildingType } from '../../types';
+import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult, BattleResult, UnitType, ResourceType, BuildingType, LogisticLootField } from '../../types';
 import { resolveMission } from './missions';
 import { simulateCombat } from './combat';
 import { calculateActiveReinforcements } from './allianceReinforcements';
 import { recordReputationChange } from './reputationHistory';
 import { applyDefendReputation, applyAllyDefenseReputation } from './reputation';
 import { PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from '../../constants';
+import { generateLogisticLootFromCombat } from './logisticLoot';
 
 export const getQueuedOutgoingAttacks = (state: GameState, now: number): ActiveMission[] => {
     return state.activeMissions
@@ -93,6 +94,11 @@ export const processOutgoingAttackInQueue = (
         newState.grudges = [...newState.grudges, missionResult.newGrudge];
     }
 
+    if (missionResult.generatedLogisticLoot) {
+        if (!newState.logisticLootFields) newState.logisticLootFields = [];
+        newState.logisticLootFields.push(missionResult.generatedLogisticLoot);
+    }
+
     if (missionResult.reputationChanges) {
         missionResult.reputationChanges.forEach(({ botId }) => {
             if (!newState.diplomaticActions[botId]) {
@@ -113,7 +119,8 @@ export const processOutgoingAttackInQueue = (
         logType: missionResult.logType,
         logParams: missionResult.logParams,
         battleResult: missionResult.logParams?.combatResult,
-        processedAt: now
+        processedAt: now,
+        generatedLogisticLoot: missionResult.generatedLogisticLoot
     };
 
     return { newState, result, logs };
@@ -217,7 +224,8 @@ export const processIncomingAttackInQueue = (
         [UnitType.WRAITH_GUNSHIP]: 0,
         [UnitType.ACE_FIGHTER]: 0,
         [UnitType.AEGIS_DESTROYER]: 0,
-        [UnitType.PHANTOM_SUB]: 0
+        [UnitType.PHANTOM_SUB]: 0,
+        [UnitType.SALVAGER_DRONE]: 0
     };
     Object.entries(survivingUnits).forEach(([uType, count]) => {
         fullUnits[uType as UnitType] = count || 0;
@@ -286,6 +294,23 @@ export const processIncomingAttackInQueue = (
     };
     logs.push(logEntry);
 
+    const generatedLogisticLoot = generateLogisticLootFromCombat(
+        battleResult,
+        'RAID',
+        attack.id,
+        {
+            attackerId: attack.attackerId || 'BOT',
+            attackerName: attack.attackerName,
+            defenderId: 'PLAYER',
+            defenderName: 'Player'
+        }
+    ) || undefined;
+
+    if (generatedLogisticLoot) {
+        if (!newState.logisticLootFields) newState.logisticLootFields = [];
+        newState.logisticLootFields.push(generatedLogisticLoot);
+    }
+
     const result = {
         resources: {},
         unitsLost: battleResult.totalPlayerCasualties,
@@ -296,7 +321,8 @@ export const processIncomingAttackInQueue = (
         logType,
         logParams,
         battleResult,
-        processedAt: now
+        processedAt: now,
+        generatedLogisticLoot
     };
 
     return { newState, result, logs };

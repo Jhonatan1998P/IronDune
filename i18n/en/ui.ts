@@ -352,7 +352,11 @@ export const ui = {
         log_attack_reset: "ATTACK RESET: Enemy attack counters have been reset.",
         log_ally_reinforcement: "ALLIED REINFORCEMENTS: {allyName} is sending help!",
         log_new_ally: "NEW ALLY: You have gained a new ally!",
-        
+        log_salvage_success: "SALVAGE COMPLETED: {drones} drones returned with loot.",
+        log_salvage_failed: "SALVAGE FAILED: Operation cancelled ({reason}).",
+        log_bot_salvage: "NOTICE: {botName} has collected supplies from {fieldName}.",
+        log_debris_expired: "LOGISTICS: {count} loot fields expired. Auto-salvage: ${autoSalvageValue} credited.",
+
         // P2P Battle Messages
         combat_p2p_victory: "P2P VICTORY: You defeated {defender}!",
         combat_p2p_defeat: "P2P DEFEAT: You were defeated by {attacker}.",
@@ -372,6 +376,7 @@ export const ui = {
         nav_army: "Army",
         nav_map: "Map",
         nav_intel: "Intel",
+        nav_salvage: "Salvage",
         app_title: "IRON DUNE",
         app_subtitle: "Command Uplink Online",
         sys_monitor: "System Monitor",

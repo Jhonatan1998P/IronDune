@@ -1,5 +1,5 @@
 
-import { BuildingType, BotPersonality } from "./types/enums";
+import { BuildingType, BotPersonality, ResourceType } from "./types/enums";
 
 // --- CONFIGURATION CONSTANTS ---
 export const TICK_RATE_MS = 1000;
@@ -53,6 +53,21 @@ export const WAR_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes cooldown between wa
 
 // OFFLINE PROGRESSION LIMITS
 export const OFFLINE_PRODUCTION_LIMIT_MS = 6 * 60 * 60 * 1000; // 6 Hours Cap for Resources/Upkeep
+
+// LOGISTIC LOOT (BOTÍN LOGÍSTICO) SYSTEM
+export const DEBRIS_EXPIRY_RAID_MS = 60 * 60 * 1000;        // 1 hour
+export const DEBRIS_EXPIRY_WAR_BUFFER_MS = 30 * 60 * 1000;  // 30 min after war ends
+export const DEBRIS_EXPIRY_P2P_MS = 120 * 60 * 1000;        // 2 hours
+export const DEBRIS_EXPIRY_CAMPAIGN_MS = 30 * 60 * 1000;    // 30 minutes
+export const DEBRIS_MAX_ACTIVE = 20;                         // Max simultaneous fields
+export const DEBRIS_RATIO_ATTACKER = 0.30; // 30%
+export const DEBRIS_RATIO_DEFENDER = 0.30; // 30%
+export const DEBRIS_RATIO_ALLY = 0.20;     // 20%
+export const DEBRIS_ELIGIBLE_RESOURCES = [ResourceType.MONEY, ResourceType.OIL, ResourceType.AMMO];
+
+export const SALVAGER_CARGO_CAPACITY = 500000; // Capacity per drone
+export const SALVAGE_TRAVEL_TIME_MS = 7.5 * 60 * 1000;  // 7.5 minutes
+export const SALVAGE_TRAVEL_TIME_WAR_MS = 5 * 60 * 1000; // 5 minutes
 
 // UNLIMITED CAPACITY (Used for Money, Oil, Ammo, Gold)
 export const UNLIMITED_CAPACITY = 999_999_999_999_999;
@@ -120,7 +135,7 @@ export const calculateHourlyInterest = (balance: number, rate: number): number =
     return (balance * rate) / 24;
 };
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 // REPUTATION SYSTEM
 export const REPUTATION_ALLY_THRESHOLD = 75; // Bots above this are allies (75+)

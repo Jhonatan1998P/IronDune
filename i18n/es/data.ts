@@ -23,7 +23,8 @@ export const data = {
       wraith_gunship: { name: "Cañonera Espectro", stats: "Mata-Tanques. Muere ante Cazas." },
       ace_fighter: { name: "Caza As", stats: "Superioridad Aérea." },
       aegis_destroyer: { name: "Destructor Aegis", stats: "Cazador de Submarinos y Aire." },
-      phantom_sub: { name: "Submarino Fantasma", stats: "Mata-Barcos. Vulnerable a Destructores." }
+      phantom_sub: { name: "Submarino Fantasma", stats: "Mata-Barcos. Vulnerable a Destructores." },
+      salvager_drone: { name: "Dron de Salvamento", stats: "Unidad Logística. Recolecta Botín Logístico." }
     },
     techs: {
       deep_drilling: { name: "Perforación Avanzada", description: "Técnicas de extracción de próxima generación. +5% Petróleo por nivel." },
@@ -58,5 +59,6 @@ export const data = {
       unlock_ace_fighter: { name: "Desplegar: Caza As", description: "Autoriza el ensamblaje de cazas de superioridad aérea." },
       unlock_aegis_destroyer: { name: "Desplegar: Destructor Aegis", description: "Cazador de élite. Requiere 65K Pts de Imperio." },
       unlock_phantom_sub: { name: "Desplegar: Submarino Fantasma", description: "La cima tecnológica marítima. Requiere 100K Pts de Imperio." },
+      unlock_salvager_drone: { name: "Logística de Salvamento", description: "Habilita el uso de drones para recolectar Botín Logístico tras las batallas." },
     }
 };

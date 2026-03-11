@@ -56,6 +56,16 @@ export const TECH_DEFS: Partial<Record<TechType, TechDef>> = {
     researchTime: 12 * HOUR,
     score: 10000,
   },
+  [TechType.UNLOCK_SALVAGER_DRONE]: {
+    id: TechType.UNLOCK_SALVAGER_DRONE,
+    category: TechCategory.LOGISTICS,
+    reqUniversityLevel: 3,
+    reqTechs: [TechType.PATROL_TRAINING],
+    translationKey: 'unlock_salvager_drone',
+    cost: { money: 200000, oil: 1000, ammo: 500 },
+    researchTime: 5 * MINUTE,
+    score: 25,
+  },
 
   // ─── MILITARY: GROUND ──────────────────────────────────────────────
   [TechType.BASIC_TRAINING]: {

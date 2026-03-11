@@ -26,6 +26,7 @@ const SettingsView = lazy(() => import('../views/SettingsView').then(m => ({ def
 const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ default: m.default })));
 const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
+const SalvageZoneView = lazy(() => import('../views/SalvageZoneView').then(m => ({ default: m.SalvageZoneView })));
 
 const ViewLoader: React.FC = React.memo(() => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -58,7 +59,8 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     diplomacy: DiplomacyView,
     settings: SettingsView,
     p2p: P2PRanking,
-    chat: MultiplayerChatView
+    chat: MultiplayerChatView,
+    salvage: SalvageZoneView
 };
 
 // Optimización: Memoizar props por tipo de vista
@@ -95,7 +97,7 @@ const useViewProps = (
             case 'campaign':
                 return { gameState, onExecuteBattle: actionsRef.current.executeCampaignBattle, onSpeedUp: actionsRef.current.speedUp };
             case 'rankings':
-                return { gameState, onAttack: (target: any, newState: GameState) => {
+                return { gameState, onAttack: (_target: any, newState: GameState) => {
                     // Si viene un newState, lo aplicamos
                     if (newState) {
                         (window as any)._updateGameState?.(newState);
@@ -113,6 +115,8 @@ const useViewProps = (
                 return { playerName: gameState.playerName, playerScore: gameState.empirePoints, playerFlag: gameState.playerFlag };
             case 'chat':
                 return { gameState };
+            case 'salvage':
+                return { gameState, onStartMission: actionsRef.current.startMission };
             default:
                 return {};
         }

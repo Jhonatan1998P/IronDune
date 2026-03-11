@@ -79,6 +79,19 @@ export const INITIAL_GAME_STATE: GameState = {
   reputationHistory: {},
   interactionRecords: {},
   
+  // Botín Logístico (Logistic Loot System)
+  logisticLootFields: [],
+  visibleLogisticLootFields: [],
+  lifetimeLogisticStats: {
+      totalGenerated: 0,
+      totalHarvested: 0,
+      totalExpired: 0,
+      totalDisputed: 0,
+      totalDisputeWins: 0,
+      fieldsCreated: 0,
+      fieldsHarvested: 0,
+  },
+  
   lifetimeStats: {
     enemiesKilled: 0,
     unitsLost: 0,
