@@ -11,7 +11,7 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Framework
-- **React 18 + TypeScript** with Vite as the build tool. No backend server — everything runs in the browser.
+- **React 18 + TypeScript** with Vite as the build tool. Game logic runs in the browser; multiplayer relay via Express + Socket.io server in `server/`.
 - Tailwind CSS loaded via CDN (`<script src="https://cdn.tailwindcss.com">`) with custom theme configuration inline in `index.html`. No PostCSS or build-time Tailwind setup.
 - Glassmorphism UI design pattern with dark theme, custom animations, and responsive mobile/desktop layouts.
 
@@ -178,7 +178,8 @@ Four bot personalities affect both attack and retaliation behavior:
 - **Tailwind CSS CDN** — Loaded at runtime via script tag (not a build dependency)
 - **Google Gemini API** — AI integration requiring `GEMINI_API_KEY` in `.env.local`
 - **localStorage** — Browser storage for game saves and preferences
-- No database, no backend server, no authentication system
+- **Socket.io** — Multiplayer relay server (`server/index.js`) deployed on Render; client uses `socket.io-client`
+- No database, no authentication system
 
 ## Testing
 
@@ -208,3 +209,27 @@ npm run preview
 ```
 
 The build output is in the `dist/` directory and can be deployed to any static hosting service.
+
+### Multiplayer Server
+
+```bash
+# Start server locally
+npm run server
+
+# Start server with auto-reload
+npm run server:dev
+```
+
+The multiplayer server (`server/`) is deployed to Render using `render.yaml`. Set `VITE_SOCKET_SERVER_URL` in the client to point to the deployed server URL.
+
+### Multiplayer Architecture
+
+The multiplayer system uses **Express + Socket.io** (previously Trystero/WebRTC). The server in `server/index.js` acts as a message relay:
+- Rooms: global room + private rooms
+- Presence tracking for connected players
+- Broadcast (to all peers in room) and unicast (to specific peer) message relay
+- Automatic cleanup on disconnect
+
+Client-side implementation in `hooks/useMultiplayerInternal.tsx` uses `socket.io-client`. The `MultiplayerContextType` interface is preserved so all dependent hooks (`useP2PBattleResolver`, `useP2PAttack`, `useMultiplayerChat`, `useP2PGiftResource`, `useP2PGameSync`, etc.) work without modification.
+
+Message types relayed: `PRESENCE_UPDATE`, `REQUEST_PRESENCE`, `GIFT_GOLD`, `GIFT_RESOURCE`, `CHAT_MESSAGE`, `P2P_ATTACK`, `P2P_BATTLE_RESULT`, `P2P_BATTLE_REQUEST_TROOPS`, `P2P_BATTLE_DEFENDER_TROOPS`, `P2P_SPY_REQUEST`, `P2P_SPY_RESPONSE`, `BATTLE_CHALLENGE`, `BATTLE_ACCEPT`, `BATTLE_DECLINE`, `BATTLE_ARMY_LOCK`, `BATTLE_RESULT_SYNC`, `BATTLE_CANCEL`, `DEBRIS_ANNOUNCE`, `DEBRIS_CLAIM`, `DEBRIS_DISPUTE`, `DEBRIS_HARVESTED`, `DEBRIS_EXPIRED`.
