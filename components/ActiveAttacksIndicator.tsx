@@ -9,7 +9,7 @@ import { UNIT_DEFS } from '../data/units';
 
 interface AlertConfig {
     id: string;
-    type: 'attack' | 'outbound' | 'campaign' | 'patrol';
+    type: 'attack' | 'outbound' | 'campaign' | 'patrol' | 'salvage';
     label: string;
     labelPlural: string;
     color: {
@@ -88,6 +88,22 @@ const ALERT_CONFIGS: Record<string, AlertConfig> = {
         },
         icon: Icons.Map,
         actionLabel: 'view'
+    },
+    salvage: {
+        id: 'salvage',
+        type: 'salvage',
+        label: 'mission_salvage',
+        labelPlural: 'salvages_active',
+        color: {
+            bg: 'bg-yellow-950/90',
+            border: 'border-yellow-500/50',
+            glow: 'shadow-[0_0_20px_rgba(234,179,8,0.4)]',
+            badge: 'bg-yellow-500 text-black',
+            icon: 'text-yellow-400',
+            text: 'text-yellow-300'
+        },
+        icon: Icons.Settings,
+        actionLabel: 'monitor'
     }
 };
 
@@ -201,6 +217,8 @@ const MissionDetails: React.FC<MissionDetailsProps> = ({ mission, onClose }) => 
                 return { icon: Icons.Army, iconColor: 'text-amber-400', label: t.common.ui.attack_outbound };
             case 'CAMPAIGN_ATTACK':
                 return { icon: Icons.Radar, iconColor: 'text-blue-400', label: t.common.ui.mission_campaign };
+            case 'SALVAGE':
+                return { icon: Icons.Settings, iconColor: 'text-yellow-400', label: t.common.ui.mission_salvage };
             default:
                 return { icon: Icons.Map, iconColor: 'text-emerald-400', label: t.common.ui.mission_patrol };
         }
@@ -277,6 +295,7 @@ export const ActiveAttacksIndicator: React.FC = () => {
         const outbound = filterMissions(missions, 'PVP_ATTACK');
         const campaign = filterMissions(missions, 'CAMPAIGN_ATTACK');
         const patrol = filterMissions(missions, 'PATROL');
+        const salvage = filterMissions(missions, 'SALVAGE');
 
         return {
             incomingAttacks: incoming,
@@ -301,6 +320,11 @@ export const ActiveAttacksIndicator: React.FC = () => {
                     items: patrol, 
                     earliest: getEarliestItem(patrol),
                     config: ALERT_CONFIGS.patrol 
+                },
+                salvage: {
+                    items: salvage,
+                    earliest: getEarliestItem(salvage),
+                    config: ALERT_CONFIGS.salvage
                 }
             }
         };
@@ -379,6 +403,15 @@ export const ActiveAttacksIndicator: React.FC = () => {
                             count={alertData.patrol.items.length}
                             timeRemaining={alertData.patrol.earliest!.endTime - Date.now()}
                             onClick={() => handleMissionClick(alertData.patrol.earliest!.id)}
+                        />
+                    )}
+
+                    {alertData.salvage.items.length > 0 && (
+                        <AlertCard 
+                            config={alertData.salvage.config}
+                            count={alertData.salvage.items.length}
+                            timeRemaining={alertData.salvage.earliest!.endTime - Date.now()}
+                            onClick={() => handleMissionClick(alertData.salvage.earliest!.id)}
                         />
                     )}
                 </div>

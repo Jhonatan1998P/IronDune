@@ -116,7 +116,7 @@ const useViewProps = (
             case 'chat':
                 return { gameState };
             case 'salvage':
-                return { gameState, onStartMission: actionsRef.current.startMission };
+                return { gameState, onStartMission: actionsRef.current.startSalvageMission };
             default:
                 return {};
         }
@@ -134,7 +134,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
     const {
         gameState, logs,
         build, recruit, research, handleBankTransaction,
-        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs, markReportsRead,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
@@ -146,13 +146,13 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
 
     const actions = useMemo(() => ({
         build, recruit, research, handleBankTransaction,
-        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
     }), [
         build, recruit, research, handleBankTransaction,
-        startMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
+        startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs,
         resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
