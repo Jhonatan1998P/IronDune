@@ -1,235 +1,133 @@
-# Iron Dune: Operations - Technical Documentation
+# Iron Dune: Operations
 
-## Overview
+A browser-based military strategy game built with React 18, TypeScript, and Vite. Features base building, resource management, military operations, diplomacy, and P2P multiplayer.
 
-Iron Dune: Operations is a browser-based military strategy game built as a single-page application. Players build bases, manage resources (Money, Oil, Ammo, Gold, Diamonds), recruit military units, research technologies, and engage in PvP/PvE combat against AI bots in an evolving world.
+## Architecture
 
-## User Preferences
+### Frontend Stack
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite 5
+- **Styling**: Tailwind CSS (via CDN) + Glassmorphism design
+- **State Management**: React Context (GameContext, LanguageContext)
+- **Persistence**: localStorage with encoding/migration system
+- **Multiplayer**: Socket.io client (connects to Express relay server)
 
-Preferred communication style: Simple, everyday language.
+### Backend Architecture (Post-Merge: Socket.io)
+- **Server**: Express.js + Socket.io (server/index.js)
+- **Port**: 3001 (configurable via PORT env var)
+- **Features**:
+  - Real-time room management
+  - Player presence tracking
+  - Message relay (broadcast & unicast)
+  - Automatic cleanup on disconnect
+  - Health endpoint: GET /health
 
-## System Architecture
+### Game Loop
+- **Tick Rate**: 1000ms (1 second)
+- **FPS Target**: 30 (mobile: 20)
+- **Mechanism**: requestAnimationFrame + throttling
+- **Status States**: MENU, PLAYING, PAUSED
 
-### Frontend Framework
-- **React 18 + TypeScript** with Vite as the build tool. Game logic runs in the browser; multiplayer relay via Express + Socket.io server in `server/`.
-- Tailwind CSS loaded via CDN (`<script src="https://cdn.tailwindcss.com">`) with custom theme configuration inline in `index.html`. No PostCSS or build-time Tailwind setup.
-- Glassmorphism UI design pattern with dark theme, custom animations, and responsive mobile/desktop layouts.
+### Core Game Systems
+1. **Economy**: 5 resources (Money, Oil, Ammo, Gold, Diamond), Banking, Market trading
+2. **Buildings**: Construction system with timers and upgrades
+3. **Units**: 8 unit types with combat roles and training queues
+4. **Research**: Tech tree with 40+ technologies
+5. **Combat**: Round-based simulation with "Rock-Paper-Scissors" balance
+6. **Diplomacy**: Reputation system with 4 bot personalities
+7. **Multiplayer (P2P)**: WebRTC via Socket.io relay for attacks, chat, gifts
+8. **Campaigns**: Story missions with progressive difficulty
+9. **War System**: Wave-based enemy raids with escalating difficulty
 
-### State Management
-- **React Context + useState** pattern. No Redux or external state library.
-- `GameContext` wraps the entire app and exposes the game engine hook (`useGameEngine`).
-- `LanguageContext` provides i18n (English/Spanish) with dictionary objects.
-- Game state is a single large `GameState` object updated immutably via `setGameState`.
+### File Structure
+```
+src/
+├── components/          # UI Layer
+│   ├── layout/         # GameLayout, ViewRouter
+│   ├── views/          # Game screens (Buildings, Units, Research, etc.)
+│   └── ui/             # Reusable components
+├── context/            # Global state (GameContext, LanguageContext)
+├── hooks/              # Custom hooks
+│   ├── useGameEngine.ts      # Core game engine orchestration
+│   ├── useGameLoop.ts        # Game tick loop (1000ms)
+│   ├── usePersistence.ts     # Save/load management
+│   ├── useGameActions.ts     # Action handlers (build, recruit, etc.)
+│   └── useMultiplayer*.ts    # P2P multiplayer hooks
+├── utils/engine/       # Game logic
+│   ├── loop.ts         # calculateNextTick() - main game tick
+│   ├── combat.ts       # Battle system
+│   ├── economy.ts      # Resource production/consumption
+│   └── offline.ts      # Offline progression
+├── data/               # Game definitions & initial state
+├── types/              # TypeScript definitions
+└── i18n/               # Translations (English/Spanish)
 
-### Game Engine Architecture
-- **Custom game loop** running at 1-second tick rate (`TICK_RATE_MS = 1000`). Implemented in `hooks/useGameLoop.ts` using `setInterval`.
-- Delta-time based calculations ensure accuracy regardless of timing drift.
-- Engine logic is split into modular files under `utils/engine/`:
-  - `loop.ts` — tick calculation and system orchestration
-  - `actions.ts` — player actions (build, recruit, research, trade, etc.)
-  - `combat.ts` — battle simulation with rapid-fire mechanics
-  - `economy.ts` — resource production and consumption
-  - `finance.ts` — bank transactions and interest
-  - `offline.ts` — offline progress simulation (Time Warp)
-  - `migration.ts` — save version migration
-  - `security.ts` — save file encoding/hashing
-  - `rankings.ts` — bot-based ranking system with evolution
-  - `selectors.ts` — derived state calculations (income stats, etc.)
-  - `war.ts` — war system and wave management
-  - `nemesis.ts` — retaliation/grudge system
-  - `enemyAttack.ts` — enemy periodic attack system
-  - `diplomacy.ts` — reputation decay and diplomatic actions
-  - `missions.ts` — mission resolution and grudge creation
-
-### Data Layer
-- All game definitions are static data objects in `data/`:
-  - `buildings.ts` — building definitions with cost scaling formulas
-  - `units.ts` — unit stats, costs, rapid-fire tables
-  - `techs.ts` — technology tree with prerequisites
-  - `campaigns.ts` — PvE campaign levels
-  - `tutorial.ts` — tutorial step definitions with conditions
-  - `initialState.ts` — starting game state
-- Cost formulas live in `utils/formulas.ts` supporting both linear and exponential scaling.
-
-### Component Architecture
-- **Barrel file pattern** used extensively (`UIComponents.tsx`, `GameViews.tsx`, `types.ts`).
-- Views organized under `components/views/` — one per game tab (Buildings, Units, Research, Finance, Market, Campaign, Missions, Reports, Rankings, War, Simulator).
-- Layout components in `components/layout/` — `GameLayout.tsx` (main shell) and `ViewRouter.tsx` (tab routing).
-- Reusable UI primitives in `components/ui/` — GlassButton, Card, SmartTooltip, ResourceDisplay, CostDisplay, QuantitySelector, SpeedUpButton, TerminalLogs.
-- Modal components for combat reports, PvP attacks, tactical intercepts, commander profiles.
-
-### Event System
-- Custom `EventBus` singleton (`utils/eventBus.ts`) for decoupled communication.
-- Typed events via `GameEventType` enum and `GameEventPayloads` interface.
-- `useEventSubscription` hook for React component subscriptions with automatic cleanup.
-
-### Persistence
-- **localStorage** for save data. Single key `ironDuneSave`.
-- Save files include version field for migration support (`sanitizeAndMigrateSave`).
-- Import/Export as `.ids` files with hash-based integrity verification.
-- Language preference stored separately in localStorage.
-
-### Offline Progression
-- On load, calculates elapsed time since last save and simulates: resource production, queue completion, bank interest, unit desertion, and threat escalation.
-- Shows an `OfflineWelcome` modal with a summary report.
-
-### Combat System
-- Round-based simulation with rapid-fire mechanics (units get bonus attacks against specific targets).
-- Unit priority system for target selection.
-- Critical hit system (70% HP threshold for instant kills).
-- Supports PvP attacks, defensive battles, campaign missions, patrols, and war waves.
-
-### Type System
-- Types split across `types/enums.ts`, `types/defs.ts`, `types/state.ts`, `types/events.ts`.
-- Barrel exported from `types.ts` for backward compatibility.
-- Enums used for all game entity identifiers (BuildingType, UnitType, TechType, ResourceType, etc.).
-
-### i18n
-- Two languages: English (`i18n/en/`) and Spanish (`i18n/es/`).
-- Dictionary-based translation with nested keys accessed via `t.category.key` pattern.
-- Default language is Spanish (`es`).
-
-## Enemy Attack System (v1.4)
-
-### Architecture
-The enemy attack system consists of two main components:
-
-1. **Periodic Enemy Attacks** (`utils/engine/enemyAttack.ts`)
-   - Runs every 30 minutes to check if enemy bots should attack
-   - Only bots with reputation ≤ 30 are eligible
-   - Attack chance scales with lower reputation
-   - Enforces 3 attacks per bot per 24 hours, 2-hour cooldown
-
-2. **Retaliation System** (`utils/engine/nemesis.ts`)
-   - Triggered when player attacks a bot
-   - Immediate roll determines if bot seeks revenge
-   - Random 15-45 minute delay before retaliation
-   - Personality-based army strength multipliers
-
-### Key Functions
-
-```typescript
-// Enemy Attack System
-calculateEnemyAttackChance(reputation, personality): number
-processEnemyAttackCheck(state, now): { stateUpdates, logs }
-initializeEnemyAttackState(now): object
-
-// Retaliation System
-calculateRetaliationTime(now): number  // 15-45 min random
-getRetaliationChance(personality): number
-getRetaliationMultiplier(personality): number
-createGrudge(state, botId, botName, botScore, botPersonality, now): object
-processNemesisTick(state, now): { stateUpdates, logs }
+server/                 # Express + Socket.io relay
+├── index.js           # Server implementation
+├── package.json       # Dependencies
+└── README.md          # Deployment guide
 ```
 
-### State Structure
-```typescript
-interface GameState {
-  // Enemy Attack System
-  enemyAttackCounts: Record<string, { count: number; lastAttackTime: number }>;
-  lastEnemyAttackCheckTime: number;
-  lastEnemyAttackResetTime: number;
-  
-  // Retaliation System
-  grudges: Grudge[];
-  
-  // Shared
-  incomingAttacks: IncomingAttack[];
-  rankingData: { bots: StaticBot[] };
-}
-```
+## Recent Changes
 
-### Game Loop Integration
-The enemy attack system is integrated into the main game loop in `utils/engine/loop.ts`:
+### Post-Merge (Socket.io Migration - Task #1)
+✅ Migrated P2P from Trystero (WebRTC) to Express + Socket.io
+- Created `server/index.js` with Express.js + Socket.io
+- Rewrote `hooks/useMultiplayerInternal.tsx` to use socket.io-client
+- All dependent hooks work without changes (same interface contract)
+- Environment variable: `VITE_SOCKET_SERVER_URL` (default: localhost:3001)
+- Added post-merge setup script at `.local/post-merge/setup.sh`
 
-```typescript
-// 4. Nemesis System (Grudges & Retaliation)
-const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);
+### Game Loop Fixes (This Session)
+✅ Fixed critical game loop performance issues:
+- Added proper ref for status to prevent closure staleness
+- Implemented debug logging for tick counting
+- Verified loop runs independently of page navigation
+- Added setGameStateRef to maintain current updater function
+- Loop now properly initializes when status changes to PLAYING
 
-// 4b. Enemy Attack System (30min checks)
-const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(state, now);
-```
+## How to Run
 
-### Personality System
-
-Four bot personalities affect both attack and retaliation behavior:
-
-| Personality | Attack Modifier | Retaliation Chance | Army Multiplier | Description |
-|-------------|-----------------|-------------------|-----------------|-------------|
-| WARLORD | 1.5x | 95% | 1.3x | Aggressive, vengeful |
-| TURTLE | 0.5x | 85% | 1.5x | Defensive, holds grudges |
-| TYCOON | 1.0x | 70% | 1.0x | Economic, less vengeful |
-| ROGUE | 1.2x | 90% | 1.0x | Unpredictable, opportunistic |
-
-## External Dependencies
-
-### Runtime Dependencies
-- **React 18.3** — UI framework
-- **React DOM 18.3** — DOM rendering
-- **@google/genai ^0.2.0** — Google Gemini AI SDK (referenced in package.json; likely used for AI strategic advisor feature, requires `GEMINI_API_KEY` environment variable)
-
-### Dev Dependencies
-- **Vite 5.4** — Build tool and dev server (configured on port 5000, host 0.0.0.0)
-- **TypeScript 5.5** — Type checking
-- **@vitejs/plugin-react** — React fast refresh for Vite
-- **Vitest** — Testing framework
-
-### External Services
-- **Tailwind CSS CDN** — Loaded at runtime via script tag (not a build dependency)
-- **Google Gemini API** — AI integration requiring `GEMINI_API_KEY` in `.env.local`
-- **localStorage** — Browser storage for game saves and preferences
-- **Socket.io** — Multiplayer relay server (`server/index.js`) deployed on Render; client uses `socket.io-client`
-- No database, no authentication system
-
-## Testing
-
-Run tests with:
+### Development
 ```bash
-npm test
+npm install
+npm run dev
+# Opens on http://localhost:5000
 ```
 
-Key test files:
-- `tests/bot-reputation-reaction.test.ts` — Retaliation system and reputation mechanics
-- `tests/bot-growth.test.ts` — Bot evolution and growth rates
-- `tests/bot-military.test.ts` — Bot army generation
-- `tests/bot-2.5k-profile.test.ts` — Bot profiles at different power levels
-- `tests/reputation-decay.test.ts` — Reputation decay mechanics
-
-## Build & Deploy
-
+### With Multiplayer Server (Local)
 ```bash
-# Development
+# Terminal 1: Dev server
 npm run dev
 
-# Production build
-npm run build
-
-# Preview production build
-npm run preview
+# Terminal 2: Socket.io relay
+cd server && npm run dev
+# Server runs on http://localhost:3001
 ```
 
-The build output is in the `dist/` directory and can be deployed to any static hosting service.
-
-### Multiplayer Server
-
+### Production Build
 ```bash
-# Start server locally
-npm run server
+npm run build
+# Output: dist/
 
-# Start server with auto-reload
-npm run server:dev
+# Deploy server
+cd server && npm start
 ```
 
-The multiplayer server (`server/`) is deployed to Render using `render.yaml`. Set `VITE_SOCKET_SERVER_URL` in the client to point to the deployed server URL.
+## Key Constants
+- `TICK_RATE_MS`: 1000 (game tick frequency)
+- `SAVE_VERSION`: 6 (schema version)
+- `AUTO_SAVE_INTERVAL_MS`: 30000 (30 seconds)
+- `MAX_LOGS`: 100 (in-memory log limit)
 
-### Multiplayer Architecture
+## Language Support
+- Spanish (es) - Default
+- English (en)
+- Toggle in Settings view
 
-The multiplayer system uses **Express + Socket.io** (previously Trystero/WebRTC). The server in `server/index.js` acts as a message relay:
-- Rooms: global room + private rooms
-- Presence tracking for connected players
-- Broadcast (to all peers in room) and unicast (to specific peer) message relay
-- Automatic cleanup on disconnect
-
-Client-side implementation in `hooks/useMultiplayerInternal.tsx` uses `socket.io-client`. The `MultiplayerContextType` interface is preserved so all dependent hooks (`useP2PBattleResolver`, `useP2PAttack`, `useMultiplayerChat`, `useP2PGiftResource`, `useP2PGameSync`, etc.) work without modification.
-
-Message types relayed: `PRESENCE_UPDATE`, `REQUEST_PRESENCE`, `GIFT_GOLD`, `GIFT_RESOURCE`, `CHAT_MESSAGE`, `P2P_ATTACK`, `P2P_BATTLE_RESULT`, `P2P_BATTLE_REQUEST_TROOPS`, `P2P_BATTLE_DEFENDER_TROOPS`, `P2P_SPY_REQUEST`, `P2P_SPY_RESPONSE`, `BATTLE_CHALLENGE`, `BATTLE_ACCEPT`, `BATTLE_DECLINE`, `BATTLE_ARMY_LOCK`, `BATTLE_RESULT_SYNC`, `BATTLE_CANCEL`, `DEBRIS_ANNOUNCE`, `DEBRIS_CLAIM`, `DEBRIS_DISPUTE`, `DEBRIS_HARVESTED`, `DEBRIS_EXPIRED`.
+## Important Notes
+1. **No Backend DB**: All data stored in localStorage
+2. **Migration System**: Auto-runs on load to handle schema changes
+3. **Offline Mode**: Time warp calculation when player returns
+4. **P2P Relay**: Socket.io server relays messages, doesn't store game state
+5. **Persistence**: Encoded save string prevents casual tampering

@@ -40,40 +40,45 @@ export const useGameLoop = (
   const lastFrameTime = useRef<number>(0);
   const isLoopRunningRef = useRef<boolean>(false);
   const statusRef = useRef<GameStatus>(status);
+  const setGameStateRef = useRef(setGameState);
+  setGameStateRef.current = setGameState;
 
   // Keep status ref updated
   useEffect(() => {
     statusRef.current = status;
+    if (status === 'PLAYING') {
+      console.log('[GameLoop] Status changed to PLAYING - initializing loop');
+    }
   }, [status]);
 
   // Optimización: Game loop con requestAnimationFrame y throttling
   useEffect(() => {
     if (status !== 'PLAYING') {
-      // CRITICAL FIX: Cancel animation frame when not playing (save/exit)
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = undefined;
       }
       isLoopRunningRef.current = false;
+      console.log('[GameLoop] Status not PLAYING, loop disabled');
       return;
     }
 
+    console.log('[GameLoop] Starting game loop - status:', status);
     lastTickRef.current = Date.now();
     lastFrameTime.current = performance.now();
     isLoopRunningRef.current = true;
     
     let overlap = 0;
+    let tickCount = 0;
 
     const gameLoop = (currentTime: number) => {
-      // Check if we should still be running using ref (not closure value)
-      if (statusRef.current !== 'PLAYING' || !isLoopRunningRef.current) {
+      if (statusRef.current !== 'PLAYING') {
         isLoopRunningRef.current = false;
         return;
       }
 
       const deltaTime = currentTime - lastFrameTime.current;
 
-      // Solo actualizar si pasó suficiente tiempo para el target FPS
       if (deltaTime >= frameInterval.current) {
         lastFrameTime.current = currentTime - (deltaTime % frameInterval.current);
 
@@ -81,9 +86,13 @@ export const useGameLoop = (
         const deltaTimeMs = now - lastTickRef.current + overlap;
         lastTickRef.current = now;
 
-        // Skip si el delta es muy pequeño (evitar micro-actualizaciones)
         if (deltaTimeMs >= TICK_RATE_MS) {
-          setGameState((prev) => {
+          tickCount++;
+          if (tickCount % 10 === 0) {
+            console.log('[GameLoop] Tick update - deltaTimeMs:', deltaTimeMs, 'tickCount:', tickCount);
+          }
+          
+          setGameStateRef.current((prev) => {
             const { newState, newLogs } = calculateNextTick(prev, deltaTimeMs);
 
             if (newLogs.length > 0) {
@@ -91,7 +100,6 @@ export const useGameLoop = (
               hasNewReportsRef.current = true;
             }
 
-            // Solo actualizar si hubo cambios reales
             if (newState === prev && newLogs.length === 0) {
               overlap = deltaTimeMs;
               return prev;
@@ -105,11 +113,9 @@ export const useGameLoop = (
         }
       }
 
-      // Schedule next frame
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
 
-    // Start the loop
     animationFrameRef.current = requestAnimationFrame(gameLoop);
 
     return () => {
@@ -118,6 +124,7 @@ export const useGameLoop = (
         animationFrameRef.current = undefined;
       }
       isLoopRunningRef.current = false;
+      console.log('[GameLoop] Cleanup - total ticks before cleanup:', tickCount);
     };
   }, [status, setGameState, setHasNewReports]);
 
