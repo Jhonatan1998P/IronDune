@@ -16,6 +16,12 @@ export const processBotSalvageCheck = (state: GameState, now: number): { stateUp
     updatedLootFields.forEach((field, index) => {
         if (field.totalValue <= 0) return;
 
+        // NUEVO: Los bots solo pueden recolectar después de 9 minutos de la creación del campo
+        // Esto da tiempo al jugador para llegar primero
+        const ageMs = now - field.createdAt;
+        const nineMinutesMs = 9 * 60 * 1000;
+        if (ageMs < nineMinutesMs) return;
+
         // Probabilidad de que un bot se fije en este campo
         const botIndex = Math.floor(Math.random() * bots.length);
         const bot = bots[botIndex];
@@ -33,6 +39,7 @@ export const processBotSalvageCheck = (state: GameState, now: number): { stateUp
             const { harvested, remaining } = harvestLogisticLootField(field, dronesSimulated, cargoPerDrone);
             
             if (Object.values(harvested).some(v => (v || 0) > 0)) {
+                remaining.harvestCount = (field.harvestCount || 0) + 1;
                 updatedLootFields[index] = remaining;
                 fieldsChanged = true;
                 

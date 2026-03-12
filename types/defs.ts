@@ -388,6 +388,7 @@ export interface TranslationDictionary {
       attacks_outbound: string;
       campaigns_active: string;
       patrols_active: string;
+      salvages_active: string;
       impact: string;
       eta: string;
       troops: string;
@@ -400,6 +401,7 @@ export interface TranslationDictionary {
       no_active_threats: string;
       mission_patrol: string;
       mission_campaign: string;
+      mission_salvage: string;
       profile_unknown: string;
       mission_type_campaign: string;
       mission_type_patrol: string;

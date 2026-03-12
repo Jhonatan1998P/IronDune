@@ -21,6 +21,7 @@ import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
 import { recordReputationChange } from '../utils/engine/reputationHistory';
 import { ReputationChangeType } from '../utils/engine/reputation';
+import { generateLogisticLootFromCombat } from '../utils/engine/logisticLoot';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -649,6 +650,24 @@ export const useGameActions = (
             // --- Atacante: remover la ActiveMission P2P correspondiente ---
             if (isAttacker) {
                 newState.activeMissions = (newState.activeMissions || []).filter(m => m.id !== result.attackId);
+            }
+
+            // NUEVO: Generar Botín Logístico para batallas P2P
+            if (result.battleResult) {
+                const lootField = generateLogisticLootFromCombat(
+                    result.battleResult,
+                    'P2P',
+                    result.attackId,
+                    {
+                        attackerId: result.attackerId,
+                        attackerName: result.attackerName,
+                        defenderId: result.defenderId,
+                        defenderName: result.defenderName
+                    }
+                );
+                if (lootField) {
+                    newState.logisticLootFields = [...(newState.logisticLootFields || []), lootField];
+                }
             }
 
             return newState;

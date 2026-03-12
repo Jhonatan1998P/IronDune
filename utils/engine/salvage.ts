@@ -72,6 +72,7 @@ export const resolveSalvageMission = (
         ...lootField,
         resources: remaining,
         isPartiallyHarvested: true,
+        harvestCount: (lootField.harvestCount || 0) + 1,
         totalValue: Object.values(remaining).reduce((a, b) => a + (b || 0), 0)
     };
     

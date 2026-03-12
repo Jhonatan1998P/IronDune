@@ -124,9 +124,16 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                     logs.push({
                         id: `salvage-success-${item.endTime}-${mission.id}`,
                         messageKey: 'log_salvage_success',
-                        type: 'info',
+                        type: 'combat',
                         timestamp: item.endTime,
-                        params: { loot: result.resources, drones: result.dronesReturned }
+                        params: { 
+                            loot: result.resources, 
+                            drones: result.dronesReturned,
+                            lootField: lootField ? {
+                                ...lootField,
+                                harvestCount: lootField.harvestCount || 0
+                            } : undefined
+                        }
                     });
                 } else {
                     logs.push({
@@ -156,7 +163,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 state.empirePoints,
                 state.buildings,
                 state.targetAttackCounts,
-                state.spyReports || []
+                state.spyReports || [],
+                state.playerName
             );
             
             Object.assign(newResources, outcome.resources);

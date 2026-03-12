@@ -218,7 +218,7 @@ const MissionDetails: React.FC<MissionDetailsProps> = ({ mission, onClose }) => 
             case 'CAMPAIGN_ATTACK':
                 return { icon: Icons.Radar, iconColor: 'text-blue-400', label: t.common.ui.mission_campaign };
             case 'SALVAGE':
-                return { icon: Icons.Settings, iconColor: 'text-yellow-400', label: t.common.ui.mission_salvage };
+                return { icon: Icons.Settings, iconColor: 'text-yellow-400', label: (t.common.ui as any).mission_salvage };
             default:
                 return { icon: Icons.Map, iconColor: 'text-emerald-400', label: t.common.ui.mission_patrol };
         }

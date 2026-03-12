@@ -67,6 +67,10 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
     else if (log.messageKey === 'log_attack_reset') msg = t.common.ui.log_attack_reset;
     else if (log.messageKey === 'log_ally_reinforcement') msg = t.common.ui.log_ally_reinforcement.replace('{allyName}', log.params?.allyName || 'Unknown');
     else if (log.messageKey === 'log_new_ally') msg = t.common.ui.log_new_ally;
+    else if (log.messageKey === 'log_salvage_success') msg = t.common.ui.log_salvage_success.replace('{drones}', log.params?.drones || '0');
+    else if (log.messageKey === 'log_salvage_failed') msg = t.common.ui.log_salvage_failed.replace('{reason}', log.params?.reason || 'Unknown');
+    else if (log.messageKey === 'log_bot_salvage') msg = t.common.ui.log_bot_salvage.replace('{botName}', log.params?.botName || 'Bot').replace('{fieldName}', log.params?.fieldName || 'Zone');
+    else if (log.messageKey === 'log_debris_expired') msg = t.common.ui.log_debris_expired.replace('{count}', log.params?.count || '0').replace('{autoSalvageValue}', formatNumber(log.params?.autoSalvageValue || 0));
     else if (log.messageKey === 'war_system_error') msg = t.common.ui.war_system_error;
     else if (log.type === 'research') {
         const name = t.techs[TECH_DEFS[log.messageKey as TechType]?.translationKey ?? '']?.name || log.messageKey;
@@ -157,6 +161,28 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         styleClass = 'bg-gradient-to-r from-red-900/50 to-slate-900/80 border-red-500/50 border-l-red-600 animate-pulse';
         iconColor = 'text-red-300 bg-red-950/50 border-red-500/50';
         iconSymbol = <Icons.Warning />;
+    }
+
+    if (log.messageKey === 'log_salvage_success') {
+        typeLabel = t.common.ui.mission_salvage || 'Salvage Operation';
+        styleClass = 'bg-gradient-to-r from-yellow-950/30 to-slate-900/80 border-yellow-500/30 border-l-yellow-500';
+        iconColor = 'text-yellow-400 bg-yellow-950/50 border-yellow-500/30';
+        iconSymbol = <Icons.Resources.Money />;
+    } else if (log.messageKey === 'log_salvage_failed') {
+        typeLabel = t.common.ui.mission_salvage || 'Salvage Operation';
+        styleClass = 'bg-gradient-to-r from-slate-800/40 to-slate-900/80 border-slate-500/30 border-l-slate-500';
+        iconColor = 'text-slate-400 bg-slate-800/50 border-slate-500/30';
+        iconSymbol = <Icons.Info />;
+    } else if (log.messageKey === 'log_bot_salvage') {
+        typeLabel = t.common.ui.nav_intel;
+        styleClass = 'bg-gradient-to-r from-indigo-950/20 to-slate-900/80 border-indigo-500/20 border-l-indigo-500';
+        iconColor = 'text-indigo-400 bg-indigo-950/50 border-indigo-500/30';
+        iconSymbol = <Icons.Radar />;
+    } else if (log.messageKey === 'log_debris_expired') {
+        typeLabel = t.common.ui.nav_economy;
+        styleClass = 'bg-gradient-to-r from-emerald-950/10 to-slate-900/80 border-emerald-500/10 border-l-emerald-700';
+        iconColor = 'text-emerald-500 bg-emerald-950/50 border-emerald-500/20';
+        iconSymbol = <Icons.Resources.Money />;
     }
 
     return (

@@ -356,10 +356,16 @@ export const simulateCombat = (
                             target.hp = 0;
                             died      = true;
 
-                            const vPerfSlot = getOrInitPerf(
-                                target.side === 'PLAYER' ? playerPerformance : enemyPerformance,
-                                target.type
-                            );
+                            let victimPerf: Partial<Record<UnitType, UnitPerformanceStats>>;
+                            if (target.side === 'PLAYER') {
+                                victimPerf = playerPerformance;
+                            } else if (target.side === 'ALLY' && target.allyId) {
+                                victimPerf = allyPerformance[target.allyId];
+                            } else {
+                                victimPerf = enemyPerformance;
+                            }
+
+                            const vPerfSlot = getOrInitPerf(victimPerf, target.type);
                             aPerfSlot.kills[target.type]          = (aPerfSlot.kills[target.type]          || 0) + 1;
                             vPerfSlot.deathsBy[attacker.type]     = (vPerfSlot.deathsBy[attacker.type]     || 0) + 1;
                         }
@@ -372,10 +378,16 @@ export const simulateCombat = (
                                 target.hp = 0;
                                 died      = true;
 
-                                const vPerfSlot = getOrInitPerf(
-                                    target.side === 'PLAYER' ? playerPerformance : enemyPerformance,
-                                    target.type
-                                );
+                                let victimPerf: Partial<Record<UnitType, UnitPerformanceStats>>;
+                                if (target.side === 'PLAYER') {
+                                    victimPerf = playerPerformance;
+                                } else if (target.side === 'ALLY' && target.allyId) {
+                                    victimPerf = allyPerformance[target.allyId];
+                                } else {
+                                    victimPerf = enemyPerformance;
+                                }
+
+                                const vPerfSlot = getOrInitPerf(victimPerf, target.type);
                                 aPerfSlot.kills[target.type]          = (aPerfSlot.kills[target.type]          || 0) + 1;
                                 aPerfSlot.criticalKills++;
                                 vPerfSlot.deathsBy[attacker.type]     = (vPerfSlot.deathsBy[attacker.type]     || 0) + 1;
@@ -397,8 +409,8 @@ export const simulateCombat = (
                             targetCount--;
 
                             // Sincronizar el contador del bando correspondiente
-                            if (isPlayer) eTargetCount = targetCount;
-                            else          pTargetCount = targetCount;
+                            if (isFriendly) eTargetCount = targetCount;
+                            else            pTargetCount = targetCount;
                         }
                     }
                 }

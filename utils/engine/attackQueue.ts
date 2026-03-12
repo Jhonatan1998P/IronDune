@@ -302,7 +302,7 @@ export const processIncomingAttackInQueue = (
             attackerId: attack.attackerId || 'BOT',
             attackerName: attack.attackerName,
             defenderId: 'PLAYER',
-            defenderName: 'Player'
+            defenderName: newState.playerName || 'Player'
         }
     ) || undefined;
 

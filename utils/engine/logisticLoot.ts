@@ -30,6 +30,9 @@ export const generateLogisticLootFromCombat = (
     
     const now = Date.now();
     
+    // NUEVO: Las misiones de campaña no generan botín logístico por diseño
+    if (origin === 'CAMPAIGN') return null;
+    
     // Calcular coste de todas las bajas
     const attackerCasualtyResources = calculateResourceCost(battleResult.totalPlayerCasualties);
     const defenderCasualtyResources = calculateResourceCost(battleResult.totalEnemyCasualties);
@@ -81,6 +84,7 @@ export const generateLogisticLootFromCombat = (
         battleId,
         origin,
         resources: debrisResources,
+        initialResources: { ...debrisResources },
         createdAt: now,
         expiresAt: expiryMap[origin],
         totalValue,
@@ -90,6 +94,7 @@ export const generateLogisticLootFromCombat = (
         defenderName: participants.defenderName,
         isPartiallyHarvested: false,
         harvestedBy: [],
+        harvestCount: 0,
         isP2P: origin === 'P2P',
         p2pBroadcasted: false,
         warId,
@@ -162,6 +167,7 @@ export const mergeWarLogisticLoot = (
         battleId: warId,
         origin: 'WAR',
         resources: merged,
+        initialResources: { ...merged },
         createdAt: now,
         expiresAt: now + DEBRIS_EXPIRY_WAR_BUFFER_MS,
         totalValue,
@@ -171,6 +177,7 @@ export const mergeWarLogisticLoot = (
         defenderName: firstLoot.defenderName,
         isPartiallyHarvested: false,
         harvestedBy: [],
+        harvestCount: 0,
         isP2P: false,
         p2pBroadcasted: false,
         warId

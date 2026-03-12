@@ -116,6 +116,42 @@ export enum MultiplayerActionType {
 }
 
 /**
+ * Payload para anunciar un campo de escombros (Botín Logístico) a la red P2P
+ */
+export interface DebrisAnnouncePayload {
+    debrisField: any; // LogisticLootField (any for circular deps if needed, but preferably typed)
+    battleSummary: {
+        attackerName: string;
+        defenderName: string;
+        attackerCasualties: number;  // Total units lost
+        defenderCasualties: number;
+        winner: 'PLAYER' | 'ENEMY' | 'DRAW';
+    };
+}
+
+/**
+ * Payload para reclamar el salvamento de un campo de escombros
+ */
+export interface DebrisClaimPayload {
+    debrisId: string;
+    claimerId: string;
+    claimerName: string;
+    dronesCount: number;
+    estimatedArrival: number;  // Timestamp
+}
+
+/**
+ * Payload para disputar un campo ya reclamado
+ */
+export interface DebrisDisputePayload {
+    debrisId: string;
+    disputerId: string;
+    disputerName: string;
+    dronesCount: number;
+    escortUnits?: Partial<Record<UnitType, number>>; // Puede enviar escolta militar
+}
+
+/**
  * Payload para acción de regalo de oro (duplicate removed)
  */
 

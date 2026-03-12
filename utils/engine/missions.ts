@@ -492,7 +492,8 @@ export const resolveMission = (
     empirePoints: number = 0,
     buildings: Record<BuildingType, { level: number }> = {} as any,
     attackCounts: Record<string, number> = {},
-    spyReports: SpyReport[] = []
+    spyReports: SpyReport[] = [],
+    playerName: string = 'Player'
 ): { 
     resources: Record<ResourceType, number>, 
     unitsToAdd: Partial<Record<UnitType, number>>,
@@ -646,7 +647,7 @@ export const resolveMission = (
             mission.id,
             {
                 attackerId: 'PLAYER',
-                attackerName: 'Player',
+                attackerName: playerName,
                 defenderId: mission.targetId || 'BOT',
                 defenderName: mission.targetName || 'Unknown'
             }
@@ -685,7 +686,7 @@ export const resolveMission = (
             mission.id,
             {
                 attackerId: 'PLAYER',
-                attackerName: 'Player',
+                attackerName: playerName,
                 defenderId: `CAMPAIGN-${mission.levelId}`,
                 defenderName: `Campaign Target`
             }

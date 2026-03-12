@@ -158,6 +158,7 @@ export interface LogisticLootField {
     battleId: string;                                    
     origin: 'WAR' | 'RAID' | 'P2P' | 'CAMPAIGN';       
     resources: Partial<Record<ResourceType, number>>;    
+    initialResources: Partial<Record<ResourceType, number>>; // Los recursos originales al crearse
     createdAt: number;                                   
     expiresAt: number;                                   
     totalValue: number;                                  
@@ -167,6 +168,7 @@ export interface LogisticLootField {
     defenderName: string;
     isPartiallyHarvested: boolean;                       
     harvestedBy: string[];                               
+    harvestCount: number; // Veces que ha sido recolectado
     isP2P: boolean;                                      
     p2pBroadcasted: boolean;                             
     warId?: string;                                      
