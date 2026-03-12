@@ -470,8 +470,8 @@ describe('Migrate War State', () => {
 
         const result = migrateWarState(savedWar);
 
-        expect(result?.lootPool[ResourceType.MONEY]).toBe(0);
-        expect(result?.lootPool[ResourceType.OIL]).toBe(0);
+        expect(result?.totalLogisticLootGenerated[ResourceType.MONEY]).toBe(0);
+        expect(result?.totalLogisticLootGenerated[ResourceType.OIL]).toBe(0);
     });
 });
 

@@ -1,4 +1,4 @@
-import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry, TechType, UnitType, LogisticLootField } from '../../types';
+import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry, LogisticLootField } from '../../types';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
 import { 
     OFFLINE_PRODUCTION_LIMIT_MS,
@@ -99,7 +99,9 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         return { newState: state, report, newLogs };
     }
 
-    let newState = { ...state };
+    // CRITICAL FIX: Use deep clone to avoid mutating the original state reference
+    // which causes issues when nested objects are modified during complex offline steps
+    let newState = JSON.parse(JSON.stringify(state)) as GameState;
 
     // CRITICAL FIX: Log the exact offline duration for debugging
     console.log('[Offline] Starting offline calculation', {

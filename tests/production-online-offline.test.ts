@@ -4,7 +4,7 @@ import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
 import { calculateProductionRates, calculateUpkeepCosts, calculateMaxStorage, calculateTechMultipliers } from '../utils/engine/modifiers';
-import { OFFLINE_PRODUCTION_LIMIT_MS, UNLIMITED_CAPACITY } from '../constants';
+import { OFFLINE_PRODUCTION_LIMIT_MS, UNLIMITED_CAPACITY, SAVE_VERSION } from '../constants';
 
 /**
  * TESTS DE PRODUCCIÓN ONLINE Y OFFLINE
@@ -503,8 +503,8 @@ describe('Producción Online y Offline - Tests de Integración', () => {
             
             const migrated = sanitizeAndMigrateSave(oldVersionState);
             
-            // Debería actualizar versión
-            expect(migrated.saveVersion).toBe(6);
+            // Debería actualizar versión a la actual
+            expect(migrated.saveVersion).toBe(SAVE_VERSION);
             
             // Y capar recursos inflados
             expect(migrated.resources[ResourceType.MONEY]).toBeLessThanOrEqual(10_000_000_000);

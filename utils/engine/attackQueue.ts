@@ -1,4 +1,4 @@
-import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult, BattleResult, UnitType, ResourceType, BuildingType, LogisticLootField } from '../../types';
+import { ActiveMission, GameState, IncomingAttack, LogEntry, QueuedAttackResult, BattleResult, UnitType, ResourceType, BuildingType } from '../../types';
 import { resolveMission } from './missions';
 import { simulateCombat } from './combat';
 import { calculateActiveReinforcements } from './allianceReinforcements';
@@ -52,13 +52,10 @@ export const processOutgoingAttackInQueue = (
         newState.spyReports
     );
 
-    Object.entries(missionResult.resources).forEach(([res, qty]) => {
-        const resourceType = res as ResourceType;
-        newState.resources[resourceType] = Math.min(
-            newState.maxResources[resourceType],
-            newState.resources[resourceType] + (qty as number)
-        );
-    });
+    // CRITICAL FIX: resolveMission returns the TOTAL updated resources, not just the loot.
+    // Adding them causes a doubling bug (current + (current + loot)).
+    // We must assign the new total directly.
+    newState.resources = { ...missionResult.resources };
 
     if (missionResult.unitsToAdd) {
         Object.entries(missionResult.unitsToAdd).forEach(([uType, count]) => {
