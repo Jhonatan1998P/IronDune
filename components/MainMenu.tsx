@@ -1,16 +1,15 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 import { GlassButton, Icons } from './UIComponents';
+import { useAuth } from '../context/AuthContext';
 
 export const MainMenu: React.FC = () => {
     const { t, language, setLanguage } = useLanguage();
-    const { hasSave, startNewGame, loadGame, importSave, exportSave } = useGame();
+    const { hasSave, startNewGame, loadGame } = useGame();
+    const { signOut } = useAuth();
     
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
-
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(0);
 
@@ -40,32 +39,6 @@ export const MainMenu: React.FC = () => {
 
     const handleContinueClick = () => {
         simulateLoading(() => loadGame());
-    };
-
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const content = evt.target?.result as string;
-            if (content) {
-                const success = importSave(content);
-                if (!success) {
-                    setMessage({ text: t.common.menu.import_error, type: 'error' });
-                    setTimeout(() => setMessage(null), 3000);
-                } else {
-                    setMessage({ text: t.common.menu.save_success, type: 'success' });
-                    setTimeout(() => setMessage(null), 3000);
-                }
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
     };
 
     return (
@@ -127,31 +100,13 @@ export const MainMenu: React.FC = () => {
                         </span>
                     </button>
 
-                    {/* Importar/Exportar */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 pt-3 sm:pt-4 border-t border-white/5">
-                        <GlassButton onClick={handleImportClick} className="text-[10px] sm:text-xs py-2.5 sm:py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30">
-                            {t.common.menu.import_save}
-                        </GlassButton>
-                        <GlassButton onClick={exportSave} disabled={!hasSave} className="text-[10px] sm:text-xs py-2.5 sm:py-3 bg-slate-800/50 hover:bg-slate-700/50 border-slate-600/30 disabled:opacity-30">
-                            {t.common.menu.export_save}
+                    {/* Sign Out */}
+                    <div className="pt-4 border-t border-white/5">
+                        <GlassButton onClick={signOut} variant="danger" className="w-full text-xs py-2.5">
+                            {t.common.auth.logout}
                         </GlassButton>
                     </div>
-
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept=".ids,.json"
-                    />
                 </div>
-
-                {/* Mensajes */}
-                {message && (
-                    <div className={`absolute bottom-16 sm:bottom-20 left-0 right-0 mx-auto w-max px-4 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold shadow-xl animate-[fadeIn_0.3s_ease-out] backdrop-blur-md ${message.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/50' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'}`}>
-                        {message.text}
-                    </div>
-                )}
 
                 {/* Footer: Idioma y versión */}
                 <div className="flex flex-col items-center gap-1.5 sm:gap-2 pt-2">

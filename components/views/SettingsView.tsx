@@ -3,6 +3,7 @@ import { GameState } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
+import { useAuth } from '../../context/AuthContext';
 
 const AVAILABLE_FLAGS = [
     'US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU',
@@ -17,20 +18,17 @@ interface SettingsViewProps {
     gameState: GameState;
     changePlayerName: (name: string, flag?: string) => { success: boolean; errorKey?: string };
     redeemGiftCode: (code: string) => { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number };
-    saveGame: () => void;
     resetGame: () => void;
-    exportSave: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
     gameState, 
     changePlayerName, 
     redeemGiftCode,
-    saveGame, 
     resetGame, 
-    exportSave 
 }) => {
     const { t, setLanguage, language } = useLanguage();
+    const { signOut } = useAuth();
     const [newName, setNewName] = useState('');
     const [nameError, setNameError] = useState<string | null>(null);
     const [nameSuccess, setNameSuccess] = useState(false);
@@ -317,16 +315,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 </div>
                                 
                                 <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                                    <GlassButton onClick={exportSave} className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3">
+                                    <GlassButton onClick={signOut} variant="danger" className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3 shadow-lg">
                                         <span className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
-                                            <span className="text-base sm:text-lg">📥</span>
-                                            {t.common.menu.export_save}
-                                        </span>
-                                    </GlassButton>
-                                    <GlassButton onClick={saveGame} variant="neutral" className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3 border-emerald-500/30 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-900/20">
-                                        <span className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
-                                            <span className="text-base sm:text-lg">💾</span>
-                                            {t.common.menu.save_exit}
+                                            <span className="text-base sm:text-lg">🚪</span>
+                                            {t.common.auth.logout}
                                         </span>
                                     </GlassButton>
                                 </div>

@@ -488,6 +488,22 @@ export const ui = {
         toast_p2p_gift_sent: "You sent {amount} {resource} to {targetName}!",
         toast_p2p_gift_received: "{senderName} sent you {amount} {resource}!",
       },
+      auth: {
+        login: "Login",
+        register: "Register",
+        email: "Email",
+        password: "Password",
+        login_btn: "ENTER SYSTEM",
+        register_btn: "CREATE ACCOUNT",
+        logout: "Logout",
+        already_have_account: "Already have an account? Login",
+        no_account: "Don't have an account? Register",
+        error_invalid_email: "Invalid email",
+        error_weak_password: "Password too weak",
+        error_auth_failed: "Authentication failed",
+        loading: "VERIFYING CREDENTIALS...",
+        setup_required: "Supabase Setup Required"
+      },
       menu: {
         new_game: "New Operation",
         continue_game: "Resume Mission",
@@ -683,7 +699,8 @@ export const ui = {
         log_enemy_attack: "Enemy attack detected from {attacker}",
         log_ally_reinforcement: "Allied reinforcements received",
         log_war_overtime: "WAR: OVERTIME",
-        log_new_ally: "New alliance formed with {ally}"
+        log_new_ally: "New alliance formed with {ally}",
+        units: "Units"
       },
     errors: {
         insufficient_funds: "Insufficient Resources",

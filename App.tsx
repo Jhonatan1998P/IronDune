@@ -5,37 +5,45 @@ import { GameProvider } from './context/GameContext';
 import { ToastProvider } from './components/ui/Toast';
 import { MultiplayerProvider } from './hooks/useMultiplayer';
 import { GameLayout } from './components/layout/GameLayout';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthView } from './components/auth/AuthView';
 
 /**
  * AppContent - Componente principal del juego
- * 
- * NOTA: MultiplayerProvider está OUTSIDE de GameProvider para evitar
- * que se desmonte con cada actualización del gameState.
- * 
- * Las conexiones WebRTC (Trystero) deben mantenerse estables y solo
- * limpiarse cuando el usuario sale explícitamente de la sala.
  */
 const AppContent: React.FC = () => {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center font-tech">
+        <div className="text-cyan-500 animate-pulse tracking-[0.3em] uppercase">
+          Establishing Secure Link...
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthView />;
+  }
+
   return <GameLayout />;
 };
 
 /**
  * App - Árbol de Providers
- * 
- * Orden CRÍTICO:
- * 1. MultiplayerProvider (más externo - no depende del juego)
- * 2. GameProvider (interno - se re-renderiza con el estado)
- * 
- * Esto previene que las conexiones P2P se interrumpan con cada update.
  */
 const App: React.FC = () => (
     <LanguageProvider>
       <ToastProvider>
-        <MultiplayerProvider>
-          <GameProvider>
-            <AppContent />
-          </GameProvider>
-        </MultiplayerProvider>
+        <AuthProvider>
+          <MultiplayerProvider>
+            <GameProvider>
+              <AppContent />
+            </GameProvider>
+          </MultiplayerProvider>
+        </AuthProvider>
       </ToastProvider>
     </LanguageProvider>
 );

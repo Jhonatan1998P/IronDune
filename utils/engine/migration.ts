@@ -569,7 +569,8 @@ const migrateWarState = (savedWar: any, silent: boolean = false): WarState | nul
         enemyResourceLosses: sanitizeWarResources(savedWar.enemyResourceLosses),
         playerUnitLosses: safeNumber(savedWar.playerUnitLosses, 0, 0),
         enemyUnitLosses: safeNumber(savedWar.enemyUnitLosses, 0, 0),
-        currentEnemyGarrison: isValidObject(savedWar.currentEnemyGarrison) ? savedWar.currentEnemyGarrison : {}
+        currentEnemyGarrison: isValidObject(savedWar.currentEnemyGarrison) ? savedWar.currentEnemyGarrison : {},
+        lootPool: sanitizeWarResources(savedWar.lootPool)
     };
 };
 

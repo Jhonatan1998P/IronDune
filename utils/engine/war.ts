@@ -312,7 +312,8 @@ export const startWar = (
             currentEnemyGarrison: initialGarrison,
             warLogisticLootIds: [],
             totalLogisticLootGenerated: { ...zeroResources },
-            logisticLootHarvestedDuringWar: { ...zeroResources }
+            logisticLootHarvestedDuringWar: { ...zeroResources },
+            lootPool: { ...zeroResources }
         };
 
         // Validate war state before activation

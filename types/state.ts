@@ -202,6 +202,7 @@ export interface WarState {
     warLogisticLootIds: string[];
     totalLogisticLootGenerated: Record<ResourceType, number>;
     logisticLootHarvestedDuringWar: Record<ResourceType, number>;
+    lootPool: Record<ResourceType, number>;
 }
 
 export interface RankingData {
