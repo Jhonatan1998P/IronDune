@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { supabase } from './lib/supabase.js';
 import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
@@ -10,7 +11,33 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 
-// ... (en los endpoints)
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+  pingInterval: 25000,
+  pingTimeout: 20000,
+});
+
+// --- API ENDPOINTS ---
+
+app.get('/health', (_req, res) => {
+  try {
+    const rooms = io.sockets.adapter.rooms;
+    const playerCount = io.sockets.sockets.size;
+    res.json({ status: 'ok', players: playerCount, rooms: rooms.size });
+  } catch (error) {
+    res.status(500).json({ status: 'error', error: error.message });
+  }
+});
 
 app.post('/api/battle/simulate-combat', (req, res) => {
     try {
@@ -22,20 +49,6 @@ app.post('/api/battle/simulate-combat', (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-dotenv.config();
-
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-
-app.get('/health', (_req, res) => {
-  const rooms = io.sockets.adapter.rooms;
-  const playerCount = io.sockets.sockets.size;
-  res.json({ status: 'ok', players: playerCount, rooms: rooms.size });
-});
-
-// --- BATTLE ENGINE API ---
 
 app.post('/api/battle/process-queue', (req, res) => {
     try {
@@ -86,9 +99,6 @@ app.post('/api/battle/nemesis-tick', (req, res) => {
     }
 });
 
-/**
- * Global Salvage Data
- */
 app.get('/api/salvage/global', async (req, res) => {
     try {
         const { data: loot, error } = await supabase
@@ -100,7 +110,6 @@ app.get('/api/salvage/global', async (req, res) => {
             
         if (error) throw error;
 
-        // Map database snake_case back to camelCase for the frontend
         const mappedLoot = loot.map(l => ({
             id: l.id,
             battleId: l.battle_id,
@@ -120,9 +129,6 @@ app.get('/api/salvage/global', async (req, res) => {
     }
 });
 
-/**
- * Global Bots Data
- */
 app.get('/api/bots/global', async (req, res) => {
     try {
         const { data: bots, error } = await supabase
@@ -136,17 +142,7 @@ app.get('/api/bots/global', async (req, res) => {
     }
 });
 
-const httpServer = createServer(app);
-
-
-const io = new Server(httpServer, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
-  pingInterval: 25000,
-  pingTimeout: 20000,
-});
+// --- SOCKET.IO LOGIC ---
 
 const playerPresence = new Map();
 const GLOBAL_ROOM = 'global';
