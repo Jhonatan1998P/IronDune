@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { useMultiplayerSync } from '../../hooks/useMultiplayer';
 import { useP2PGameSync } from '../../hooks/useP2PGameSync';
-import { useP2PBattleResolver } from '../../hooks/useP2PBattleResolver';
 import { OfflineWelcome } from '../OfflineWelcome';
 import { UnitType } from '../../types';
 
@@ -43,9 +42,6 @@ export const GameLayout: React.FC = () => {
 
   // Sink para ataques P2P asincrónicos (defensor)
   useP2PGameSync();
-
-  // Resolver batallas P2P cuando llega endTime (atacante)
-  useP2PBattleResolver();
 
   const handleSimulate = (enemyUnits: Partial<Record<UnitType, number>>, playerUnits: Partial<Record<UnitType, number>>) => {
       setSimEnemyArmy(enemyUnits);

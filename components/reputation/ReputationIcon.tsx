@@ -1,15 +1,34 @@
+
 /**
  * ReputationIcon Component
- * 
- * Displays a reputation icon with color coding based on reputation level.
- * Shows a heart/handshake/target icon depending on relationship status.
  */
 
 import React from 'react';
 import { Heart, Handshake, Shield, Target, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { SmartTooltip } from '../UIComponents';
-import { getReputationColor, getReputationCategory, ReputationCategory } from '../../utils/engine/reputation';
 import { useLanguage } from '../../context/LanguageContext';
+
+enum ReputationCategory {
+    LOYAL_ALLY = 'LOYAL_ALLY',
+    FRIENDLY = 'FRIENDLY',
+    NEUTRAL = 'NEUTRAL',
+    HOSTILE = 'HOSTILE',
+    MORTAL_ENEMY = 'MORTAL_ENEMY'
+}
+
+const getReputationColor = (rep: number) => {
+    if (rep >= 75) return 'text-green-400';
+    if (rep <= 30) return 'text-red-400';
+    return 'text-yellow-400';
+};
+
+const getReputationCategory = (rep: number): ReputationCategory => {
+    if (rep >= 85) return ReputationCategory.LOYAL_ALLY;
+    if (rep >= 75) return ReputationCategory.FRIENDLY;
+    if (rep > 50) return ReputationCategory.NEUTRAL;
+    if (rep > 30) return ReputationCategory.HOSTILE;
+    return ReputationCategory.MORTAL_ENEMY;
+};
 
 interface ReputationIconProps {
     reputation: number;
@@ -66,26 +85,17 @@ export const ReputationIcon: React.FC<ReputationIconProps> = ({
 
     const getTrendIcon = () => {
         if (!showTrend) return null;
-        
         switch (trend) {
-            case 'UP':
-                return <TrendingUp className="w-3 h-3 text-green-400" />;
-            case 'DOWN':
-                return <TrendingDown className="w-3 h-3 text-red-400" />;
-            case 'STABLE':
-                return <Minus className="w-3 h-3 text-gray-400" />;
+            case 'UP': return <TrendingUp className="w-3 h-3 text-green-400" />;
+            case 'DOWN': return <TrendingDown className="w-3 h-3 text-red-400" />;
+            case 'STABLE': return <Minus className="w-3 h-3 text-gray-400" />;
         }
     };
 
     const getDefaultTooltip = () => (
         <div className="space-y-1.5 text-xs min-w-[160px]">
-            <div className="font-bold text-cyan-400 border-b border-slate-700 pb-1">
-                {t.common.ui.reputation || 'Reputación'}
-            </div>
-            <div className="flex justify-between">
-                <span className="text-slate-400">Valor:</span>
-                <span className={`font-bold ${getReputationColor(clampedRep)}`}>{clampedRep}%</span>
-            </div>
+            <div className="font-bold text-cyan-400 border-b border-slate-700 pb-1">{t.common.ui.reputation || 'Reputación'}</div>
+            <div className="flex justify-between"><span className="text-slate-400">Valor:</span><span className={`font-bold ${getReputationColor(clampedRep)}`}>{clampedRep}%</span></div>
             <div className="flex justify-between">
                 <span className="text-slate-400">Estado:</span>
                 <span className={`font-bold ${getReputationColor(clampedRep)}`}>
@@ -96,47 +106,20 @@ export const ReputationIcon: React.FC<ReputationIconProps> = ({
                     {category === ReputationCategory.MORTAL_ENEMY && 'Enemigo Mortal'}
                 </span>
             </div>
-            {showTrend && (
-                <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Tendencia:</span>
-                    <div className="flex items-center gap-1">
-                        {getTrendIcon()}
-                        <span className={
-                            trend === 'UP' ? 'text-green-400' :
-                            trend === 'DOWN' ? 'text-red-400' :
-                            'text-gray-400'
-                        }>
-                            {trend === 'UP' ? 'Mejorando' :
-                             trend === 'DOWN' ? 'Empeorando' :
-                             'Estable'}
-                        </span>
-                    </div>
-                </div>
-            )}
         </div>
     );
 
     const iconContent = (
         <div className={`relative inline-flex items-center justify-center ${containerSizeClasses[size]} rounded-full bg-gray-700/50 border border-gray-600 ${className}`}>
             {getIcon()}
-            {showTrend && (
-                <div className="absolute -top-1 -right-1 bg-gray-800 rounded-full p-0.5 border border-gray-600">
-                    {getTrendIcon()}
-                </div>
-            )}
+            {showTrend && <div className="absolute -top-1 -right-1 bg-gray-800 rounded-full p-0.5 border border-gray-600">{getTrendIcon()}</div>}
         </div>
     );
 
     if (showTooltip) {
         return (
-            <SmartTooltip
-                content={tooltipContent || getDefaultTooltip()}
-                triggerMode="hover"
-                placement="top"
-            >
-                <div className="cursor-help">
-                    {iconContent}
-                </div>
+            <SmartTooltip content={tooltipContent || getDefaultTooltip()} triggerMode="hover" placement="top">
+                <div className="cursor-help">{iconContent}</div>
             </SmartTooltip>
         );
     }

@@ -155,7 +155,6 @@ const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
 const TOTAL_BOTS = 199;
 export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
-const SOFT_CAP_SCORE = Number.MAX_SAFE_INTEGER; // Removed growth cap - bots grow indefinitely
 
 export enum BotEvent {
     ATTACKED = 'ATTACKED',
@@ -225,31 +224,28 @@ export const initializeRankingState = (): RankingData => ({
 const applyEvent = (bot: StaticBot): StaticBot => {
     const roll = Math.random();
     let newEvent: BotEvent = bot.currentEvent;
-    let turns = 0;
+    let newTurnsRemaining = bot.eventTurnsRemaining;
 
     if (bot.eventTurnsRemaining <= 0) {
         if (roll < 0.15) {
             newEvent = BotEvent.ATTACKED;
-            turns = 1 + Math.floor(Math.random() * 2);
+            newTurnsRemaining = 1 + Math.floor(Math.random() * 2);
         } else if (roll < 0.25) {
             newEvent = BotEvent.SUCCESSFUL_RAID;
-            turns = 1 + Math.floor(Math.random() * 2);
+            newTurnsRemaining = 1 + Math.floor(Math.random() * 2);
         } else if (roll < 0.35) {
             newEvent = BotEvent.ECONOMIC_BOOM;
-            turns = 2 + Math.floor(Math.random() * 3);
+            newTurnsRemaining = 2 + Math.floor(Math.random() * 3);
         } else if (roll < 0.42) {
             newEvent = BotEvent.RESOURCES_CRISIS;
-            turns = 1 + Math.floor(Math.random() * 2);
+            newTurnsRemaining = 1 + Math.floor(Math.random() * 2);
         } else if (roll < 0.52) {
             newEvent = BotEvent.MILITARY_BUILDUP;
-            turns = 2 + Math.floor(Math.random() * 2);
+            newTurnsRemaining = 2 + Math.floor(Math.random() * 2);
         } else {
             newEvent = BotEvent.PEACEFUL_PERIOD;
-            turns = 2 + Math.floor(Math.random() * 3);
+            newTurnsRemaining = 2 + Math.floor(Math.random() * 3);
         }
-    } else {
-        newEvent = bot.currentEvent;
-        turns = bot.eventTurnsRemaining;
     }
 
     const modifier = EVENT_MODIFIERS[newEvent];
@@ -257,7 +253,7 @@ const applyEvent = (bot: StaticBot): StaticBot => {
     return {
         ...bot,
         currentEvent: newEvent,
-        eventTurnsRemaining: Math.max(0, bot.eventTurnsRemaining - 1),
+        eventTurnsRemaining: Math.max(0, newTurnsRemaining - 1),
         growthModifier: modifier
     };
 };

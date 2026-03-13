@@ -4,7 +4,18 @@ import { UNIT_DEFS } from '../../data/units';
 import { BattleResult, LogEntry, UnitType, TranslationDictionary, ResourceType, WarState, UnitCategory, BuildingType, LogisticLootField } from '../../types';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
-import { UNIT_PRIORITY } from '../../utils/engine/combat';
+
+const UNIT_PRIORITY: UnitType[] = [
+    UnitType.CYBER_MARINE,
+    UnitType.HEAVY_COMMANDO,
+    UnitType.SCOUT_TANK,
+    UnitType.TITAN_MBT,
+    UnitType.WRAITH_GUNSHIP,
+    UnitType.ACE_FIGHTER,
+    UnitType.AEGIS_DESTROYER,
+    UnitType.PHANTOM_SUB,
+    UnitType.SALVAGER_DRONE
+];
 
 interface CombatReportProps {
     log: LogEntry;

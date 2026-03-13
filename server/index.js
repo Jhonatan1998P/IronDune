@@ -7,7 +7,21 @@ import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
+import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
+
+// ... (en los endpoints)
+
+app.post('/api/battle/simulate-combat', (req, res) => {
+    try {
+        const { attackerUnits, defenderUnits, terrainModifier } = req.body;
+        const result = simulateCombat(attackerUnits, defenderUnits, terrainModifier || 1.0);
+        res.json(result);
+    } catch (error) {
+        console.error('[BattleServer] Simulation error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 dotenv.config();
 

@@ -8,8 +8,7 @@ import { Icons, SmartTooltip } from '../UIComponents';
 import { BotInteractionModal } from '../modals/BotInteractionModal';
 import { BottomSheet } from '../modals/BottomSheet';
 import { BotCard } from '../diplomacy/BotCard';
-import { calculateGiftCost } from '../../utils/engine/diplomacy';
-import { calculateDecayMultiplier } from '../../utils/engine/reputation';
+import { calculateGiftCost, calculateDecayMultiplier } from '../../utils/engine/diplomacy';
 import { formatNumber } from '../../utils';
 import {
     REPUTATION_DECAY_INTERVAL_MS,

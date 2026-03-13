@@ -1,14 +1,39 @@
+
 /**
  * ReputationBar Component
- * 
- * Displays a visual reputation bar with color coding and optional tooltip.
- * Reusable across DiplomacyView, RankingsView, and other components.
  */
 
 import React from 'react';
 import { SmartTooltip } from '../UIComponents';
-import { getReputationColor, getReputationBgColor, getReputationCategory, ReputationCategory } from '../../utils/engine/reputation';
 import { useLanguage } from '../../context/LanguageContext';
+
+enum ReputationCategory {
+    LOYAL_ALLY = 'LOYAL_ALLY',
+    FRIENDLY = 'FRIENDLY',
+    NEUTRAL = 'NEUTRAL',
+    HOSTILE = 'HOSTILE',
+    MORTAL_ENEMY = 'MORTAL_ENEMY'
+}
+
+const getReputationColor = (rep: number) => {
+    if (rep >= 75) return 'text-green-400';
+    if (rep <= 30) return 'text-red-400';
+    return 'text-yellow-400';
+};
+
+const getReputationBgColor = (rep: number) => {
+    if (rep >= 75) return 'bg-green-500';
+    if (rep <= 30) return 'bg-red-500';
+    return 'bg-yellow-500';
+};
+
+const getReputationCategory = (rep: number): ReputationCategory => {
+    if (rep >= 85) return ReputationCategory.LOYAL_ALLY;
+    if (rep >= 75) return ReputationCategory.FRIENDLY;
+    if (rep > 50) return ReputationCategory.NEUTRAL;
+    if (rep > 30) return ReputationCategory.HOSTILE;
+    return ReputationCategory.MORTAL_ENEMY;
+};
 
 interface ReputationBarProps {
     reputation: number;
@@ -55,29 +80,20 @@ export const ReputationBar: React.FC<ReputationBarProps> = ({
 
     const barContent = (
         <div className={`flex items-center gap-2 ${className}`}>
-            {/* Bar container */}
             <div className="flex-1 relative">
-                {/* Background */}
                 <div className={`w-full bg-gray-700 rounded-full overflow-hidden ${sizeClasses[size]}`}>
-                    {/* Fill */}
                     <div
                         className={`h-full rounded-full transition-all duration-500 ${getReputationBgColor(clampedRep)}`}
                         style={{ width: `${clampedRep}%` }}
                     />
                 </div>
-                
-                {/* Tick marks */}
                 <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    {/* 25% mark */}
                     <div className="absolute left-1/4 top-0 h-full w-px bg-white/20" />
-                    {/* 50% mark */}
                     <div className="absolute left-1/2 top-0 h-full w-px bg-white/20" />
-                    {/* 75% mark */}
                     <div className="absolute left-3/4 top-0 h-full w-px bg-white/20" />
                 </div>
             </div>
             
-            {/* Value label */}
             {showLabel && (
                 <div className={`font-bold ${getReputationColor(clampedRep)} min-w-[36px] text-right`}>
                     <div className="text-lg leading-none">{clampedRep.toFixed(0)}</div>
@@ -102,7 +118,7 @@ export const ReputationBar: React.FC<ReputationBarProps> = ({
                             <span className={`font-bold ${getReputationColor(clampedRep)}`}>{clampedRep}%</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-400">{t.common.ui.category || 'Categoría'}:</span>
+                            <span className="text-slate-400">Categoría:</span>
                             <span className={`font-bold ${getReputationColor(clampedRep)}`}>{getLabel(category)}</span>
                         </div>
                         <div className="pt-1 border-t border-slate-700 text-slate-500 text-[10px]">
@@ -118,9 +134,7 @@ export const ReputationBar: React.FC<ReputationBarProps> = ({
                 triggerMode="hover"
                 placement="top"
             >
-                <div className="cursor-help">
-                    {barContent}
-                </div>
+                <div className="cursor-help">{barContent}</div>
             </SmartTooltip>
         );
     }

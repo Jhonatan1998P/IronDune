@@ -1,45 +1,18 @@
-import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry, LogisticLootField } from '../../types';
+
+import { GameState, ResourceType, BuildingType, OfflineReport, LogEntry } from '../../types';
 import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
 import { 
     OFFLINE_PRODUCTION_LIMIT_MS,
-    ATTACK_COOLDOWN_MIN_MS,
-    ATTACK_COOLDOWN_MAX_MS,
     calculateMaxBankCapacity,
     calculateInterestEarned
 } from '../../constants';
 import { processRankingEvolution, GROWTH_INTERVAL_MS } from './rankings';
 import { processReputationDecay } from './diplomacy';
-import { processNemesisTick } from './nemesis';
-import { processEnemyAttackCheck } from './enemyAttack';
-import { processAttackQueue } from './attackQueue';
-import { processLogisticLootTick } from './logisticLoot';
 
-// Overflow factor for inflation detection (must match migration.ts)
-const OVERFLOW_FACTOR = 10;
-
-const createResourceLog = (title: string, resources: Record<ResourceType, number> | Partial<Record<ResourceType, number>>, type: LogEntry['type'] = 'economy', offsetMs: number = 0): LogEntry => {
-    const resourceNames: Record<ResourceType, string> = {
-        [ResourceType.MONEY]: 'Dinero',
-        [ResourceType.OIL]: 'Petróleo',
-        [ResourceType.AMMO]: 'Munición',
-        [ResourceType.GOLD]: 'Oro',
-        [ResourceType.DIAMOND]: 'Diamante'
-    };
-
-    const parts = Object.entries(resources)
-        .map(([res, val]) => `${resourceNames[res as ResourceType]}: ${Math.floor(val as number).toLocaleString()}`);
-    
-    const message = `${title}: ${parts.join(' | ')}`;
-
-    return {
-        id: `offline-log-${Date.now()}-${Math.random()}`,
-        messageKey: 'raw_message',
-        params: { message },
-        timestamp: Date.now() + offsetMs,
-        type,
-    };
-};
-
+/**
+ * Calculates basic offline progress (Resources, Buildings, Research).
+ * Military missions and attacks are EXCLUSIVELY handled by the Remote Battle Server.
+ */
 export const calculateOfflineProgress = (state: GameState): { newState: GameState, report: OfflineReport, newLogs: LogEntry[] } => {
     const now = Date.now();
     const timeElapsed = now - state.lastSaveTime;
@@ -68,73 +41,21 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
 
     const newLogs: LogEntry[] = [];
 
-    // Log 1: Cantidad base de recursos (más antiguo en el bloque)
-    newLogs.push(createResourceLog('CANTIDAD BASE DE RECURSOS (PRE-OFFLINE)', state.resources, 'economy', -3));
-
-    // CRITICAL FIX: Validate time elapsed to prevent exploitation and bugs
-    const MAX_OFFLINE_MS = 24 * 60 * 60 * 1000; // 24 hours absolute maximum
-    if (timeElapsed < 0) {
-        console.error('[Offline] CRITICAL: Negative time elapsed detected!', {
-            now,
-            lastSaveTime: state.lastSaveTime,
-            timeElapsed
-        });
-        return { newState: state, report, newLogs };
-    }
-
-    if (timeElapsed > MAX_OFFLINE_MS) {
-        console.warn('[Offline] Excessive time elapsed detected! Capping to 24 hours.', {
-            timeElapsed,
-            timeElapsedHours: timeElapsed / (60 * 60 * 1000),
-            lastSaveTime: state.lastSaveTime,
-            now
-        });
-    }
-
     if (timeElapsed < 60000) {
-        // Incluso si ha pasado poco tiempo, mostramos los logs de estado actual si el usuario lo requiere al importar/continuar
-        newLogs.push(createResourceLog('PRODUCCIÓN OFFLINE GENERADA', {}, 'economy', -2));
-        newLogs.push(createResourceLog('RECURSOS TRAS AÑADIR PRODUCCIÓN OFFLINE', state.resources, 'economy', -1));
-        newLogs.push(createResourceLog('ESTADO FINAL DE RECURSOS EN LA CUENTA', state.resources, 'economy', 0));
         return { newState: state, report, newLogs };
     }
 
-    // CRITICAL FIX: Use deep clone to avoid mutating the original state reference
-    // which causes issues when nested objects are modified during complex offline steps
-    let newState = JSON.parse(JSON.stringify(state)) as GameState;
-
-    // CRITICAL FIX: Log the exact offline duration for debugging
-    console.log('[Offline] Starting offline calculation', {
-        timeElapsedMs: timeElapsed,
-        timeElapsedHours: timeElapsed / (60 * 60 * 1000),
-        lastSaveTime: state.lastSaveTime,
-        now,
-        saveVersion: state.saveVersion
-    });
-
-    const effectiveTimeMs = Math.min(timeElapsed, OFFLINE_PRODUCTION_LIMIT_MS);
+    const MAX_OFFLINE_MS = 24 * 60 * 60 * 1000;
+    const effectiveTimeMs = Math.min(Math.max(0, timeElapsed), Math.min(MAX_OFFLINE_MS, OFFLINE_PRODUCTION_LIMIT_MS));
     const effectiveTimeSecs = effectiveTimeMs / 1000;
 
-    // CRITICAL FIX: Log if time was capped
-    if (timeElapsed > OFFLINE_PRODUCTION_LIMIT_MS) {
-        console.log('[Offline] Time capped to 6 hours maximum', {
-            originalTimeHours: timeElapsed / (60 * 60 * 1000),
-            cappedTimeHours: effectiveTimeMs / (60 * 60 * 1000)
-        });
-    }
+    let newState = JSON.parse(JSON.stringify(state)) as GameState;
 
+    // 1. Production & Upkeep
     const multipliers = calculateTechMultipliers(newState.researchedTechs, newState.techLevels);
     const prodRates = calculateProductionRates(newState.buildings, multipliers);
     const upkeepCosts = calculateUpkeepCosts(newState.units);
     const maxStorage = calculateMaxStorage(newState.buildings, multipliers, newState.empirePoints);
-
-    // CRITICAL FIX: Log production rates and storage caps for debugging
-    console.log('[Offline] Production rates and caps', {
-        prodRates,
-        upkeepCosts,
-        maxStorage,
-        resourcesBefore: { ...newState.resources }
-    });
 
     Object.values(ResourceType).forEach((res) => {
         const prod = (prodRates[res] || 0) * effectiveTimeSecs;
@@ -144,75 +65,35 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         if (res === ResourceType.DIAMOND) {
             const diamondMine = newState.buildings[BuildingType.DIAMOND_MINE];
             if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
-                // No hay producción de diamantes si la mina está dañada
-                const prevDiamond = newState.resources[res];
                 newState.resources[res] = Math.max(0, newState.resources[res] - upkeep);
-                report.resourcesConsumed[res] = Math.floor(prevDiamond) - Math.floor(newState.resources[res]);
-                console.log(`[Offline] ${res}: Mine damaged - consuming ${report.resourcesConsumed[res]}`);
                 return;
             }
         }
 
         const prevAmount = newState.resources[res];
-
-        // CRITICAL FIX: Detect and log potential inflation
-        if (prevAmount > maxStorage[res] * OVERFLOW_FACTOR) {
-            console.warn(`[Offline] ${res}: Potential inflation detected!`, {
-                current: prevAmount,
-                maxStorage: maxStorage[res],
-                overflowFactor: OVERFLOW_FACTOR,
-                ratio: prevAmount / maxStorage[res]
-            });
-        }
-
         if (netChange > 0) {
-            // Permitir conservar el desbordamiento (overflow) si ya existía,
-            // pero solo añadir producción si hay espacio bajo el cap.
             const availableSpace = Math.max(0, maxStorage[res] - prevAmount);
             const actualGain = Math.min(netChange, availableSpace);
             newState.resources[res] = prevAmount + actualGain;
             report.resourcesGained[res] = Math.floor(newState.resources[res]) - Math.floor(prevAmount);
-            
-            // CRITICAL FIX: Log if overflow is being preserved
-            if (prevAmount > maxStorage[res]) {
-                console.log(`[Offline] ${res}: Preserving overflow - prev=${prevAmount}, cap=${maxStorage[res]}, gain=${actualGain}`);
-            }
         } else if (netChange < 0) {
-            // El mantenimiento siempre se resta
             newState.resources[res] = Math.max(0, prevAmount + netChange);
             report.resourcesConsumed[res] = Math.floor(prevAmount) - Math.floor(newState.resources[res]);
         }
-
-        if (report.resourcesGained[res] > 0 || report.resourcesConsumed[res] > 0) {
-            console.log(`[Offline] ${res}: current=${prevAmount.toFixed(2)} cap=${maxStorage[res]} netChange=${netChange.toFixed(2)} gain=${report.resourcesGained[res]} consumed=${report.resourcesConsumed[res]}`);
-        }
     });
 
-    // Log 2: Producción offline generada
-    const netProduction: Partial<Record<ResourceType, number>> = {};
-    Object.values(ResourceType).forEach(res => {
-        netProduction[res] = (report.resourcesGained[res] || 0) - (report.resourcesConsumed[res] || 0);
-    });
-    newLogs.push(createResourceLog('PRODUCCIÓN OFFLINE GENERADA', netProduction, 'economy', -2));
-
-    // Log 3: Cantidad final después de añadir producción
-    newLogs.push(createResourceLog('RECURSOS TRAS AÑADIR PRODUCCIÓN OFFLINE', newState.resources, 'economy', -1));
-
+    // 2. Bank Interest
     if (newState.bankBalance > 0 && newState.buildings[BuildingType.BANK].level > 0) {
         const maxBankCapacity = calculateMaxBankCapacity(newState.empirePoints, newState.buildings[BuildingType.BANK].level);
         if (newState.bankBalance < maxBankCapacity) {
             const interestEarned = calculateInterestEarned(newState.bankBalance, newState.currentInterestRate, effectiveTimeMs);
-            
             const actualInterest = Math.min(maxBankCapacity - newState.bankBalance, interestEarned);
-            
-            const prevBank = newState.bankBalance;
             newState.bankBalance += actualInterest;
-            
-            // Reportamos el aumento entero
-            report.bankInterestEarned = Math.floor(newState.bankBalance) - Math.floor(prevBank);
+            report.bankInterestEarned = Math.floor(actualInterest);
         }
     }
 
+    // 3. Constructions
     const remainingConstructions: typeof newState.activeConstructions = [];
     for (const c of newState.activeConstructions) {
         if (now >= c.endTime) {
@@ -226,6 +107,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.activeConstructions = remainingConstructions;
 
+    // 4. Recruitments
     const remainingRecruitments: typeof newState.activeRecruitments = [];
     for (const r of newState.activeRecruitments) {
         if (now >= r.endTime) {
@@ -236,6 +118,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     }
     newState.activeRecruitments = remainingRecruitments;
 
+    // 5. Research
     if (newState.activeResearch && now >= newState.activeResearch.endTime) {
         const techId = newState.activeResearch.techId;
         newState.techLevels[techId] = (newState.techLevels[techId] || 0) + 1;
@@ -246,13 +129,7 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         newState.activeResearch = null;
     }
 
-    let nextAttackTime = newState.nextAttackTime || 0;
-    if (now > nextAttackTime) {
-        const wait = ATTACK_COOLDOWN_MIN_MS + Math.random() * (ATTACK_COOLDOWN_MAX_MS - ATTACK_COOLDOWN_MIN_MS);
-        nextAttackTime = now + wait;
-    }
-    newState.nextAttackTime = nextAttackTime;
-
+    // 6. Rankings & Reputation Decay
     if (now - newState.rankingData.lastUpdateTime >= GROWTH_INTERVAL_MS) {
         const { bots: updatedBots, cycles } = processRankingEvolution(
             newState.rankingData.bots, 
@@ -264,93 +141,17 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
         };
     }
 
-    // Reputation Decay Offline
     const { updatedBots: decayedBots, newLastDecayTime } = processReputationDecay(
         newState.rankingData.bots,
         newState.lastReputationDecayTime,
         now
     );
-    newState.rankingData = {
-        ...newState.rankingData,
-        bots: decayedBots
-    };
+    newState.rankingData = { ...newState.rankingData, bots: decayedBots };
     newState.lastReputationDecayTime = newLastDecayTime;
 
-    // Process Nemesis System (Grudges & Retaliation) Offline - BEFORE attack queue
-    const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(newState, now);
-    if (nemesisUpdates.grudges) {
-        newState.grudges = nemesisUpdates.grudges;
-    }
-    if (nemesisUpdates.incomingAttacks) {
-        newState.incomingAttacks = nemesisUpdates.incomingAttacks;
-    }
-    newLogs.push(...nemesisLogs);
+    // IMPORTANT: Missions and attacks are NOT processed here. 
+    // They will be synced with the server once the user returns and useGameEngine triggers BattleSync.
 
-    // Process Enemy Attack System Offline (30min checks) - BEFORE attack queue
-    const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(newState, now);
-    if (enemyAttackUpdates.enemyAttackCounts) {
-        newState.enemyAttackCounts = enemyAttackUpdates.enemyAttackCounts;
-    }
-    if (enemyAttackUpdates.lastEnemyAttackCheckTime) {
-        newState.lastEnemyAttackCheckTime = enemyAttackUpdates.lastEnemyAttackCheckTime;
-    }
-    if (enemyAttackUpdates.lastEnemyAttackResetTime) {
-        newState.lastEnemyAttackResetTime = enemyAttackUpdates.lastEnemyAttackResetTime;
-    }
-    if (enemyAttackUpdates.incomingAttacks) {
-        newState.incomingAttacks = enemyAttackUpdates.incomingAttacks;
-    }
-    newLogs.push(...enemyAttackLogs);
-
-    // Process ALL attacks in chronological order (includes new attacks from nemesis/enemyAttack)
-    const { newState: queueState, queuedResults, newLogs: queueLogs } = processAttackQueue(newState, now);
-    newState = queueState;
-    report.queuedAttackResults = queuedResults;
-    newLogs.push(...queueLogs);
-
-    // Final Cleanup of Logistic Loot (expired or emptied during offline battles)
-    if (newState.logisticLootFields && newState.logisticLootFields.length > 0) {
-        const lootResult = processLogisticLootTick(newState.logisticLootFields, now);
-        newState.logisticLootFields = lootResult.active;
-        if (lootResult.autoSalvageValue > 0) {
-            newState.bankBalance += lootResult.autoSalvageValue;
-            report.bankInterestEarned += lootResult.autoSalvageValue;
-        }
-        lootResult.expired.forEach((expiredLoot: LogisticLootField) => {
-            if (newState.lifetimeLogisticStats) {
-                newState.lifetimeLogisticStats.totalExpired += expiredLoot.totalValue;
-            }
-        });
-    }
-
-    for (const result of queuedResults) {
-        if (result.type === 'OUTGOING' && result.result.logKey) {
-            const isSuccess = result.result.logKey === 'log_battle_win' || result.result.logKey.includes('patrol_battle_win') || result.result.logKey.includes('contraband');
-            report.completedMissions.push({
-                id: result.missionId || result.id,
-                success: isSuccess,
-                loot: result.result.logParams?.loot || {}
-            });
-        }
-    }
-
-    // CRITICAL FIX: Update lastSaveTime to prevent duplicate offline calculation
-    // Without this, the offline progress can be calculated multiple times,
-    // causing resources to be added repeatedly (the "millions of resources" bug)
     newState.lastSaveTime = now;
-
-    // CRITICAL FIX: Log final state for debugging
-    console.log('[Offline] Calculation completed', {
-        timeElapsedHours: timeElapsed / (60 * 60 * 1000),
-        effectiveTimeHours: effectiveTimeMs / (60 * 60 * 1000),
-        resourcesAfter: { ...newState.resources },
-        resourcesGained: report.resourcesGained,
-        resourcesConsumed: report.resourcesConsumed,
-        bankInterestEarned: report.bankInterestEarned
-    });
-
-    // Log 4: Cantidad final de recursos en la cuenta (el más reciente)
-    newLogs.push(createResourceLog('ESTADO FINAL DE RECURSOS EN LA CUENTA', newState.resources, 'economy', 0));
-
     return { newState, report, newLogs };
 };

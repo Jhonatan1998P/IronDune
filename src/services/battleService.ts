@@ -97,5 +97,24 @@ export const battleService = {
             console.error('[BattleService] Error processing nemesis:', error);
             throw error;
         }
+    },
+
+    /**
+     * Resolve a combat between two sets of units on the server
+     */
+    async simulateCombat(attackerUnits: any, defenderUnits: any, terrainModifier: number = 1.0): Promise<any> {
+        try {
+            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/simulate-combat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ attackerUnits, defenderUnits, terrainModifier })
+            });
+
+            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+            return await response.json();
+        } catch (error) {
+            console.error('[BattleService] Combat simulation failed:', error);
+            throw error;
+        }
     }
 };
