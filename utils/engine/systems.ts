@@ -26,6 +26,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
     let newLastCampaignTime = state.lastCampaignMissionFinishedTime;
     let updatedGrudges = [...state.grudges || []]; // Ensure it exists
     let updatedRankingBots = [...state.rankingData.bots];
+    let updatedReputationHistory = { ...state.reputationHistory };
+    let updatedInteractionRecords = { ...state.interactionRecords };
 
     // 1. Constructions
     const updatedConstructions = state.activeConstructions.filter(c => {
@@ -189,6 +191,12 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 const combat = outcome.logParams.combatResult;
                 newLifetimeStats.unitsLost += Object.values(combat.totalPlayerCasualties).reduce((a:any, b:any) => a + b, 0) as number;
                 newLifetimeStats.enemiesKilled += Object.values(combat.totalEnemyCasualties).reduce((a:any, b:any) => a + b, 0) as number;
+                
+                if (combat.winner === 'PLAYER') {
+                    newLifetimeStats.battlesWon = (newLifetimeStats.battlesWon || 0) + 1;
+                } else {
+                    newLifetimeStats.battlesLost = (newLifetimeStats.battlesLost || 0) + 1;
+                }
             }
 
             if (outcome.logKey === 'log_battle_win' || outcome.logKey.includes('patrol_battle_win')) {
@@ -218,8 +226,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 let tempState: GameState = { 
                     ...state, 
                     rankingData: { ...state.rankingData, bots: updatedRankingBots },
-                    reputationHistory: { ...state.reputationHistory },
-                    interactionRecords: { ...state.interactionRecords }
+                    reputationHistory: { ...updatedReputationHistory },
+                    interactionRecords: { ...updatedInteractionRecords }
                 };
 
                 outcome.reputationChanges.forEach(change => {
@@ -243,8 +251,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 });
 
                 updatedRankingBots = [...tempState.rankingData.bots];
-                state.reputationHistory = tempState.reputationHistory;
-                state.interactionRecords = tempState.interactionRecords;
+                updatedReputationHistory = { ...tempState.reputationHistory };
+                updatedInteractionRecords = { ...tempState.interactionRecords };
 
                 const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
                 const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
@@ -280,13 +288,25 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 continue;
             }
 
-            const { result, logs: attackLogs } = processIncomingAttackInQueue(
-                { ...state, resources: newResources, units: newUnits, buildings: newBuildings },
+            const { newState: attackState, result, logs: attackLogs } = processIncomingAttackInQueue(
+                { ...state, 
+                    resources: newResources, 
+                    units: newUnits, 
+                    buildings: newBuildings,
+                    rankingData: { ...state.rankingData, bots: updatedRankingBots },
+                    reputationHistory: { ...updatedReputationHistory },
+                    interactionRecords: { ...updatedInteractionRecords }
+                },
                 attack,
                 newUnits,
                 item.endTime
             );
 
+            // Importante: Actualizar el estado acumulado con los cambios del ataque
+            updatedRankingBots = [...attackState.rankingData.bots];
+            updatedReputationHistory = { ...attackState.reputationHistory };
+            updatedInteractionRecords = { ...attackState.interactionRecords };
+            
             Object.assign(newResources, result.resources);
 
             Object.entries(result.unitsLost || {}).forEach(([uType, count]) => {
@@ -317,6 +337,14 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
 
             newLifetimeStats.unitsLost += Object.values(result.unitsLost || {}).reduce((a: any, b: any) => a + b, 0) as number;
 
+            if (result.battleResult) {
+                if (result.battleResult.winner === 'PLAYER') {
+                    newLifetimeStats.battlesWon = (newLifetimeStats.battlesWon || 0) + 1;
+                } else {
+                    newLifetimeStats.battlesLost = (newLifetimeStats.battlesLost || 0) + 1;
+                }
+            }
+
             if (result.generatedLogisticLoot) {
                 updatedLootFields.push(result.generatedLogisticLoot);
             }
@@ -344,6 +372,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             lifetimeStats: newLifetimeStats,
             grudges: updatedGrudges,
             logisticLootFields: updatedLootFields,
+            reputationHistory: updatedReputationHistory,
+            interactionRecords: updatedInteractionRecords,
             rankingData: {
                 bots: updatedRankingBots,
                 lastUpdateTime: state.rankingData.lastUpdateTime

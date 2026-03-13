@@ -5,13 +5,11 @@ import { BotPersonality, ResourceType } from '../../types/enums';
 import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info, History } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
-import { ReputationBar, ReputationIcon } from '../reputation';
 import { BotInteractionModal } from '../modals/BotInteractionModal';
 import { BottomSheet } from '../modals/BottomSheet';
 import { BotCard } from '../diplomacy/BotCard';
 import { calculateGiftCost } from '../../utils/engine/diplomacy';
 import { calculateDecayMultiplier } from '../../utils/engine/reputation';
-import { getInteractionRecord, getRelationshipSummary } from '../../utils/engine/reputationHistory';
 import { formatNumber } from '../../utils';
 import {
     REPUTATION_DECAY_INTERVAL_MS,
@@ -451,7 +449,10 @@ const DiplomacyView: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                     {/* Botón para ver historial */}
                                     <button
-                                        onClick={() => setSelectedBot(bot)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedBot(bot);
+                                        }}
                                         className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors"
                                         title={t.common.ui.reputation_history || 'Ver historial'}
                                     >
@@ -544,7 +545,10 @@ const DiplomacyView: React.FC = () => {
                                     placement="top"
                                 >
                                     <button
-                                        onClick={() => handleGift(bot.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleGift(bot.id);
+                                        }}
                                         disabled={actionLoading === bot.id || !giftCheck.allowed || !resourceCheck}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >
@@ -586,7 +590,10 @@ const DiplomacyView: React.FC = () => {
                                     placement="top"
                                 >
                                     <button
-                                        onClick={() => handleAlliance(bot.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAlliance(bot.id);
+                                        }}
                                         disabled={actionLoading === bot.id || !allianceCheck.allowed || (bot.reputation ?? 50) < DIPLOMACY_ALLIANCE_REP_REQUIREMENT}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >
@@ -635,7 +642,10 @@ const DiplomacyView: React.FC = () => {
                                     placement="top"
                                 >
                                     <button
-                                        onClick={() => handlePeace(bot.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePeace(bot.id);
+                                        }}
                                         disabled={actionLoading === bot.id || !peaceCheck.allowed || (bot.reputation ?? 50) >= DIPLOMACY_ALLIANCE_REP_REQUIREMENT || (bot.reputation ?? 50) < DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT}
                                         className="flex-1 flex items-center justify-center gap-1 px-1.5 py-2 md:px-2 md:py-1.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-all active:scale-95"
                                     >

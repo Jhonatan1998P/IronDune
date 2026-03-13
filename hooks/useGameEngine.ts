@@ -22,7 +22,7 @@ declare global {
 }
 
 export const useGameEngine = () => {
-  const [status, setStatus] = useState<GameStatus>('MENU');
+  const [status, setStatus] = useState<GameStatus>('LOADING');
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
   const [hasNewReports, setHasNewReports] = useState(false);
@@ -74,6 +74,10 @@ export const useGameEngine = () => {
   // --- 5. EVENT BUS ---
   useEventSubscription(GameEventType.ADD_LOG, (payload) => {
       addLog(payload.messageKey, payload.type, payload.params);
+  });
+
+  useEventSubscription(GameEventType.TRIGGER_SAVE, (payload) => {
+      persistence.performAutoSave(payload.force);
   });
 
   // Hacky exposure for RankingsView

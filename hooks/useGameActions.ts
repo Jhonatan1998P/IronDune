@@ -353,6 +353,10 @@ export const useGameActions = (
                   now
               );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -410,6 +414,10 @@ export const useGameActions = (
                   now
               );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -467,6 +475,10 @@ export const useGameActions = (
                   now
               );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -668,10 +680,25 @@ export const useGameActions = (
                 if (lootField) {
                     newState.logisticLootFields = [...(newState.logisticLootFields || []), lootField];
                 }
+
+                // Update lifetime stats
+                const playerCasualtyCount = Object.values(result.battleResult.totalPlayerCasualties || {}).reduce((a: number, b: any) => a + (b || 0), 0) as number;
+                const enemyCasualtyCount = Object.values(result.battleResult.totalEnemyCasualties || {}).reduce((a: number, b: any) => a + (b || 0), 0) as number;
+                
+                newState.lifetimeStats = {
+                    ...newState.lifetimeStats,
+                    unitsLost: (newState.lifetimeStats.unitsLost || 0) + playerCasualtyCount,
+                    enemiesKilled: (newState.lifetimeStats.enemiesKilled || 0) + enemyCasualtyCount,
+                    battlesWon: (newState.lifetimeStats.battlesWon || 0) + (result.winner === 'PLAYER' ? 1 : 0),
+                    battlesLost: (newState.lifetimeStats.battlesLost || 0) + (result.winner !== 'PLAYER' ? 1 : 0),
+                };
             }
 
             return newState;
         });
+
+        // Trigger immediate save for critical battle result
+        gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
 
         // Emitir log via eventBus para que useGameEngine.addLog dispare setHasNewReports(true)
         const messageKey = isAttacker

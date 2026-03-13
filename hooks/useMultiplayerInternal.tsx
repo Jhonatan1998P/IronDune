@@ -38,18 +38,11 @@ export interface MultiplayerContextType {
   peers: string[];
   localPlayerId: string | null;
   remotePlayers: PlayerPresence[];
-  currentRoomId: string | null;
-  isGlobalRoom: boolean;
   syncPlayer: (player: { name: string; level: number; flag?: string }) => void;
   syncPlayerWithData: (playerName: string, empirePoints: number, playerFlag?: string) => void;
   broadcastAction: (action: MultiplayerAction) => void;
   sendToPeer: (peerId: string, action: MultiplayerAction) => void;
   onRemoteAction: (callback: (action: MultiplayerAction) => void) => void;
-  createRoom: () => string;
-  joinRoomById: (roomId: string) => boolean;
-  leave: () => void;
-  reconnect: () => boolean;
-  returnToGlobalRoom: () => boolean;
 }
 
 export const MultiplayerContext = createContext<MultiplayerContextType | null>(null);
@@ -66,14 +59,11 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   const [peers, setPeers] = useState<string[]>([]);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
   const [remotePlayers, setRemotePlayers] = useState<PlayerPresence[]>([]);
-  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-  const [isGlobalRoom, setIsGlobalRoom] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const actionsCallbackRef = useRef<((action: MultiplayerAction) => void) | null>(null);
   const playersRef = useRef<Map<string, PlayerPresence>>(new Map());
   const localPlayerIdRef = useRef<string | null>(null);
-  const currentRoomIdRef = useRef<string | null>(null);
   const isConnectedRef = useRef(false);
   const pendingTimeoutsRef = useRef<PendingTimeouts>({
     presenceTimeout: null,
@@ -195,12 +185,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   const cleanupRoom = useCallback(() => {
     clearAllTimeouts();
-    if (socketRef.current) {
-      try {
-        socketRef.current.emit('leave_room');
-      } catch (e) {
-      }
-    }
     playersRef.current.clear();
     setIsConnected(false);
     setIsConnecting(false);
@@ -295,13 +279,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     handleRemoteActionRef.current = handleRemoteAction;
   }, [handleRemoteAction]);
 
-  const initRoom = useCallback((roomId: string): boolean => {
-    if (isConnecting || (isConnected && currentRoomIdRef.current === roomId)) {
+  const initConnection = useCallback((): boolean => {
+    if (isConnecting || isConnected) {
       return false;
-    }
-
-    if (socketRef.current && currentRoomIdRef.current) {
-      cleanupRoom();
     }
 
     setIsConnecting(true);
@@ -313,7 +293,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     const playerId = generatePlayerId();
     setLocalPlayerId(playerId);
     localPlayerIdRef.current = playerId;
-    currentRoomIdRef.current = roomId;
 
     let socket = socketRef.current;
 
@@ -399,16 +378,15 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       });
 
       socket.on('connect', () => {
-        const rid = currentRoomIdRef.current;
         const pid = localPlayerIdRef.current;
-        if (rid && pid && socketRef.current) {
-          socketRef.current.emit('join_room', { roomId: rid, peerId: pid });
+        if (pid && socketRef.current) {
+          socketRef.current.emit('join_room', { peerId: pid });
         }
       });
     }
 
     socket.off('room_joined');
-    socket.on('room_joined', ({ roomId: joinedRoomId, peers: existingPeers }: { roomId: string; peers: string[] }) => {
+    socket.on('room_joined', ({ peers: existingPeers }: { roomId: string; peers: string[] }) => {
       if (existingPeers.length > 0) {
         existingPeers.forEach((pid: string) => {
           playersRef.current.set(pid, {
@@ -438,9 +416,6 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       setIsConnecting(false);
       setIsInitialized(true);
       isConnectedRef.current = true;
-      setCurrentRoomId(joinedRoomId);
-      currentRoomIdRef.current = joinedRoomId;
-      setIsGlobalRoom(joinedRoomId === GLOBAL_ROOM_ID);
 
       clearAllTimeouts();
 
@@ -470,11 +445,11 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     });
 
     if (socket.connected) {
-      socket.emit('join_room', { roomId, peerId: playerId });
+      socket.emit('join_room', { peerId: playerId });
     }
 
     return true;
-  }, [isConnecting, broadcastPresence, cleanupRoom, generatePlayerId, updateRemotePlayers, clearAllTimeouts, isConnected]);
+  }, [isConnecting, broadcastPresence, generatePlayerId, updateRemotePlayers, clearAllTimeouts, isConnected]);
 
   useEffect(() => {
     if (!isConnected || !localPlayerIdRef.current) return;
@@ -487,66 +462,12 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     return () => clearTimeout(timeout);
   }, [isConnected]);
 
-  const createRoom = useCallback((roomId?: string): string => {
-    const id = roomId || `sb_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    if (initRoom(id)) return id;
-    return '';
-  }, [initRoom]);
-
-  const joinRoomById = useCallback((roomId: string): boolean => {
-    if (!roomId || roomId.trim() === '') {
-      gameEventBus.emit('SHOW_TOAST' as any, { message: 'Código inválido', type: 'error' });
-      return false;
-    }
-    return initRoom(roomId.trim());
-  }, [initRoom]);
-
-  const leave = useCallback(() => {
-    cleanupRoom();
-    setCurrentRoomId(null);
-    setLocalPlayerId(null);
-    setIsGlobalRoom(false);
-    currentRoomIdRef.current = null;
-    localPlayerIdRef.current = null;
-    isConnectedRef.current = false;
-  }, [cleanupRoom]);
-
-  const reconnect = useCallback((): boolean => {
-    if (!currentRoomIdRef.current) {
-      gameEventBus.emit('SHOW_TOAST' as any, { message: 'No hay sala para reconectar', type: 'error' });
-      return false;
-    }
-    if (isConnectedRef.current) {
-      gameEventBus.emit('SHOW_TOAST' as any, { message: 'Ya estás conectado', type: 'info' });
-      return false;
-    }
-    return initRoom(currentRoomIdRef.current);
-  }, [initRoom]);
-
-  const returnToGlobalRoom = useCallback((): boolean => {
-    if (isConnectedRef.current && currentRoomIdRef.current === GLOBAL_ROOM_ID) {
-      gameEventBus.emit('SHOW_TOAST' as any, { message: 'Ya estás en la sala global', type: 'info' });
-      return false;
-    }
-    if (socketRef.current) {
-      cleanupRoom();
-      setCurrentRoomId(null);
-      setLocalPlayerId(null);
-      setIsGlobalRoom(false);
-      currentRoomIdRef.current = null;
-      localPlayerIdRef.current = null;
-      isConnectedRef.current = false;
-    }
-    return initRoom(GLOBAL_ROOM_ID);
-  }, [cleanupRoom, initRoom]);
-
   useEffect(() => {
-    initRoom(GLOBAL_ROOM_ID);
+    initConnection();
     return () => {
       cleanupRoom();
       isConnectedRef.current = false;
       localPlayerIdRef.current = null;
-      currentRoomIdRef.current = null;
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -565,18 +486,11 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         peers,
         localPlayerId,
         remotePlayers,
-        currentRoomId,
-        isGlobalRoom,
         syncPlayer,
         syncPlayerWithData,
         broadcastAction,
         sendToPeer,
         onRemoteAction,
-        createRoom,
-        joinRoomById,
-        leave,
-        reconnect,
-        returnToGlobalRoom,
       }}
     >
       {children}

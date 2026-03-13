@@ -34,7 +34,7 @@ const fmtMs = (ms: number): string => {
 
 export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameState }) => {
     const { messages, sendMessage, isConnected } = useMultiplayerChat();
-    const { currentRoomId, remotePlayers, peers, isConnecting } = useMultiplayer();
+    const { remotePlayers, peers, isConnecting } = useMultiplayer();
     const { sendResource, getRemainingLimit, getTotalCap, getAlreadySent, getMsUntilReset } = useP2PGiftResource();
 
     const [inputText, setInputText] = useState('');
@@ -235,8 +235,8 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
                         <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border-2 border-slate-950 animate-pulse" />
                     </div>
                     <div className="min-w-0">
-                        <div className="text-[9px] text-cyan-500/70 uppercase tracking-widest font-bold leading-none mb-0.5">Sala Activa</div>
-                        <div className="text-[10px] font-mono text-cyan-300 truncate max-w-[120px] sm:max-w-none">{currentRoomId}</div>
+                        <div className="text-[9px] text-cyan-500/70 uppercase tracking-widest font-bold leading-none mb-0.5">Estado de Red</div>
+                        <div className="text-[10px] font-mono text-cyan-300 truncate max-w-[120px] sm:max-w-none">CONECTADO</div>
                     </div>
                 </div>
 

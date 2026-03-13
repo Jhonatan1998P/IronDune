@@ -448,7 +448,7 @@ export const ui = {
         name_too_long: "Name cannot exceed 20 characters.",
         name_invalid_chars: "Name can only contain letters, numbers, spaces and underscores.",
         name_already_taken: "This name is already taken by another commander.",
-        not_enough_diamonds: "Not enough diamonds. Cost: 20 💎",
+        not_enough_diamonds: "Not enough diamonds. Cost: 20",
         first_change_free: "1st FREE",
         personality_warlord: "Warlord",
         personality_turtle: "Turtle",
@@ -460,7 +460,7 @@ export const ui = {
         bot_event_resources_crisis: "Resources Crisis",
         bot_event_military_buildup: "Military Buildup",
         bot_event_peaceful_period: "Peaceful Period",
-        spy_button: "Spy ({cost} 💰)",
+        spy_button: "Spy ({cost})",
         spy_report_title: "INTELLIGENCE REPORT",
         spy_hide_report: "Hide Report",
         spy_view_report: "View Spy Report",
@@ -477,8 +477,6 @@ export const ui = {
         gift_code_cooldown: "Code on cooldown. Wait {hours}h {minutes}m",
         gift_code_daily: "Available every 24h",
         gift_code_once: "One time",
-         gift_code_diario_rewards: "+10 Diamonds",
-         gift_code_manco_rewards: "+50M Money, +10 Diamonds",
          select_flag: "Select Flag",
          select_flag_desc: "Choose your banner for PvP",
         flag_changed_success: "Flag updated!",
@@ -502,7 +500,9 @@ export const ui = {
         error_weak_password: "Password too weak",
         error_auth_failed: "Authentication failed",
         loading: "VERIFYING CREDENTIALS...",
-        setup_required: "Supabase Setup Required"
+        setup_required: "Supabase Setup Required",
+        db_connection_error: "Database connection failure",
+        server_connection_error: "Tactical server communication failed"
       },
       menu: {
         new_game: "New Operation",

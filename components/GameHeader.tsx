@@ -75,21 +75,9 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
     <header className="glass-panel z-30 shrink-0 border-b border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] backdrop-blur-xl bg-slate-900/80">
       <div className="w-full px-3 py-2 md:px-6 md:py-3 flex items-center gap-3 md:gap-6">
         
-        {/* LOGO */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)] relative group overflow-hidden">
-            <span className="font-tech font-bold text-black text-lg relative z-10">ID</span>
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-          </div>
-          <div className="hidden md:block">
-            <h1 className="font-tech text-lg font-bold text-white tracking-[0.2em] leading-none mb-1">{t.common.ui.app_title}</h1>
-            <div className="text-[9px] text-cyan-400 uppercase tracking-widest font-mono opacity-80">{t.common.ui.app_subtitle}</div>
-          </div>
-        </div>
-        
         {/* RESOURCES BAR */}
         <div className="flex-1 min-w-0">
-            <div className="flex lg:grid lg:grid-cols-7 items-center gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible no-scrollbar mask-image-sides lg:mask-none py-1">
+            <div className={`flex lg:grid ${isProtected ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} items-center gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible no-scrollbar mask-image-sides lg:mask-none py-1`}>
                 
                 {/* SCORE */}
                 <SmartTooltip content={`${t.common.ui.total_score}: ${formatNumber(gameState.empirePoints)}`}>
@@ -156,26 +144,28 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                 />
 
                 {/* ATTACK STATUS */}
-                <SmartTooltip content={tooltipContent}>
-                    <div className="flex flex-col justify-center min-w-[70px] lg:w-full bg-black/40 px-3 py-1.5 rounded border border-white/5 h-[44px] lg:h-[50px] cursor-help hover:bg-white/5 transition-colors shrink-0">
-                        <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase tracking-widest mb-1 lg:mb-2">
-                            <span className="hidden lg:inline">STATUS</span>
-                            <span className="lg:hidden text-center w-full block"><Icons.Warning /></span>
-                            {gameState.activeWar ? (
-                                <span className="text-red-500 font-bold animate-pulse hidden lg:inline">{t.common.war.status_war}</span>
-                            ) : isProtected ? (
-                                <span className="text-cyan-400 font-bold hidden lg:inline">{t.common.war.status_safe}</span>
-                            ) : isCoolingDown ? (
-                                <span className="text-blue-400 font-bold hidden lg:inline">{t.common.war.status_wait}</span>
-                            ) : (
-                                <span className="text-green-400 font-bold hidden lg:inline">{t.common.war.status_ready}</span>
-                            )}
+                {isProtected && (
+                    <SmartTooltip content={tooltipContent}>
+                        <div className="flex flex-col justify-center min-w-[70px] lg:w-full bg-black/40 px-3 py-1.5 rounded border border-white/5 h-[44px] lg:h-[50px] cursor-help hover:bg-white/5 transition-colors shrink-0">
+                            <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase tracking-widest mb-1 lg:mb-2">
+                                <span className="hidden lg:inline">STATUS</span>
+                                <span className="lg:hidden text-center w-full block"><Icons.Warning /></span>
+                                {gameState.activeWar ? (
+                                    <span className="text-red-500 font-bold animate-pulse hidden lg:inline">{t.common.war.status_war}</span>
+                                ) : isProtected ? (
+                                    <span className="text-cyan-400 font-bold hidden lg:inline">{t.common.war.status_safe}</span>
+                                ) : isCoolingDown ? (
+                                    <span className="text-blue-400 font-bold hidden lg:inline">{t.common.war.status_wait}</span>
+                                ) : (
+                                    <span className="text-green-400 font-bold hidden lg:inline">{t.common.war.status_ready}</span>
+                                )}
+                            </div>
+                            <div className="h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5 w-full">
+                                <div className={`h-full ${statusColor} transition-all duration-1000 ease-out`} style={{ width: `${(isProtected || gameState.activeWar) ? 100 : (isCoolingDown ? Math.min(100, (cooldownLeft / (6 * 60 * 60 * 1000)) * 100) : 15)}%` }}></div>
+                            </div>
                         </div>
-                        <div className="h-1 bg-slate-900 rounded-full overflow-hidden border border-white/5 w-full">
-                            <div className={`h-full ${statusColor} transition-all duration-1000 ease-out`} style={{ width: `${(isProtected || gameState.activeWar) ? 100 : (isCoolingDown ? Math.min(100, (cooldownLeft / (6 * 60 * 60 * 1000)) * 100) : 15)}%` }}></div>
-                        </div>
-                    </div>
-                </SmartTooltip>
+                    </SmartTooltip>
+                )}
 
             </div>
         </div>

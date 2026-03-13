@@ -10,7 +10,7 @@ export interface BuildingState {
   isDamaged?: boolean; // New: Diamond Mine damage state
 }
 
-export type GameStatus = 'MENU' | 'PLAYING';
+export type GameStatus = 'MENU' | 'PLAYING' | 'LOADING';
 
 export type MissionDuration = 5 | 15 | 30 | 60; 
 
@@ -151,6 +151,8 @@ export interface LifetimeStats {
   resourcesMined: number; // Total value
   missionsCompleted: number;
   highestRankAchieved: number;
+  battlesWon: number;
+  battlesLost: number;
 }
 
 export interface LogisticLootField {

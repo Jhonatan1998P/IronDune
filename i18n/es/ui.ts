@@ -448,7 +448,7 @@ export const ui = {
         name_too_long: "El nombre no puede exceder 20 caracteres.",
         name_invalid_chars: "El nombre solo puede contener letras, números, espacios y guiones bajos.",
         name_already_taken: "Este nombre ya está en uso por otro comandante.",
-        not_enough_diamonds: "No tienes suficientes diamantes. Costo: 20 💎",
+        not_enough_diamonds: "No tienes suficientes diamantes. Costo: 20",
         first_change_free: "1er FREE",
         personality_warlord: "Señor de la Guerra",
         personality_turtle: "La Tortuga",
@@ -460,7 +460,7 @@ export const ui = {
         bot_event_resources_crisis: "Crisis de Recursos",
         bot_event_military_buildup: "Rearmamento",
         bot_event_peaceful_period: "Período Pacífico",
-        spy_button: "Espiar ({cost} 💰)",
+        spy_button: "Espiar ({cost})",
         spy_report_title: "INFORME DE INTELIGENCIA",
         spy_hide_report: "Ocultar Informe",
         spy_view_report: "Ver Informe de Espionaje",
@@ -477,8 +477,6 @@ export const ui = {
         gift_code_cooldown: "Código en enfriamiento. Espera {hours}h {minutes}m",
         gift_code_daily: "Disponible cada 24h",
         gift_code_once: "Una vez",
-         gift_code_diario_rewards: "+10 Diamantes",
-         gift_code_manco_rewards: "+50M Dinero, +10 Diamantes",
          select_flag: "Seleccionar Bandera",
          select_flag_desc: "Elige tu bandera para PvP",
         flag_changed_success: "¡Bandera actualizada!",
@@ -502,7 +500,9 @@ export const ui = {
         error_weak_password: "Contraseña muy corta",
         error_auth_failed: "Error de autenticación",
         loading: "VERIFICANDO CREDENCIALES...",
-        setup_required: "Configuración Supabase Requerida"
+        setup_required: "Configuración Supabase Requerida",
+        db_connection_error: "Error de conexión con la base de datos",
+        server_connection_error: "Fallo de comunicación con el servidor táctico"
       },
       menu: {
         new_game: "Nueva Operación",

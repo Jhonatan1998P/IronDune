@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
 import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
-import { P2P_ATTACK_TRAVEL_TIME_MS, P2P_MAX_ATTACKS_PER_TARGET_PER_DAY } from '../../constants';
+import { P2P_ATTACK_TRAVEL_TIME_MS, P2P_MAX_ATTACKS_PER_TARGET_PER_DAY, NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 
 import { useGame } from '../../context/GameContext';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
@@ -32,7 +32,11 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
     // --- Validaciones de reglas P2P ---
     const remainingAttacks = getRemainingAttacks(target.id);
     const inRange = isInPointRange(gameState.empirePoints, target.score);
-    const attackAllowed = canAttack(target.id, false) && inRange;
+    const isPlayerProtected = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
+    const isTargetProtected = target.score < NEWBIE_PROTECTION_THRESHOLD;
+    const isGlobalProtected = isPlayerProtected || isTargetProtected;
+    
+    const attackAllowed = canAttack(target.id, false) && inRange && !isGlobalProtected;
 
     // Rango permitido para información al jugador
     const minRange = Math.floor(gameState.empirePoints * 0.5);
@@ -218,7 +222,15 @@ export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameStat
                             </span>
                         </div>
                     )}
-                    {inRange && remainingAttacks <= 0 && (
+                    {inRange && isGlobalProtected && (
+                        <div className="flex items-start gap-2 p-2.5 bg-cyan-900/30 border border-cyan-500/40 rounded-lg text-xs text-cyan-300">
+                            <Icons.Shield className="w-3.5 h-3.5 mt-0.5 shrink-0 text-cyan-400" />
+                            <span>
+                                {isPlayerProtected ? "Estás bajo protección de principiante." : "El objetivo está bajo protección de principiante."}
+                            </span>
+                        </div>
+                    )}
+                    {inRange && !isGlobalProtected && remainingAttacks <= 0 && (
                         <div className="flex items-start gap-2 p-2.5 bg-amber-900/30 border border-amber-500/40 rounded-lg text-xs text-amber-300">
                             <Icons.Close className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
                             <span>

@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { MultiplayerMenu } from './UI/MultiplayerMenu';
 import { useMultiplayer } from '../hooks/useMultiplayer';
-import { Users, Globe } from 'lucide-react';
+import { User } from 'lucide-react';
 
 interface MultiplayerButtonProps {
   variant?: 'default' | 'icon' | 'text';
@@ -24,7 +24,7 @@ export const MultiplayerButton: React.FC<MultiplayerButtonProps> = ({
   className = ''
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const { isConnected, isGlobalRoom, remotePlayers } = useMultiplayer();
+  const { isConnected, remotePlayers } = useMultiplayer();
 
   return (
     <>
@@ -33,48 +33,33 @@ export const MultiplayerButton: React.FC<MultiplayerButtonProps> = ({
         className={`
           relative flex items-center gap-2 px-3 py-2 rounded-lg
           transition-all border font-tech text-xs uppercase tracking-wider
-          ${isConnected && isGlobalRoom
+          ${isConnected
             ? 'bg-violet-900/30 border-violet-500/50 text-violet-300 hover:bg-violet-900/40'
-            : isConnected
-            ? 'bg-emerald-900/30 border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/40'
             : 'bg-slate-800/50 border-amber-500/40 text-amber-400 hover:bg-slate-700/50'}
           ${className}
         `}
         title={
-          isConnected && isGlobalRoom
-            ? 'Sala global activa'
-            : isConnected
-            ? 'Sala privada activa'
-            : 'Desconectado — pulsa para volver a la sala global'
+          isConnected
+            ? `${remotePlayers.length + 1} usuarios en línea`
+            : 'Desconectado — pulsa para reintentar conexión'
         }
       >
-        {isConnected && isGlobalRoom ? (
-          <Globe className="w-4 h-4" />
-        ) : (
-          <Users className="w-4 h-4" />
-        )}
+        <User className={`w-4 h-4 ${isConnected ? 'text-violet-400' : 'text-amber-400'}`} />
 
         {variant !== 'icon' && (
           <span className="hidden sm:inline">
-            {isConnected && isGlobalRoom
-              ? `Global (${remotePlayers.length + 1})`
-              : isConnected
-              ? `Sala (${remotePlayers.length + 1})`
-              : 'Sin conexión'}
+            {isConnected
+              ? `${remotePlayers.length + 1}`
+              : 'OFF'}
           </span>
         )}
 
-        {/* Pulso verde: sala global con peers */}
-        {isConnected && isGlobalRoom && remotePlayers.length > 0 && (
+        {/* Pulso violeta: conectado con otros */}
+        {isConnected && remotePlayers.length > 0 && (
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-violet-400 rounded-full animate-pulse" />
         )}
 
-        {/* Pulso verde: sala privada con peers */}
-        {isConnected && !isGlobalRoom && remotePlayers.length > 0 && (
-          <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-        )}
-
-        {/* Pulso ámbar: desconectado — invita a reconectar */}
+        {/* Pulso ámbar: desconectado */}
         {!isConnected && (
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
         )}

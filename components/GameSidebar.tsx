@@ -3,6 +3,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
+import { APP_VERSION } from '../constants';
 
 export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage';
 
@@ -196,7 +197,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
         <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-md">
           <div className="flex items-center gap-2 text-[10px] text-emerald-500/80 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              SYS.ONLINE // v1.3.0
+              SYS.ONLINE // {APP_VERSION}
           </div>
         </div>
     </nav>

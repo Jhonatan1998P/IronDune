@@ -24,59 +24,36 @@ const io = new Server(httpServer, {
 });
 
 const playerPresence = new Map();
+const GLOBAL_ROOM = 'global';
 
 io.on('connection', (socket) => {
-  let currentRoom = null;
   let playerId = null;
 
-  socket.on('join_room', ({ roomId, peerId }) => {
-    if (currentRoom) {
-      socket.leave(currentRoom);
-      socket.to(currentRoom).emit('peer_leave', { peerId: playerId });
-      if (playerId) playerPresence.delete(playerId);
-    }
-
-    currentRoom = roomId;
+  socket.on('join_room', ({ peerId }) => {
     playerId = peerId;
-    socket.join(roomId);
+    socket.join(GLOBAL_ROOM);
 
     playerPresence.set(peerId, {
       id: peerId,
       socketId: socket.id,
-      roomId,
       name: 'Player',
       level: 0,
       lastSeen: Date.now(),
     });
 
     const peersInRoom = [];
-    const roomSockets = io.sockets.adapter.rooms.get(roomId);
-    if (roomSockets) {
-      for (const [pid, data] of playerPresence.entries()) {
-        if (data.roomId === roomId && pid !== peerId) {
-          peersInRoom.push(pid);
-        }
+    for (const [pid, data] of playerPresence.entries()) {
+      if (pid !== peerId) {
+        peersInRoom.push(pid);
       }
     }
 
-    socket.emit('room_joined', { roomId, peers: peersInRoom });
-
-    socket.to(roomId).emit('peer_join', { peerId });
-  });
-
-  socket.on('leave_room', () => {
-    if (currentRoom && playerId) {
-      socket.leave(currentRoom);
-      socket.to(currentRoom).emit('peer_leave', { peerId: playerId });
-      playerPresence.delete(playerId);
-      currentRoom = null;
-      playerId = null;
-    }
+    socket.emit('room_joined', { roomId: GLOBAL_ROOM, peers: peersInRoom });
+    socket.to(GLOBAL_ROOM).emit('peer_join', { peerId });
   });
 
   socket.on('broadcast_action', ({ action }) => {
-    if (!currentRoom) return;
-    socket.to(currentRoom).emit('remote_action', { action, fromPeerId: playerId });
+    socket.to(GLOBAL_ROOM).emit('remote_action', { action, fromPeerId: playerId });
   });
 
   socket.on('send_to_peer', ({ targetPeerId, action }) => {
@@ -98,8 +75,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    if (currentRoom && playerId) {
-      socket.to(currentRoom).emit('peer_leave', { peerId: playerId });
+    if (playerId) {
+      socket.to(GLOBAL_ROOM).emit('peer_leave', { peerId: playerId });
       playerPresence.delete(playerId);
     }
   });

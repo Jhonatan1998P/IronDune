@@ -26,7 +26,10 @@ export enum GameEventType {
   P2P_SPY_RESPONSE = 'P2P_SPY_RESPONSE',
 
   // Debris System
-  DEBRIS_ANNOUNCE = 'DEBRIS_ANNOUNCE'
+  DEBRIS_ANNOUNCE = 'DEBRIS_ANNOUNCE',
+
+  // Persistence
+  TRIGGER_SAVE = 'TRIGGER_SAVE'
 }
 
 // Mapeo estricto de Evento -> Datos
@@ -54,6 +57,7 @@ export type GameEventPayloads = {
   [GameEventType.P2P_SPY_RESPONSE]: any;
 
   [GameEventType.DEBRIS_ANNOUNCE]: any;
+  [GameEventType.TRIGGER_SAVE]: { force?: boolean };
 }
 
 export type GameEventCallback<T extends GameEventType> = (payload: GameEventPayloads[T]) => void;

@@ -273,7 +273,9 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     const isMe = entry.isPlayer;
     const hasActiveWar = !!gameState.activeWar;
     const isWarTarget = gameState.activeWar?.enemyId === entry.id;
-    const isNewbie = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
+    const isPlayerNewbie = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
+    const isTargetNewbie = entry.score < NEWBIE_PROTECTION_THRESHOLD;
+    const isProtected = isPlayerNewbie || isTargetNewbie;
 
     const getPersonalityInfo = (type: BotPersonality) => {
         switch(type) {
@@ -380,7 +382,12 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                         variant="neutral"
                                         className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20"
                                     >
-                                        {isSpying ? '...' : t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}
+                                        {isSpying ? '...' : (
+                                            <span className="flex items-center justify-center gap-1.5">
+                                                {t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}
+                                                <Icons.Resources.Money className="w-3.5 h-3.5" />
+                                            </span>
+                                        )}
                                     </GlassButton>
                                 )}
 
@@ -449,7 +456,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
                                 <GlassButton
                                     onClick={onAttack}
-                                    disabled={!inRange || isNewbie}
+                                    disabled={!inRange || isProtected}
                                     variant={isWarTarget ? "danger" : "primary"}
                                     className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase"
                                 >
@@ -459,7 +466,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                 {!isWarTarget && (
                                     <GlassButton
                                         onClick={onDeclareWar}
-                                        disabled={hasActiveWar || !inRange || isNewbie}
+                                        disabled={hasActiveWar || !inRange || isProtected}
                                         variant="neutral"
                                         className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-red-900/50 text-red-400 hover:bg-red-900/20"
                                     >
@@ -468,7 +475,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                                 )}
 
                                 <div className="flex flex-col items-center gap-1">
-                                    {isNewbie && (
+                                    {isProtected && (
                                         <p className="text-[9px] text-cyan-400 uppercase font-bold tracking-widest flex items-center gap-1">
                                             <Icons.Shield className="w-3 h-3" /> {t.errors.protection_active}
                                         </p>

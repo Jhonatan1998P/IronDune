@@ -437,7 +437,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         if (Object.keys(allyArmies).length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
-                    <div className="text-5xl mb-4 opacity-50">🤝</div>
+                    <Icons.Users className="w-12 h-12 mb-4 opacity-50" />
                     <span className="text-sm font-bold uppercase tracking-widest">{t.reports.no_allies}</span>
                 </div>
             );

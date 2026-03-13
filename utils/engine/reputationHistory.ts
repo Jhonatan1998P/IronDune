@@ -89,13 +89,20 @@ export const recordReputationChange = (
             updatedRecord.relationshipTrend = 'IMPROVING';
             break;
         case ReputationChangeType.ATTACK_WIN:
-        case ReputationChangeType.DEFEND_LOSS:
-            updatedRecord.attacksLost += 1;
+            updatedRecord.attacksWon += 1;
             updatedRecord.relationshipTrend = 'WORSENING';
             break;
         case ReputationChangeType.ATTACK_LOSS:
+            updatedRecord.attacksLost += 1;
+            updatedRecord.relationshipTrend = 'STABLE'; // Bot respects victory but it was player's loss
+            break;
         case ReputationChangeType.DEFEND_WIN:
-            updatedRecord.attacksWon += 1;
+            updatedRecord.defendsWon += 1;
+            updatedRecord.relationshipTrend = 'IMPROVING'; // Helping ally or defending successfully
+            break;
+        case ReputationChangeType.DEFEND_LOSS:
+            updatedRecord.defendsLost += 1;
+            updatedRecord.relationshipTrend = 'WORSENING';
             break;
         case ReputationChangeType.DECAY:
             updatedRecord.relationshipTrend = 'WORSENING';

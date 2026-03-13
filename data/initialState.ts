@@ -97,7 +97,9 @@ export const INITIAL_GAME_STATE: GameState = {
     unitsLost: 0,
     resourcesMined: 0,
     missionsCompleted: 0,
-    highestRankAchieved: 9999
+    highestRankAchieved: 9999,
+    battlesWon: 0,
+    battlesLost: 0
   },
   redeemedGiftCodes: [],
   giftCodeCooldowns: {},

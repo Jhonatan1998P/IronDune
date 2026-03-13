@@ -2,7 +2,7 @@
  * useSwipe Hook
  * 
  * Detects horizontal swipe gestures for mobile interactions.
- * Returns swipe direction and provides reset functionality.
+ * Optimized for performance by using direct DOM manipulation for the transform.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -10,7 +10,6 @@ import { useState, useCallback, useRef } from 'react';
 interface SwipeState {
     isSwiping: boolean;
     direction: 'left' | 'right' | null;
-    swipeDistance: number;
 }
 
 interface UseSwipeOptions {
@@ -26,45 +25,58 @@ export const useSwipe = ({
 }: UseSwipeOptions = {}) => {
     const [swipeState, setSwipeState] = useState<SwipeState>({
         isSwiping: false,
-        direction: null,
-        swipeDistance: 0
+        direction: null
     });
 
     const startX = useRef<number>(0);
     const currentX = useRef<number>(0);
     const elementRef = useRef<HTMLDivElement>(null);
+    const isSwipingRef = useRef<boolean>(false);
 
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
         startX.current = e.touches[0].clientX;
         currentX.current = startX.current;
+        isSwipingRef.current = true;
+        
         setSwipeState({
             isSwiping: true,
-            direction: null,
-            swipeDistance: 0
+            direction: null
         });
     }, []);
 
     const handleTouchMove = useCallback((e: React.TouchEvent) => {
-        if (!swipeState.isSwiping) return;
+        if (!isSwipingRef.current) return;
 
         currentX.current = e.touches[0].clientX;
         const diff = currentX.current - startX.current;
-        const distance = Math.abs(diff);
         const direction = diff > 0 ? 'right' : 'left';
 
-        setSwipeState(prev => ({
-            ...prev,
-            isSwiping: true,
-            direction: direction as 'left' | 'right',
-            swipeDistance: diff
-        }));
-    }, [swipeState.isSwiping]);
+        // Direct DOM manipulation for performance
+        if (elementRef.current) {
+            elementRef.current.style.transform = `translateX(${diff}px)`;
+            elementRef.current.style.transition = 'none';
+        }
+
+        // Only update state if direction changes to minimize re-renders
+        setSwipeState(prev => {
+            if (prev.direction !== direction) {
+                return { ...prev, direction: direction as 'left' | 'right' };
+            }
+            return prev;
+        });
+    }, []);
 
     const handleTouchEnd = useCallback(() => {
-        if (!swipeState.isSwiping) return;
+        if (!isSwipingRef.current) return;
 
         const diff = currentX.current - startX.current;
         const absDiff = Math.abs(diff);
+
+        // Reset transform with transition
+        if (elementRef.current) {
+            elementRef.current.style.transform = '';
+            elementRef.current.style.transition = 'transform 0.3s ease-out';
+        }
 
         if (absDiff >= threshold) {
             if (diff > 0 && onSwipeRight) {
@@ -74,21 +86,25 @@ export const useSwipe = ({
             }
         }
 
+        isSwipingRef.current = false;
         setSwipeState({
             isSwiping: false,
-            direction: null,
-            swipeDistance: 0
+            direction: null
         });
 
         startX.current = 0;
         currentX.current = 0;
-    }, [swipeState.isSwiping, threshold, onSwipeLeft, onSwipeRight]);
+    }, [threshold, onSwipeLeft, onSwipeRight]);
 
     const resetSwipe = useCallback(() => {
+        if (elementRef.current) {
+            elementRef.current.style.transform = '';
+            elementRef.current.style.transition = 'transform 0.3s ease-out';
+        }
+        isSwipingRef.current = false;
         setSwipeState({
             isSwiping: false,
-            direction: null,
-            swipeDistance: 0
+            direction: null
         });
         startX.current = 0;
         currentX.current = 0;

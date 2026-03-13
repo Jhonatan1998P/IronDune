@@ -520,8 +520,6 @@ export interface TranslationDictionary {
       gift_code_cooldown: string;
       gift_code_daily: string;
       gift_code_once: string;
-      gift_code_diario_rewards: string;
-      gift_code_manco_rewards: string;
       combat_p2p_victory?: string;
       combat_p2p_defeat?: string;
       combat_p2p_defenseSuccess?: string;
@@ -542,6 +540,8 @@ export interface TranslationDictionary {
       error_auth_failed: string;
       loading: string;
       setup_required: string;
+      db_connection_error: string;
+      server_connection_error: string;
     };
     menu: {
       new_game: string;

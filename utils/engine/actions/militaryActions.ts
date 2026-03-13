@@ -139,7 +139,10 @@ export const executeCampaignAttack = (state: GameState, levelId: number, playerU
 
 // --- PvP & WAR ---
 export const executePvpAttack = (state: GameState, targetId: string, targetName: string, targetScore: number, playerUnits: Partial<Record<UnitType, number>>, useDiamond: boolean = false): ActionResult => {
-    if (state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD) return { success: false, errorKey: 'protection_active' };
+    const isPlayerProtected = state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD;
+    const isTargetProtected = targetScore <= NEWBIE_PROTECTION_THRESHOLD;
+
+    if (isPlayerProtected || isTargetProtected) return { success: false, errorKey: 'protection_active' };
 
     let isWarAttack = false;
     let travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS; // Default 15 min
@@ -229,7 +232,11 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
 
 export const executeDeclareWar = (state: GameState, targetId: string, targetName: string, targetScore: number): ActionResult => {
     if (state.activeWar) return { success: false, errorKey: 'campaign_busy' };
-    if (state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD) return { success: false, errorKey: 'protection_active' };
+    
+    const isPlayerProtected = state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD;
+    const isTargetProtected = targetScore <= NEWBIE_PROTECTION_THRESHOLD;
+
+    if (isPlayerProtected || isTargetProtected) return { success: false, errorKey: 'protection_active' };
 
     const newState = startWar(state, targetId, targetName, targetScore);
     return { success: true, newState };

@@ -32,23 +32,17 @@ import {
     WAR_DURATION_MS, 
     WAR_WAVE_INTERVAL_MS, 
     WAR_OVERTIME_MS, 
-    WAR_COOLDOWN_MS, 
-    NEWBIE_PROTECTION_THRESHOLD, 
-    BOT_BUDGET_RATIO, 
+    calculateMaxBankCapacity,
     PLUNDERABLE_BUILDINGS, 
     PLUNDER_RATES, 
     ATTACK_COOLDOWN_MIN_MS, 
     ATTACK_COOLDOWN_MAX_MS, 
     REPUTATION_ENEMY_THRESHOLD, 
     REPUTATION_ALLY_THRESHOLD, 
-    REPUTATION_ALLY_DEFEND_CHANCE, 
-    REPUTATION_DEFEND_BONUS, 
-    REPUTATION_MIN, 
-    REPUTATION_MAX,
-    SCORE_TO_RESOURCE_VALUE,
+    NEWBIE_PROTECTION_THRESHOLD, 
+    BOT_BUDGET_RATIO, 
     ENEMY_ATTACK_POWER_RATIO_MIN,
-    ENEMY_ATTACK_POWER_RATIO_LIMIT,
-    calculateMaxBankCapacity
+    ENEMY_ATTACK_POWER_RATIO_LIMIT
 } from '../../constants';
 import { generateBotArmy, calculateResourceCost } from './missions';
 import { simulateCombat } from './combat';
@@ -62,10 +56,9 @@ import {
     sanitizeIncomingAttacks,
     validateWarSystem,
     correctWaveTiming,
-    checkWarConsistency,
-    isValidResourceRecord,
     isValidUnitRecord,
-    isValidIncomingAttack
+    isValidIncomingAttack,
+    isValidResourceRecord
 } from './warValidation';
 
 // ============================================
@@ -1036,6 +1029,12 @@ const processIncomingAttacks = (
 
                 lifetimeStats.unitsLost += playerCasualtyCount;
                 lifetimeStats.enemiesKilled += enemyCasualtyCount;
+                
+                if (playerWon) {
+                    lifetimeStats.battlesWon = (lifetimeStats.battlesWon || 0) + 1;
+                } else {
+                    lifetimeStats.battlesLost = (lifetimeStats.battlesLost || 0) + 1;
+                }
 
                 if (attack.isWarWave && activeWar) {
                     // Update war state

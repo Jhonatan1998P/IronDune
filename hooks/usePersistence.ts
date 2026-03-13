@@ -50,8 +50,6 @@ export const usePersistence = (
         if (data?.game_state) {
           console.log('[Persistence] Save found in Supabase');
           setHasSave(true);
-          // Auto-load if found? Or just enable the button?
-          // The user said "ya no habra cargar", implying it should load automatically
           loadGameFromData(data.game_state);
         } else {
           console.log('[Persistence] No save found in Supabase for this user');
@@ -62,7 +60,8 @@ export const usePersistence = (
             const parsed = JSON.parse(localSave);
             loadGameFromData(parsed);
           } else {
-            setStatus('MENU');
+            console.log('[Persistence] No save found in Supabase for this user. Starting new game.');
+            startNewGame();
           }
         }
       } catch (e) {
@@ -174,11 +173,11 @@ export const usePersistence = (
   const lastSaveTimeRef = React.useRef(Date.now());
   const pendingSaveRef = useRef(false);
 
-  const performAutoSave = useCallback(async () => {
+  const performAutoSave = useCallback(async (force: boolean = false) => {
       if (!user) return;
       const now = Date.now();
       
-      if (now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return;
+      if (!force && now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return;
       if (pendingSaveRef.current) return;
       
       pendingSaveRef.current = true;
@@ -194,6 +193,7 @@ export const usePersistence = (
             updated_at: new Date().toISOString()
           });
         setHasSave(true);
+        console.log('[Persistence] Background save completed' + (force ? ' (FORCED)' : ''));
       } catch (e) {
         console.error('Auto-save failed:', e);
       } finally {
@@ -204,24 +204,17 @@ export const usePersistence = (
   const resetGame = useCallback(async () => {
       if (!user) return;
       
-      if (confirm("¿Estás seguro de que quieres reiniciar? Se borrará todo tu progreso en la nube.")) {
-        setStatus('MENU');
-        setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
-        setOfflineReport(null);
-        setHasNewReports(false);
-        
-        try {
-          await supabase.from('profiles').delete().eq('id', user.id);
-          setHasSave(false);
-        } catch (e) {
-          console.error('Reset failed:', e);
-        }
-
-        setTimeout(() => {
-            window.location.reload();
-        }, 50);
+      try {
+        await supabase.from('profiles').delete().eq('id', user.id);
+        setHasSave(false);
+      } catch (e) {
+        console.error('Reset failed:', e);
       }
-  }, [user, setGameState, setOfflineReport, setHasNewReports, setStatus]);
+
+      setTimeout(() => {
+          window.location.reload();
+      }, 50);
+  }, [user]);
 
   return { hasSave, startNewGame, loadGame: () => {}, saveGame, exportSave: () => {}, importSave: () => false, resetGame, performAutoSave };
 };

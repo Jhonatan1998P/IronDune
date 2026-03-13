@@ -3,7 +3,6 @@ import { useGame } from '../../context/GameContext';
 import { useMultiplayerSync } from '../../hooks/useMultiplayer';
 import { useP2PGameSync } from '../../hooks/useP2PGameSync';
 import { useP2PBattleResolver } from '../../hooks/useP2PBattleResolver';
-import { MainMenu } from '../MainMenu';
 import { OfflineWelcome } from '../OfflineWelcome';
 import { UnitType } from '../../types';
 
@@ -58,14 +57,39 @@ export const GameLayout: React.FC = () => {
       if (!gameState.activeWar && activeTab === 'war') setActiveTab('buildings');
   }, [gameState.activeWar, activeTab]);
 
+  if (status === 'LOADING') {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center font-tech p-4 text-center">
+        <div className="relative w-24 h-24 mb-8">
+          <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+          <div className="absolute inset-0 border-t-4 border-cyan-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 bg-cyan-500/20 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <h2 className="text-cyan-400 text-xl font-bold tracking-[0.2em] uppercase animate-pulse">
+            Sincronizando Comandos
+          </h2>
+          <div className="flex items-center gap-2 justify-center">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.3s]"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.15s]"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce"></div>
+          </div>
+        </div>
+        <div className="mt-12 text-[10px] text-slate-700 font-mono tracking-[0.3em] uppercase">
+          Enlace Satelital Nvl. 4 // Calibrando Telemetría
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'MENU') {
       return (
-          <div className="h-screen w-full bg-slate-950 overflow-hidden relative font-sans transition-opacity duration-700">
-             {/* Intro Background */}
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#020617] to-black"></div>
-             <div className="absolute inset-0 bg-grid-pattern opacity-20 animate-pulse-slow"></div>
-             <div className="scanlines"></div>
-             <MainMenu />
+          <div className="h-screen w-full bg-slate-950 flex items-center justify-center font-tech">
+             <div className="text-cyan-500 animate-pulse tracking-[0.3em] uppercase">
+                Synchronizing Command Center...
+             </div>
           </div>
       );
   }
