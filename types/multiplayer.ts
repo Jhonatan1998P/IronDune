@@ -71,15 +71,6 @@ export interface UseMultiplayerReturn {
   peers: string[];                    // IDs de peers conectados
   localPlayerId: string | null;       // Tu playerId
   remotePlayers: PlayerPresence[];    // Jugadores remotos
-  currentRoomId: string | null;       // roomId actual
-  isGlobalRoom: boolean;              // Si la sala actual es la sala global
-
-  // Funciones de conexión
-  createRoom: (roomId?: string) => string;     // Crea sala, retorna roomId (opcionalmente acepta roomId)
-  joinRoomById: (roomId: string) => boolean;   // Unirse a sala
-  leave: () => void;                           // Salir de sala
-  reconnect: () => boolean;                    // Reconectar a última sala
-  returnToGlobalRoom: () => boolean;           // Volver a la sala global
 
   // Sincronización
   syncPlayer: (player: { name: string; level: number; flag?: string }) => void; // Actualizar tu presencia

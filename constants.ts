@@ -1,6 +1,9 @@
 
 import { BuildingType, BotPersonality, ResourceType } from "./types/enums";
 
+// --- APP CONSTANTS ---
+export const APP_VERSION = "Alpha 10.0.2";
+
 // --- CONFIGURATION CONSTANTS ---
 export const TICK_RATE_MS = 1000;
 export const ONE_DAY_MS = 24 * 60 * 60 * 1000;

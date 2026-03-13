@@ -1,18 +1,18 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { GameState, TranslationDictionary, ResourceType, UnitType, LogEntry, SpyReport } from '../../types';
-import { RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
+import { RankingEntry, getFlagEmoji, StaticBot } from '../../utils/engine/rankings';
 import { Icons, GlassButton } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { BotPersonality } from '../../types/enums';
-import { calculateSpyCost, generateSpyReport } from '../../utils/engine/missions';
 import { addSpyReport, addGameLog } from '../../utils';
 import { UNIT_DEFS } from '../../data/units';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { P2PSpyRequest, P2PSpyResponse } from '../../types/multiplayer';
 import { gameEventBus } from '../../utils/eventBus';
 
-// Mapa persistente para almacenar costos de espionaje por bot (no se pierde al desmontar)
+// Persistently store costs per bot
 const SPY_COST_CACHE = new Map<string, number>();
 
 interface ProfileModalProps {
@@ -24,6 +24,36 @@ interface ProfileModalProps {
     onAttack: () => void;
     onUpdateState?: (updates: Partial<GameState>) => void;
 }
+
+// Local helper to calculate spy cost (port of former missions logic)
+const calculateSpyCost = (score: number) => Math.max(100, Math.floor(score * 64 / 5));
+
+// Local helper to generate a fake bot spy report (port of former missions logic)
+const generateBotSpyReport = (bot: StaticBot, now: number): SpyReport => {
+    const SPY_EXPIRY_MS = 10 * 60 * 1000;
+    const units: Partial<Record<UnitType, number>> = {};
+    Object.entries(bot.stats).forEach(([cat, val]) => {
+        if (cat === 'MILITARY') {
+            const totalUnits = Math.floor(val / 10);
+            units[UnitType.CYBER_MARINE] = totalUnits;
+        }
+    });
+
+    return {
+        id: `spy-${bot.id}-${now}`,
+        botId: bot.id,
+        botName: bot.name,
+        botScore: bot.stats.DOMINION,
+        createdAt: now,
+        expiresAt: now + SPY_EXPIRY_MS,
+        units,
+        resources: {
+            [ResourceType.MONEY]: bot.stats.ECONOMY,
+            [ResourceType.OIL]: Math.floor(bot.stats.ECONOMY * 0.1)
+        },
+        buildings: {}
+    };
+};
 
 const getTierInfo = (tier: string) => {
     switch(tier) {
@@ -45,11 +75,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
     const now = Date.now();
     const activeSpyReport = gameState.spyReports?.find(r => r.botId === entry.id && r.expiresAt > now);
     
-    // Calcular costo de espionaje persistente usando cache a nivel de módulo
     const spyCost = useMemo(() => {
-        if (SPY_COST_CACHE.has(entry.id)) {
-            return SPY_COST_CACHE.get(entry.id)!;
-        }
+        if (SPY_COST_CACHE.has(entry.id)) return SPY_COST_CACHE.get(entry.id)!;
         const newCost = calculateSpyCost(entry.score);
         SPY_COST_CACHE.set(entry.id, newCost);
         return newCost;
@@ -63,12 +90,8 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         const handleSpyResponse = (payload: any) => {
             try {
                 const response = payload as P2PSpyResponse;
-                console.log(`[P2P-SPY] Atacante: Recibida respuesta para ${response.spyId}`, response);
-                
                 if (response.spyId === pendingSpyId) {
-                    console.log('[P2P-SPY] Atacante: Coincidencia de spyId, procesando informe...');
                     const SPY_EXPIRY_MS = 10 * 60 * 1000;
-                    
                     const newReport: SpyReport = {
                         id: response.spyId,
                         botId: response.targetId,
@@ -83,17 +106,16 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                     };
 
                     const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
-
                     const combatLog: LogEntry = {
                         id: `intel-${response.timestamp || Date.now()}-${response.targetId}`,
-                        messageKey: 'log_intel_acquired', // Usar la clave estándar de informes de inteligencia
+                        messageKey: 'log_intel_acquired',
                         type: 'intel',
                         timestamp: response.timestamp || Date.now(),
                         params: {
                             targetName: response.targetName || 'Unknown',
                             units: newReport.units,
-                            resources: newReport.resources, // Añadir recursos
-                            buildings: newReport.buildings, // Añadir edificios
+                            resources: newReport.resources,
+                            buildings: newReport.buildings,
                             score: response.targetScore || 0,
                             botId: response.targetId,
                             isP2P: true
@@ -107,28 +129,15 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                         type: 'success' 
                     });
 
-                    // IMPORTANTE: Asegurarnos de mantener los recursos actualizados (el oro ya se restó en handleSpy)
-                    const updates = {
-                        spyReports: newSpyReports,
-                        logs: newLogs,
-                        resources: gameState.resources // Mantener recursos actuales
-                    };
-
-                    if (onUpdateState) {
-                        onUpdateState(updates);
-                    } else if (typeof (window as any)._updateGameState === 'function') {
-                        (window as any)._updateGameState({
-                            ...gameState,
-                            ...updates
-                        });
-                    }
+                    const updates = { spyReports: newSpyReports, logs: newLogs, resources: gameState.resources };
+                    if (onUpdateState) onUpdateState(updates);
+                    else if (typeof (window as any)._updateGameState === 'function') (window as any)._updateGameState({ ...gameState, ...updates });
 
                     setShowSpyReport(true);
                     setIsSpying(false);
                     setPendingSpyId(null);
                 }
             } catch (error) {
-                console.error('Error handling P2P_SPY_RESPONSE:', error);
                 setIsSpying(false);
                 setPendingSpyId(null);
             }
@@ -136,7 +145,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
         gameEventBus.on('P2P_SPY_RESPONSE' as any, handleSpyResponse);
         return () => gameEventBus.off('P2P_SPY_RESPONSE' as any, handleSpyResponse);
-    }, [pendingSpyId, gameState, onUpdateState]);
+    }, [pendingSpyId, gameState, onUpdateState, t]);
 
     const handleSpy = () => {
         if (!gameState || !canAffordSpy || isSpying) return;
@@ -146,23 +155,13 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             const spyId = `spy-${entry.id}-${now}`;
             setPendingSpyId(spyId);
             
-            console.log(`[P2P-SPY] Atacante: Iniciando espionaje a ${entry.name} (${entry.id})`, { spyId });
-
             const updatedResources = {
                 ...gameState.resources,
                 [ResourceType.GOLD]: (gameState.resources?.[ResourceType.GOLD] ?? 0) - spyCost
             };
 
-            if (onUpdateState) {
-                onUpdateState({
-                    resources: updatedResources
-                });
-            } else if (typeof (window as any)._updateGameState === 'function') {
-                (window as any)._updateGameState({
-                    ...gameState,
-                    resources: updatedResources
-                });
-            }
+            if (onUpdateState) onUpdateState({ resources: updatedResources });
+            else if (typeof (window as any)._updateGameState === 'function') (window as any)._updateGameState({ ...gameState, resources: updatedResources });
 
             const request: P2PSpyRequest = {
                 type: 'P2P_SPY_REQUEST',
@@ -173,8 +172,6 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                 timestamp: now,
             };
             
-            console.log(`[P2P-SPY] Atacante: Enviando solicitud a red`, request);
-
             sendToPeer(entry.id, {
                 type: 'P2P_SPY_REQUEST',
                 payload: request,
@@ -185,7 +182,6 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
             setTimeout(() => {
                 setPendingSpyId((currentId) => {
                     if (currentId === spyId) {
-                        console.warn(`[P2P-SPY] Atacante: Tiempo de espera agotado para ${spyId}`);
                         setIsSpying(false);
                         return null;
                     }
@@ -199,81 +195,44 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         if (!targetBot) return;
 
         setIsSpying(true);
-
-        const newReport = generateSpyReport(targetBot, now);
-
-        // Usar función con límites (max 20 informes, los más viejos se eliminan)
+        const newReport = generateBotSpyReport(targetBot, now);
         const newSpyReports = addSpyReport(gameState.spyReports || [], newReport);
-
-        // Crear informe de combate para la vista de informes
         const combatLog: LogEntry = {
             id: `intel-${now}-${entry.id}`,
             messageKey: 'log_intel_acquired',
             type: 'intel',
             timestamp: now,
-            params: {
-                targetName: entry.name,
-                units: newReport.units,
-                score: entry.score,
-                botId: entry.id
-            }
+            params: { targetName: entry.name, units: newReport.units, score: entry.score, botId: entry.id }
         };
-
-        // Usar función con límites (max 20 informes, los más viejos se eliminan)
         const newLogs = addGameLog(gameState.logs || [], combatLog);
 
-        if (onUpdateState) {
-            onUpdateState({
-                resources: {
-                    ...gameState.resources,
-                    [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
-                },
-                spyReports: newSpyReports,
-                logs: newLogs
-            });
-        } else if (typeof (window as any)._updateGameState === 'function') {
-            (window as any)._updateGameState({
-                ...gameState,
-                resources: {
-                    ...gameState.resources,
-                    [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost
-                },
-                spyReports: newSpyReports,
-                logs: newLogs
-            });
-        }
+        const finalResources = { ...gameState.resources, [ResourceType.GOLD]: gameState.resources[ResourceType.GOLD] - spyCost };
+        if (onUpdateState) onUpdateState({ resources: finalResources, spyReports: newSpyReports, logs: newLogs });
+        else if (typeof (window as any)._updateGameState === 'function') (window as any)._updateGameState({ ...gameState, resources: finalResources, spyReports: newSpyReports, logs: newLogs });
 
         setShowSpyReport(true);
         setIsSpying(false);
     };
 
     useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Resetear el costo en cache cuando el reporte de espionaje expire
     useEffect(() => {
-        if (!activeSpyReport && SPY_COST_CACHE.has(entry.id)) {
-            // El reporte expiró, eliminar del cache para que se recalcule el costo
-            SPY_COST_CACHE.delete(entry.id);
-        }
+        if (!activeSpyReport && SPY_COST_CACHE.has(entry.id)) SPY_COST_CACHE.delete(entry.id);
     }, [activeSpyReport, entry.id]);
 
     const ratio = entry.score / Math.max(1, gameState.empirePoints);
     const inRange = ratio >= 0.5 && ratio <= 1.5;
     const percentage = Math.round(ratio * 100);
     const tierInfo = getTierInfo(entry.tier);
-
     const isMe = entry.isPlayer;
     const hasActiveWar = !!gameState.activeWar;
     const isWarTarget = gameState.activeWar?.enemyId === entry.id;
-    const isNewbie = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
+    const isProtected = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD || entry.score < NEWBIE_PROTECTION_THRESHOLD;
 
     const getPersonalityInfo = (type: BotPersonality) => {
         switch(type) {
@@ -290,39 +249,28 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
 
     return (
         <div className={`fixed inset-0 z-[100] flex bg-black/80 backdrop-blur-md animate-[fadeIn_0.2s_ease-out] ${isMobile ? 'items-start justify-center pt-0' : 'items-center justify-center p-3 md:p-6'}`} onClick={onClose}>
-            <div
-                className={`w-full max-w-md glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col animate-[slideUp_0.3s_ease-out] ${isMobile ? 'h-[calc(100dvh-24px)] mt-3 mb-3 mx-3' : ''} ${isMobile ? '' : 'overflow-hidden'}`}
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
+            <div className={`w-full max-w-md glass-panel rounded-2xl border border-white/10 shadow-2xl flex flex-col animate-[slideUp_0.3s_ease-out] ${isMobile ? 'h-[calc(100dvh-24px)] mt-3 mb-3 mx-3' : 'overflow-hidden'}`} onClick={e => e.stopPropagation()}>
                 <div className="p-3 sm:p-4 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
                     <div className="flex items-center gap-2">
                         <Icons.Radar className="text-cyan-400 w-4 h-4 sm:w-5 sm:h-5" />
                         <h3 className="font-tech text-[10px] sm:text-xs text-cyan-400 tracking-widest uppercase">{t.common.ui.commander_intel}</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-                        <Icons.Close className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
+                    <button onClick={onClose} className="p-2 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Icons.Close className="w-4 h-4 sm:w-5 sm:h-5" /></button>
                 </div>
 
-                {/* Content - TODO el contenido incluyendo botones con scroll-y en móvil */}
-                <div className={`flex-1 overflow-y-auto custom-scrollbar ${isMobile ? '' : 'overflow-hidden'}`}>
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                     <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-                        {/* Profile Card */}
                         <div className="glass-panel p-3 sm:p-4 rounded-xl border border-white/5 flex items-center gap-3 sm:gap-4">
                             <div className="text-4xl sm:text-5xl md:text-6xl shrink-0">{getFlagEmoji(entry.country)}</div>
                             <div className="flex-1 min-w-0">
                                 <h2 className="font-tech text-base sm:text-lg md:text-xl text-white uppercase tracking-wide truncate">{entry.name}</h2>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${tierInfo.bg} ${tierInfo.border} ${tierInfo.color} border`}>
-                                        {entry.tier}{t.features.rankings.class_suffix}
-                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${tierInfo.bg} ${tierInfo.border} ${tierInfo.color} border`}>{entry.tier}{t.features.rankings.class_suffix}</span>
                                     <span className="text-slate-500 text-xs font-mono">#{entry.rank}</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Stats Grid */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="glass-panel p-3 rounded-xl border border-white/5 flex flex-col items-center justify-center">
                                 <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-1">{t.features.rankings.score}</div>
@@ -334,14 +282,10 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             </div>
                         </div>
 
-                        {/* Power Ratio Bar */}
                         <div className="glass-panel p-3 rounded-xl border border-white/5 space-y-2">
                             <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">{t.common.ui.power_ratio_label}</div>
                             <div className="h-2 bg-black/40 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full transition-all ${inRange ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]'}`}
-                                    style={{ width: `${Math.min(100, percentage / 1.5)}%` }}
-                                />
+                                <div className={`h-full rounded-full transition-all ${inRange ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]'}`} style={{ width: `${Math.min(100, percentage / 1.5)}%` }} />
                             </div>
                             <div className="flex justify-between text-[9px] text-slate-500 font-mono">
                                 <span>50%</span>
@@ -350,7 +294,6 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             </div>
                         </div>
 
-                        {/* Personality Card */}
                         {pInfo && !isMe && (
                             <div className={`glass-panel p-3 sm:p-4 rounded-xl border ${pInfo.bg} ${pInfo.border}`}>
                                 <div className="flex items-center justify-between mb-3">
@@ -362,133 +305,45 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             </div>
                         )}
 
-                        {/* Is Me Card */}
-                        {isMe && (
-                            <div className="glass-panel p-3 sm:p-4 rounded-xl border border-cyan-500/30 bg-cyan-950/20 flex items-center justify-center gap-2">
-                                <Icons.Crown className="text-cyan-400 w-4 h-4 sm:w-5 sm:h-5" />
-                                <span className="text-cyan-400 font-bold uppercase tracking-widest text-sm">{t.features.rankings.commander}</span>
-                            </div>
-                        )}
-
-                        {/* Action Buttons - MOVIDOS DENTRO DEL SCROLL */}
                         {!isMe && (
                             <div className="border-t border-white/10 pt-4 space-y-2 sm:space-y-3">
-                                {!isMe && !activeSpyReport && (
-                                    <GlassButton
-                                        onClick={handleSpy}
-                                        disabled={!canAffordSpy || isSpying}
-                                        variant="neutral"
-                                        className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20"
-                                    >
-                                        {isSpying ? '...' : t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}
+                                {!activeSpyReport && (
+                                    <GlassButton onClick={handleSpy} disabled={!canAffordSpy || isSpying} variant="neutral" className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20">
+                                        {isSpying ? '...' : <span className="flex items-center justify-center gap-1.5">{t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}<Icons.Resources.Money className="w-3.5 h-3.5" /></span>}
                                     </GlassButton>
                                 )}
 
                                 {activeSpyReport && (
-                                    <button
-                                        onClick={() => setShowSpyReport(!showSpyReport)}
-                                        className="w-full py-2 text-xs font-bold tracking-widest uppercase border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20 rounded-lg flex items-center justify-center gap-2"
-                                    >
+                                    <button onClick={() => setShowSpyReport(!showSpyReport)} className="w-full py-2 text-xs font-bold tracking-widest uppercase border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20 rounded-lg flex items-center justify-center gap-2">
                                         <Icons.Radar className="w-4 h-4" />
                                         {showSpyReport ? t.common.ui.spy_hide_report : t.common.ui.spy_view_report}
                                     </button>
                                 )}
 
                                 {showSpyReport && activeSpyReport && (
-                                    <div className="glass-panel rounded-xl border border-cyan-500/30 bg-cyan-950/20 text-xs max-h-48 overflow-y-auto custom-scrollbar">
-                                        <div className="p-3 border-b border-cyan-500/20 flex items-center justify-between text-cyan-300 font-bold">
-                                            <span>{t.common.ui.spy_report_title}</span>
-                                            <span className="text-[10px] text-slate-400">
-                                                {Math.max(0, Math.ceil((activeSpyReport.expiresAt - now) / 60000))} {t.common.ui.spy_time_remaining}
-                                            </span>
-                                        </div>
-
-                                        <div className="p-3 space-y-3">
-                                            <div>
-                                                <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_detected_units}</div>
-                                                <div className="space-y-1 mt-1">
-                                                    {Object.entries(activeSpyReport.units).map(([unitType, count]) => {
-                                                        const def = UNIT_DEFS[unitType as UnitType];
-                                                        const name = def ? t.units[def.translationKey]?.name : unitType.replace(/_/g, ' ').toLowerCase();
-                                                        return (
-                                                            <div key={unitType} className="flex justify-between text-slate-300">
-                                                                <span>{name}</span>
-                                                                <span className="font-mono text-white">{formatNumber(count || 0)}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_estimated_resources}</div>
-                                                <div className="space-y-1 mt-1">
-                                                    {Object.entries(activeSpyReport.resources).map(([resType, amount]) => (
-                                                        <div key={resType} className="flex justify-between text-slate-300">
-                                                            <span>{t.common.resources[resType] || resType}</span>
-                                                            <span className="font-mono text-white">{formatNumber(amount || 0)}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_buildings}</div>
-                                                <div className="space-y-1 mt-1">
-                                                    {Object.entries(activeSpyReport.buildings).slice(0, 4).map(([bType, count]) => (
-                                                        <div key={bType} className="flex justify-between text-slate-300">
-                                                            <span className="text-[10px]">{t.common.resources[bType] || bType.replace(/_/g, ' ').toLowerCase()}</span>
-                                                            <span className="font-mono text-white">{formatNumber(count || 0)}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                    <div className="glass-panel rounded-xl border border-cyan-500/30 bg-cyan-950/20 text-xs max-h-48 overflow-y-auto custom-scrollbar p-3 space-y-3">
+                                        <div className="flex items-center justify-between text-cyan-300 font-bold"><span>{t.common.ui.spy_report_title}</span><span className="text-[10px] text-slate-400">{Math.max(0, Math.ceil((activeSpyReport.expiresAt - now) / 60000))} {t.common.ui.spy_time_remaining}</span></div>
+                                        <div>
+                                            <div className="text-[9px] text-slate-400 uppercase tracking-widest">{t.common.ui.spy_detected_units}</div>
+                                            <div className="space-y-1 mt-1">
+                                                {Object.entries(activeSpyReport.units).map(([u, c]) => {
+                                                    const def = UNIT_DEFS[u as UnitType];
+                                                    return <div key={u} className="flex justify-between text-slate-300"><span>{def ? t.units[def.translationKey]?.name : u}</span><span className="font-mono text-white">{formatNumber(c || 0)}</span></div>;
+                                                })}
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                <GlassButton
-                                    onClick={onAttack}
-                                    disabled={!inRange || isNewbie}
-                                    variant={isWarTarget ? "danger" : "primary"}
-                                    className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase"
-                                >
+                                <GlassButton onClick={onAttack} disabled={!inRange || isProtected} variant={isWarTarget ? "danger" : "primary"} className="w-full py-2.5 sm:py-3 text-xs sm:text-sm font-bold tracking-widest uppercase">
                                     {isWarTarget ? t.reports.hostile : t.common.actions.attack}
                                 </GlassButton>
 
                                 {!isWarTarget && (
-                                    <GlassButton
-                                        onClick={onDeclareWar}
-                                        disabled={hasActiveWar || !inRange || isNewbie}
-                                        variant="neutral"
-                                        className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-red-900/50 text-red-400 hover:bg-red-900/20"
-                                    >
+                                    <GlassButton onClick={onDeclareWar} disabled={hasActiveWar || !inRange || isProtected} variant="neutral" className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-red-900/50 text-red-400 hover:bg-red-900/20">
                                         {t.common.war.declare_title}
                                     </GlassButton>
                                 )}
-
-                                <div className="flex flex-col items-center gap-1">
-                                    {isNewbie && (
-                                        <p className="text-[9px] text-cyan-400 uppercase font-bold tracking-widest flex items-center gap-1">
-                                            <Icons.Shield className="w-3 h-3" /> {t.errors.protection_active}
-                                        </p>
-                                    )}
-                                    {!inRange && (
-                                        <p className="text-[9px] text-orange-400 uppercase font-bold tracking-widest">
-                                            {t.common.ui.target_outside_range}
-                                        </p>
-                                    )}
-                                    {hasActiveWar && !isWarTarget && (
-                                        <p className="text-[9px] text-red-400 uppercase font-bold tracking-widest">
-                                            {t.common.war.already_war}
-                                        </p>
-                                    )}
-                                    {isWarTarget && (
-                                        <p className="text-[9px] text-red-500 uppercase font-bold tracking-widest animate-pulse flex items-center gap-1">
-                                            <Icons.Crosshair className="w-3 h-3" /> {t.common.ui.status_busy}
-                                        </p>
-                                    )}
-                                </div>
                             </div>
                         )}
                     </div>

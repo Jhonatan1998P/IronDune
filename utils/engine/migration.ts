@@ -569,7 +569,8 @@ const migrateWarState = (savedWar: any, silent: boolean = false): WarState | nul
         enemyResourceLosses: sanitizeWarResources(savedWar.enemyResourceLosses),
         playerUnitLosses: safeNumber(savedWar.playerUnitLosses, 0, 0),
         enemyUnitLosses: safeNumber(savedWar.enemyUnitLosses, 0, 0),
-        currentEnemyGarrison: isValidObject(savedWar.currentEnemyGarrison) ? savedWar.currentEnemyGarrison : {}
+        currentEnemyGarrison: isValidObject(savedWar.currentEnemyGarrison) ? savedWar.currentEnemyGarrison : {},
+        lootPool: sanitizeWarResources(savedWar.lootPool)
     };
 };
 
@@ -579,7 +580,9 @@ const migrateLifetimeStats = (savedStats: any, silent: boolean = false): Lifetim
         unitsLost: 0,
         resourcesMined: 0,
         missionsCompleted: 0,
-        highestRankAchieved: 9999
+        highestRankAchieved: 9999,
+        battlesWon: 0,
+        battlesLost: 0
     };
 
     if (!isValidObject(savedStats)) {
@@ -592,7 +595,9 @@ const migrateLifetimeStats = (savedStats: any, silent: boolean = false): Lifetim
         unitsLost: safeNumber(savedStats.unitsLost, 0, 0),
         resourcesMined: safeNumber(savedStats.resourcesMined, 0, 0),
         missionsCompleted: safeNumber(savedStats.missionsCompleted, 0, 0),
-        highestRankAchieved: safeNumber(savedStats.highestRankAchieved, 9999, 1, 99999)
+        highestRankAchieved: safeNumber(savedStats.highestRankAchieved, 9999, 1, 99999),
+        battlesWon: safeNumber(savedStats.battlesWon, 0, 0),
+        battlesLost: safeNumber(savedStats.battlesLost, 0, 0)
     };
 };
 
@@ -692,6 +697,8 @@ export const sanitizeAndMigrateSave = (saved: any, savedDataForLogging?: any): G
             cleanState.activeWar = migrateWarState(saved.activeWar, silent);
             cleanState.lifetimeStats = migrateLifetimeStats(saved.lifetimeStats, silent);
             cleanState.diplomaticActions = migrateDiplomaticActions(saved.diplomaticActions, silent);
+            cleanState.reputationHistory = isValidObject(saved.reputationHistory) ? saved.reputationHistory : {};
+            cleanState.interactionRecords = isValidObject(saved.interactionRecords) ? saved.interactionRecords : {};
             cleanState.logs = migrateLogs(saved.logs, silent);
             cleanState.allyReinforcements = isValidArray(saved.allyReinforcements) ? saved.allyReinforcements : [];
 

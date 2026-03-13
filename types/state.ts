@@ -2,15 +2,47 @@
 import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
 import type { MarketEvent, MarketOffer } from './defs';
 import { StaticBot } from '../utils/engine/rankings';
-import { ReputationHistory } from '../utils/engine/reputation';
-import { AllInteractions } from '../utils/engine/reputationHistory';
+
+export enum ReputationChangeType {
+    ATTACK = 'ATTACK',
+    RAID = 'RAID',
+    DEFEND = 'DEFEND',
+    ALLIANCE_DEFEND = 'ALLIANCE_DEFEND',
+    GIFT = 'GIFT',
+    ALLIANCE = 'ALLIANCE',
+    PEACE = 'PEACE',
+    WAR_WIN = 'WAR_WIN',
+    WAR_LOSS = 'WAR_LOSS',
+    DECAY = 'DECAY'
+}
+
+export interface ReputationChange {
+    type: ReputationChangeType;
+    amount: number;
+    timestamp: number;
+    reason?: string;
+}
+
+export interface ReputationHistory {
+    [botId: string]: ReputationChange[];
+}
+
+export interface InteractionRecord {
+    type: 'ATTACK' | 'RAID' | 'GIFT' | 'DIPLOMACY';
+    timestamp: number;
+    details?: string;
+}
+
+export interface AllInteractions {
+    [botId: string]: InteractionRecord[];
+}
 
 export interface BuildingState {
   level: number;
   isDamaged?: boolean; // New: Diamond Mine damage state
 }
 
-export type GameStatus = 'MENU' | 'PLAYING';
+export type GameStatus = 'MENU' | 'PLAYING' | 'LOADING';
 
 export type MissionDuration = 5 | 15 | 30 | 60; 
 
@@ -151,6 +183,8 @@ export interface LifetimeStats {
   resourcesMined: number; // Total value
   missionsCompleted: number;
   highestRankAchieved: number;
+  battlesWon: number;
+  battlesLost: number;
 }
 
 export interface LogisticLootField {
@@ -202,6 +236,7 @@ export interface WarState {
     warLogisticLootIds: string[];
     totalLogisticLootGenerated: Record<ResourceType, number>;
     logisticLootHarvestedDuringWar: Record<ResourceType, number>;
+    lootPool: Record<ResourceType, number>;
 }
 
 export interface RankingData {

@@ -9,10 +9,15 @@ import {
     MAX_ATTACKS_PER_TARGET,
     SALVAGE_TRAVEL_TIME_MS 
 } from '../../../constants';
-import { GameState, LogEntry, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
-import { startWar } from '../war';
+import { GameState, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
 import { calculateRecruitmentCost, calculateRecruitmentTime } from '../../formulas';
 import { ActionResult } from './types';
+
+/**
+ * Military Actions (Client-side)
+ * These functions handle only the INITIATION of missions.
+ * The RESOLUTION is handled exclusively by the Remote Battle Server.
+ */
 
 // --- SALVAGE ---
 export const executeSalvageMission = (state: GameState, lootId: string, drones: number): ActionResult => {
@@ -21,9 +26,6 @@ export const executeSalvageMission = (state: GameState, lootId: string, drones: 
     if ((state.units[UnitType.SALVAGER_DRONE] || 0) < drones) {
         return { success: false, errorKey: 'insufficient_units' };
     }
-
-    const lootField = state.logisticLootFields?.find(f => f.id === lootId);
-    if (!lootField) return { success: false, errorKey: 'invalid_mission' };
 
     const missionId = `salvage-${Date.now()}`;
     const now = Date.now();
@@ -50,6 +52,7 @@ export const executeSalvageMission = (state: GameState, lootId: string, drones: 
     };
     return { success: true, newState };
 };
+
 export const executeRecruit = (state: GameState, type: UnitType, amount: number): ActionResult => {
     if (amount <= 0) return { success: false };
     if (state.activeRecruitments.length >= 3) return { success: false, errorKey: 'queue_full' };
@@ -84,7 +87,7 @@ export const executeRecruit = (state: GameState, type: UnitType, amount: number)
 
 // --- MISSIONS (PvE Patrols) ---
 export const executeStartMission = (state: GameState, units: Partial<Record<UnitType, number>>, duration: MissionDuration): ActionResult => {
-    const hasUnits = Object.entries(units).some(([, val]) => val && val > 0);
+    const hasUnits = Object.entries(units).some(([, val]) => val && (val as number) > 0);
     if (!hasUnits) return { success: false, errorKey: 'insufficient_units' };
     
     const canAfford = Object.entries(units).every(([uType, qty]) => (state.units[uType as UnitType] || 0) >= (qty as number));
@@ -108,22 +111,17 @@ export const executeStartMission = (state: GameState, units: Partial<Record<Unit
 // --- CAMPAIGN ---
 export const executeCampaignAttack = (state: GameState, levelId: number, playerUnits: Partial<Record<UnitType, number>>): ActionResult => {
     const now = Date.now();
-    
-    // NEW LOGIC: Slots based on Tech
     const techLevel = state.techLevels[TechType.STRATEGIC_COMMAND] || 0;
     const maxSlots = 1 + techLevel;
     const activeCampaigns = state.activeMissions.filter(m => m.type === 'CAMPAIGN_ATTACK');
 
     if (activeCampaigns.length >= maxSlots) return { success: false, errorKey: 'campaign_slots_full' };
-    
-    // Prevent attacking the same level simultaneously
     if (activeCampaigns.some(m => m.levelId === levelId)) return { success: false, errorKey: 'campaign_busy' };
     
     const canAfford = Object.entries(playerUnits).every(([uType, qty]) => (state.units[uType as UnitType] || 0) >= (qty as number));
     if (!canAfford) return { success: false, errorKey: 'insufficient_units' };
 
     const missionId = `camp-${Date.now()}`;
-    // Use standard 15m travel time like PvP for consistency and balance
     const endTime = now + MAP_MISSION_TRAVEL_TIME_MS; 
     
     const newUnits = { ...state.units };
@@ -139,21 +137,22 @@ export const executeCampaignAttack = (state: GameState, levelId: number, playerU
 
 // --- PvP & WAR ---
 export const executePvpAttack = (state: GameState, targetId: string, targetName: string, targetScore: number, playerUnits: Partial<Record<UnitType, number>>, useDiamond: boolean = false): ActionResult => {
-    if (state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD) return { success: false, errorKey: 'protection_active' };
+    const isPlayerProtected = state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD;
+    const isTargetProtected = targetScore <= NEWBIE_PROTECTION_THRESHOLD;
+
+    if (isPlayerProtected || isTargetProtected) return { success: false, errorKey: 'protection_active' };
 
     let isWarAttack = false;
-    let travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS; // Default 15 min
+    let travelTime = GLOBAL_ATTACK_TRAVEL_TIME_MS;
 
-    // Check reset time for limits
     const now = Date.now();
     let currentCounts = { ...state.targetAttackCounts };
     const ONE_DAY = 24 * 60 * 60 * 1000;
     if (now - state.lastAttackResetTime > ONE_DAY) {
-        currentCounts = {}; // Reset counts
+        currentCounts = {}; 
     }
 
     if (state.activeWar) {
-        // Prevent raiding other targets during war
         if (state.activeWar.enemyId !== targetId) return { success: false, errorKey: 'war_active_lock' }; 
         if (state.activeWar.playerAttacksLeft <= 0) return { success: false, errorKey: 'campaign_busy' }; 
         isWarAttack = true;
@@ -161,19 +160,17 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
         const ratio = targetScore / Math.max(1, state.empirePoints);
         if (ratio < PVP_RANGE_MIN || ratio > PVP_RANGE_MAX) return { success: false, errorKey: 'invalid_mission' };
         
-        // Check attack limit for normal raids
         const count = currentCounts[targetId] || 0;
         if (count >= MAX_ATTACKS_PER_TARGET) {
-            return { success: false, errorKey: 'campaign_busy' }; // Reuse generic busy or create specific
+            return { success: false, errorKey: 'campaign_busy' };
         }
     }
 
-    // Apply Diamond Acceleration
     if (useDiamond) {
-        travelTime = Math.floor(GLOBAL_ATTACK_TRAVEL_TIME_MS * 0.2); // 80% Reduction
+        travelTime = Math.floor(GLOBAL_ATTACK_TRAVEL_TIME_MS * 0.2);
     }
 
-    const hasUnits = Object.entries(playerUnits).some(([, val]) => val && val > 0);
+    const hasUnits = Object.entries(playerUnits).some(([, val]) => val && (val as number) > 0);
     if (!hasUnits) return { success: false, errorKey: 'insufficient_units' };
     
     const canAfford = Object.entries(playerUnits).every(([uType, qty]) => (state.units[uType as UnitType] || 0) >= (qty as number));
@@ -183,7 +180,6 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
     if (useDiamond && currentDiamonds < 1) return { success: false, errorKey: 'missing_diamond' };
 
     const endTime = now + travelTime;
-
     const newUnits = { ...state.units };
     Object.entries(playerUnits).forEach(([u, q]) => newUnits[u as UnitType] -= (q as number));
 
@@ -191,7 +187,6 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
     if (isWarAttack && newWarState) {
         newWarState.playerAttacksLeft = Math.max(0, newWarState.playerAttacksLeft - 1);
     } else {
-        // Increment non-war attack count
         currentCounts[targetId] = (currentCounts[targetId] || 0) + 1;
     }
 
@@ -227,50 +222,24 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
     return { success: true, newState };
 };
 
-export const executeDeclareWar = (state: GameState, targetId: string, targetName: string, targetScore: number): ActionResult => {
-    if (state.activeWar) return { success: false, errorKey: 'campaign_busy' };
-    if (state.empirePoints <= NEWBIE_PROTECTION_THRESHOLD) return { success: false, errorKey: 'protection_active' };
-
-    const newState = startWar(state, targetId, targetName, targetScore);
-    return { success: true, newState };
+// WAR DECLARATION IS NOW DELEGATED TO SERVER IN FUTURE, FOR NOW WE KEEP THE WRAPPER BUT IT WILL FAIL UNTIL SERVER IMPLEMENTS IT
+export const executeDeclareWar = (_state: GameState, _targetId: string, _targetName: string, _targetScore: number): ActionResult => {
+    return { success: false, errorKey: 'invalid_mission' }; // Blocked until server implementation
 };
 
 export const executeEspionage = (state: GameState, attackId: string): ActionResult => {
-    // Find specific attack by ID in incoming list
     const incomingIndex = state.incomingAttacks.findIndex(a => a.id === attackId);
-    
     if (incomingIndex === -1) return { success: false, errorKey: 'invalid_mission' }; 
     
     const attack = state.incomingAttacks[incomingIndex];
-    if (attack.isScouted) return { success: false }; // Already scouted
+    if (attack.isScouted) return { success: false };
 
-    // Cost Formula: (EnemyScore * 64) / 5
-    const baseCost = Math.max(100, Math.floor(attack.attackerScore * 64));
-    const cost = Math.floor(baseCost / 5);
+    const cost = Math.floor(Math.max(100, Math.floor(attack.attackerScore * 64)) / 5);
     
     if (state.resources[ResourceType.GOLD] < cost) return { success: false, errorKey: 'insufficient_funds' };
 
     const newIncoming = [...state.incomingAttacks];
     newIncoming[incomingIndex] = { ...newIncoming[incomingIndex], isScouted: true };
-
-    const now = Date.now();
-    
-    // Determine context for log parameters
-    const waveNum = attack.isWarWave && state.activeWar ? state.activeWar.currentWave : undefined;
-
-    // CREATE INTEL REPORT
-    const intelLog: LogEntry = {
-        id: `intel-${now}`,
-        messageKey: 'log_intel_acquired',
-        type: 'intel',
-        timestamp: now,
-        params: {
-            targetName: attack.attackerName,
-            units: attack.units,
-            score: attack.attackerScore,
-            wave: waveNum
-        }
-    };
 
     const newState = {
         ...state,
@@ -279,7 +248,6 @@ export const executeEspionage = (state: GameState, attackId: string): ActionResu
             [ResourceType.GOLD]: state.resources[ResourceType.GOLD] - cost
         },
         incomingAttacks: newIncoming,
-        logs: [intelLog, ...state.logs].slice(0, 100)
     };
 
     return { success: true, newState };

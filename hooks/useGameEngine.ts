@@ -2,7 +2,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GameState, GameStatus, LogEntry, GameEventType, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
-import { calculateCombatStats, simulateCombat } from '../utils/engine/combat';
 import { useEventSubscription } from './useEventSubscription';
 import { addGameLog } from '../utils';
 import { createDebugAllyAttackTest } from '../utils/debug';
@@ -11,18 +10,22 @@ import { createDebugAllyAttackTest } from '../utils/debug';
 import { useGameLoop } from './useGameLoop';
 import { usePersistence } from './usePersistence';
 import { useGameActions } from './useGameActions';
-
-// Re-export for UI components that use them
-export { calculateCombatStats, simulateCombat };
+import { battleService } from '../src/services/battleService';
 
 declare global {
     interface Window {
         _updateGameState?: (newState: GameState) => void;
+        USE_SERVER_BATTLES?: boolean;
     }
 }
 
+// Enable Server Battles
+if (typeof window !== 'undefined') {
+    window.USE_SERVER_BATTLES = true;
+}
+
 export const useGameEngine = () => {
-  const [status, setStatus] = useState<GameStatus>('MENU');
+  const [status, setStatus] = useState<GameStatus>('LOADING');
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
   const [hasNewReports, setHasNewReports] = useState(false);
@@ -75,6 +78,86 @@ export const useGameEngine = () => {
   useEventSubscription(GameEventType.ADD_LOG, (payload) => {
       addLog(payload.messageKey, payload.type, payload.params);
   });
+
+  useEventSubscription(GameEventType.TRIGGER_SAVE, (payload) => {
+      persistence.performAutoSave(payload.force);
+  });
+
+  // --- 5b. REMOTE BATTLE ENGINE SYNC ---
+  useEffect(() => {
+    if (status !== 'PLAYING') return;
+
+    let isSyncing = false;
+
+    const checkAndSync = async () => {
+        if (isSyncing) return;
+        
+        try {
+            const now = Date.now();
+            
+            // Check if any mission or attack is ending soon
+            const hasEvents = gameState.activeMissions.some(m => m.endTime <= now) || 
+                              gameState.incomingAttacks.some(a => a.endTime <= now) ||
+                              (gameState.activeWar && gameState.activeWar.nextWaveTime <= now);
+
+            if (hasEvents) {
+                isSyncing = true;
+                console.log('[BattleSync] Processing events on server...');
+                const result = await battleService.processQueue(gameState, now);
+                
+                setGameState(prev => {
+                    const newState = { ...result.newState };
+                    if (result.newLogs.length > 0) {
+                        newState.logs = [...result.newLogs, ...prev.logs].slice(0, 100);
+                        setHasNewReports(true);
+                    }
+                    return newState;
+                });
+                isSyncing = false;
+            }
+        } catch (error) {
+            console.error('[BattleSync] Sync failed:', error);
+            isSyncing = false;
+        }
+    };
+
+    // Run check every second for immediate response
+    const syncInterval = setInterval(checkAndSync, 1000);
+
+    // Periodic checks for Bot Attacks and Grudges (every 60s)
+    const periodicCheck = setInterval(async () => {
+        try {
+            const now = Date.now();
+            
+            const enemyAttackResult = await battleService.processEnemyAttackCheck(gameState, now);
+            if (enemyAttackResult.logs.length > 0 || Object.keys(enemyAttackResult.stateUpdates).length > 0) {
+                setGameState(prev => ({
+                    ...prev,
+                    ...enemyAttackResult.stateUpdates,
+                    logs: [...enemyAttackResult.logs, ...prev.logs].slice(0, 100)
+                }));
+                if (enemyAttackResult.logs.length > 0) setHasNewReports(true);
+            }
+
+            const nemesisResult = await battleService.processNemesisTick(gameState, now);
+            if (nemesisResult.logs.length > 0 || Object.keys(nemesisResult.stateUpdates).length > 0) {
+                setGameState(prev => ({
+                    ...prev,
+                    ...nemesisResult.stateUpdates,
+                    logs: [...nemesisResult.logs, ...prev.logs].slice(0, 100)
+                }));
+                if (nemesisResult.logs.length > 0) setHasNewReports(true);
+            }
+        } catch (e) {
+            console.error('[BattlePeriodic] Failed:', e);
+        }
+    }, 60000);
+
+    return () => {
+        clearInterval(syncInterval);
+        clearInterval(periodicCheck);
+    };
+  }, [status, gameState, setHasNewReports]);
 
   // Hacky exposure for RankingsView
   useEffect(() => {

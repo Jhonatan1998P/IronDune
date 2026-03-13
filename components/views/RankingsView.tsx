@@ -4,6 +4,7 @@ import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from
 import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
+import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { ReputationIcon } from '../reputation';
 import { formatNumber } from '../../utils';
 import { PvpAttackModal } from '../PvpAttackModal';
@@ -151,6 +152,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
         const rankStyle = getRankStyle(entry.rank);
         const ratio = entry.score / Math.max(1, gameState.empirePoints);
         const inRange = ratio >= 0.5 && ratio <= 1.5;
+        const isEntryProtected = entry.score < NEWBIE_PROTECTION_THRESHOLD;
         
         // Get bot reputation from gameState
         const bot = gameState.rankingData.bots.find(b => b.id === entry.id);
@@ -168,6 +170,12 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                 `}
             >
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                
+                {isEntryProtected && (
+                    <div className="absolute -top-1 -right-1 bg-cyan-500 text-black p-1 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)] z-10">
+                        <Icons.Shield className="w-3 h-3" />
+                    </div>
+                )}
                 
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">

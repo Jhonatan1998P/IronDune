@@ -15,6 +15,11 @@ export default defineConfig({
     port: 5000,
     host: '0.0.0.0',
     allowedHosts: true,
+    watch: {
+      usePolling: true,
+      interval: 1000,
+      ignored: ['**/node_modules/**', '**/.cache/**', '**/dist/**'],
+    }
   },
   build: {
     // Habilitar minificación y tree-shaking agresivo
@@ -66,5 +71,4 @@ export default defineConfig({
     exclude: ['yjs', 'trystero'],
   },
   // Pre-bundle dependencies
-  preTransformRequests: true,
 })

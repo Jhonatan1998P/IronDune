@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { GameState } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
-import { Card, GlassButton } from '../UIComponents';
+import { Card, GlassButton, Icons } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../ui/Toast';
+import { APP_VERSION } from '../../constants';
 
 const AVAILABLE_FLAGS = [
     'US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU',
@@ -17,20 +20,18 @@ interface SettingsViewProps {
     gameState: GameState;
     changePlayerName: (name: string, flag?: string) => { success: boolean; errorKey?: string };
     redeemGiftCode: (code: string) => { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number };
-    saveGame: () => void;
     resetGame: () => void;
-    exportSave: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
     gameState, 
     changePlayerName, 
     redeemGiftCode,
-    saveGame, 
     resetGame, 
-    exportSave 
 }) => {
     const { t, setLanguage, language } = useLanguage();
+    const { signOut } = useAuth();
+    const { showWarning } = useToast();
     const [newName, setNewName] = useState('');
     const [nameError, setNameError] = useState<string | null>(null);
     const [nameSuccess, setNameSuccess] = useState(false);
@@ -39,6 +40,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [selectedFlag, setSelectedFlag] = useState<string | undefined>(gameState.playerFlag);
     const [flagSuccess, setFlagSuccess] = useState(false);
     const [showFlagPicker, setShowFlagPicker] = useState(false);
+    const [showResetModal, setShowResetModal] = useState(false);
+
+    const handleResetAction = () => {
+        showWarning(language === 'es' ? "Iniciando secuencia de borrado..." : "Initiating wipe sequence...");
+        resetGame();
+    };
 
     const handleNameChange = () => {
         setNameError(null);
@@ -94,7 +101,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     };
 
     const isFreeChange = !gameState.hasChangedName;
-    const nameChangeCost = isFreeChange ? 'FREE' : '💎 20';
+    const nameChangeCost = isFreeChange ? 'FREE' : (
+        <span className="flex items-center gap-1">
+            <Icons.Resources.Diamond className="w-2.5 h-2.5" />
+            20
+        </span>
+    );
     const canAfford = isFreeChange || gameState.resources.DIAMOND >= 20;
 
     return (
@@ -195,8 +207,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                                 : 'bg-black/30 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                                         }`}
                                     >
-                                        <span className="text-xl">
-                                            {selectedFlag ? getFlagEmoji(selectedFlag) : '🏳️'}
+                                        <span className="text-xl flex items-center justify-center">
+                                            {selectedFlag ? getFlagEmoji(selectedFlag) : <Icons.Map className="w-5 h-5 opacity-40" />}
                                         </span>
                                         <span className="text-xs font-bold uppercase tracking-wider">
                                             {selectedFlag || ((t.common.ui as Record<string, string>).no_flag || 'No flag')}
@@ -275,27 +287,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             {giftCodeStatus.message}
                                         </div>
                                     )}
-
-                                    <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
-                                        <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                                            <div className="flex flex-col">
-                                                <span className="text-cyan-400 font-bold text-sm">DIARIO</span>
-                                                <span className="text-[10px] text-slate-500">{t.common.ui.gift_code_diario_rewards}</span>
-                                            </div>
-                                            <span className="text-[10px] px-2 py-1 bg-amber-500/20 text-amber-400 rounded">
-                                                {t.common.ui.gift_code_daily}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                                            <div className="flex flex-col">
-                                                <span className="text-cyan-400 font-bold text-sm">MANCO</span>
-                                                <span className="text-[10px] text-slate-500">{t.common.ui.gift_code_manco_rewards}</span>
-                                            </div>
-                                            <span className="text-[10px] px-2 py-1 bg-purple-500/20 text-purple-400 rounded">
-                                                {t.common.ui.gift_code_once}
-                                            </span>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -308,47 +299,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <Card title={t.common.ui.system} className="h-full">
                         <div className="flex flex-col gap-4 sm:gap-6 h-full justify-between">
                             <div className="space-y-3 sm:space-y-4">
-                                <div className="p-3 sm:p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                                    <p className="text-xs text-slate-400 leading-relaxed italic">
-                                        {language === 'es' 
-                                            ? 'Exporta tu partida para jugar en otro navegador o guarda tu progreso actual localmente.' 
-                                            : 'Export your save to play on another browser or save your current progress locally.'}
-                                    </p>
-                                </div>
-                                
                                 <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                                    <GlassButton onClick={exportSave} className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3">
+                                    <GlassButton onClick={signOut} variant="danger" className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3 shadow-lg">
                                         <span className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
-                                            <span className="text-base sm:text-lg">📥</span>
-                                            {t.common.menu.export_save}
-                                        </span>
-                                    </GlassButton>
-                                    <GlassButton onClick={saveGame} variant="neutral" className="w-full justify-start px-4 sm:px-6 py-2.5 sm:py-3 border-emerald-500/30 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-900/20">
-                                        <span className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
-                                            <span className="text-base sm:text-lg">💾</span>
-                                            {t.common.menu.save_exit}
+                                            <Icons.LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            {t.common.auth.logout}
                                         </span>
                                     </GlassButton>
                                 </div>
                             </div>
 
                             <div className="pt-4 sm:pt-6 border-t border-white/10">
-                                <div className="p-3 sm:p-4 rounded-xl bg-red-500/5 border border-red-500/20 mb-3 sm:mb-4">
+                                <div className="p-3 sm:p-4 rounded-xl bg-red-500/5 border border-red-500/20 mb-3 sm:mb-4 text-center">
                                     <h4 className="text-[10px] sm:text-xs text-red-400 uppercase tracking-[0.2em] font-bold mb-1">{t.common.ui.reset}</h4>
-                                    <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest text-center">{t.common.ui.reset_confirm}</p>
+                                    <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest">{t.common.ui.reset_confirm}</p>
                                 </div>
-                                <GlassButton onClick={resetGame} variant="danger" className="w-full py-2.5 sm:py-3">
+                                <GlassButton onClick={() => setShowResetModal(true)} variant="danger" className="w-full py-2.5 sm:py-3 shadow-lg shadow-red-950/20">
                                     {t.common.ui.reset}
                                 </GlassButton>
                             </div>
                         </div>
                     </Card>
-
                 </div>
             </div>
+
+            {/* RESET CONFIRMATION MODAL */}
+            {showResetModal && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-[fadeIn_0.2s_ease-out]">
+                    <div className="max-w-md w-full glass-panel border-2 border-red-500/30 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-[slideUp_0.3s_ease-out]">
+                        <div className="p-6 sm:p-8 flex flex-col items-center text-center gap-6">
+                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/30">
+                                <Icons.Warning className="w-8 h-8 text-red-500 animate-pulse" />
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-tech text-white uppercase tracking-wider">{t.common.ui.reset}</h3>
+                                <p className="text-sm text-slate-400 leading-relaxed font-mono italic">
+                                    {language === 'es' 
+                                        ? "ADVERTENCIA: Esta acción eliminará permanentemente todo tu progreso en la nube. Esta operación no se puede deshacer."
+                                        : "WARNING: This action will permanently erase all your progress in the cloud. This operation cannot be undone."}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col w-full gap-3">
+                                <GlassButton 
+                                    onClick={handleResetAction}
+                                    variant="danger" 
+                                    className="w-full py-4 text-sm font-bold tracking-[0.2em]"
+                                >
+                                    {language === 'es' ? "CONFIRMAR BORRADO TOTAL" : "CONFIRM TOTAL WIPE"}
+                                </GlassButton>
+                                <button 
+                                    onClick={() => setShowResetModal(false)}
+                                    className="text-xs text-slate-500 hover:text-white uppercase tracking-widest font-bold py-2 transition-colors"
+                                >
+                                    {t.common.actions.cancel}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="bg-red-500/10 h-1 w-full animate-pulse"></div>
+                    </div>
+                </div>
+            )}
             
             <div className="text-center pb-6 sm:pb-8 opacity-30">
-                <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em]">Sector Zero OS v1.2.4 - Tactical Terminal</p>
+                <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em]">Sector Zero OS {APP_VERSION} - Tactical Terminal</p>
             </div>
         </div>
     );

@@ -4,7 +4,18 @@ import { UNIT_DEFS } from '../../data/units';
 import { BattleResult, LogEntry, UnitType, TranslationDictionary, ResourceType, WarState, UnitCategory, BuildingType, LogisticLootField } from '../../types';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
-import { UNIT_PRIORITY } from '../../utils/engine/combat';
+
+const UNIT_PRIORITY: UnitType[] = [
+    UnitType.CYBER_MARINE,
+    UnitType.HEAVY_COMMANDO,
+    UnitType.SCOUT_TANK,
+    UnitType.TITAN_MBT,
+    UnitType.WRAITH_GUNSHIP,
+    UnitType.ACE_FIGHTER,
+    UnitType.AEGIS_DESTROYER,
+    UnitType.PHANTOM_SUB,
+    UnitType.SALVAGER_DRONE
+];
 
 interface CombatReportProps {
     log: LogEntry;
@@ -437,7 +448,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
         if (Object.keys(allyArmies).length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50 bg-black/20 rounded-xl border border-white/5">
-                    <div className="text-5xl mb-4 opacity-50">🤝</div>
+                    <Icons.Users className="w-12 h-12 mb-4 opacity-50" />
                     <span className="text-sm font-bold uppercase tracking-widest">{t.reports.no_allies}</span>
                 </div>
             );

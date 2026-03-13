@@ -2,14 +2,13 @@
  * BotCard Component
  * 
  * Individual bot card for DiplomacyView with swipe support for mobile.
+ * Optimized for performance with direct DOM manipulation.
  */
 
 import React from 'react';
-import { StaticBot, RankingCategory, BotEvent, getFlagEmoji } from '../../utils/engine/rankings';
+import { StaticBot } from '../../utils/engine/rankings';
 import { useSwipe } from '../../hooks/useSwipe';
-import { SmartTooltip, Icons } from '../UIComponents';
-import { Target, Zap, History, Gift } from 'lucide-react';
-import { formatNumber } from '../../utils';
+import { History, Gift } from 'lucide-react';
 
 interface BotCardProps {
     bot: StaticBot;
@@ -23,12 +22,10 @@ interface BotCardProps {
 }
 
 export const BotCard: React.FC<BotCardProps> = ({
-    bot,
     isMobile,
     onSwipeRight,
     onSwipeLeft,
     onClick,
-    onHistoryClick,
     children,
     className = ''
 }) => {
@@ -46,25 +43,20 @@ export const BotCard: React.FC<BotCardProps> = ({
             onTouchEnd={swipeHandlers.handleTouchEnd}
             onClick={onClick}
             className={`
-                bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 flex flex-col space-y-2 md:space-y-3 shadow-md
+                bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 flex flex-col space-y-2 md:space-y-3 shadow-md relative overflow-hidden
                 ${isMobile ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}
-                ${swipeHandlers.swipeState.isSwiping ? 'transition-none' : 'transition-all'}
+                ${swipeHandlers.swipeState.isSwiping ? 'z-20 shadow-xl' : 'z-10 transition-all'}
                 ${className}
             `}
-            style={{
-                transform: swipeHandlers.swipeState.isSwiping
-                    ? `translateX(${swipeHandlers.swipeState.swipeDistance}px)`
-                    : undefined
-            }}
         >
             {/* Swipe indicator */}
             {isMobile && swipeHandlers.swipeState.direction === 'right' && (
-                <div className="absolute right-0 top-0 bottom-0 w-16 bg-blue-600/20 rounded-r-xl flex items-center justify-center z-0">
+                <div className="absolute right-0 top-0 bottom-0 w-16 bg-blue-600/20 flex items-center justify-center z-0 animate-pulse">
                     <Gift className="w-6 h-6 text-blue-400" />
                 </div>
             )}
             {isMobile && swipeHandlers.swipeState.direction === 'left' && (
-                <div className="absolute left-0 top-0 bottom-0 w-16 bg-cyan-600/20 rounded-l-xl flex items-center justify-center z-0">
+                <div className="absolute left-0 top-0 bottom-0 w-16 bg-cyan-600/20 flex items-center justify-center z-0 animate-pulse">
                     <History className="w-6 h-6 text-cyan-400" />
                 </div>
             )}

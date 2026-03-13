@@ -12,7 +12,7 @@ interface P2PRankingProps {
 }
 
 export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore, playerFlag }) => {
-  const { isConnected, remotePlayers, currentRoomId } = useMultiplayer();
+  const { isConnected, remotePlayers } = useMultiplayer();
 
   // Combinar jugador local con remotePlayers para el ranking
   const rankedPlayers = useMemo(() => {
@@ -65,7 +65,7 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore,
     <div className="flex flex-col min-h-full p-2 sm:p-4 gap-3 sm:gap-4 animate-[fadeIn_0.3s_ease-out]">
       {/* Header */}
       <div className="glass-panel p-3 sm:p-4 rounded-xl border border-white/10">
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className="flex items-center justify-between">
           <h2 className="font-tech text-sm sm:text-lg text-white uppercase tracking-widest flex items-center gap-2">
             <Icons.Crown className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
             Rankings PvP
@@ -78,16 +78,9 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore,
           </div>
         </div>
 
-        {/* Sala actual */}
-        {currentRoomId && (
-          <div className="mb-3 sm:mb-4 text-xs text-slate-500">
-            Sala: <code className="text-cyan-400 bg-black/30 px-2 py-1 rounded">{currentRoomId}</code>
-          </div>
-        )}
-
         {/* Player Rank Card */}
         {playerRank > 0 && (
-          <div className="bg-cyan-900/20 border border-cyan-500/40 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+          <div className="bg-cyan-900/20 border border-cyan-500/40 rounded-lg p-3 sm:p-4 mt-4">
             <div className="text-center">
               <div className="text-cyan-300 text-[10px] sm:text-xs uppercase tracking-widest font-bold">Tu Posición</div>
               <div className="text-3xl sm:text-4xl font-bold text-white">#{playerRank}</div>
@@ -158,8 +151,8 @@ export const P2PRanking: React.FC<P2PRankingProps> = ({ playerName, playerScore,
         {rankedPlayers.length <= 1 && (
           <div className="glass-panel p-6 sm:p-8 rounded-xl border border-white/10 text-center">
             <Icons.Crown className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm sm:text-base mb-2">Conéctate con amigos para ver rankings!</p>
-            <p className="text-slate-500 text-xs sm:text-sm">Crea o únete a una sala multijugador</p>
+            <p className="text-slate-400 text-sm sm:text-base mb-2">Conéctate con otros comandantes!</p>
+            <p className="text-slate-500 text-xs sm:text-sm">El universo se siente solo sin compañía</p>
           </div>
         )}
       </div>

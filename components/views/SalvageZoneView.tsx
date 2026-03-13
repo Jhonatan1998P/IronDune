@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { GameState, LogisticLootField, UnitType, ResourceType } from '../../types';
 import { SALVAGER_CARGO_CAPACITY } from '../../constants';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
+
+const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_BATTLE_SERVER_URL || 'http://localhost:3001';
 
 interface SalvageZoneViewProps {
     gameState: GameState;
@@ -12,9 +14,38 @@ interface SalvageZoneViewProps {
 export const SalvageZoneView: React.FC<SalvageZoneViewProps> = ({ gameState, onStartMission }) => {
     const [selectedLootId, setSelectedLootId] = useState<string | null>(null);
     const [droneCount, setDroneCount] = useState<number>(0);
+    const [globalLoot, setGlobalLoot] = useState<LogisticLootField[]>([]);
 
     const availableDrones = gameState.units[UnitType.SALVAGER_DRONE] || 0;
-    const lootFields = gameState.logisticLootFields || [];
+    
+    // Fetch Global Loot from Server
+    useEffect(() => {
+        const fetchGlobalLoot = async () => {
+            try {
+                const response = await fetch(`${BATTLE_SERVER_URL}/api/salvage/global`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setGlobalLoot(data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch global loot:', e);
+            }
+        };
+
+        fetchGlobalLoot();
+        const interval = setInterval(fetchGlobalLoot, 10000); // Sync every 10s
+        return () => clearInterval(interval);
+    }, []);
+
+    // Merge local loot (not yet synced) with global loot
+    const lootFields = useMemo(() => {
+        const combined = [...globalLoot];
+        // Add local ones if they are not in global yet (optional, for UX)
+        (gameState.logisticLootFields || []).forEach(local => {
+            if (!combined.find(g => g.id === local.id)) combined.push(local);
+        });
+        return combined;
+    }, [globalLoot, gameState.logisticLootFields]);
     
     // Sort loot fields by expiration (closest first)
     const sortedFields = useMemo(() => {

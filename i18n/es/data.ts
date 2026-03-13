@@ -60,5 +60,6 @@ export const data = {
       unlock_aegis_destroyer: { name: "Desplegar: Destructor Aegis", description: "Cazador de élite. Requiere 65K Pts de Imperio." },
       unlock_phantom_sub: { name: "Desplegar: Submarino Fantasma", description: "La cima tecnológica marítima. Requiere 100K Pts de Imperio." },
       unlock_salvager_drone: { name: "Logística de Salvamento", description: "Habilita el uso de drones para recolectar Botín Logístico tras las batallas." },
+      drone_battle_tech: { name: "Tecnología de Combate de Drones", description: "Mejora los sistemas de armamento y blindaje de los drones para conflictos en zonas de salvamento. +10% ataque/defensa por nivel." }
     }
 };

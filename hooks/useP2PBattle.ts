@@ -1,22 +1,12 @@
+
 /**
- * useP2PBattle - Hook principal del sistema de batalla P2P
- * 
- * Maneja el flujo completo de batalla entre jugadores:
- * 1. Desafío (challenge/accept/decline)
- * 2. Preparación (selección de ejército)
- * 3. Confirmación (lock de ejército)
- * 4. Resolución (combate determinístico)
- * 5. Resultado (sincronización de resultado)
- * 
- * Usa Trystero para comunicación P2P y Yjs + y-indexeddb para
- * persistencia local del historial de batallas.
+ * useP2PBattle - Main hook for the P2P Battle System
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMultiplayer } from './useMultiplayer';
 import { useYjsSync } from './useYjsSync';
-import { simulateCombat } from '../utils/engine/combat';
-import { calculateCombatStats } from '../utils/engine/combat';
+import { battleService } from '../src/services/battleService';
 import type { UnitType } from '../types/enums';
 import type {
   P2PBattleState,
@@ -37,8 +27,8 @@ import { MultiplayerActionType } from '../types/multiplayer';
 // CONSTANTS
 // ============================================================================
 
-const CHALLENGE_TIMEOUT_MS = 30_000; // 30 seconds to accept/decline
-const ARMY_LOCK_TIMEOUT_MS = 120_000; // 2 minutes to select & lock army
+const CHALLENGE_TIMEOUT_MS = 30_000;
+const ARMY_LOCK_TIMEOUT_MS = 120_000;
 const BATTLE_HISTORY_DB = 'p2p-battle-history';
 const MAX_HISTORY = 50;
 
@@ -49,9 +39,6 @@ const MAX_HISTORY = 50;
 const generateBattleId = (): string =>
   `battle_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
 
-/**
- * Generate a deterministic seed from battleId for reproducible combat
- */
 const generateSeed = (battleId: string): number => {
   let hash = 0;
   for (let i = 0; i < battleId.length; i++) {
@@ -62,9 +49,6 @@ const generateSeed = (battleId: string): number => {
   return Math.abs(hash);
 };
 
-/**
- * Convert Record<string, number> to Partial<Record<UnitType, number>>
- */
 const toUnitRecord = (army: Record<string, number>): Partial<Record<UnitType, number>> => {
   const result: Partial<Record<UnitType, number>> = {};
   for (const [key, value] of Object.entries(army)) {
@@ -99,7 +83,7 @@ const INITIAL_BATTLE_STATE: P2PBattleState = {
 // HOOK
 // ============================================================================
 
-export const useP2PBattle = (playerName: string, empirePoints: number, _playerUnits?: Record<UnitType, number>) => {
+export const useP2PBattle = (playerName: string, empirePoints: number) => {
   const {
     isConnected,
     localPlayerId,
@@ -108,25 +92,20 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     onRemoteAction,
   } = useMultiplayer();
 
-  // Battle state
   const [battle, setBattle] = useState<P2PBattleState>(INITIAL_BATTLE_STATE);
   const [history, setHistory] = useState<P2PBattleRecord[]>([]);
   const [pendingChallenge, setPendingChallenge] = useState<BattleChallengePayload | null>(null);
 
-  // Refs for timeout management
   const challengeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const armyLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleRef = useRef<P2PBattleState>(INITIAL_BATTLE_STATE);
 
-  // Yjs for battle history persistence
   const yjs = useYjsSync({ dbName: BATTLE_HISTORY_DB, enablePersistence: true });
 
-  // Keep ref in sync with state
   useEffect(() => {
     battleRef.current = battle;
   }, [battle]);
 
-  // Load history from Yjs on mount
   useEffect(() => {
     if (yjs.isReady && yjs.doc) {
       try {
@@ -135,29 +114,19 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
         historyMap.forEach((value: string) => {
           try {
             records.push(JSON.parse(value));
-          } catch { /* skip corrupted entries */ }
+          } catch { /* skip */ }
         });
         records.sort((a, b) => b.timestamp - a.timestamp);
         setHistory(records.slice(0, MAX_HISTORY));
-      } catch (e) {
-        // Failed to load history
-      }
+      } catch (e) {}
     }
   }, [yjs.isReady, yjs.doc]);
 
-  // ============================================================================
-  // CLEANUP
-  // ============================================================================
-
   const clearTimeouts = useCallback(() => {
-    if (challengeTimeoutRef.current) {
-      clearTimeout(challengeTimeoutRef.current);
-      challengeTimeoutRef.current = null;
-    }
-    if (armyLockTimeoutRef.current) {
-      clearTimeout(armyLockTimeoutRef.current);
-      armyLockTimeoutRef.current = null;
-    }
+    if (challengeTimeoutRef.current) clearTimeout(challengeTimeoutRef.current);
+    if (armyLockTimeoutRef.current) clearTimeout(armyLockTimeoutRef.current);
+    challengeTimeoutRef.current = null;
+    armyLockTimeoutRef.current = null;
   }, []);
 
   const resetBattle = useCallback(() => {
@@ -166,47 +135,19 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     setPendingChallenge(null);
   }, [clearTimeouts]);
 
-  // ============================================================================
-  // SAVE BATTLE TO HISTORY
-  // ============================================================================
-
   const saveBattleToHistory = useCallback((record: P2PBattleRecord) => {
-    setHistory(prev => {
-      const updated = [record, ...prev].slice(0, MAX_HISTORY);
-      return updated;
-    });
-
-    // Persist to IndexedDB via Yjs
+    setHistory(prev => [record, ...prev].slice(0, MAX_HISTORY));
     if (yjs.isReady && yjs.doc) {
       try {
         yjs.transact(() => {
           const historyMap = yjs.getMap<string>('history');
           historyMap.set(record.battleId, JSON.stringify(record));
-
-          // Prune old entries
-          const keys: string[] = [];
-          historyMap.forEach((_: string, key: string) => keys.push(key));
-          if (keys.length > MAX_HISTORY) {
-            const allRecords: P2PBattleRecord[] = [];
-            historyMap.forEach((value: string) => {
-              try { allRecords.push(JSON.parse(value)); } catch { /* skip */ }
-            });
-            allRecords.sort((a, b) => b.timestamp - a.timestamp);
-            const toRemove = allRecords.slice(MAX_HISTORY);
-            toRemove.forEach(r => historyMap.delete(r.battleId));
-          }
         });
-      } catch (e) {
-        // Failed to persist history
-      }
+      } catch (e) {}
     }
   }, [yjs]);
 
-  // ============================================================================
-  // RESOLVE COMBAT
-  // ============================================================================
-
-  const resolveCombat = useCallback((
+  const resolveCombat = useCallback(async (
     battleId: string,
     myArmy: Record<string, number>,
     opponentArmy: Record<string, number>,
@@ -218,490 +159,262 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     const attackerArmy = isChallenger ? myArmy : opponentArmy;
     const defenderArmy = isChallenger ? opponentArmy : myArmy;
 
-    // Run combat simulation using existing combat engine
-    const result = simulateCombat(
-      toUnitRecord(attackerArmy),
-      toUnitRecord(defenderArmy)
-    );
+    try {
+        const result = await battleService.simulateCombat(
+            toUnitRecord(attackerArmy),
+            toUnitRecord(defenderArmy)
+        );
 
-    // Determine winner from local player perspective
-    let winner: 'PLAYER' | 'ENEMY' | 'DRAW';
-    if (result.winner === 'DRAW') {
-      winner = 'DRAW';
-    } else if (isChallenger) {
-      winner = result.winner; // PLAYER = challenger won
-    } else {
-      // We are the defender: invert result
-      winner = result.winner === 'PLAYER' ? 'ENEMY' : 'PLAYER';
+        let winner: 'PLAYER' | 'ENEMY' | 'DRAW';
+        if (result.winner === 'DRAW') {
+            winner = 'DRAW';
+        } else if (isChallenger) {
+            winner = result.winner;
+        } else {
+            winner = result.winner === 'PLAYER' ? 'ENEMY' : 'PLAYER';
+        }
+
+        const attackerSurvivors: Record<string, number> = {};
+        const defenderSurvivors: Record<string, number> = {};
+        Object.entries(result.finalPlayerArmy || {}).forEach(([k, v]) => {
+            if (v && (v as number) > 0) attackerSurvivors[k] = v as number;
+        });
+        Object.entries(result.finalEnemyArmy || {}).forEach(([k, v]) => {
+            if (v && (v as number) > 0) defenderSurvivors[k] = v as number;
+        });
+
+        const attackerCasualties: Record<string, number> = {};
+        const defenderCasualties: Record<string, number> = {};
+        Object.entries(result.totalPlayerCasualties || {}).forEach(([k, v]) => {
+            if (v && (v as number) > 0) attackerCasualties[k] = v as number;
+        });
+        Object.entries(result.totalEnemyCasualties || {}).forEach(([k, v]) => {
+            if (v && (v as number) > 0) defenderCasualties[k] = v as number;
+        });
+
+        const resultPayload: BattleResultSyncPayload = {
+            battleId,
+            winner: result.winner,
+            attackerArmy,
+            defenderArmy,
+            attackerSurvivors,
+            defenderSurvivors,
+            attackerCasualties,
+            defenderCasualties,
+            rounds: result.rounds.length,
+            seed: generateSeed(battleId),
+        };
+
+        setBattle(prev => ({
+            ...prev,
+            status: 'RESULT',
+            result: resultPayload,
+            resolvedAt: Date.now(),
+        }));
+
+        saveBattleToHistory({
+            battleId,
+            opponentName,
+            opponentScore,
+            winner,
+            myArmy,
+            opponentArmy,
+            myCasualties: isChallenger ? attackerCasualties : defenderCasualties,
+            opponentCasualties: isChallenger ? defenderCasualties : attackerCasualties,
+            timestamp: Date.now(),
+        });
+
+        sendToPeer(opponentPeerId, {
+            type: MultiplayerActionType.BATTLE_RESULT_SYNC,
+            payload: resultPayload as any,
+            playerId: localPlayerId || '',
+            timestamp: Date.now(),
+        });
+
+        return resultPayload;
+    } catch (error) {
+        console.error('[P2PBattle] Resolve failed:', error);
+        return null;
     }
-
-    const attackerSurvivors: Record<string, number> = {};
-    const defenderSurvivors: Record<string, number> = {};
-    Object.entries(result.finalPlayerArmy).forEach(([k, v]) => {
-      if (v && v > 0) attackerSurvivors[k] = v;
-    });
-    Object.entries(result.finalEnemyArmy).forEach(([k, v]) => {
-      if (v && v > 0) defenderSurvivors[k] = v;
-    });
-
-    const attackerCasualties: Record<string, number> = {};
-    const defenderCasualties: Record<string, number> = {};
-    Object.entries(result.totalPlayerCasualties).forEach(([k, v]) => {
-      if (v && v > 0) attackerCasualties[k] = v;
-    });
-    Object.entries(result.totalEnemyCasualties).forEach(([k, v]) => {
-      if (v && v > 0) defenderCasualties[k] = v;
-    });
-
-    const seed = generateSeed(battleId);
-
-    const resultPayload: BattleResultSyncPayload = {
-      battleId,
-      winner: result.winner,
-      attackerArmy,
-      defenderArmy,
-      attackerSurvivors,
-      defenderSurvivors,
-      attackerCasualties,
-      defenderCasualties,
-      rounds: result.rounds.length,
-      seed,
-    };
-
-    // Update battle state
-    setBattle(prev => ({
-      ...prev,
-      status: 'RESULT' as P2PBattleStatus,
-      result: resultPayload,
-      resolvedAt: Date.now(),
-    }));
-
-    // Save to history
-    const myCasualties = isChallenger ? attackerCasualties : defenderCasualties;
-    const oppCasualties = isChallenger ? defenderCasualties : attackerCasualties;
-
-    saveBattleToHistory({
-      battleId,
-      opponentName,
-      opponentScore,
-      winner,
-      myArmy,
-      opponentArmy,
-      myCasualties,
-      opponentCasualties: oppCasualties,
-      timestamp: Date.now(),
-    });
-
-    // Broadcast result to opponent
-    sendToPeer(opponentPeerId, {
-      type: MultiplayerActionType.BATTLE_RESULT_SYNC,
-      payload: resultPayload as any,
-      playerId: localPlayerId || '',
-      timestamp: Date.now(),
-    });
-
-    return resultPayload;
   }, [localPlayerId, sendToPeer, saveBattleToHistory]);
 
-  // ============================================================================
-  // PUBLIC API: CHALLENGE
-  // ============================================================================
-
   const challengePlayer = useCallback((targetPeerId: string) => {
-    if (!isConnected || !localPlayerId) return;
-    if (battle.status !== 'IDLE') {
-      return;
-    }
+    if (!isConnected || !localPlayerId || battle.status !== 'IDLE') return;
 
     const battleId = generateBattleId();
-    const payload: BattleChallengePayload = {
-      battleId,
-      challengerName: playerName,
-      challengerScore: empirePoints,
-      challengerPeerId: localPlayerId,
-    };
-
-    // Find opponent name
     const opponent = remotePlayers.find((p: PlayerPresence) => p.id === targetPeerId);
-    const opponentName = opponent?.name || 'Unknown';
-    const opponentScore = opponent?.level || 0;
-
+    
     setBattle({
+      ...INITIAL_BATTLE_STATE,
       battleId,
       status: 'CHALLENGING',
       opponentPeerId: targetPeerId,
-      opponentName,
-      opponentScore,
+      opponentName: opponent?.name || 'Unknown',
+      opponentScore: opponent?.level || 0,
       isChallenger: true,
-      myArmy: null,
-      opponentArmy: null,
-      myArmyLocked: false,
-      opponentArmyLocked: false,
-      result: null,
       startedAt: Date.now(),
-      resolvedAt: null,
     });
 
     sendToPeer(targetPeerId, {
       type: MultiplayerActionType.BATTLE_CHALLENGE,
-      payload: payload as any,
+      payload: {
+        battleId,
+        challengerName: playerName,
+        challengerScore: empirePoints,
+        challengerPeerId: localPlayerId,
+      } as any,
       playerId: localPlayerId,
       timestamp: Date.now(),
     });
 
-    // Timeout: auto-cancel if no response
     challengeTimeoutRef.current = setTimeout(() => {
-      if (battleRef.current.status === 'CHALLENGING') {
-        resetBattle();
-      }
+      if (battleRef.current.status === 'CHALLENGING') resetBattle();
     }, CHALLENGE_TIMEOUT_MS);
   }, [isConnected, localPlayerId, playerName, empirePoints, battle.status, remotePlayers, sendToPeer, resetBattle]);
-
-  // ============================================================================
-  // PUBLIC API: ACCEPT / DECLINE CHALLENGE
-  // ============================================================================
 
   const acceptChallenge = useCallback(() => {
     if (!pendingChallenge || !localPlayerId) return;
 
     const { battleId, challengerPeerId, challengerName, challengerScore } = pendingChallenge;
 
-    const acceptPayload: BattleAcceptPayload = {
-      battleId,
-      accepterName: playerName,
-      accepterScore: empirePoints,
-      accepterPeerId: localPlayerId,
-    };
-
     setBattle({
+      ...INITIAL_BATTLE_STATE,
       battleId,
       status: 'PREPARING',
       opponentPeerId: challengerPeerId,
       opponentName: challengerName,
       opponentScore: challengerScore,
       isChallenger: false,
-      myArmy: null,
-      opponentArmy: null,
-      myArmyLocked: false,
-      opponentArmyLocked: false,
-      result: null,
       startedAt: Date.now(),
-      resolvedAt: null,
     });
 
     sendToPeer(challengerPeerId, {
       type: MultiplayerActionType.BATTLE_ACCEPT,
-      payload: acceptPayload as any,
+      payload: {
+        battleId,
+        accepterName: playerName,
+        accepterScore: empirePoints,
+        accepterPeerId: localPlayerId,
+      } as any,
       playerId: localPlayerId,
       timestamp: Date.now(),
     });
 
     setPendingChallenge(null);
-
-    // Start army lock timeout
     armyLockTimeoutRef.current = setTimeout(() => {
       if (battleRef.current.status === 'PREPARING' || battleRef.current.status === 'WAITING_LOCK') {
-        cancelBattle('Tiempo de preparación agotado');
+        resetBattle();
       }
     }, ARMY_LOCK_TIMEOUT_MS);
-
-    setPendingChallenge(null);
-  }, [pendingChallenge, localPlayerId, playerName, empirePoints, sendToPeer]);
+  }, [pendingChallenge, localPlayerId, playerName, empirePoints, sendToPeer, resetBattle]);
 
   const declineChallenge = useCallback(() => {
     if (!pendingChallenge || !localPlayerId) return;
-
-    const declinePayload: BattleDeclinePayload = {
-      battleId: pendingChallenge.battleId,
-      reason: 'Desafío rechazado',
-    };
-
     sendToPeer(pendingChallenge.challengerPeerId, {
       type: MultiplayerActionType.BATTLE_DECLINE,
-      payload: declinePayload as any,
+      payload: { battleId: pendingChallenge.battleId, reason: 'Declined' } as any,
       playerId: localPlayerId,
       timestamp: Date.now(),
     });
-
     setPendingChallenge(null);
   }, [pendingChallenge, localPlayerId, sendToPeer]);
 
-  // ============================================================================
-  // PUBLIC API: ARMY SELECTION & LOCK
-  // ============================================================================
-
   const setMyArmy = useCallback((army: Record<string, number>) => {
-    if (battle.status !== 'PREPARING') return;
-    setBattle(prev => ({ ...prev, myArmy: army }));
+    if (battle.status === 'PREPARING') setBattle(prev => ({ ...prev, myArmy: army }));
   }, [battle.status]);
 
   const lockArmy = useCallback(() => {
     if (battle.status !== 'PREPARING' || !battle.myArmy || !localPlayerId) return;
 
-    const totalPower = calculateCombatStats(toUnitRecord(battle.myArmy));
-    const lockPayload: BattleArmyLockPayload = {
-      battleId: battle.battleId,
-      army: battle.myArmy,
-      totalPower: totalPower.attack + totalPower.hp,
-    };
-
     sendToPeer(battle.opponentPeerId, {
       type: MultiplayerActionType.BATTLE_ARMY_LOCK,
-      payload: lockPayload as any,
+      payload: { battleId: battle.battleId, army: battle.myArmy, totalPower: 0 } as any,
       playerId: localPlayerId,
       timestamp: Date.now(),
     });
 
-    const newStatus: P2PBattleStatus = battle.opponentArmyLocked ? 'RESOLVING' : 'WAITING_LOCK';
+    const isBothLocked = battle.opponentArmyLocked;
+    setBattle(prev => ({ ...prev, myArmyLocked: true, status: isBothLocked ? 'RESOLVING' : 'WAITING_LOCK' }));
 
-    setBattle(prev => ({
-      ...prev,
-      myArmyLocked: true,
-      status: newStatus,
-    }));
-
-    // If both locked, resolve combat
-    if (battle.opponentArmyLocked && battle.opponentArmy) {
-      setTimeout(() => {
-        const currentBattle = battleRef.current;
-        if (currentBattle.myArmy && currentBattle.opponentArmy) {
-          resolveCombat(
-            currentBattle.battleId,
-            currentBattle.myArmy,
-            currentBattle.opponentArmy,
-            currentBattle.isChallenger,
-            currentBattle.opponentName,
-            currentBattle.opponentScore,
-            currentBattle.opponentPeerId
-          );
-        }
-      }, 500);
+    if (isBothLocked && battle.opponentArmy) {
+      resolveCombat(
+        battle.battleId,
+        battle.myArmy,
+        battle.opponentArmy,
+        battle.isChallenger,
+        battle.opponentName,
+        battle.opponentScore,
+        battle.opponentPeerId
+      );
     }
   }, [battle, localPlayerId, sendToPeer, resolveCombat]);
 
-  // ============================================================================
-  // PUBLIC API: CANCEL
-  // ============================================================================
-
-  const cancelBattle = useCallback((reason: string = 'Batalla cancelada') => {
-    if (!localPlayerId) return;
-    if (battle.status === 'IDLE' || battle.status === 'RESULT') return;
-
-    const cancelPayload: BattleCancelPayload = {
-      battleId: battle.battleId,
-      reason,
-    };
-
+  const cancelBattle = useCallback(() => {
+    if (!localPlayerId || battle.status === 'IDLE' || battle.status === 'RESULT') return;
     if (battle.opponentPeerId) {
       sendToPeer(battle.opponentPeerId, {
         type: MultiplayerActionType.BATTLE_CANCEL,
-        payload: cancelPayload as any,
+        payload: { battleId: battle.battleId, reason: 'Cancelled' } as any,
         playerId: localPlayerId,
         timestamp: Date.now(),
       });
     }
-
     resetBattle();
   }, [battle, localPlayerId, sendToPeer, resetBattle]);
 
-  // ============================================================================
-  // INCOMING ACTION HANDLER
-  // ============================================================================
-
   useEffect(() => {
-    onRemoteAction((action: MultiplayerAction) => {
+    return onRemoteAction((action: MultiplayerAction) => {
       switch (action.type) {
-        case MultiplayerActionType.BATTLE_CHALLENGE: {
-          const payload = action.payload as unknown as BattleChallengePayload;
-          if (!payload?.battleId) return;
-
-          // Only accept challenges if we're IDLE
-          if (battleRef.current.status !== 'IDLE') {
-            // Auto-decline if busy
-            if (localPlayerId) {
-              sendToPeer(payload.challengerPeerId, {
-                type: MultiplayerActionType.BATTLE_DECLINE,
-                payload: {
-                  battleId: payload.battleId,
-                  reason: 'Jugador ocupado en otra batalla',
-                } as any,
-                playerId: localPlayerId,
-                timestamp: Date.now(),
-              });
+        case MultiplayerActionType.BATTLE_CHALLENGE:
+          if (battleRef.current.status === 'IDLE') setPendingChallenge(action.payload as any);
+          break;
+        case MultiplayerActionType.BATTLE_ACCEPT:
+          if (battleRef.current.battleId === (action.payload as any).battleId) {
+            clearTimeouts();
+            setBattle(prev => ({ ...prev, status: 'PREPARING' }));
+          }
+          break;
+        case MultiplayerActionType.BATTLE_DECLINE:
+        case MultiplayerActionType.BATTLE_CANCEL:
+          if (battleRef.current.battleId === (action.payload as any).battleId) resetBattle();
+          break;
+        case MultiplayerActionType.BATTLE_ARMY_LOCK:
+          if (battleRef.current.battleId === (action.payload as any).battleId) {
+            const payload = action.payload as any;
+            const myLocked = battleRef.current.myArmyLocked;
+            setBattle(prev => ({ ...prev, opponentArmy: payload.army, opponentArmyLocked: true, status: myLocked ? 'RESOLVING' : prev.status }));
+            if (myLocked && battleRef.current.isChallenger) {
+                resolveCombat(battleRef.current.battleId, battleRef.current.myArmy!, payload.army, true, battleRef.current.opponentName, battleRef.current.opponentScore, battleRef.current.opponentPeerId);
             }
-            return;
-          }
-
-          setPendingChallenge(payload);
-          break;
-        }
-
-        case MultiplayerActionType.BATTLE_ACCEPT: {
-          const payload = action.payload as unknown as BattleAcceptPayload;
-          if (!payload?.battleId) return;
-          if (battleRef.current.battleId !== payload.battleId) return;
-
-          clearTimeouts();
-
-          setBattle(prev => ({
-            ...prev,
-            status: 'PREPARING',
-            opponentName: payload.accepterName,
-            opponentScore: payload.accepterScore,
-          }));
-
-          // Start army lock timeout
-          armyLockTimeoutRef.current = setTimeout(() => {
-            if (battleRef.current.status === 'PREPARING' || battleRef.current.status === 'WAITING_LOCK') {
-              cancelBattle('Tiempo de preparación agotado');
-            }
-          }, ARMY_LOCK_TIMEOUT_MS);
-          break;
-        }
-
-        case MultiplayerActionType.BATTLE_DECLINE: {
-          const payload = action.payload as unknown as BattleDeclinePayload;
-          if (!payload?.battleId) return;
-          if (battleRef.current.battleId !== payload.battleId) return;
-
-          resetBattle();
-          break;
-        }
-
-        case MultiplayerActionType.BATTLE_ARMY_LOCK: {
-          const payload = action.payload as unknown as BattleArmyLockPayload;
-          if (!payload?.battleId) return;
-          if (battleRef.current.battleId !== payload.battleId) return;
-
-          const myLocked = battleRef.current.myArmyLocked;
-          const newStatus: P2PBattleStatus = myLocked ? 'RESOLVING' : 'PREPARING';
-
-          setBattle(prev => ({
-            ...prev,
-            opponentArmy: payload.army,
-            opponentArmyLocked: true,
-            status: newStatus,
-          }));
-
-          // If both locked, resolve combat (only challenger resolves to avoid double)
-          if (myLocked && battleRef.current.isChallenger) {
-            setTimeout(() => {
-              const currentBattle = battleRef.current;
-              if (currentBattle.myArmy && payload.army) {
-                resolveCombat(
-                  currentBattle.battleId,
-                  currentBattle.myArmy,
-                  payload.army,
-                  currentBattle.isChallenger,
-                  currentBattle.opponentName,
-                  currentBattle.opponentScore,
-                  currentBattle.opponentPeerId
-                );
-              }
-            }, 500);
           }
           break;
-        }
-
-        case MultiplayerActionType.BATTLE_RESULT_SYNC: {
-          const payload = action.payload as unknown as BattleResultSyncPayload;
-          if (!payload?.battleId) return;
-          if (battleRef.current.battleId !== payload.battleId) return;
-
-          // Determine winner from our perspective
-          let localWinner: 'PLAYER' | 'ENEMY' | 'DRAW';
-          if (payload.winner === 'DRAW') {
-            localWinner = 'DRAW';
-          } else if (battleRef.current.isChallenger) {
-            localWinner = payload.winner;
-          } else {
-            localWinner = payload.winner === 'PLAYER' ? 'ENEMY' : 'PLAYER';
+        case MultiplayerActionType.BATTLE_RESULT_SYNC:
+          if (battleRef.current.battleId === (action.payload as any).battleId) {
+            const payload = action.payload as any;
+            setBattle(prev => ({ ...prev, status: 'RESULT', result: payload, resolvedAt: Date.now() }));
+            saveBattleToHistory({
+                battleId: payload.battleId,
+                opponentName: battleRef.current.opponentName,
+                opponentScore: battleRef.current.opponentScore,
+                winner: battleRef.current.isChallenger ? payload.winner : (payload.winner === 'PLAYER' ? 'ENEMY' : 'PLAYER'),
+                myArmy: battleRef.current.myArmy || {},
+                opponentArmy: battleRef.current.isChallenger ? payload.defenderArmy : payload.attackerArmy,
+                myCasualties: battleRef.current.isChallenger ? payload.attackerCasualties : payload.defenderCasualties,
+                opponentCasualties: battleRef.current.isChallenger ? payload.defenderCasualties : payload.attackerCasualties,
+                timestamp: Date.now()
+            });
           }
-
-          setBattle(prev => ({
-            ...prev,
-            status: 'RESULT',
-            result: payload,
-            opponentArmy: prev.opponentArmy || (prev.isChallenger ? payload.defenderArmy : payload.attackerArmy),
-            resolvedAt: Date.now(),
-          }));
-
-          // Save to history
-          const currentBattle = battleRef.current;
-          const myCasualties = currentBattle.isChallenger ? payload.attackerCasualties : payload.defenderCasualties;
-          const oppCasualties = currentBattle.isChallenger ? payload.defenderCasualties : payload.attackerCasualties;
-
-          saveBattleToHistory({
-            battleId: payload.battleId,
-            opponentName: currentBattle.opponentName,
-            opponentScore: currentBattle.opponentScore,
-            winner: localWinner,
-            myArmy: currentBattle.myArmy || {},
-            opponentArmy: currentBattle.isChallenger ? payload.defenderArmy : payload.attackerArmy,
-            myCasualties,
-            opponentCasualties: oppCasualties,
-            timestamp: Date.now(),
-          });
           break;
-        }
-
-        case MultiplayerActionType.BATTLE_CANCEL: {
-          const payload = action.payload as unknown as BattleCancelPayload;
-          if (!payload?.battleId) return;
-          if (battleRef.current.battleId !== payload.battleId) return;
-
-          resetBattle();
-          break;
-        }
       }
     });
-  }, [onRemoteAction, localPlayerId, sendToPeer, clearTimeouts, resetBattle, resolveCombat, saveBattleToHistory, cancelBattle]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      clearTimeouts();
-    };
-  }, [clearTimeouts]);
-
-  // ============================================================================
-  // COMPUTED VALUES
-  // ============================================================================
-
-  const myArmyStats = battle.myArmy
-    ? calculateCombatStats(toUnitRecord(battle.myArmy))
-    : { attack: 0, defense: 0, hp: 0 };
-
-  const opponentArmyStats = battle.opponentArmy
-    ? calculateCombatStats(toUnitRecord(battle.opponentArmy))
-    : { attack: 0, defense: 0, hp: 0 };
-
-  const canChallenge = isConnected && battle.status === 'IDLE' && remotePlayers.length > 0;
-  const canLockArmy = battle.status === 'PREPARING' && battle.myArmy !== null &&
-    Object.values(battle.myArmy).some(v => v > 0);
-
-  const wins = history.filter(r => r.winner === 'PLAYER').length;
-  const losses = history.filter(r => r.winner === 'ENEMY').length;
-  const draws = history.filter(r => r.winner === 'DRAW').length;
-
-  // ============================================================================
-  // RETURN
-  // ============================================================================
+  }, [onRemoteAction, resetBattle, clearTimeouts, resolveCombat, saveBattleToHistory]);
 
   return {
-    // State
     battle,
     pendingChallenge,
     history,
-    myArmyStats,
-    opponentArmyStats,
-
-    // Computed
-    canChallenge,
-    canLockArmy,
-    stats: { wins, losses, draws, total: history.length },
-
-    // Actions
+    canChallenge: isConnected && battle.status === 'IDLE',
+    canLockArmy: battle.status === 'PREPARING' && !!battle.myArmy,
     challengePlayer,
     acceptChallenge,
     declineChallenge,
@@ -709,10 +422,6 @@ export const useP2PBattle = (playerName: string, empirePoints: number, _playerUn
     lockArmy,
     cancelBattle,
     resetBattle,
-
-    // Available opponents (connected remote players)
     opponents: remotePlayers,
   };
 };
-
-export type UseP2PBattleReturn = ReturnType<typeof useP2PBattle>;

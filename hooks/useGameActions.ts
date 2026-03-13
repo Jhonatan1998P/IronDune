@@ -19,9 +19,6 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
-import { recordReputationChange } from '../utils/engine/reputationHistory';
-import { ReputationChangeType } from '../utils/engine/reputation';
-import { generateLogisticLootFromCombat } from '../utils/engine/logisticLoot';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -330,7 +327,7 @@ export const useGameActions = (
                   ? { ...prev.resources, ...result.newResources }
                   : prev.resources;
               
-              const intermediateState = {
+              return {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -340,19 +337,11 @@ export const useGameActions = (
                   resources: newResources,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
-
-              return recordReputationChange(
-                  intermediateState,
-                  botId,
-                  {
-                      type: ReputationChangeType.GIFT,
-                      amount: result.params?.reputation || 0,
-                      timestamp: now,
-                      reason: 'gift_sent'
-                  },
-                  now
-              );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -388,7 +377,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              const intermediateState = {
+              return {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -397,19 +386,11 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
-
-              return recordReputationChange(
-                  intermediateState,
-                  botId,
-                  {
-                      type: ReputationChangeType.ALLIANCE,
-                      amount: result.params?.reputation || 0,
-                      timestamp: now,
-                      reason: 'alliance_proposed'
-                  },
-                  now
-              );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -445,7 +426,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              const intermediateState = {
+              return {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -454,19 +435,11 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
-
-              return recordReputationChange(
-                  intermediateState,
-                  botId,
-                  {
-                      type: ReputationChangeType.PEACE,
-                      amount: result.params?.reputation || 0,
-                      timestamp: now,
-                      reason: 'peace_proposed'
-                  },
-                  now
-              );
           });
+
+          // Trigger immediate save for critical diplomatic action
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
       
@@ -652,26 +625,25 @@ export const useGameActions = (
                 newState.activeMissions = (newState.activeMissions || []).filter(m => m.id !== result.attackId);
             }
 
-            // NUEVO: Generar Botín Logístico para batallas P2P
+            // Update lifetime stats
             if (result.battleResult) {
-                const lootField = generateLogisticLootFromCombat(
-                    result.battleResult,
-                    'P2P',
-                    result.attackId,
-                    {
-                        attackerId: result.attackerId,
-                        attackerName: result.attackerName,
-                        defenderId: result.defenderId,
-                        defenderName: result.defenderName
-                    }
-                );
-                if (lootField) {
-                    newState.logisticLootFields = [...(newState.logisticLootFields || []), lootField];
-                }
+                const playerCasualtyCount = Object.values(result.battleResult.totalPlayerCasualties || {}).reduce((a: number, b: any) => a + (b || 0), 0) as number;
+                const enemyCasualtyCount = Object.values(result.battleResult.totalEnemyCasualties || {}).reduce((a: number, b: any) => a + (b || 0), 0) as number;
+                
+                newState.lifetimeStats = {
+                    ...newState.lifetimeStats,
+                    unitsLost: (newState.lifetimeStats.unitsLost || 0) + playerCasualtyCount,
+                    enemiesKilled: (newState.lifetimeStats.enemiesKilled || 0) + enemyCasualtyCount,
+                    battlesWon: (newState.lifetimeStats.battlesWon || 0) + (result.winner === 'PLAYER' ? 1 : 0),
+                    battlesLost: (newState.lifetimeStats.battlesLost || 0) + (result.winner !== 'PLAYER' ? 1 : 0),
+                };
             }
 
             return newState;
         });
+
+        // Trigger immediate save for critical battle result
+        gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
 
         // Emitir log via eventBus para que useGameEngine.addLog dispare setHasNewReports(true)
         const messageKey = isAttacker

@@ -1,33 +1,20 @@
 
-import { BuildingType, GameState, LogEntry, UnitType, WarState, ActiveMission, IncomingAttack, ResourceType } from '../../types';
-import { resolveMission } from './missions';
-import { resolveSalvageMission } from './salvage';
-import { recordReputationChange } from './reputationHistory';
-import { 
-    getQueuedIncomingAttacks, 
-    processIncomingAttackInQueue
-} from './attackQueue';
+import { BuildingType, GameState, LogEntry, UnitType, WarState } from '../../types';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
 import { TECH_DEFS } from '../../data/techs';
-import { REPUTATION_MIN, REPUTATION_MAX, REPUTATION_ALLY_THRESHOLD } from '../../constants';
 
 /**
- * Handles construction, recruitment, research, missions and general progression.
+ * Handles localized UI progression: construction, recruitment, and research.
+ * CRITICAL: Missions, Attacks, and War are now handled by the Remote Battle Server.
  */
-export const processSystemTick = (state: GameState, now: number, activeWar: WarState | null): { stateUpdates: Partial<GameState>, logs: LogEntry[] } => {
+export const processSystemTick = (state: GameState, now: number, _activeWar: WarState | null): { stateUpdates: Partial<GameState>, logs: LogEntry[] } => {
     const logs: LogEntry[] = [];
     const newBuildings = { ...state.buildings };
     const newUnits = { ...state.units };
-    const newResources = { ...state.resources }; // Clone resources to accumulate rewards
-    const newLifetimeStats = { ...state.lifetimeStats };
-    let newCampaignProgress = state.campaignProgress;
-    let newLastCampaignTime = state.lastCampaignMissionFinishedTime;
-    let updatedGrudges = [...state.grudges || []]; // Ensure it exists
-    let updatedRankingBots = [...state.rankingData.bots];
 
-    // 1. Constructions
+    // 1. Constructions (Local UI update)
     const updatedConstructions = state.activeConstructions.filter(c => {
         if (now >= c.endTime) {
             newBuildings[c.buildingType] = {
@@ -39,7 +26,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
         return true;
     });
 
-    // 2. Recruitments
+    // 2. Recruitments (Local UI update)
     const updatedRecruitments = state.activeRecruitments.filter(r => {
         if (now >= r.endTime) {
             newUnits[r.unitType] = (newUnits[r.unitType] || 0) + r.count;
@@ -48,7 +35,7 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
         return true;
     });
 
-    // 3. Research
+    // 3. Research (Local UI update)
     let updatedResearchedTechs = [...state.researchedTechs];
     let updatedTechLevels = { ...state.techLevels };
     let updatedActiveResearch = state.activeResearch;
@@ -59,277 +46,8 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
        updatedActiveResearch = null;
     }
 
-    // 4. Process ALL attacks in chronological order (missions + incoming)
-    interface AttackQueueItem {
-        type: 'OUTGOING' | 'INCOMING';
-        endTime: number;
-        mission?: ActiveMission;
-        attack?: IncomingAttack;
-    }
-
-    const outgoingAttacks = state.activeMissions
-        .filter(m => m.endTime <= now)
-        .sort((a, b) => {
-            if (a.endTime !== b.endTime) return a.endTime - b.endTime;
-            return a.startTime - b.startTime;
-        });
-
-    const incomingAttacks = getQueuedIncomingAttacks(state, now);
-
-    const attackQueue: AttackQueueItem[] = [
-        ...outgoingAttacks.map(m => ({ type: 'OUTGOING' as const, endTime: m.endTime, mission: m })),
-        ...incomingAttacks.map(a => ({ type: 'INCOMING' as const, endTime: a.endTime, attack: a }))
-    ];
-
-    attackQueue.sort((a, b) => {
-        if (a.endTime !== b.endTime) return a.endTime - b.endTime;
-        const aStart = a.mission?.startTime || a.attack?.startTime || 0;
-        const bStart = b.mission?.startTime || b.attack?.startTime || 0;
-        return aStart - bStart;
-    });
-
-    let updatedMissions = [...state.activeMissions];
-    let updatedIncomingAttacks = [...state.incomingAttacks];
-    let updatedLootFields = [...(state.logisticLootFields || [])];
-
-    for (const item of attackQueue) {
-        if (item.type === 'OUTGOING' && item.mission) {
-            const mission = item.mission;
-            
-            // Skip P2P missions - handled by useP2PBattleResolver
-            if (mission.isP2P) {
-                continue;
-            }
-
-            if (mission.type === 'SALVAGE') {
-                const lootFieldId = mission.logisticLootId;
-                const lootField = updatedLootFields.find(f => f.id === lootFieldId);
-                const result = resolveSalvageMission(mission, lootField);
-                
-                if (result.success && result.remainingLoot) {
-                    Object.entries(result.resources).forEach(([rType, amt]) => {
-                        const res = rType as ResourceType;
-                        newResources[res] = Math.min(state.maxResources[res], (newResources[res] || 0) + (amt as number));
-                    });
-                    
-                    const fieldIdx = updatedLootFields.findIndex(f => f.id === lootFieldId);
-                    if (fieldIdx !== -1) {
-                        if (result.remainingLoot.totalValue > 0) {
-                            updatedLootFields[fieldIdx] = result.remainingLoot;
-                        } else {
-                            updatedLootFields.splice(fieldIdx, 1);
-                        }
-                    }
-                    
-                    logs.push({
-                        id: `salvage-success-${item.endTime}-${mission.id}`,
-                        messageKey: 'log_salvage_success',
-                        type: 'combat',
-                        timestamp: item.endTime,
-                        params: { 
-                            loot: result.resources, 
-                            drones: result.dronesReturned,
-                            lootField: lootField ? {
-                                ...lootField,
-                                harvestCount: lootField.harvestCount || 0
-                            } : undefined
-                        }
-                    });
-                } else {
-                    logs.push({
-                        id: `salvage-fail-${item.endTime}-${mission.id}`,
-                        messageKey: 'log_salvage_failed',
-                        type: 'info',
-                        timestamp: item.endTime,
-                        params: { reason: result.reason }
-                    });
-                }
-                
-                // Devolver drones
-                newUnits[UnitType.SALVAGER_DRONE] = (newUnits[UnitType.SALVAGER_DRONE] || 0) + result.dronesReturned;
-                updatedMissions = updatedMissions.filter(m => m.id !== mission.id);
-                continue;
-            }
-
-            const outcome = resolveMission(
-                mission, 
-                newResources,
-                state.maxResources, 
-                state.campaignProgress, 
-                state.techLevels, 
-                activeWar, 
-                item.endTime,
-                state.rankingData.bots,
-                state.empirePoints,
-                state.buildings,
-                state.targetAttackCounts,
-                state.spyReports || [],
-                state.playerName
-            );
-            
-            Object.assign(newResources, outcome.resources);
-
-            if (outcome.generatedLogisticLoot) {
-                updatedLootFields.push(outcome.generatedLogisticLoot);
-            }
-
-            Object.entries(outcome.unitsToAdd).forEach(([uType, qty]) => {
-                newUnits[uType as UnitType] = (newUnits[uType as UnitType] || 0) + (qty as number);
-            });
-
-            if (outcome.buildingsToAdd) {
-                Object.entries(outcome.buildingsToAdd).forEach(([bId, qty]) => {
-                    const bType = bId as BuildingType;
-                    if (!newBuildings[bType]) newBuildings[bType] = { level: 0 };
-                    newBuildings[bType] = { level: newBuildings[bType].level + (qty as number) };
-                });
-            }
-
-            if (outcome.logParams?.combatResult) {
-                const combat = outcome.logParams.combatResult;
-                newLifetimeStats.unitsLost += Object.values(combat.totalPlayerCasualties).reduce((a:any, b:any) => a + b, 0) as number;
-                newLifetimeStats.enemiesKilled += Object.values(combat.totalEnemyCasualties).reduce((a:any, b:any) => a + b, 0) as number;
-            }
-
-            if (outcome.logKey === 'log_battle_win' || outcome.logKey.includes('patrol_battle_win')) {
-                newLifetimeStats.missionsCompleted++;
-            }
-
-            if (mission.type === 'CAMPAIGN_ATTACK') {
-                newLastCampaignTime = item.endTime;
-                if (outcome.newCampaignProgress) newCampaignProgress = Math.max(newCampaignProgress, outcome.newCampaignProgress);
-            }
-
-            if (outcome.newGrudge) {
-                updatedGrudges.push(outcome.newGrudge);
-                logs.push({
-                    id: `grudge-created-${item.endTime}-${outcome.newGrudge.id}`,
-                    messageKey: 'log_grudge_created',
-                    type: 'intel',
-                    timestamp: item.endTime,
-                    params: {
-                        attacker: outcome.newGrudge.botName,
-                        retaliationTime: new Date(outcome.newGrudge.retaliationTime).toLocaleTimeString()
-                    }
-                });
-            }
-
-            if (outcome.reputationChanges && outcome.reputationChanges.length > 0) {
-                let tempState: GameState = { 
-                    ...state, 
-                    rankingData: { ...state.rankingData, bots: updatedRankingBots },
-                    reputationHistory: { ...state.reputationHistory },
-                    interactionRecords: { ...state.interactionRecords }
-                };
-
-                outcome.reputationChanges.forEach(change => {
-                    const bot = updatedRankingBots.find(b => b.id === change.botId);
-                    if (bot) {
-                        const newRep = Math.max(REPUTATION_MIN, Math.min(REPUTATION_MAX, (bot.reputation || 50) + change.change));
-                        bot.reputation = newRep;
-                        
-                        tempState = recordReputationChange(
-                            tempState,
-                            change.botId,
-                            {
-                                type: change.type,
-                                amount: change.change,
-                                timestamp: item.endTime,
-                                reason: change.reason
-                            },
-                            item.endTime
-                        );
-                    }
-                });
-
-                updatedRankingBots = [...tempState.rankingData.bots];
-                state.reputationHistory = tempState.reputationHistory;
-                state.interactionRecords = tempState.interactionRecords;
-
-                const alliesBefore = state.rankingData.bots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
-                const alliesAfter = updatedRankingBots.filter(b => (b.reputation || 50) >= REPUTATION_ALLY_THRESHOLD);
-                if (alliesAfter.length > alliesBefore.length) {
-                    const newAllies = alliesAfter.filter(a => !alliesBefore.some(b => b.id === a.id));
-                    newAllies.forEach(ally => {
-                        logs.push({
-                            id: `rep-gain-${item.endTime}-${ally.id}`,
-                            messageKey: 'log_new_ally',
-                            type: 'info',
-                            timestamp: item.endTime,
-                            params: { ally: ally.name }
-                        });
-                    });
-                }
-            }
-
-            logs.push({
-                id: `mis-res-${item.endTime}-${mission.id}`,
-                messageKey: outcome.logKey,
-                type: outcome.logType,
-                timestamp: item.endTime,
-                params: outcome.logParams
-            });
-
-            updatedMissions = updatedMissions.filter(m => m.id !== mission.id);
-
-        } else if (item.type === 'INCOMING' && item.attack) {
-            const attack = item.attack;
-
-            // Skip P2P attacks - handled by event listener in useP2PGameSync
-            if (attack.isP2P) {
-                continue;
-            }
-
-            const { result, logs: attackLogs } = processIncomingAttackInQueue(
-                { ...state, resources: newResources, units: newUnits, buildings: newBuildings },
-                attack,
-                newUnits,
-                item.endTime
-            );
-
-            Object.assign(newResources, result.resources);
-
-            Object.entries(result.unitsLost || {}).forEach(([uType, count]) => {
-                const unitType = uType as UnitType;
-                newUnits[unitType] = Math.max(0, (newUnits[unitType] || 0) - (count as number));
-            });
-
-            // Apply building plunder if enemy won the raid
-            if (result.stolenBuildings) {
-                Object.entries(result.stolenBuildings).forEach(([bType, stolen]) => {
-                    const buildingType = bType as BuildingType;
-                    if (buildingType !== BuildingType.DIAMOND_MINE && stolen && (stolen as number) > 0 && newBuildings[buildingType]) {
-                        newBuildings[buildingType] = {
-                            ...newBuildings[buildingType],
-                            level: Math.max(0, newBuildings[buildingType].level - (stolen as number))
-                        };
-                    }
-                });
-            }
-
-            // Apply Diamond Mine damage if enemy won
-            if (result.diamondDamaged && newBuildings[BuildingType.DIAMOND_MINE]) {
-                newBuildings[BuildingType.DIAMOND_MINE] = {
-                    ...newBuildings[BuildingType.DIAMOND_MINE],
-                    isDamaged: true
-                };
-            }
-
-            newLifetimeStats.unitsLost += Object.values(result.unitsLost || {}).reduce((a: any, b: any) => a + b, 0) as number;
-
-            if (result.generatedLogisticLoot) {
-                updatedLootFields.push(result.generatedLogisticLoot);
-            }
-
-            logs.push(...attackLogs.map(log => ({ ...log, timestamp: item.endTime })));
-
-            updatedIncomingAttacks = updatedIncomingAttacks.filter(a => a.id !== attack.id);
-        }
-    }
-
     return {
         stateUpdates: {
-            resources: newResources, // Return updated resources
             buildings: newBuildings,
             units: newUnits,
             activeConstructions: updatedConstructions,
@@ -337,17 +55,6 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
             researchedTechs: updatedResearchedTechs,
             techLevels: updatedTechLevels,
             activeResearch: updatedActiveResearch,
-            activeMissions: updatedMissions,
-            incomingAttacks: updatedIncomingAttacks,
-            campaignProgress: newCampaignProgress,
-            lastCampaignMissionFinishedTime: newLastCampaignTime,
-            lifetimeStats: newLifetimeStats,
-            grudges: updatedGrudges,
-            logisticLootFields: updatedLootFields,
-            rankingData: {
-                bots: updatedRankingBots,
-                lastUpdateTime: state.rankingData.lastUpdateTime
-            }
         },
         logs
     };

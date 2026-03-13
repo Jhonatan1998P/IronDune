@@ -1,4 +1,8 @@
-import { BattleResult, LogisticLootField, ResourceType } from '../../types';
+// ============================================================
+// LOGISTIC LOOT ENGINE - Mirror of utils/engine/logisticLoot.ts
+// ============================================================
+
+import { ResourceType, UnitType } from './enums.js';
 import {
     DEBRIS_RATIO_ATTACKER,
     DEBRIS_RATIO_DEFENDER,
@@ -9,36 +13,59 @@ import {
     DEBRIS_EXPIRY_P2P_MS,
     DEBRIS_EXPIRY_CAMPAIGN_MS,
     DEBRIS_MAX_ACTIVE
-} from '../../constants';
-import { calculateResourceCost } from './missions';
+} from './constants.js';
+import { calculateResourceCost } from './missions.js';
+import { supabase } from '../lib/supabase.js';
 
-// ─── Generación de Botín Logístico (Escombros) ──────────────────────────
+export const saveGlobalLoot = async (loot) => {
+    try {
+        // Transform camelCase to snake_case for PostgreSQL
+        const dbLoot = {
+            battle_id: loot.battleId,
+            origin: loot.origin,
+            resources: loot.resources,
+            initial_resources: loot.initialResources,
+            attacker_id: loot.attackerId,
+            attacker_name: loot.attackerName,
+            defender_id: loot.defenderId,
+            defender_name: loot.defenderName,
+            is_partially_harvested: loot.isPartiallyHarvested,
+            harvest_count: loot.harvestCount,
+            total_value: loot.totalValue,
+            expires_at: new Date(loot.expiresAt).toISOString(),
+            war_id: loot.warId,
+            wave_number: loot.waveNumber
+        };
+
+        await supabase
+            .from('logistic_loot')
+            .insert(dbLoot);
+            
+        console.log(`[LogisticLoot] New global loot entry created from ${loot.origin}`);
+    } catch (e) {
+        console.error('[LogisticLoot] Failed to save global loot to table:', e);
+    }
+};
 
 export const generateLogisticLootFromCombat = (
-    battleResult: BattleResult,
-    origin: LogisticLootField['origin'],
-    battleId: string,
-    participants: {
-        attackerId: string;
-        attackerName: string;
-        defenderId: string;
-        defenderName: string;
-    },
-    warId?: string,
-    waveNumber?: number
-): LogisticLootField | null => {
-    
+    battleResult,
+    origin,
+    battleId,
+    participants,
+    warId,
+    waveNumber
+) => {
     const now = Date.now();
     
-    // NUEVO: Las misiones de campaña no generan botín logístico por diseño
+    // Camp misiones de campaña no generan botín logístico por diseño
     if (origin === 'CAMPAIGN') return null;
     
     // Calcular coste de todas las bajas
     const attackerCasualtyResources = calculateResourceCost(battleResult.totalPlayerCasualties);
     const defenderCasualtyResources = calculateResourceCost(battleResult.totalEnemyCasualties);
     
-    // Calcular coste de bajas aliadas (si existen)
-    let allyCasualtyResources: Record<ResourceType, number> = {
+    // Calcular coste de bajas aliadas
+    let allyCasualtyResources = {
         [ResourceType.MONEY]: 0, [ResourceType.OIL]: 0, [ResourceType.AMMO]: 0,
         [ResourceType.GOLD]: 0, [ResourceType.DIAMOND]: 0
     };
@@ -46,14 +73,14 @@ export const generateLogisticLootFromCombat = (
     if (battleResult.totalAllyCasualties) {
         for (const allyCasualties of Object.values(battleResult.totalAllyCasualties)) {
             const allyRes = calculateResourceCost(allyCasualties);
-            for (const res of Object.keys(allyRes) as ResourceType[]) {
-                allyCasualtyResources[res] += allyRes[res];
+            for (const res of Object.keys(allyRes)) {
+                allyCasualtyResources[res] = (allyCasualtyResources[res] || 0) + (allyRes[res] || 0);
             }
         }
     }
     
     // Aplicar ratio de escombros SOLO a recursos elegibles
-    const debrisResources: Partial<Record<ResourceType, number>> = {};
+    const debrisResources = {};
     let totalValue = 0;
     
     for (const res of DEBRIS_ELIGIBLE_RESOURCES) {
@@ -68,12 +95,10 @@ export const generateLogisticLootFromCombat = (
         }
     }
     
-    // No generar campo si el valor es insignificante (reducido a 10 para pruebas)
     if (totalValue < 10) return null;
     
-    // Calcular expiración según origen
     const expiryMap = {
-        'WAR': now + DEBRIS_EXPIRY_WAR_BUFFER_MS + (130 * 60 * 1000), // Fin de guerra + buffer
+        'WAR': now + DEBRIS_EXPIRY_WAR_BUFFER_MS + (130 * 60 * 1000),
         'RAID': now + DEBRIS_EXPIRY_RAID_MS,
         'P2P': now + DEBRIS_EXPIRY_P2P_MS,
         'CAMPAIGN': now + DEBRIS_EXPIRY_CAMPAIGN_MS
@@ -102,32 +127,22 @@ export const generateLogisticLootFromCombat = (
     };
 };
 
-// ─── Procesamiento de Tick ────────────────────────────────────────────
-
-export const processLogisticLootTick = (
-    lootFields: LogisticLootField[],
-    now: number
-): { active: LogisticLootField[]; expired: LogisticLootField[]; autoSalvageValue: number } => {
-    const active: LogisticLootField[] = [];
-    const expired: LogisticLootField[] = [];
+export const processLogisticLootTick = (lootFields, now) => {
+    const active = [];
+    const expired = [];
     let autoSalvageValue = 0;
     
     for (const field of lootFields) {
-        // Eliminar campos vacíos inmediatamente
-        if (field.totalValue <= 0) {
-            continue;
-        }
+        if (field.totalValue <= 0) continue;
 
         if (field.expiresAt <= now) {
             expired.push(field);
-            // Auto-salvage: 10% del valor en MONEY va al banco
             autoSalvageValue += Math.floor((field.resources[ResourceType.MONEY] || 0) * 0.10);
         } else {
             active.push(field);
         }
     }
     
-    // Limitar campos activos
     while (active.length > DEBRIS_MAX_ACTIVE) {
         const oldest = active.shift();
         if (oldest) {
@@ -139,22 +154,16 @@ export const processLogisticLootTick = (
     return { active, expired, autoSalvageValue };
 };
 
-// ─── Fusión de Botín Logístico de Guerra ────────────────────────────────────
-
-export const mergeWarLogisticLoot = (
-    lootFields: LogisticLootField[],
-    warId: string
-): LogisticLootField | null => {
+export const mergeWarLogisticLoot = (lootFields, warId) => {
     const warLoot = lootFields.filter(d => d.warId === warId);
-    
     if (warLoot.length === 0) return null;
     
-    const merged: Partial<Record<ResourceType, number>> = {};
+    const merged = {};
     let totalValue = 0;
     
     for (const field of warLoot) {
         for (const [res, amount] of Object.entries(field.resources)) {
-            merged[res as ResourceType] = (merged[res as ResourceType] || 0) + (amount || 0);
+            merged[res] = (merged[res] || 0) + (amount || 0);
             totalValue += amount || 0;
         }
     }
@@ -184,15 +193,9 @@ export const mergeWarLogisticLoot = (
     };
 };
 
-// ─── Harvest (recolectar parcialmente) ────────────────────────────────
-
-export const harvestLogisticLootField = (
-    field: LogisticLootField,
-    droneCount: number,
-    cargoCapacityPerDrone: number
-): { harvested: Partial<Record<ResourceType, number>>; remaining: LogisticLootField } => {
+export const harvestLogisticLootField = (field, droneCount, cargoCapacityPerDrone) => {
     const totalCapacity = droneCount * cargoCapacityPerDrone;
-    const CARGO_RATES: Record<ResourceType, number> = {
+    const CARGO_RATES = {
         [ResourceType.MONEY]: 1,
         [ResourceType.OIL]: 10,
         [ResourceType.AMMO]: 5,
@@ -200,7 +203,7 @@ export const harvestLogisticLootField = (
         [ResourceType.DIAMOND]: 500
     };
     
-    const harvested: Partial<Record<ResourceType, number>> = {};
+    const harvested = {};
     let used = 0;
     const remaining = { ...field.resources };
     
@@ -220,12 +223,13 @@ export const harvestLogisticLootField = (
         if (used >= totalCapacity) break;
     }
     
-    const newField: LogisticLootField = {
-        ...field,
-        resources: remaining,
-        isPartiallyHarvested: true,
-        totalValue: Object.values(remaining).reduce((a, b) => a + (b || 0), 0)
+    return {
+        harvested,
+        remaining: {
+            ...field,
+            resources: remaining,
+            isPartiallyHarvested: true,
+            totalValue: Object.values(remaining).reduce((a, b) => a + (b || 0), 0)
+        }
     };
-    
-    return { harvested, remaining: newField };
 };
