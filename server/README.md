@@ -16,7 +16,7 @@ O desde la raíz del proyecto:
 npm run server
 ```
 
-El servidor corre en el puerto 3001 por defecto (configurable con la variable de entorno `PORT`).
+El servidor corre en el puerto 10000 por defecto (configurable con la variable de entorno `PORT`).
 
 ## Deploy en Render
 
@@ -27,18 +27,21 @@ El servidor corre en el puerto 3001 por defecto (configurable con la variable de
    - **Build Command**: `npm install`
    - **Start Command**: `node index.js`
    - **Environment Variables**:
-     - `PORT`: `10000` (Render asigna automáticamente)
+     - `PORT`: `10000` (Render asigna automáticamente, pero lo fijamos por consistencia)
      - `NODE_ENV`: `production`
 
 Alternativamente, Render detectará automáticamente la configuración desde `render.yaml` en la raíz del repositorio.
 
 ## Variables de entorno del cliente
 
-El cliente Vite necesita la URL del servidor en la variable:
+El cliente Vite necesita la URL del servidor en la siguiente variable:
 
 ```
-VITE_SOCKET_SERVER_URL=https://tu-servicio.onrender.com
+VITE_SOCKET_SERVER_URL=http://localhost:10000
 ```
+(En producción usa la URL de tu servicio en Render, ej: `https://iron-dune-server.onrender.com`).
+
+Esta variable se utiliza tanto para la API de batallas como para la conexión en tiempo real vía Socket.io.
 
 ## Endpoints
 

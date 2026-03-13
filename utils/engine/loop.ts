@@ -25,9 +25,13 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     currentLogs = [...currentLogs, ...taskLogs];
 
     // 3. Military/War Pass (Attack System, Inbound Attacks, War Logic)
-    const { stateUpdates: warUpdates, logs: warLogs } = processWarTick(state, now);
-    state = { ...state, ...warUpdates };
-    currentLogs = [...currentLogs, ...warLogs];
+    // NOTE: In production, this should be handled by the server.
+    // We keep a local simulation for UI responsiveness, but the server is the source of truth.
+    if (!(window as any).USE_SERVER_BATTLES) {
+        const { stateUpdates: warUpdates, logs: warLogs } = processWarTick(state, now);
+        state = { ...state, ...warUpdates };
+        currentLogs = [...currentLogs, ...warLogs];
+    }
 
     // 3c. Bot Salvage Pass (Bots competing for loot)
     const { stateUpdates: botSalvageUpdates, logs: botSalvageLogs } = processBotSalvageCheck(state, now);
@@ -58,14 +62,18 @@ export const calculateNextTick = (prev: GameState, deltaTimeMs: number = 1000): 
     }
 
     // 4. Nemesis System (Grudges & Retaliation)
-    const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);
-    state = { ...state, ...nemesisUpdates };
-    currentLogs = [...currentLogs, ...nemesisLogs];
+    if (!(window as any).USE_SERVER_BATTLES) {
+        const { stateUpdates: nemesisUpdates, logs: nemesisLogs } = processNemesisTick(state, now);
+        state = { ...state, ...nemesisUpdates };
+        currentLogs = [...currentLogs, ...nemesisLogs];
+    }
 
     // 4b. Enemy Attack System (30min checks for low reputation bots)
-    const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(state, now);
-    state = { ...state, ...enemyAttackUpdates };
-    currentLogs = [...currentLogs, ...enemyAttackLogs];
+    if (!(window as any).USE_SERVER_BATTLES) {
+        const { stateUpdates: enemyAttackUpdates, logs: enemyAttackLogs } = processEnemyAttackCheck(state, now);
+        state = { ...state, ...enemyAttackUpdates };
+        currentLogs = [...currentLogs, ...enemyAttackLogs];
+    }
 
     // 5. Ranking Evolution (Every 6H of gameplay)
     const rankingElapsed = now - state.rankingData.lastUpdateTime;

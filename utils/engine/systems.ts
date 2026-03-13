@@ -103,6 +103,12 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
                 continue;
             }
 
+            // NEW: If server battles are enabled, skip local resolution
+            // The server will handle this via battleService or scheduler
+            if ((window as any).USE_SERVER_BATTLES) {
+                continue;
+            }
+
             if (mission.type === 'SALVAGE') {
                 const lootFieldId = mission.logisticLootId;
                 const lootField = updatedLootFields.find(f => f.id === lootFieldId);
@@ -285,6 +291,11 @@ export const processSystemTick = (state: GameState, now: number, activeWar: WarS
 
             // Skip P2P attacks - handled by event listener in useP2PGameSync
             if (attack.isP2P) {
+                continue;
+            }
+
+            // NEW: If server battles are enabled, skip local resolution
+            if ((window as any).USE_SERVER_BATTLES) {
                 continue;
             }
 

@@ -17,7 +17,7 @@ import type {
 import { gameEventBus } from '../utils/eventBus';
 
 const SOCKET_SERVER_URL =
-  (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:3001';
+  (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
 
 const PRESENCE_BROADCAST_INTERVAL = 60000;
 
