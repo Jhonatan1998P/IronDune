@@ -252,6 +252,7 @@ export const useGameEngine = () => {
     // Logs
     deleteLogs, 
     archiveLogs, 
-    markReportsRead
+    markReportsRead,
+    updateGameState: setGameState
   };
 };

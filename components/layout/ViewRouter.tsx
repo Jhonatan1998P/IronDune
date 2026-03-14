@@ -27,6 +27,7 @@ const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ d
 const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 const SalvageZoneView = lazy(() => import('../views/SalvageZoneView').then(m => ({ default: m.SalvageZoneView })));
+const AdminView = lazy(() => import('../views/AdminView').then(m => ({ default: m.AdminView })));
 
 const ViewLoader: React.FC = React.memo(() => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -60,7 +61,8 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     settings: SettingsView,
     p2p: P2PRanking,
     chat: MultiplayerChatView,
-    salvage: SalvageZoneView
+    salvage: SalvageZoneView,
+    admin: AdminView
 };
 
 // Optimización: Memoizar props por tipo de vista
@@ -98,12 +100,9 @@ const useViewProps = (
                 return { gameState, onExecuteBattle: actionsRef.current.executeCampaignBattle, onSpeedUp: actionsRef.current.speedUp };
             case 'rankings':
                 return { gameState, onAttack: (_target: any, newState: GameState) => {
-                    // Si viene un newState, lo aplicamos
-                    if (newState) {
-                        (window as any)._updateGameState?.(newState);
-                    }
+                    if (newState) actionsRef.current.updateGameState(newState);
                 }, onUpdateState: (newState: GameState) => {
-                    (window as any)._updateGameState?.(newState);
+                    actionsRef.current.updateGameState(newState);
                 }};
             case 'war':
                 return { gameState, onSpy: actionsRef.current.spyOnAttacker, onSimulate: onSimulateRequest };
@@ -117,6 +116,10 @@ const useViewProps = (
                 return { gameState };
             case 'salvage':
                 return { gameState, onStartMission: actionsRef.current.startSalvageMission };
+            case 'admin':
+                return { gameState, onUpdateState: (newState: GameState) => {
+                    actionsRef.current.updateGameState(newState);
+                }};
             default:
                 return {};
         }
@@ -137,7 +140,7 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
         startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs, markReportsRead,
-        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode, updateGameState
     } = useGame();
 
     const handleSimulate = useCallback((enemy: Partial<Record<UnitType, number>>, player: Partial<Record<UnitType, number>>) => {
@@ -149,13 +152,13 @@ export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, si
         startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs,
-        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode, updateGameState
     }), [
         build, recruit, research, handleBankTransaction,
         startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
         speedUp, spyOnAttacker, repair,
         deleteLogs, archiveLogs,
-        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
+        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode, updateGameState
     ]);
 
     useEffect(() => {

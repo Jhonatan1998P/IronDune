@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useMemo, useRef, useSyncExternalStore, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useGameEngine } from '../hooks/useGameEngine';
 
 type GameContextType = ReturnType<typeof useGameEngine>;
@@ -49,6 +49,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteLogs: gameEngine.deleteLogs,
     archiveLogs: gameEngine.archiveLogs,
     markReportsRead: gameEngine.markReportsRead,
+    updateGameState: gameEngine.updateGameState,
   });
 
   // Actualizar referencias solo cuando cambian las funciones
@@ -88,6 +89,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteLogs: gameEngine.deleteLogs,
     archiveLogs: gameEngine.archiveLogs,
     markReportsRead: gameEngine.markReportsRead,
+    updateGameState: gameEngine.updateGameState,
   };
 
   // Optimización: Memoizar solo con dependencias críticas
@@ -133,6 +135,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteLogs: gameEngine.deleteLogs,
     archiveLogs: gameEngine.archiveLogs,
     markReportsRead: gameEngine.markReportsRead,
+    updateGameState: gameEngine.updateGameState,
   }), [
     gameEngine.status,
     gameEngine.gameState,

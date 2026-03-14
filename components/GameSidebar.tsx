@@ -3,9 +3,10 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
+import { useAuth } from '../context/AuthContext';
 import { APP_VERSION } from '../constants';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage' | 'admin';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -46,8 +47,11 @@ const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, se
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
   const { hasNewReports, gameState } = useGame();
+  const { role } = useAuth();
 
   const hasActiveWar = !!gameState.activeWar;
+  const isAdmin = role === 'admin' || role === 'dev';
+
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
   const activeTabRef = useRef(activeTab);
   
@@ -63,7 +67,8 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
   useThrottledChatEvent(activeTabRef, setHasUnreadChat);
 
   // Optimización: Memoizar configuración de navegación
-  const navGroups = useMemo(() => [
+  const navGroups = useMemo(() => {
+    const groups = [
       {
           title: t.common.ui.base_command,
           items: [
@@ -98,7 +103,19 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
               { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
-  ], [t]);
+    ];
+
+    if (isAdmin) {
+      groups.push({
+        title: 'Administration',
+        items: [
+          { id: 'admin' as TabType, label: 'Control Panel', icon: Icons.Radar, color: 'text-red-400' },
+        ]
+      });
+    }
+
+    return groups;
+  }, [t, isAdmin]);
 
   const handleTabClick = useCallback((tab: TabType) => {
     setActiveTab(tab);
@@ -207,9 +224,12 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabType) => void }> = React.memo(({ activeTab, setActiveTab }) => {
     const { t } = useLanguage();
     const { hasNewReports, gameState } = useGame();
+    const { role } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hasUnreadChat, setHasUnreadChat] = useState(false);
+
+    const isAdmin = role === 'admin' || role === 'dev';
 
     // Clear unread indicator when user opens chat
     const activeTabRef = useRef(activeTab);
@@ -259,21 +279,28 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
     ];
 
     // Secondary Tabs (Bottom Sheet)
-    const secondaryItems = [
-        { id: 'missions' as TabType, icon: Icons.Radar, label: t.missions.patrol.title.split(' ')[0] },
-        { id: 'salvage' as TabType, icon: Icons.Radar, label: t.common.ui.nav_salvage || 'Salvamento', color: 'text-yellow-400' },
-        { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map },
-        { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!gameState.activeWar, color: 'text-red-500' },
-        { id: 'market' as TabType, icon: NavIcons.Market, label: t.common.ui.nav_market },
-        { id: 'finance' as TabType, icon: NavIcons.Finance, label: t.common.ui.nav_economy },
-        { id: 'research' as TabType, icon: Icons.Science, label: t.common.ui.nav_research },
-        { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
-        { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
-        { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
-        { id: 'p2p' as TabType, icon: Icons.Radar, label: 'PvP Arena', color: 'text-cyan-400' },
-        { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
-        { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
-    ];
+    const secondaryItems = useMemo(() => {
+        const items = [
+            { id: 'missions' as TabType, icon: Icons.Radar, label: t.missions.patrol.title.split(' ')[0] },
+            { id: 'salvage' as TabType, icon: Icons.Radar, label: t.common.ui.nav_salvage || 'Salvamento', color: 'text-yellow-400' },
+            { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map },
+            { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!gameState.activeWar, color: 'text-red-500' },
+            { id: 'market' as TabType, icon: NavIcons.Market, label: t.common.ui.nav_market },
+            { id: 'finance' as TabType, icon: NavIcons.Finance, label: t.common.ui.nav_economy },
+            { id: 'research' as TabType, icon: Icons.Science, label: t.common.ui.nav_research },
+            { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
+            { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
+            { id: 'p2p' as TabType, icon: Icons.Radar, label: 'PvP Arena', color: 'text-cyan-400' },
+            { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
+            { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
+        ];
+
+        if (isAdmin) {
+            items.push({ id: 'admin' as TabType, icon: Icons.Radar, label: 'Admin', color: 'text-red-400' });
+        }
+
+        return items;
+    }, [t, isAdmin, gameState.activeWar]);
 
     const handleTabSelect = (tab: TabType) => {
         setActiveTab(tab);

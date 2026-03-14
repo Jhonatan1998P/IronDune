@@ -1,62 +1,69 @@
-# Configuración de Supabase para Iron Dune
+# Arquitectura y Configuración de Supabase - Iron Dune
 
-Para que la persistencia de datos y la autenticación funcionen correctamente, debes configurar un proyecto en Supabase siguiendo estos pasos:
+Este documento es la **Fuente de Verdad** para la infraestructura de base de datos y conexión del proyecto. **IMPORTANTE:** Siempre que se modifique, añada o edite una tabla o política, este archivo debe ser actualizado.
 
-## 1. Crear un Proyecto en Supabase
-1. Ve a [Supabase](https://supabase.com/) y crea una cuenta si no la tienes.
-2. Crea un nuevo proyecto.
-3. Una vez creado, ve a **Project Settings > API** para obtener tu `URL` y la `anon key`.
+## 1. Sistema de Sincronización Automática (Migraciones)
+Ya no es necesario ejecutar SQL manualmente en el panel de Supabase para cambios estructurales. Hemos implementado un sistema de "Source of Truth" en el código:
 
-## 2. Configurar Variables de Entorno
-Crea un archivo `.env` en la raíz de tu proyecto (o agrégalas a tu entorno de despliegue) con los siguientes valores:
+- **Archivo Maestro:** `server/db/setup.sql` (Contiene todas las tablas, roles y políticas).
+- **Script de Ejecución:** `server/scripts/migrate.js`.
+- **Comando:** `npm run db:migrate --prefix server`.
 
-```env
-VITE_SUPABASE_URL=tu_url_de_supabase
-VITE_SUPABASE_ANON_KEY=tu_anon_key_de_supabase
-```
+### Cómo usarlo:
+1. Edita `server/db/setup.sql` con los cambios deseados.
+2. Ejecuta `npm run db:migrate --prefix server`.
+3. El script aplicará los cambios sin borrar los datos existentes gracias al uso de `IF NOT EXISTS` y bloques `DO`.
 
-## 3. Configurar la Base de Datos
-Ve al **SQL Editor** en tu panel de Supabase y ejecuta el siguiente script para crear la tabla necesaria:
+---
 
-```sql
--- Crear tabla de perfiles para guardar el estado del juego
-create table public.profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  game_state jsonb not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+## 2. Variables de Entorno (Secrets)
 
--- Habilitar Row Level Security (RLS)
-alter table public.profiles enable row level security;
+Para que el sistema funcione, las siguientes variables deben estar configuradas en sus respectivas plataformas:
 
--- Política: Los usuarios pueden ver solo su propio perfil
-create policy "Users can view own profile"
-  on public.profiles for select
-  using ( auth.uid() = id );
+### A. Frontend (Vercel)
+Variables necesarias para la build de Vite:
+- `VITE_SUPABASE_URL`: URL del proyecto Supabase.
+- `VITE_SUPABASE_ANON_KEY`: API Key pública (anon).
+- `VITE_SOCKET_SERVER_URL`: URL del servidor en Render (ej: `https://irondune.onrender.com`).
 
--- Política: Los usuarios pueden insertar su propio perfil
-create policy "Users can insert own profile"
-  on public.profiles for insert
-  with check ( auth.uid() = id );
+### B. Backend (Render)
+Variables necesarias para el motor de batalla y persistencia:
+- `SUPABASE_URL`: URL del proyecto Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY`: **CLAVE SECRETA** (Service Role) para que el servidor pueda saltarse el RLS y procesar batallas offline.
+- `DATABASE_URL`: URI de conexión directa a Postgres (Necesaria para las migraciones). Se obtiene en *Settings > Database > Connection String (URI)*.
+- `PORT`: Generalmente `10000`.
 
--- Política: Los usuarios pueden actualizar su propio perfil
-create policy "Users can update own profile"
-  on public.profiles for update
-  using ( auth.uid() = id );
+---
 
--- Política: Los usuarios pueden borrar su propio perfil
-create policy "Users can delete own profile"
-  on public.profiles for delete
-  using ( auth.uid() = id );
-```
+## 3. Estructura de la Base de Datos Actual
 
-## 4. Configurar Autenticación
-1. Ve a **Authentication > Providers**.
-2. Asegúrate de que **Email** esté habilitado.
-3. (Opcional) Deshabilita "Confirm Email" si quieres que los usuarios puedan entrar inmediatamente sin verificar su correo (útil para pruebas).
+### Tablas Maestras (Nueva Arquitectura)
+1. **`profiles`**: Datos identitarios y configuración.
+2. **`player_economy`**: Gestión profesional de recursos, producción y banco.
+3. **`player_buildings`**: Niveles y estados de construcción.
+4. **`player_research`**: Progreso tecnológico.
+5. **`player_units`**: Conteo de tropas en tiempo real.
+6. **`movements`**: Tráfico de tropas (ataques, misiones, apoyos).
+7. **`bots`**: Base de datos de bots GLOBAL e idéntica para todos.
+8. **`reports`**: Informes de combate y sistema.
+9. **`inbox`**: Mensajería privada.
 
-## 5. Resumen de Cambios
-- **Autenticación**: Ahora es obligatoria para entrar al juego.
-- **Persistencia**: Todos los datos se guardan en la tabla `profiles` en la columna `game_state` (JSONB).
-- **Auto-guardado**: El juego se guarda automáticamente cada 30 segundos en la nube.
-- **Migración**: Al iniciar sesión por primera vez, el juego intentará migrar los datos guardados en `localStorage` a Supabase automáticamente.
+---
+
+## 5. Hard Reset y Limpieza
+Para realizar un reinicio total manteniendo la estructura:
+1. Ejecuta `npm run db:migrate --prefix server`. El script incluye comandos `DELETE` para limpiar todas las tablas antes de reiniciar.
+2. Se recomienda correr `node scripts/seedBots.js` para repoblar la lista global de enemigos.
+
+---
+
+## 6. Flujo de Conexión y Persistencia
+El frontend (`usePersistence.ts`) ahora no guarda un objeto gigante, sino que distribuye los datos entre las tablas correspondientes (`upsert` múltiple). Al cargar, realiza un `Promise.all` para reconstruir el estado del juego de forma eficiente.
+
+---
+
+## ⚠️ NOTA PARA AGENTES Y DESARROLLADORES
+Si vas a realizar cambios en la base de datos:
+1. **SIEMPRE** modifica primero `server/db/setup.sql`.
+2. **NUNCA** borres la tabla `profiles` si hay usuarios activos; usa `ALTER TABLE`.
+3. Actualiza este archivo con la nueva estructura de tablas si añades una.
