@@ -68,6 +68,40 @@ async function hardReset() {
     }
 
     console.log('✅ Hard reset completado. Base de datos y Auth limpios.');
+
+    // 3. Sembrar Bots y Mercado
+    console.log('🤖 Sembrando bots y mercado inicial...');
+    
+    // Bots (Uso SQL directo para rapidez)
+    const PERSONALITIES = ['WARLORD', 'TURTLE', 'TYCOON', 'ROGUE'];
+    const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
+    const BOT_NAME_PREFIXES = ['Night', 'Dark', 'Iron', 'Steel', 'Shadow', 'Ghost', 'Cyber', 'Neo'];
+    const BOT_NAME_ROOTS = ['Wolf', 'Hawk', 'Fox', 'Viper', 'Cobra', 'Raven', 'Tiger', 'Lion'];
+    
+    const bots = [];
+    for (let i = 0; i < 50; i++) {
+      const dominionScore = 1000 * Math.pow(1.05, i);
+      bots.push({
+        name: `${BOT_NAME_PREFIXES[i % 8]}_${BOT_NAME_ROOTS[Math.floor(Math.random() * 8)]}_${i + 1}`,
+        personality: PERSONALITIES[i % 4],
+        score: Math.round(dominionScore),
+        country: COUNTRIES[i % 10],
+        units: JSON.stringify({ CYBER_MARINE: Math.floor(dominionScore / 10), SCOUT_TANK: Math.floor(dominionScore / 50) }),
+        stats: JSON.stringify({ DOMINION: Math.round(dominionScore), MILITARY: Math.round(dominionScore * 0.6), ECONOMY: Math.round(dominionScore * 12) })
+      });
+    }
+    await sql`INSERT INTO public.bots ${sql(bots, 'name', 'personality', 'score', 'country', 'units', 'stats')}`;
+
+    // Mercado
+    const INITIAL_MARKET = [
+      { resource_type: 'OIL', base_price: 2.5, current_price: 2.5 },
+      { resource_type: 'AMMO', base_price: 1.5, current_price: 1.5 },
+      { resource_type: 'GOLD', base_price: 15.0, current_price: 15.0 },
+      { resource_type: 'DIAMOND', base_price: 500.0, current_price: 500.0 }
+    ];
+    await supabase.from('global_market').upsert(INITIAL_MARKET);
+
+    console.log('✅ Datos iniciales sembrados con éxito.');
     console.log('');
 
     console.log('   Próximos pasos opcionales:');

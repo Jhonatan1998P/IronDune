@@ -24,8 +24,8 @@ import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
-const BUFFER_WRITE_MS  = 30000;   // localStorage: actualizar buffer cada 30s
-const BUFFER_TO_SERVER_MS = 120000; // Supabase: sincronizar con servidor cada 2min
+const BUFFER_WRITE_MS  = 10000;   // localStorage: cada 10s
+const BUFFER_TO_SERVER_MS = 30000; // Supabase: cada 30s
 const BUFFER_KEY = 'ironDuneSave_v2';
 
 // ── Buffer local (solo lectura/escritura interna, nunca expuesto al usuario) ───
@@ -209,10 +209,9 @@ export const usePersistence = (
         return;
       }
 
-      // Sin datos en ningún lado → nuevo juego
-      console.log('[Persistence] Sin datos. Iniciando nuevo juego.');
-      setIsInitialLoadDone(true);
-      setStatus('MENU'); // Evitar pantalla negra/infinita
+      // Sin datos en ningún lado → nuevo juego automático para el Comandante
+      console.log('[Persistence] Sin datos. Iniciando nueva partida automática.');
+      startNewGame(); 
     };
 
     init();

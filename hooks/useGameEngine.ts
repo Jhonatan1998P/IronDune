@@ -179,7 +179,15 @@ export const useGameEngine = () => {
     // Don't run auto-save if not actively playing
     if (status !== 'PLAYING') return;
     
+    // Initial save
     persistence.performAutoSave();
+
+    // Periodic auto-save every 10 seconds
+    const interval = setInterval(() => {
+        persistence.performAutoSave();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [status, persistence.performAutoSave]);
 
   // --- 6. LOG MANAGEMENT UTILS ---
