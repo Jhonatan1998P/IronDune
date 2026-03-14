@@ -1,5 +1,7 @@
 /**
  * HARD RESET — Script local de reconstrucción total de la base de datos.
+ * ⚠️ ADVERTENCIA: Este script depende de server/db/setup.sql.
+ * Si cambias la estructura de las tablas, hazlo en setup.sql.
  *
  * Lee server/db/setup.sql y lo ejecuta contra Supabase vía DATABASE_URL.
  * Borra TODO y reconstruye desde cero: tablas, permisos, funciones, triggers.

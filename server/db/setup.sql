@@ -1,11 +1,21 @@
 -- ══════════════════════════════════════════════════════════════════
 -- IRON DUNE OPERATIONS — SCRIPT MAESTRO DE BASE DE DATOS
+-- ⚠️ IMPORTANTE: Este archivo es la FUENTE DE VERDAD. 
+-- Cualquier cambio aquí DEBE replicarse en DATABASE_INSTALL.md
 -- Uso: ejecutar completo para hard reset + reconstrucción total.
 -- ══════════════════════════════════════════════════════════════════
 
 -- ─────────────────────────────────────────────────────────────────
 -- SECCIÓN 1: LIMPIEZA TOTAL (Drop de todo lo anterior)
 -- ─────────────────────────────────────────────────────────────────
+
+-- Intentar borrar triggers de auth si existen (suelen causar el error "Database error saving new user")
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
+        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    END IF;
+END $$;
+
 DROP TRIGGER IF EXISTS on_profile_created_init ON public.profiles;
 DROP TRIGGER IF EXISTS tr_update_prod_on_building ON public.player_buildings;
 

@@ -2,7 +2,7 @@
 
 **Session ID:** ses_312de21f9ffetJUIzx4r6Wx5gM
 **Created:** 3/14/2026, 4:15:45 PM
-**Updated:** 3/14/2026, 4:48:58 PM
+**Updated:** 3/14/2026, 5:02:55 PM
 
 ---
 
@@ -510,6 +510,181 @@ npm run db:reset --prefix server
 Simplemente añade la variable de entorno `DB_HARD_RESET=true` en Render. El servidor detectará esto al arrancar, ejecutará el reset total (incluyendo borrado de usuarios) y dejará la base de datos lista. (Recuerda quitar la variable después para evitar resets accidentales).
 
 Con estos cambios, el flujo de "limpieza total" es seguro y los usuarios nunca se quedarán atrapados en una pantalla negra tras un mantenimiento o reset.
+
+---
+
+## User
+
+bien si reisas el ultimo comic V10.0.14 quiero hacer prueba en produccion y pues el deploy en vercel como en render fueron extosos pero ahora quiero registrar una cuneta y sale el error: Database error saving new user.
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: glob**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: glob**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: edit**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+El error **"Database error saving new user"** es un error interno de Supabase (GoTrue) que ocurre casi siempre porque existe un **Trigger** antiguo en la tabla `auth.users` (fuera del esquema público) que está intentando ejecutar una función que ya no existe o que falla debido al cambio de estructura.
+
+He realizado las siguientes correcciones para solucionar esto de raíz:
+
+### 1. Limpieza de Triggers de Auth
+He actualizado el script maestro (`setup.sql` y `DATABASE_INSTALL.md`) para que intente detectar y eliminar automáticamente el trigger `on_auth_user_created` en la tabla `auth.users`. Este trigger suele ser el culpable de bloquear el registro de nuevos usuarios si quedó basura de instalaciones anteriores.
+
+### 2. Mejora en el flujo de Registro (`AuthView.tsx`)
+He modificado el código del frontend para que:
+- No ignore los errores al crear el perfil. Si la base de datos falla al insertar el perfil del jugador, ahora verás un mensaje de error claro en pantalla en lugar de fallar silenciosamente.
+- Se detenga el proceso si hay un error en la economía inicial, evitando cuentas "corruptas" sin recursos.
+
+### 3. Sincronización de Triggers
+Había una duplicidad: el código del cliente intentaba crear la economía del jugador y, al mismo tiempo, un trigger en la base de datos intentaba hacer lo mismo. He optimizado esto para que el trigger use `ON CONFLICT DO NOTHING`, asegurando que no haya errores de llave duplicada.
+
+---
+
+### ¿Cómo solucionar el error ahora?
+
+Para aplicar estos cambios en tu servidor de producción (Render) y en Supabase:
+
+1.  **Vuelve a ejecutar el Hard Reset** desde tu terminal local:
+    ```bash
+    npm run db:reset --prefix server
+    ```
+    *Esto limpiará los posibles triggers fantasmas en Supabase Auth.*
+
+2.  **Si prefieres hacerlo manual**: Copia el nuevo contenido de `DATABASE_INSTALL.md` y ejecútalo en el SQL Editor de Supabase.
+
+3.  **Redesplegar**: Asegúrate de que los cambios en `AuthView.tsx` se suban a Vercel/Render para que el manejo de errores sea el correcto.
+
+Con esto, el proceso de registro debería ser totalmente limpio.
 
 ---
 

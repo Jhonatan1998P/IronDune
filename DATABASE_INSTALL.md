@@ -1,5 +1,6 @@
 # Iron Dune: Operations — Instalación de Base de Datos
 
+> ⚠️ **REGLA DE ORO**: El contenido SQL de este archivo DEBE ser idéntico al de `server/db/setup.sql`.
 > Copia y pega el bloque SQL de abajo **completo** en el **SQL Editor** de Supabase y presiona **Run**.  
 > Este script hace un hard reset: borra todo lo anterior, recrea el esquema, configura permisos RLS y crea todas las funciones que el servidor necesita.
 
@@ -16,6 +17,14 @@
 -- ─────────────────────────────────────────────────────────────────
 -- SECCIÓN 1: LIMPIEZA TOTAL (Drop de todo lo anterior)
 -- ─────────────────────────────────────────────────────────────────
+
+-- Intentar borrar triggers de auth si existen (suelen causar el error "Database error saving new user")
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
+        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    END IF;
+END $$;
+
 DROP TRIGGER IF EXISTS on_profile_created_init ON public.profiles;
 DROP TRIGGER IF EXISTS tr_update_prod_on_building ON public.player_buildings;
 
