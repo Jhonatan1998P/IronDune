@@ -1,5 +1,32 @@
 # Instalación Manual de Base de Datos - Iron Dune
 
+> **PARCHE CRÍTICO (ejecutar si ya tienes las tablas)**  
+> Si el login funciona pero los datos no se guardan en Supabase, copia y ejecuta este bloque en el SQL Editor de Supabase:
+> 
+> ```sql
+> -- Política de escritura propia en profiles (estaba faltando)
+> DROP POLICY IF EXISTS "public_view" ON public.profiles;
+> CREATE POLICY "profiles_select_all"  ON public.profiles FOR SELECT USING (true);
+> CREATE POLICY "profiles_insert_own"  ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+> CREATE POLICY "profiles_update_own"  ON public.profiles FOR UPDATE USING (auth.uid() = id);
+> CREATE POLICY "profiles_delete_own"  ON public.profiles FOR DELETE USING (auth.uid() = id);
+> 
+> -- Política propia en reports
+> DROP POLICY IF EXISTS "reports_policy" ON public.reports;
+> CREATE POLICY "reports_own"   ON public.reports FOR ALL USING (auth.uid() = user_id);
+> 
+> -- Confirmar que player_economy/buildings/units tienen política de escritura
+> DROP POLICY IF EXISTS "owner_access_eco" ON public.player_economy;
+> DROP POLICY IF EXISTS "owner_access_buildings" ON public.player_buildings;
+> DROP POLICY IF EXISTS "owner_access_units" ON public.player_units;
+> CREATE POLICY "eco_own"       ON public.player_economy   FOR ALL USING (auth.uid() = player_id);
+> CREATE POLICY "buildings_own" ON public.player_buildings FOR ALL USING (auth.uid() = player_id);
+> CREATE POLICY "units_own"     ON public.player_units     FOR ALL USING (auth.uid() = player_id);
+> CREATE POLICY "research_own"  ON public.player_research  FOR ALL USING (auth.uid() = player_id);
+> ```
+
+---
+
 Copia y pega el siguiente código en el **SQL Editor** de Supabase para reconstruir toda la infraestructura desde cero. Este script incluye todas las tablas normalizadas, funciones de producción SQL y el motor de batalla.
 
 ```sql
@@ -231,13 +258,21 @@ ALTER TABLE public.inbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.global_market ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.world_events ENABLE ROW LEVEL SECURITY;
 
--- Políticas Simplificadas (Lectura Total, Escritura Propia)
-CREATE POLICY "public_view" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "owner_access_eco" ON public.player_economy FOR ALL USING (true);
-CREATE POLICY "owner_access_buildings" ON public.player_buildings FOR ALL USING (true);
-CREATE POLICY "owner_access_units" ON public.player_units FOR ALL USING (true);
-CREATE POLICY "market_read" ON public.global_market FOR SELECT USING (true);
-CREATE POLICY "events_read" ON public.world_events FOR SELECT USING (true);
+-- Políticas RLS correctas
+CREATE POLICY "profiles_select_all"  ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "profiles_insert_own"  ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "profiles_update_own"  ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "profiles_delete_own"  ON public.profiles FOR DELETE USING (auth.uid() = id);
+
+CREATE POLICY "eco_own"       ON public.player_economy   FOR ALL USING (auth.uid() = player_id);
+CREATE POLICY "buildings_own" ON public.player_buildings FOR ALL USING (auth.uid() = player_id);
+CREATE POLICY "units_own"     ON public.player_units     FOR ALL USING (auth.uid() = player_id);
+CREATE POLICY "research_own"  ON public.player_research  FOR ALL USING (auth.uid() = player_id);
+CREATE POLICY "reports_own"   ON public.reports          FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "inbox_own"     ON public.inbox            FOR ALL USING (auth.uid() = receiver_id OR auth.uid() = sender_id);
+CREATE POLICY "market_read"   ON public.global_market    FOR SELECT USING (true);
+CREATE POLICY "events_read"   ON public.world_events     FOR SELECT USING (true);
+CREATE POLICY "bots_read"     ON public.bots             FOR SELECT USING (true);
 
 -- Trigger de Inicialización
 CREATE OR REPLACE FUNCTION public.initialize_player_data() RETURNS TRIGGER AS $$

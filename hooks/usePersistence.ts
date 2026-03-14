@@ -3,10 +3,39 @@ import { GameState, GameStatus, OfflineReport, BuildingType, ResourceType, TechT
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { BUILDING_DEFS } from '../data/buildings';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
+import { calculateOfflineProgress } from '../utils/engine/offline';
+import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
-const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
+const AUTO_SAVE_LOCAL_MS = 30000;   // localStorage cada 30 seg
+const AUTO_SAVE_SERVER_MS = 120000; // Supabase cada 2 min
+const LOCAL_SAVE_KEY = 'ironDuneSave_v2';
+
+// ── Helpers de módulo (no cambian entre renders) ──────────────────────────────
+
+const saveToLocalStorage = (state: GameState): void => {
+  try {
+    const encoded = encodeSaveData({ ...state, lastSaveTime: Date.now() });
+    if (encoded) localStorage.setItem(LOCAL_SAVE_KEY, encoded);
+  } catch (e) {
+    console.warn('[Persistence] localStorage write failed:', e);
+  }
+};
+
+const loadFromLocalStorage = (): GameState | null => {
+  try {
+    const raw = localStorage.getItem(LOCAL_SAVE_KEY)
+             || localStorage.getItem('ironDuneSave'); // clave legacy
+    if (!raw) return null;
+    return decodeSaveData(raw);
+  } catch (e) {
+    console.warn('[Persistence] localStorage read failed:', e);
+    return null;
+  }
+};
+
+// ── Hook principal ────────────────────────────────────────────────────────────
 
 export const usePersistence = (
   gameState: GameState,
@@ -22,319 +51,328 @@ export const usePersistence = (
   const { user } = useAuth();
   const [hasSave, setHasSave] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
-  
-  // Refs para evitar dependencias cambiantes
+
+  // Refs estables para callbacks
   const gameStateRef = useRef(gameState);
-  const statusRef = useRef(status);
   gameStateRef.current = gameState;
-  statusRef.current = status;
 
-  // Check for save on Supabase when user is available
-  useEffect(() => {
-    if (!user || isInitialLoadDone) return;
+  const lastLocalSaveRef = useRef(0);
+  const lastServerSaveRef = useRef(0);
+  const pendingServerSaveRef = useRef(false);
+  const prevUserIdRef = useRef<string | null>(null);
 
-    const checkSave = async () => {
-      try {
-        console.log('[Persistence] Loading full game state from multiple tables...');
-        
-        // 1. Fetch Profile & Economy & Others & Reports
-        const [profileRes, economyRes, buildingsRes, researchRes, unitsRes, reportsRes] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', user.id).single(),
-          supabase.from('player_economy').select('*').eq('player_id', user.id).single(),
-          supabase.from('player_buildings').select('*').eq('player_id', user.id),
-          supabase.from('player_research').select('*').eq('player_id', user.id),
-          supabase.from('player_units').select('*').eq('player_id', user.id),
-          supabase.from('reports').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100)
-        ]);
-
-        if (profileRes.error && profileRes.error.code !== 'PGRST116') {
-          console.error('Error fetching profile:', profileRes.error);
-          return;
-        }
-
-        if (profileRes.data) {
-          console.log('[Persistence] Profile found, reconstructing state...');
-          
-          // Reconstruct GameState from individual tables
-          const baseState = profileRes.data.game_state || {};
-          const economy = economyRes.data || {};
-          
-          const reconstructedState: any = {
-            ...INITIAL_GAME_STATE,
-            ...baseState,
-            playerName: profileRes.data.username || baseState.playerName || 'Commander',
-            empirePoints: Number(profileRes.data.empire_points || 0),
-            lastSaveTime: new Date(profileRes.data.updated_at).getTime(),
-            logs: []
-          };
-
-          // Map Reports to Logs
-          if (reportsRes.data && reportsRes.data.length > 0) {
-            reconstructedState.logs = reportsRes.data.map((r: any) => ({
-              id: r.id,
-              messageKey: r.title,
-              params: r.content,
-              timestamp: new Date(r.created_at).getTime(),
-              type: r.type.toLowerCase(),
-              archived: false
-            }));
-          } else {
-            // Fallback to legacy logs if no reports found in table
-            reconstructedState.logs = baseState.logs || [];
-          }
-
-          // Map Resources
-          if (economyRes.data) {
-            reconstructedState.resources = {
-              [ResourceType.MONEY]: Number(economy.money || 0),
-              [ResourceType.OIL]: Number(economy.oil || 0),
-              [ResourceType.AMMO]: Number(economy.ammo || 0),
-              [ResourceType.GOLD]: Number(economy.gold || 0),
-              [ResourceType.DIAMOND]: Number(economy.diamond || 0),
-            };
-            reconstructedState.bankBalance = Number(economy.bank_balance || 0);
-          }
-
-          // Map Buildings
-          if (buildingsRes.data) {
-            buildingsRes.data.forEach((b: any) => {
-              const def = BUILDING_DEFS[b.building_type as BuildingType];
-              // Si es un edificio de cantidad, usamos la columna quantity, si no level
-              const value = def?.buildMode === 'QUANTITY' ? (b.quantity || 0) : (b.level || 0);
-              reconstructedState.buildings[b.building_type as BuildingType] = {
-                level: value,
-                isDamaged: false
-              };
-            });
-          }
-
-          // Map Research
-          if (researchRes.data) {
-            researchRes.data.forEach((r: any) => {
-              reconstructedState.techLevels[r.tech_type as TechType] = r.level;
-              if (r.level > 0 && !reconstructedState.researchedTechs.includes(r.tech_type)) {
-                reconstructedState.researchedTechs.push(r.tech_type);
-              }
-            });
-          }
-
-          // Map Units
-          if (unitsRes.data) {
-            unitsRes.data.forEach((u: any) => {
-              reconstructedState.units[u.unit_type as UnitType] = Number(u.count);
-            });
-          }
-
-          setHasSave(true);
-          loadGameFromData(reconstructedState);
-        } else {
-          console.log('[Persistence] No profile found. Starting new game.');
-          startNewGame();
-        }
-      } catch (e) {
-        console.error('Persistence load failed:', e);
-      } finally {
-        setIsInitialLoadDone(true);
-      }
-    };
-
-    checkSave();
-  }, [user, isInitialLoadDone]);
-
-  const loadGameFromData = useCallback((saveData: any) => {
+  // ── 1. Aplicar estado cargado (calcular offline si viene de local) ────────────
+  const applyLoadedState = useCallback((rawState: GameState, calculateOffline: boolean) => {
     try {
-      console.log('[LoadGame] Processing save data...');
-      
-      const migratedState = sanitizeAndMigrateSave(saveData, saveData);
-      
-      // La producción offline ahora la gestiona el servidor vía SQL RPC.
-      // Aquí solo cargamos el estado ya procesado por el Scheduler.
-      const newState = migratedState;
+      const migrated = sanitizeAndMigrateSave(rawState, rawState);
+      let finalState = migrated;
 
-      setGameState(newState);
+      if (calculateOffline && migrated.lastSaveTime && Date.now() - migrated.lastSaveTime > 60000) {
+        const { newState, report } = calculateOfflineProgress(migrated);
+        finalState = newState;
+        if (report.timeElapsed > 60000) {
+          setOfflineReport(report);
+          setHasNewReports(true);
+        }
+      }
 
+      setGameState(finalState);
       lastTickRef.current = Date.now();
       setStatus('PLAYING');
     } catch (e) {
-      console.error("Failed to load save:", e);
+      console.error('[Persistence] Error al aplicar estado:', e);
       setStatus('MENU');
     }
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
-  // Sync peerId from P2P to gameState
-  useEffect(() => {
-    const handlePeerIdChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ peerId: string }>;
-      if (customEvent.detail?.peerId) {
-        setGameState(prev => ({
-          ...prev,
-          peerId: customEvent.detail.peerId
-        }));
+  // ── 2. Cargar desde Supabase ──────────────────────────────────────────────────
+  const loadFromSupabase = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      console.log('[Persistence] Consultando Supabase...');
+
+      const [profileRes, economyRes, buildingsRes, researchRes, unitsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.from('player_economy').select('*').eq('player_id', userId).single(),
+        supabase.from('player_buildings').select('*').eq('player_id', userId),
+        supabase.from('player_research').select('*').eq('player_id', userId),
+        supabase.from('player_units').select('*').eq('player_id', userId),
+      ]);
+
+      if (profileRes.error) {
+        if (profileRes.error.code === 'PGRST116') {
+          console.log('[Persistence] Sin perfil en Supabase, revisar localStorage.');
+          return false;
+        }
+        console.error('[Persistence] Error al cargar perfil:', profileRes.error);
+        return false;
       }
+
+      const profile = profileRes.data;
+      const economy = economyRes.data;
+      const baseState = profile.game_state || {};
+
+      const reconstructed: GameState = {
+        ...INITIAL_GAME_STATE,
+        ...baseState,
+        playerName: profile.username || baseState.playerName || 'Commander',
+        empirePoints: Number(profile.empire_points || 0),
+        lastSaveTime: new Date(profile.updated_at).getTime(),
+      };
+
+      if (economy) {
+        reconstructed.resources = {
+          [ResourceType.MONEY]:   Number(economy.money   || 0),
+          [ResourceType.OIL]:     Number(economy.oil     || 0),
+          [ResourceType.AMMO]:    Number(economy.ammo    || 0),
+          [ResourceType.GOLD]:    Number(economy.gold    || 0),
+          [ResourceType.DIAMOND]: Number(economy.diamond || 0),
+        };
+        reconstructed.bankBalance = Number(economy.bank_balance || 0);
+      }
+
+      if (buildingsRes.data) {
+        buildingsRes.data.forEach((b: any) => {
+          const def = BUILDING_DEFS[b.building_type as BuildingType];
+          const value = def?.buildMode === 'QUANTITY' ? (b.quantity || 0) : (b.level || 0);
+          reconstructed.buildings[b.building_type as BuildingType] = { level: value, isDamaged: false };
+        });
+      }
+
+      if (researchRes.data) {
+        researchRes.data.forEach((r: any) => {
+          reconstructed.techLevels[r.tech_type as TechType] = r.level;
+          if (r.level > 0 && !reconstructed.researchedTechs.includes(r.tech_type)) {
+            reconstructed.researchedTechs.push(r.tech_type);
+          }
+        });
+      }
+
+      if (unitsRes.data) {
+        unitsRes.data.forEach((u: any) => {
+          reconstructed.units[u.unit_type as UnitType] = Number(u.count);
+        });
+      }
+
+      setHasSave(true);
+      applyLoadedState(reconstructed, false);
+      console.log('[Persistence] ✓ Estado cargado desde Supabase.');
+      return true;
+    } catch (e) {
+      console.error('[Persistence] Error al cargar desde Supabase:', e);
+      return false;
+    }
+  }, [applyLoadedState]);
+
+  // ── 3. Carga inicial: detecta cambio de usuario y dispara la carga ────────────
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+
+    // Si el usuario cambió (login/logout), reiniciar la carga
+    if (prevUserIdRef.current !== currentUserId) {
+      prevUserIdRef.current = currentUserId;
+      setIsInitialLoadDone(false);
+      return;
+    }
+
+    if (isInitialLoadDone) return;
+
+    const init = async () => {
+      if (user) {
+        const loaded = await loadFromSupabase(user.id);
+        if (loaded) { setIsInitialLoadDone(true); return; }
+      }
+
+      const localData = loadFromLocalStorage();
+      if (localData) {
+        console.log('[Persistence] Cargando desde localStorage...');
+        setHasSave(true);
+        applyLoadedState(localData, true);
+        setIsInitialLoadDone(true);
+        return;
+      }
+
+      console.log('[Persistence] Sin guardado previo. Iniciando nuevo juego.');
+      setIsInitialLoadDone(true);
     };
 
-    window.addEventListener('p2p-peer-id-changed', handlePeerIdChange);
-    return () => window.removeEventListener('p2p-peer-id-changed', handlePeerIdChange);
-  }, [setGameState]);
+    init();
+  }, [user, isInitialLoadDone, loadFromSupabase, applyLoadedState]);
 
-  const startNewGame = useCallback(() => {
-    setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
+  // ── 4. Sincronizar con Supabase ───────────────────────────────────────────────
+  const syncToSupabase = useCallback(async (state: GameState): Promise<void> => {
+    if (!user || pendingServerSaveRef.current) return;
+
+    pendingServerSaveRef.current = true;
+    const now = Date.now();
+
+    try {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        username: state.playerName,
+        empire_points: state.empirePoints,
+        game_state: {
+          completedTutorials:  state.completedTutorials,
+          currentTutorialId:   state.currentTutorialId,
+          tutorialClaimable:   state.tutorialClaimable,
+          tutorialAccepted:    state.tutorialAccepted,
+          isTutorialMinimized: state.isTutorialMinimized,
+          playerFlag:          state.playerFlag,
+          saveVersion:         state.saveVersion,
+        },
+        updated_at: new Date(now).toISOString(),
+      });
+
+      await supabase.from('player_economy').upsert({
+        player_id:    user.id,
+        money:        state.resources[ResourceType.MONEY],
+        oil:          state.resources[ResourceType.OIL],
+        ammo:         state.resources[ResourceType.AMMO],
+        gold:         state.resources[ResourceType.GOLD],
+        diamond:      state.resources[ResourceType.DIAMOND],
+        bank_balance: state.bankBalance,
+        last_calc_time: now,
+      });
+
+      const buildingData = Object.entries(state.buildings).map(([type, b]) => {
+        const isQty = BUILDING_DEFS[type as BuildingType]?.buildMode === 'QUANTITY';
+        return { player_id: user.id, building_type: type, level: isQty ? 0 : b.level, quantity: isQty ? b.level : 0 };
+      });
+      if (buildingData.length > 0) await supabase.from('player_buildings').upsert(buildingData);
+
+      const researchData = Object.entries(state.techLevels).map(([type, level]) => ({
+        player_id: user.id, tech_type: type, level,
+      }));
+      if (researchData.length > 0) await supabase.from('player_research').upsert(researchData);
+
+      const unitData = Object.entries(state.units).map(([type, count]) => ({
+        player_id: user.id, unit_type: type, count,
+      }));
+      if (unitData.length > 0) await supabase.from('player_units').upsert(unitData);
+
+      lastServerSaveRef.current = now;
+      console.log('[Persistence] ✓ Sincronizado con Supabase.');
+    } catch (e) {
+      console.error('[Persistence] Error al sincronizar con Supabase:', e);
+    } finally {
+      pendingServerSaveRef.current = false;
+    }
+  }, [user]);
+
+  // ── 5. Nuevo juego ────────────────────────────────────────────────────────────
+  const startNewGame = useCallback(async () => {
+    const initialState: GameState = { ...INITIAL_GAME_STATE, lastSaveTime: Date.now() };
+    setGameState(initialState);
     setOfflineReport(null);
     setHasNewReports(false);
     lastTickRef.current = Date.now();
     setStatus('PLAYING');
-  }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
-  const saveGame = useCallback(async () => {
-      if (!user) return;
+    saveToLocalStorage(initialState);
 
-      console.log('[SaveGame] === PERSISTENCIA MULTI-TABLA ===');
-      
-      if (isLoopRunningRef) isLoopRunningRef.current = false;
-      if (animationFrameRef?.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = undefined;
-      }
-      
-      const now = Date.now();
-      const state = gameStateRef.current;
-
+    if (user) {
       try {
-          // 1. Update Profile
-          const { error: pErr } = await supabase.from('profiles').upsert({
-            id: user.id,
-            username: state.playerName,
-            empire_points: state.empirePoints,
-            game_state: {
-               completedTutorials: state.completedTutorials,
-               currentTutorialId: state.currentTutorialId,
-               tutorialClaimable: state.tutorialClaimable,
-               tutorialAccepted: state.tutorialAccepted,
-               isTutorialMinimized: state.isTutorialMinimized,
-               playerFlag: state.playerFlag,
-               saveVersion: state.saveVersion
-            },
-            updated_at: new Date(now).toISOString()
-          });
-          if (pErr) throw pErr;
-
-          // 2. Update Economy
-          const { error: eErr } = await supabase.from('player_economy').upsert({
-            player_id: user.id,
-            money: state.resources.MONEY,
-            oil: state.resources.OIL,
-            ammo: state.resources.AMMO,
-            gold: state.resources.GOLD,
-            diamond: state.resources.DIAMOND,
-            bank_balance: state.bankBalance,
-            last_calc_time: now
-          });
-          if (eErr) throw eErr;
-
-          // 3. Update Buildings
-          const buildingData = Object.entries(state.buildings).map(([type, b]) => {
-            const def = BUILDING_DEFS[type as BuildingType];
-            const isQuantity = def?.buildMode === 'QUANTITY';
-            return {
-              player_id: user.id,
-              building_type: type,
-              level: isQuantity ? 0 : b.level,
-              quantity: isQuantity ? b.level : 0
-            };
-          });
-          await supabase.from('player_buildings').upsert(buildingData);
-
-          // 4. Update Research
-          const researchData = Object.entries(state.techLevels).map(([type, level]) => ({
-            player_id: user.id,
-            tech_type: type,
-            level: level
-          }));
-          if (researchData.length > 0) {
-             await supabase.from('player_research').upsert(researchData);
-          }
-
-          // 5. Update Units
-          const unitData = Object.entries(state.units).map(([type, count]) => ({
-            player_id: user.id,
-            unit_type: type,
-            count: count
-          }));
-          await supabase.from('player_units').upsert(unitData);
-
-          // 6. Update Reports (New/Unread only or full sync)
-          // For now, we only insert new logs that don't have a UUID (frontend generated)
-          const newLogs = state.logs.filter(log => !log.id.includes('-') && log.id.length < 30);
-          if (newLogs.length > 0) {
-            const reportData = newLogs.map(log => ({
-              user_id: user.id,
-              title: log.messageKey,
-              content: log.params || {},
-              type: log.type.toUpperCase(),
-              created_at: new Date(log.timestamp).toISOString()
-            }));
-            await supabase.from('reports').insert(reportData);
-          }
-
-          console.log('[SaveGame] ✓ Estado sincronizado');
-          setHasSave(true);
-          localStorage.removeItem('ironDuneSave');
+        const defaultName = user.email?.split('@')[0] || 'Commander';
+        await supabase.from('profiles').upsert({
+          id: user.id,
+          username: defaultName,
+          empire_points: 0,
+          game_state: { saveVersion: initialState.saveVersion },
+          updated_at: new Date().toISOString(),
+        });
+        await supabase.from('player_economy').upsert({
+          player_id:      user.id,
+          money:          initialState.resources[ResourceType.MONEY],
+          oil:            initialState.resources[ResourceType.OIL],
+          ammo:           initialState.resources[ResourceType.AMMO],
+          gold:           0,
+          diamond:        0,
+          bank_balance:   0,
+          last_calc_time: Date.now(),
+        });
+        console.log('[Persistence] ✓ Perfil inicial creado en Supabase.');
       } catch (e) {
-          console.error('[SaveGame] ERROR:', e);
+        console.warn('[Persistence] No se pudo crear perfil (modo offline):', e);
       }
+    }
+  }, [user, setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
-      setStatus('MENU');
-  }, [user, setStatus, setHasSave, isLoopRunningRef, animationFrameRef]);
-
-  const lastSaveTimeRef = React.useRef(Date.now());
-  const pendingSaveRef = useRef(false);
-
+  // ── 6. Auto-guardado ──────────────────────────────────────────────────────────
   const performAutoSave = useCallback(async (force: boolean = false) => {
-      if (!user) return;
-      const now = Date.now();
-      if (!force && now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return;
-      if (pendingSaveRef.current) return;
-      
-      pendingSaveRef.current = true;
-      lastSaveTimeRef.current = now;
-      const state = gameStateRef.current;
+    const now = Date.now();
+    const state = gameStateRef.current;
 
-      try {
-        await Promise.all([
-          supabase.from('profiles').upsert({ 
-            id: user.id, 
-            username: state.playerName, 
-            empire_points: state.empirePoints,
-            updated_at: new Date().toISOString() 
-          }),
-          supabase.from('player_economy').upsert({
-            player_id: user.id,
-            money: state.resources.MONEY,
-            oil: state.resources.OIL,
-            ammo: state.resources.AMMO,
-            gold: state.resources.GOLD,
-            diamond: state.resources.DIAMOND,
-            bank_balance: state.bankBalance,
-            last_calc_time: now
-          })
-        ]);
-      } catch (e) {
-        console.error('Auto-save failed:', e);
-      } finally {
-        pendingSaveRef.current = false;
-      }
-  }, [user]);
+    // localStorage cada AUTO_SAVE_LOCAL_MS
+    if (force || now - lastLocalSaveRef.current >= AUTO_SAVE_LOCAL_MS) {
+      saveToLocalStorage(state);
+      lastLocalSaveRef.current = now;
+    }
 
+    // Supabase cada AUTO_SAVE_SERVER_MS
+    if (user && (force || now - lastServerSaveRef.current >= AUTO_SAVE_SERVER_MS)) {
+      await syncToSupabase(state);
+    }
+  }, [user, syncToSupabase]);
+
+  // ── 7. Guardado manual ────────────────────────────────────────────────────────
+  const saveGame = useCallback(async () => {
+    const state = gameStateRef.current;
+    saveToLocalStorage(state);
+    lastLocalSaveRef.current = Date.now();
+    if (user) await syncToSupabase(state);
+    setHasSave(true);
+    setStatus('MENU');
+  }, [user, syncToSupabase, setStatus]);
+
+  // ── 8. Exportar / Importar ────────────────────────────────────────────────────
+  const exportSave = useCallback(() => {
+    try {
+      const encoded = encodeSaveData(gameStateRef.current);
+      const blob = new Blob([encoded], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `irondune_save_${Date.now()}.idb`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('[Persistence] Error al exportar:', e);
+    }
+  }, []);
+
+  const importSave = useCallback((encodedData: string): boolean => {
+    try {
+      const state = decodeSaveData(encodedData);
+      if (!state) return false;
+      applyLoadedState(state, true);
+      setHasSave(true);
+      return true;
+    } catch (e) {
+      console.error('[Persistence] Error al importar:', e);
+      return false;
+    }
+  }, [applyLoadedState]);
+
+  // ── 9. Reinicio ───────────────────────────────────────────────────────────────
   const resetGame = useCallback(async () => {
-      if (!user) return;
-      try {
-        await supabase.from('profiles').delete().eq('id', user.id);
-        setHasSave(false);
-      } catch (e) {
-        console.error('Reset failed:', e);
-      }
-      setTimeout(() => { window.location.reload(); }, 50);
+    localStorage.removeItem(LOCAL_SAVE_KEY);
+    localStorage.removeItem('ironDuneSave');
+    setHasSave(false);
+    if (user) {
+      try { await supabase.from('profiles').delete().eq('id', user.id); }
+      catch (e) { console.error('[Persistence] Error al borrar perfil:', e); }
+    }
+    setTimeout(() => window.location.reload(), 50);
   }, [user]);
 
-  return { hasSave, startNewGame, loadGame: () => {}, saveGame, exportSave: () => {}, importSave: () => false, resetGame, performAutoSave };
+  // ── 10. Sync peerId P2P ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const handle = (e: Event) => {
+      const ev = e as CustomEvent<{ peerId: string }>;
+      if (ev.detail?.peerId) setGameState(prev => ({ ...prev, peerId: ev.detail.peerId }));
+    };
+    window.addEventListener('p2p-peer-id-changed', handle);
+    return () => window.removeEventListener('p2p-peer-id-changed', handle);
+  }, [setGameState]);
+
+  return { hasSave, startNewGame, loadGame: () => {}, saveGame, exportSave, importSave, resetGame, performAutoSave };
 };
