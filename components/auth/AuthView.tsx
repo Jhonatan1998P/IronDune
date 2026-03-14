@@ -91,22 +91,10 @@ export const AuthView: React.FC = () => {
 
           if (profileError) {
             console.error('[Auth] Error creando perfil:', profileError);
-            // No bloquear el flujo — el perfil se puede crear al guardar el juego
+            showError(`Error al crear perfil: ${profileError.message}`);
+            setLoading(false);
+            return;
           }
-
-          // Crear registro de economía inicial
-          await supabase.from('player_economy').insert({
-            player_id: data.user.id,
-            money: 10000,
-            oil: 5000,
-            ammo: 2000,
-            gold: 0,
-            diamond: 0,
-            bank_balance: 0,
-            last_calc_time: Date.now(),
-          }).then(({ error: eErr }) => {
-            if (eErr) console.warn('[Auth] Error creando economía inicial:', eErr);
-          });
 
           if (data.session) {
             // Si no requiere confirmación de email → sesión directa

@@ -43,7 +43,11 @@ export const useGameActions = (
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     setGameState(prev => {
         const result = executeBuild(prev, type, amount);
-        if (result.success && result.newState) return result.newState;
+        if (result.success && result.newState) {
+            // Trigger immediate save for critical action
+            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+            return result.newState;
+        }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
@@ -52,7 +56,10 @@ export const useGameActions = (
   const repair = useCallback((type: BuildingType) => {
       setGameState(prev => {
           const result = executeRepair(prev, type);
-          if (result.success && result.newState) return result.newState;
+          if (result.success && result.newState) {
+              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+              return result.newState;
+          }
           if (result.errorKey) addLog(result.errorKey, 'info');
           return prev;
       });
@@ -61,7 +68,10 @@ export const useGameActions = (
   const recruit = useCallback((type: UnitType, amount: number = 1) => {
     setGameState(prev => {
         const result = executeRecruit(prev, type, amount);
-        if (result.success && result.newState) return result.newState;
+        if (result.success && result.newState) {
+            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+            return result.newState;
+        }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
@@ -71,6 +81,7 @@ export const useGameActions = (
     setGameState(prev => {
         const result = executeResearch(prev, techId);
         if (result.success && result.newState) {
+            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
             return result.newState;
         }
         if (result.errorKey) addLog(result.errorKey, 'info');
@@ -82,6 +93,7 @@ export const useGameActions = (
       setGameState(prev => {
           const result = executeBankTransaction(prev, amount, type);
           if (result.success && result.newState) {
+              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
               return result.newState;
           }
           if (result.errorKey) addLog(result.errorKey, 'info');
@@ -92,7 +104,10 @@ export const useGameActions = (
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       setGameState(prev => {
           const result = executeSpeedUp(prev, targetId, type);
-          if (result.success && result.newState) return result.newState;
+          if (result.success && result.newState) {
+              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+              return result.newState;
+          }
           if (result.errorKey) addLog(result.errorKey, 'info');
           return prev;
       });
@@ -101,7 +116,10 @@ export const useGameActions = (
   const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
     setGameState(prev => {
         const result = executeStartMission(prev, units, duration);
-        if (result.success && result.newState) return result.newState;
+        if (result.success && result.newState) {
+            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+            return result.newState;
+        }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
@@ -110,7 +128,10 @@ export const useGameActions = (
   const startSalvageMission = useCallback((lootId: string, drones: number) => {
     setGameState(prev => {
         const result = executeSalvageMission(prev, lootId, drones);
-        if (result.success && result.newState) return result.newState;
+        if (result.success && result.newState) {
+            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+            return result.newState;
+        }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
@@ -121,6 +142,7 @@ export const useGameActions = (
       
       if (result.success && result.newState) {
           setGameState(result.newState);
+          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
           return true;
       }
       if (result.errorKey) addLog(result.errorKey, 'info');
@@ -131,6 +153,7 @@ export const useGameActions = (
       setGameState(prev => {
           const result = executeTradeAction(prev, offerId, amount);
           if (result.success && result.newState) {
+              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
               return result.newState;
           }
           if (result.errorKey) addLog(result.errorKey, 'info');
@@ -153,6 +176,7 @@ export const useGameActions = (
                       logs: limitLogs([result.log, ...finalState.logs], 100)
                   };
               }
+              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
               return finalState;
           } else if (result.errorKey) {
               // Si falla, necesitamos registrar el error sin romper el flujo de estado
@@ -174,7 +198,10 @@ export const useGameActions = (
   }, [setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
-    setGameState(prev => ({ ...prev, tutorialAccepted: true }));
+    setGameState(prev => {
+        setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+        return { ...prev, tutorialAccepted: true };
+    });
   }, [setGameState]);
 
   const claimTutorialReward = useCallback(() => {
@@ -215,6 +242,8 @@ export const useGameActions = (
                   newUnits[uType] = (newUnits[uType] || 0) + (amount as number);
               });
           }
+
+          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
 
           return {
               ...prev,
@@ -292,6 +321,9 @@ export const useGameActions = (
       if (nameChanged) {
         addLog('name_changed', 'info', { newName: trimmedName, wasFree: isFreeChange });
       }
+      
+      setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+
       return { success: true };
   }, [gameState.playerName, gameState.hasChangedName, gameState.resources, gameState.rankingData.bots, addLog, setGameState]);
 
@@ -526,6 +558,8 @@ export const useGameActions = (
               params: { code: normalizedCode, rewards: giftCode.rewards }
           };
           
+          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+
           return {
               ...prev,
               resources: newResources,

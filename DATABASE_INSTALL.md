@@ -1,5 +1,6 @@
 # Iron Dune: Operations — Instalación de Base de Datos
 
+> ⚠️ **REGLA DE ORO**: El contenido SQL de este archivo DEBE ser idéntico al de `server/db/setup.sql`.
 > Copia y pega el bloque SQL de abajo **completo** en el **SQL Editor** de Supabase y presiona **Run**.  
 > Este script hace un hard reset: borra todo lo anterior, recrea el esquema, configura permisos RLS y crea todas las funciones que el servidor necesita.
 
@@ -16,6 +17,14 @@
 -- ─────────────────────────────────────────────────────────────────
 -- SECCIÓN 1: LIMPIEZA TOTAL (Drop de todo lo anterior)
 -- ─────────────────────────────────────────────────────────────────
+
+-- Intentar borrar triggers de auth si existen (suelen causar el error "Database error saving new user")
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
+        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    END IF;
+END $$;
+
 DROP TRIGGER IF EXISTS on_profile_created_init ON public.profiles;
 DROP TRIGGER IF EXISTS tr_update_prod_on_building ON public.player_buildings;
 
@@ -345,10 +354,12 @@ CREATE TRIGGER tr_update_prod_on_building
 CREATE OR REPLACE FUNCTION public.initialize_player_data()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.player_economy (player_id, last_calc_time)
-  VALUES (NEW.id, EXTRACT(EPOCH FROM NOW()) * 1000)
+  -- Crear economía inicial con recursos de inicio (estilo OGame)
+  INSERT INTO public.player_economy (player_id, last_calc_time, money, oil, ammo)
+  VALUES (NEW.id, EXTRACT(EPOCH FROM NOW()) * 1000, 10000, 5000, 2000)
   ON CONFLICT (player_id) DO NOTHING;
 
+  -- Crear edificios iniciales (producción básica)
   INSERT INTO public.player_buildings (player_id, building_type, quantity)
   VALUES (NEW.id, 'HOUSE', 1), (NEW.id, 'FACTORY', 1)
   ON CONFLICT DO NOTHING;
