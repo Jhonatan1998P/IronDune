@@ -164,7 +164,7 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
 
         const targetPlayer = remotePlayers.find(p => p.id === giftTarget);
         if (!targetPlayer) {
-            setSendError('El jugador seleccionado ya no está en la sala');
+            setSendError('El jugador seleccionado ya no está conectado');
             setGiftTarget('');
             return;
         }
@@ -201,8 +201,8 @@ export const MultiplayerChatView: React.FC<MultiplayerChatViewProps> = ({ gameSt
                 </h2>
                 <p className="text-slate-400 text-xs md:text-sm max-w-xs mb-6 md:mb-8">
                     {isConnecting 
-                        ? 'Estableciendo conexión con la red P2P. Por favor espera.'
-                        : 'Únete a una sala para chatear en tiempo real con otros comandantes.'}
+                        ? 'Estableciendo conexión con la red global. Por favor espera.'
+                        : 'Conectate al universo de Iron Dune para chatear en tiempo real con otros comandantes.'}
                 </p>
 
                 {!isConnecting && (

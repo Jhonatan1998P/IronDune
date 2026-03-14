@@ -544,14 +544,11 @@ export interface TranslationDictionary {
       server_connection_error: string;
     };
     menu: {
-      new_game: string;
-      continue_game: string;
       export_save: string;
       import_save: string;
       save_exit: string;
       save_success: string;
       import_error: string;
-      confirm_new: string;
       initializing: string;
       access_granted: string;
     };

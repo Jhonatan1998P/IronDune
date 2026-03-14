@@ -505,14 +505,11 @@ export const ui = {
         server_connection_error: "Fallo de comunicación con el servidor táctico"
       },
       menu: {
-        new_game: "Nueva Operación",
-        continue_game: "Reanudar Misión",
         export_save: "Exportar Partida",
         import_save: "Importar Partida",
         save_exit: "Guardar y Salir",
         save_success: "Datos Asegurados.",
         import_error: "Archivo Inválido o Modificado.",
-        confirm_new: "¿Iniciar nueva partida? Se perderá el progreso no guardado.",
         initializing: "Inicializando Sistemas...",
         access_granted: "Acceso Concedido"
       },

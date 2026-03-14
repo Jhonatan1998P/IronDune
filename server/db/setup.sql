@@ -17,7 +17,7 @@ END $$;
 
 -- 2. TABLA DE PERFILES
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id uuid PRIMARY KEY,
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username text UNIQUE NOT NULL,
   role user_role NOT NULL DEFAULT 'user',
   game_state jsonb NOT NULL DEFAULT '{}',
@@ -280,25 +280,28 @@ CREATE POLICY "market_read" ON public.global_market FOR SELECT USING (true);
 DROP POLICY IF EXISTS "events_read" ON public.world_events;
 CREATE POLICY "events_read" ON public.world_events FOR SELECT USING (true);
 
--- POLÍTICAS GENERALES (Simplificadas para evitar error de esquema auth)
+-- POLÍTICAS GENERALES
 DROP POLICY IF EXISTS "public_view" ON public.profiles;
 CREATE POLICY "public_view" ON public.profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "self_insert" ON public.profiles;
+CREATE POLICY "self_insert" ON public.profiles FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "self_update" ON public.profiles;
 CREATE POLICY "self_update" ON public.profiles FOR UPDATE USING (true);
 
 -- ECONOMÍA, EDIFICIOS, INVESTIGACIÓN, UNIDADES (Acceso total temporal)
 DROP POLICY IF EXISTS "owner_access_eco" ON public.player_economy;
-CREATE POLICY "owner_access_eco" ON public.player_economy FOR ALL USING (true);
+CREATE POLICY "owner_access_eco" ON public.player_economy FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "owner_access_buildings" ON public.player_buildings;
-CREATE POLICY "owner_access_buildings" ON public.player_buildings FOR ALL USING (true);
+CREATE POLICY "owner_access_buildings" ON public.player_buildings FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "owner_access_research" ON public.player_research;
-CREATE POLICY "owner_access_research" ON public.player_research FOR ALL USING (true);
+CREATE POLICY "owner_access_research" ON public.player_research FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "owner_access_units" ON public.player_units;
-CREATE POLICY "owner_access_units" ON public.player_units FOR ALL USING (true);
+CREATE POLICY "owner_access_units" ON public.player_units FOR ALL USING (true) WITH CHECK (true);
 
 -- BOTS (Lectura pública, sin escritura)
 DROP POLICY IF EXISTS "bots_read_only" ON public.bots;

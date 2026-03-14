@@ -652,15 +652,15 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
               {!isConnected && (
                 <div className="text-center py-12">
                   <Icons.Radar className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                  <p className="text-slate-400 text-sm mb-2">No estas conectado a una sala</p>
-                  <p className="text-slate-500 text-xs">Unete a una sala multijugador para desafiar jugadores</p>
+                  <p className="text-slate-400 text-sm mb-2">No estas conectado al servidor global</p>
+                  <p className="text-slate-500 text-xs">Conectate al universo de Iron Dune para desafiar jugadores</p>
                 </div>
               )}
               {isConnected && p2p.opponents.length === 0 && (
                 <div className="text-center py-12">
                   <Icons.Radar className="w-12 h-12 mx-auto mb-3 text-slate-600 animate-pulse" />
-                  <p className="text-slate-400 text-sm mb-2">Esperando oponentes...</p>
-                  <p className="text-slate-500 text-xs">Comparte el codigo de sala para que se unan otros jugadores</p>
+                  <p className="text-slate-400 text-sm mb-2">Escaneando el universo...</p>
+                  <p className="text-slate-500 text-xs">Los comandantes activos apareceran aqui automaticamente</p>
                 </div>
               )}
               {isConnected && p2p.opponents.map((player: PlayerPresence) => (
