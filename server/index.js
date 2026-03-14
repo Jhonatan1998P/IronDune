@@ -10,6 +10,7 @@ import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
+import { runSetupOnDeploy } from './scripts/runSetupOnDeploy.js';
 
 dotenv.config();
 
@@ -204,8 +205,9 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', async () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
+  await runSetupOnDeploy(); // hard reset solo si DB_HARD_RESET=true
   startScheduler();
 });

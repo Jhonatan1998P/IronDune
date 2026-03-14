@@ -212,6 +212,7 @@ export const usePersistence = (
       // Sin datos en ningún lado → nuevo juego
       console.log('[Persistence] Sin datos. Iniciando nuevo juego.');
       setIsInitialLoadDone(true);
+      setStatus('MENU'); // Evitar pantalla negra/infinita
     };
 
     init();
