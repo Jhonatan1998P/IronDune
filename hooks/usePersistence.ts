@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, MutableRefObject, useRef } from 'react';
 import { GameState, GameStatus, OfflineReport, BuildingType, ResourceType, TechType, UnitType } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
+import { BUILDING_DEFS } from '../data/buildings';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
-import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,13 +37,14 @@ export const usePersistence = (
       try {
         console.log('[Persistence] Loading full game state from multiple tables...');
         
-        // 1. Fetch Profile & Economy & Others
-        const [profileRes, economyRes, buildingsRes, researchRes, unitsRes] = await Promise.all([
+        // 1. Fetch Profile & Economy & Others & Reports
+        const [profileRes, economyRes, buildingsRes, researchRes, unitsRes, reportsRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', user.id).single(),
           supabase.from('player_economy').select('*').eq('player_id', user.id).single(),
           supabase.from('player_buildings').select('*').eq('player_id', user.id),
           supabase.from('player_research').select('*').eq('player_id', user.id),
-          supabase.from('player_units').select('*').eq('player_id', user.id)
+          supabase.from('player_units').select('*').eq('player_id', user.id),
+          supabase.from('reports').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100)
         ]);
 
         if (profileRes.error && profileRes.error.code !== 'PGRST116') {
@@ -64,7 +65,23 @@ export const usePersistence = (
             playerName: profileRes.data.username || baseState.playerName || 'Commander',
             empirePoints: Number(profileRes.data.empire_points || 0),
             lastSaveTime: new Date(profileRes.data.updated_at).getTime(),
+            logs: []
           };
+
+          // Map Reports to Logs
+          if (reportsRes.data && reportsRes.data.length > 0) {
+            reconstructedState.logs = reportsRes.data.map((r: any) => ({
+              id: r.id,
+              messageKey: r.title,
+              params: r.content,
+              timestamp: new Date(r.created_at).getTime(),
+              type: r.type.toLowerCase(),
+              archived: false
+            }));
+          } else {
+            // Fallback to legacy logs if no reports found in table
+            reconstructedState.logs = baseState.logs || [];
+          }
 
           // Map Resources
           if (economyRes.data) {
@@ -81,8 +98,11 @@ export const usePersistence = (
           // Map Buildings
           if (buildingsRes.data) {
             buildingsRes.data.forEach((b: any) => {
+              const def = BUILDING_DEFS[b.building_type as BuildingType];
+              // Si es un edificio de cantidad, usamos la columna quantity, si no level
+              const value = def?.buildMode === 'QUANTITY' ? (b.quantity || 0) : (b.level || 0);
               reconstructedState.buildings[b.building_type as BuildingType] = {
-                level: b.level,
+                level: value,
                 isDamaged: false
               };
             });
@@ -127,18 +147,11 @@ export const usePersistence = (
       
       const migratedState = sanitizeAndMigrateSave(saveData, saveData);
       
-      const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
-
-      if (newLogs.length > 0) {
-          newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
-          setHasNewReports(true);
-      }
+      // La producción offline ahora la gestiona el servidor vía SQL RPC.
+      // Aquí solo cargamos el estado ya procesado por el Scheduler.
+      const newState = migratedState;
 
       setGameState(newState);
-
-      if (report.timeElapsed > 60000) {
-          setOfflineReport(report);
-      }
 
       lastTickRef.current = Date.now();
       setStatus('PLAYING');
@@ -219,11 +232,16 @@ export const usePersistence = (
           if (eErr) throw eErr;
 
           // 3. Update Buildings
-          const buildingData = Object.entries(state.buildings).map(([type, b]) => ({
-            player_id: user.id,
-            building_type: type,
-            level: b.level
-          }));
+          const buildingData = Object.entries(state.buildings).map(([type, b]) => {
+            const def = BUILDING_DEFS[type as BuildingType];
+            const isQuantity = def?.buildMode === 'QUANTITY';
+            return {
+              player_id: user.id,
+              building_type: type,
+              level: isQuantity ? 0 : b.level,
+              quantity: isQuantity ? b.level : 0
+            };
+          });
           await supabase.from('player_buildings').upsert(buildingData);
 
           // 4. Update Research
@@ -243,6 +261,20 @@ export const usePersistence = (
             count: count
           }));
           await supabase.from('player_units').upsert(unitData);
+
+          // 6. Update Reports (New/Unread only or full sync)
+          // For now, we only insert new logs that don't have a UUID (frontend generated)
+          const newLogs = state.logs.filter(log => !log.id.includes('-') && log.id.length < 30);
+          if (newLogs.length > 0) {
+            const reportData = newLogs.map(log => ({
+              user_id: user.id,
+              title: log.messageKey,
+              content: log.params || {},
+              type: log.type.toUpperCase(),
+              created_at: new Date(log.timestamp).toISOString()
+            }));
+            await supabase.from('reports').insert(reportData);
+          }
 
           console.log('[SaveGame] ✓ Estado sincronizado');
           setHasSave(true);

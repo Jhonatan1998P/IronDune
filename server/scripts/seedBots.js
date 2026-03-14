@@ -47,7 +47,7 @@ async function seed() {
     }
 
     await sql`DELETE FROM public.bots`;
-    await sql`INSERT INTO public.bots ${sql(bots, 'name', 'personality', 'score', 'units', 'stats')}`;
+    await sql`INSERT INTO public.bots ${sql(bots, 'name', 'personality', 'score', 'country', 'units', 'stats')}`;
     
     console.log("✅ 50 Bots globales creados exitosamente.");
   } catch (err) {

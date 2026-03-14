@@ -15,7 +15,7 @@ import {
     DEBRIS_MAX_ACTIVE
 } from './constants.js';
 import { calculateResourceCost } from './missions.js';
-import { supabase } from '../lib/supabase.js';
+import { supabase } from '../db/lib/supabase.js';
 
 export const saveGlobalLoot = async (loot) => {
     try {
@@ -38,7 +38,7 @@ export const saveGlobalLoot = async (loot) => {
         };
 
         await supabase
-            .from('logistic_loot')
+            .from('salvage_fields')
             .insert(dbLoot);
             
         console.log(`[LogisticLoot] New global loot entry created from ${loot.origin}`);

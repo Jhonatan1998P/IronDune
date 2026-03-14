@@ -4,9 +4,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../constants';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage' | 'admin';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage' | 'admin' | 'messages';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -47,12 +48,13 @@ const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, se
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
   const { hasNewReports, gameState } = useGame();
-  const { role } = useAuth();
+  const { user, role } = useAuth();
 
   const hasActiveWar = !!gameState.activeWar;
   const isAdmin = role === 'admin' || role === 'dev';
 
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const activeTabRef = useRef(activeTab);
   
   // Update ref when activeTab changes
@@ -61,6 +63,35 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
   // Clear unread when chat is active
   useEffect(() => {
     if (activeTab === 'chat') setHasUnreadChat(false);
+  }, [activeTab]);
+
+  // Fetch unread messages from Supabase
+  const fetchUnreadMessages = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { count, error } = await supabase
+        .from('inbox')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .is('read_at', null);
+      
+      if (!error && count !== null) {
+        setUnreadMessages(count);
+      }
+    } catch (e) {
+      console.error('[Sidebar] Failed to fetch unread count:', e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnreadMessages();
+    // Polling cada 60 segundos o podrías usar Realtime si prefieres
+    const interval = setInterval(fetchUnreadMessages, 60000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadMessages]);
+
+  useEffect(() => {
+    if (activeTab === 'messages') setUnreadMessages(0);
   }, [activeTab]);
 
   // Optimización: Event listener con throttle
@@ -100,6 +131,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
           title: 'Multiplayer',
           items: [
               { id: 'p2p' as TabType, label: 'PvP Arena', icon: Icons.Radar, color: 'text-cyan-400' },
+              { id: 'messages' as TabType, label: 'Messages', icon: Icons.Mail, color: 'text-blue-400' },
               { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
@@ -224,18 +256,44 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabType) => void }> = React.memo(({ activeTab, setActiveTab }) => {
     const { t } = useLanguage();
     const { hasNewReports, gameState } = useGame();
-    const { role } = useAuth();
+    const { user, role } = useAuth();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hasUnreadChat, setHasUnreadChat] = useState(false);
+    const [unreadMessages, setUnreadMessages] = useState(0);
 
     const isAdmin = role === 'admin' || role === 'dev';
 
     // Clear unread indicator when user opens chat
     const activeTabRef = useRef(activeTab);
     useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+    
+    const fetchUnreadMessages = useCallback(async () => {
+        if (!user) return;
+        try {
+            const { count, error } = await supabase
+                .from('inbox')
+                .select('*', { count: 'exact', head: true })
+                .eq('receiver_id', user.id)
+                .is('read_at', null);
+            
+            if (!error && count !== null) {
+                setUnreadMessages(count);
+            }
+        } catch (e) {
+            console.error('[MobileNav] Failed to fetch unread count:', e);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        fetchUnreadMessages();
+        const interval = setInterval(fetchUnreadMessages, 60000);
+        return () => clearInterval(interval);
+    }, [fetchUnreadMessages]);
+
     useEffect(() => {
         if (activeTab === 'chat') setHasUnreadChat(false);
+        if (activeTab === 'messages') setUnreadMessages(0);
     }, [activeTab]);
 
     // Listen for new incoming chat messages
@@ -291,6 +349,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
             { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
             { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
             { id: 'p2p' as TabType, icon: Icons.Radar, label: 'PvP Arena', color: 'text-cyan-400' },
+            { id: 'messages' as TabType, icon: Icons.Mail, label: 'Messages', color: 'text-blue-400' },
             { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
             { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
         ];
@@ -337,6 +396,11 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
                             >
                             <div className={`mb-1 ${item.color || ''} shrink-0 relative`}>
                                 <item.icon />
+                                {item.id === 'messages' && unreadMessages > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-blue-500 text-[8px] font-bold text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+                                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                                    </span>
+                                )}
                                 {item.id === 'chat' && hasUnreadChat && (
                                     <span className="absolute -top-1 -right-1 flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -394,7 +458,13 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
                                 {item.label}
                             </span>
 
-                            {item.id === 'reports' && hasNewReports && (
+                            {item.id === 'messages' && unreadMessages > 0 && (
+                               <span className="flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+                                   {unreadMessages > 9 ? '9+' : unreadMessages}
+                               </span>
+                           )}
+
+                           {item.id === 'reports' && hasNewReports && (
                                 <span className="absolute top-3 right-[28%] h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444] animate-pulse"></span>
                             )}
                         </button>
@@ -406,8 +476,14 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className={`flex flex-col items-center justify-center p-1 rounded-lg transition-all duration-200 relative group flex-1 h-full min-w-0 ${isMenuOpen ? 'text-white' : 'text-slate-500'}`}
                 >
-                    <div className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90 scale-110' : ''} mb-0.5 shrink-0`}>
+                    <div className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-90 scale-110' : ''} mb-0.5 shrink-0 relative`}>
                         <Icons.Menu />
+                        {(unreadMessages > 0 || hasUnreadChat) && !isMenuOpen && (
+                            <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                        )}
                     </div>
                     <span className={`text-[8px] sm:text-[9px] font-bold uppercase tracking-tight text-center w-full truncate px-0.5 ${isMenuOpen ? 'opacity-100' : 'opacity-60'}`}>
                         {t.common.actions.menu}

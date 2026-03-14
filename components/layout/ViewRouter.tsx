@@ -28,6 +28,7 @@ const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 const SalvageZoneView = lazy(() => import('../views/SalvageZoneView').then(m => ({ default: m.SalvageZoneView })));
 const AdminView = lazy(() => import('../views/AdminView').then(m => ({ default: m.AdminView })));
+const MessagesView = lazy(() => import('../views/MessagesView').then(m => ({ default: m.MessagesView })));
 
 const ViewLoader: React.FC = React.memo(() => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -62,7 +63,8 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     p2p: P2PRanking,
     chat: MultiplayerChatView,
     salvage: SalvageZoneView,
-    admin: AdminView
+    admin: AdminView,
+    messages: MessagesView
 };
 
 // Optimización: Memoizar props por tipo de vista
@@ -120,6 +122,8 @@ const useViewProps = (
                 return { gameState, onUpdateState: (newState: GameState) => {
                     actionsRef.current.updateGameState(newState);
                 }};
+            case 'messages':
+                return {};
             default:
                 return {};
         }

@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "node scripts/migrate.js",
+    "db:clear": "node scripts/clear.js",
+    "seed:bots": "node scripts/seedBots.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

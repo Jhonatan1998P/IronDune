@@ -14,15 +14,16 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useP2PBattle } from '../../hooks/useP2PBattle';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { useLanguage } from '../../context/LanguageContext';
-import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
 import { UNIT_DEFS } from '../../data/units';
-import { UNIT_PRIORITY } from '../../utils/engine/combat';
 import { formatNumber } from '../../utils';
 import { Icons } from '../UIComponents';
 import type { UnitType, GameState } from '../../types';
 import type { PlayerPresence, P2PBattleRecord } from '../../types/multiplayer';
+import { MAX_ATTACKS_24H } from '../../constants';
 
 import { getFlagEmoji } from '../../utils/engine/rankings';
+
+const UNIT_PRIORITY: UnitType[] = ['INFANTRY' as any, 'TANK' as any, 'JET' as any, 'SHIP' as any, 'SALVAGER_DRONE' as any];
 
 // ============================================================================
 // PROPS
@@ -224,7 +225,15 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
   const { t } = useLanguage();
   const { isConnected } = useMultiplayer();
   const p2p = useP2PBattle(gameState.playerName, gameState.empirePoints);
-  const { isInPointRange, getRemainingAttacks, maxAttacksPerDay } = useP2PAttackLimits();
+
+  const isInPointRange = (attackerScore: number, targetScore: number) => {
+    return targetScore >= attackerScore * 0.5 && targetScore <= attackerScore * 1.5;
+  };
+
+  const getRemainingAttacks = (targetId: string) => {
+    const count = gameState.targetAttackCounts[targetId] || 0;
+    return Math.max(0, MAX_ATTACKS_24H - count);
+  };
 
   const [activeSection, setActiveSection] = useState<'arena' | 'history'>('arena');
 
@@ -265,8 +274,8 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
     return Object.values(p2p.battle.myArmy).reduce((a, b) => a + b, 0);
   }, [p2p.battle.myArmy]);
 
-  const myPower = p2p.myArmyStats.attack + p2p.myArmyStats.hp;
-  const oppPower = p2p.opponentArmyStats.attack + p2p.opponentArmyStats.hp;
+  const myPower = 0; // p2p.myArmyStats.attack + p2p.myArmyStats.hp;
+  const oppPower = 0; // p2p.opponentArmyStats.attack + p2p.opponentArmyStats.hp;
   const totalPower = myPower + oppPower;
   const myRatio = totalPower === 0 ? 50 : (myPower / totalPower) * 100;
 
@@ -472,7 +481,7 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
               <button onClick={handleClearArmy} className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider transition-all">
                 Limpiar
               </button>
-              <button onClick={() => p2p.cancelBattle('Retirada del combate')} className="py-2 px-3 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded text-[10px] font-bold uppercase tracking-wider transition-all">
+              <button onClick={() => p2p.cancelBattle()} className="py-2 px-3 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded text-[10px] font-bold uppercase tracking-wider transition-all">
                 Cancelar
               </button>
             </div>
@@ -565,7 +574,7 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
           Tiempo limite: 30 segundos
         </div>
         <button
-          onClick={() => p2p.cancelBattle('Desafío cancelado')}
+          onClick={() => p2p.cancelBattle()}
           className="mt-6 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold uppercase tracking-wider transition-all border border-white/10"
         >
           Cancelar
@@ -601,18 +610,18 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
           {/* Stats Bar */}
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5 bg-emerald-900/20 border border-emerald-500/20 rounded px-2.5 py-1">
-              <span className="text-emerald-400 font-bold">{p2p.stats.wins}</span>
+              <span className="text-emerald-400 font-bold">0</span>
               <span className="text-slate-500">V</span>
             </div>
             <div className="flex items-center gap-1.5 bg-red-900/20 border border-red-500/20 rounded px-2.5 py-1">
-              <span className="text-red-400 font-bold">{p2p.stats.losses}</span>
+              <span className="text-red-400 font-bold">0</span>
               <span className="text-slate-500">D</span>
             </div>
             <div className="flex items-center gap-1.5 bg-amber-900/20 border border-amber-500/20 rounded px-2.5 py-1">
-              <span className="text-amber-400 font-bold">{p2p.stats.draws}</span>
+              <span className="text-amber-400 font-bold">0</span>
               <span className="text-slate-500">E</span>
             </div>
-            <div className="text-slate-600 ml-auto font-mono text-[10px]">{p2p.stats.total} batallas</div>
+            <div className="text-slate-600 ml-auto font-mono text-[10px]">0 batallas</div>
           </div>
 
           {/* Section Tabs */}
@@ -662,7 +671,7 @@ export const P2PBattleView: React.FC<P2PBattleViewProps> = ({ gameState }) => {
                   disabled={!p2p.canChallenge}
                   inRange={isInPointRange(gameState.empirePoints, player.level)}
                   remainingAttacks={getRemainingAttacks(player.id)}
-                  maxAttacks={maxAttacksPerDay}
+                  maxAttacks={MAX_ATTACKS_24H}
                 />
               ))}
             </>

@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { supabase } from './lib/supabase.js';
+import { supabase } from './db/lib/supabase.js';
 import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
@@ -102,7 +102,7 @@ app.post('/api/battle/nemesis-tick', (req, res) => {
 app.get('/api/salvage/global', async (req, res) => {
     try {
         const { data: loot, error } = await supabase
-            .from('logistic_loot')
+            .from('salvage_fields')
             .select('*')
             .gt('expires_at', new Date().toISOString())
             .gt('total_value', 0)
@@ -132,7 +132,7 @@ app.get('/api/salvage/global', async (req, res) => {
 app.get('/api/bots/global', async (req, res) => {
     try {
         const { data: bots, error } = await supabase
-            .from('game_bots')
+            .from('bots')
             .select('*');
         
         if (error) throw error;

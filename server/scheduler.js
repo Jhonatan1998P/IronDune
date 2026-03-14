@@ -1,46 +1,361 @@
 /**
- * BACKGROUND SCHEDULER - REFACTORED FOR MULTI-TABLE ARCHITECTURE
- * Processes battles and military actions for offline players directly in Supabase
+ * BACKGROUND SCHEDULER - REFACTORED FOR GLOBAL REAL-TIME RESOLUTION
+ * Processes production via SQL and resolves movements globally.
  */
 
-import { supabase } from './lib/supabase.js';
+import { supabase } from './db/lib/supabase.js';
 import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { saveGlobalLoot } from './engine/logisticLoot.js';
+import { PLUNDERABLE_BUILDINGS } from './engine/constants.js';
 
-const SCHEDULER_INTERVAL_MS = 60 * 1000; // Check every minute
-const STALE_THRESHOLD_MS = 5 * 60 * 1000; // Players offline for more than 5 minutes
+const SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 Minute
+const MARKET_TICK_MS = 10 * 60 * 1000; // 10 Minutes (Fast for dev)
+const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 Minutes
 
 export const startScheduler = () => {
-    console.log('[Scheduler] Starting background battle processor (Multi-Table)...');
-    setInterval(processOfflinePlayers, SCHEDULER_INTERVAL_MS);
+    console.log('[Scheduler] Starting global production & movement engine...');
+    
+    // 1. Global SQL Production (All players)
+    setInterval(syncGlobalProduction, SCHEDULER_INTERVAL_MS);
+    
+    // 2. Movement & Offline Events Engine
+    setInterval(processEngineTick, SCHEDULER_INTERVAL_MS);
+
+    // 3. Global Market Fluctuation
+    setInterval(tickGlobalMarket, MARKET_TICK_MS);
+
+    // 4. Cleanup Expired Events
+    setInterval(cleanupWorldEvents, SCHEDULER_INTERVAL_MS);
 };
 
-async function processOfflinePlayers() {
+async function tickGlobalMarket() {
+    try {
+        console.log('[Scheduler] Simulating market fluctuation...');
+        const { data: market, error } = await supabase.from('global_market').select('*');
+        if (error) throw error;
+
+        for (const res of market) {
+            // Fluctuación orgánica +/- 2%
+            const change = 1 + (Math.random() * 0.04 - 0.02);
+            const newPrice = Math.max(res.base_price * 0.5, res.current_price * change);
+            
+            await supabase.from('global_market')
+                .update({ 
+                    current_price: newPrice,
+                    last_update: new Date().toISOString()
+                })
+                .eq('resource_type', res.resource_type);
+        }
+        console.log('[Scheduler] Market prices updated.');
+    } catch (error) {
+        console.error('[Scheduler] Market Tick Error:', error);
+    }
+}
+
+async function cleanupWorldEvents() {
+    try {
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from('world_events')
+            .delete()
+            .lte('expires_at', now);
+        if (error) throw error;
+    } catch (error) {
+        console.error('[Scheduler] Event Cleanup Error:', error);
+    }
+}
+
+async function syncGlobalProduction() {
+    try {
+        console.log('[Scheduler] Syncing global production via SQL RPC...');
+        const { error } = await supabase.rpc('sync_all_production_v2');
+        if (error) throw error;
+    } catch (error) {
+        console.error('[Scheduler] SQL Production Sync Error:', error);
+    }
+}
+
+async function processEngineTick() {
     try {
         const now = Date.now();
-        const staleTime = new Date(now - STALE_THRESHOLD_MS).toISOString();
-
-        // Solo traemos los IDs de perfiles que necesitan procesamiento
-        const { data: profiles, error } = await supabase
-            .from('profiles')
-            .select('id, updated_at')
-            .lt('updated_at', staleTime)
-            .limit(20); // Procesamos de a 20 por ciclo
+        
+        // 1. Resolve Expired Movements (Global Precision)
+        const { data: movements, error } = await supabase
+            .from('movements')
+            .select('*')
+            .eq('status', 'active')
+            .lte('end_time', now)
+            .order('end_time', { ascending: true })
+            .limit(20);
 
         if (error) throw error;
-        if (!profiles || profiles.length === 0) return;
 
-        console.log(`[Scheduler] Checking ${profiles.length} offline profiles...`);
+        if (movements && movements.length > 0) {
+            console.log(`[Scheduler] Resolving ${movements.length} movements...`);
+            for (const mov of movements) {
+                await resolveMovement(mov, now);
+            }
+        }
 
-        for (const profile of profiles) {
-            await processSingleProfile(profile.id, now);
+        // 2. Process Stale Profiles (Bot interactions, Grudges, etc.)
+        const staleTime = new Date(now - STALE_THRESHOLD_MS).toISOString();
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id')
+            .lt('updated_at', staleTime)
+            .limit(10);
+
+        if (profiles) {
+            for (const profile of profiles) {
+                await processSingleProfile(profile.id, now);
+            }
         }
     } catch (error) {
-        console.error('[Scheduler] Error in processing loop:', error);
+        console.error('[Scheduler] Engine Tick Error:', error);
     }
+}
+
+async function resolveMovement(mov, now) {
+    try {
+        console.log(`[BattleEngine] Resolving ${mov.type} from ${mov.sender_id} to ${mov.target_id}`);
+        await supabase.from('movements').update({ status: 'processing' }).eq('id', mov.id);
+
+        if (mov.type === 'attack') {
+            await executeP2PBattle(mov, now);
+        } else if (mov.type === 'return') {
+            await executeReturn(mov, now);
+        } else {
+            // Misiones normales de bots/campaña
+            await processSingleProfile(mov.sender_id, now);
+        }
+
+        await supabase.from('movements').update({ status: 'completed' }).eq('id', mov.id);
+    } catch (e) {
+        console.error(`[BattleEngine] Critical failure in movement ${mov.id}:`, e);
+        await supabase.from('movements').update({ status: 'active' }).eq('id', mov.id);
+    }
+}
+
+async function executeP2PBattle(mov, now) {
+    const attackerId = mov.sender_id;
+    const defenderId = mov.target_id;
+    const { 
+        MAX_ATTACKS_24H, 
+        MAX_ATTACKS_1H, 
+        BASH_LIMIT_WINDOW_MS,
+        SHORT_LIMIT_WINDOW_MS,
+        FIRST_ATTACK_PLUNDER_RATE, 
+        SUBSEQUENT_ATTACK_PLUNDER_RATE,
+        GLOBAL_DEBRIS_RATIO 
+    } = await import('./engine/constants.js');
+
+    // 1. CHEQUEO DE BASH LIMIT ESTRICTO (6 en 24h, 3 en 1h)
+    const window24h = new Date(now - BASH_LIMIT_WINDOW_MS).toISOString();
+    const window1h = new Date(now - SHORT_LIMIT_WINDOW_MS).toISOString();
+    
+    const { data: recentAttacks } = await supabase
+        .from('reports')
+        .select('id, created_at')
+        .eq('user_id', defenderId)
+        .eq('type', 'COMBAT')
+        .filter('content->>attackerId', 'eq', attackerId)
+        .gte('created_at', window24h);
+
+    const total24h = recentAttacks?.length || 0;
+    const total1h = recentAttacks?.filter(a => new Date(a.created_at) > new Date(window1h)).length || 0;
+
+    if (total24h >= MAX_ATTACKS_24H || total1h >= MAX_ATTACKS_1H) {
+        return cancelMission(mov, 'Bash Limit: Max 6/24h or 3/1h reached.');
+    }
+
+    // 2. Cargar datos para el reporte de precisión
+    const { data: defUnits } = await supabase.from('player_units').select('*').eq('player_id', defenderId);
+    const { data: defBuildings } = await supabase.from('player_buildings').select('*').eq('player_id', defenderId);
+    
+    const attackerInitialArmy = { ...mov.units };
+    const defenderInitialArmy = (defUnits || []).reduce((acc, u) => {
+        acc[u.unit_type] = Number(u.count);
+        return acc;
+    }, {});
+
+    // 3. Simular Combate
+    const { simulateCombat } = await import('./engine/combat.js');
+    const result = simulateCombat(defenderInitialArmy, attackerInitialArmy);
+    
+    // 4. TRANSFERENCIA DE EDIFICIOS (Robo Real)
+    let stolenBuildings = {};
+    if (result.winner === 'ATTACKER') {
+        const rate = (total24h === 0) ? FIRST_ATTACK_PLUNDER_RATE : SUBSEQUENT_ATTACK_PLUNDER_RATE;
+        
+        for (const b of (defBuildings || [])) {
+            const currentVal = (b.quantity > 0) ? b.quantity : b.level;
+            const stolenAmount = Math.floor(currentVal * rate);
+            
+            if (stolenAmount > 0) {
+                stolenBuildings[b.building_type] = stolenAmount;
+                
+                // A. Restar del Defensor
+                await supabase.from('player_buildings')
+                    .update({ 
+                        quantity: (b.quantity > 0) ? Math.max(0, b.quantity - stolenAmount) : 0,
+                        level: (b.level > 0) ? Math.max(0, b.level - stolenAmount) : 0
+                    })
+                    .eq('player_id', defenderId)
+                    .eq('building_type', b.building_type);
+
+                // B. Añadir al Atacante (Transferencia)
+                const { data: attB } = await supabase.from('player_buildings')
+                    .select('*')
+                    .eq('player_id', attackerId)
+                    .eq('building_type', b.building_type)
+                    .single();
+
+                await supabase.from('player_buildings').upsert({
+                    player_id: attackerId,
+                    building_type: b.building_type,
+                    quantity: (b.quantity > 0) ? (Number(attB?.quantity || 0) + stolenAmount) : 0,
+                    level: (b.level > 0) ? (Number(attB?.level || 0) + stolenAmount) : 0
+                });
+            }
+        }
+    }
+
+    // 5. Aplicar Bajas de Unidades
+    for (const [uType, count] of Object.entries(result.finalDefenderArmy)) {
+        await supabase.from('player_units').upsert({ player_id: defenderId, unit_type: uType, count: Math.max(0, count) });
+    }
+
+    // 6. Reporte Detallado de Alta Precisión
+    const detailedReport = {
+        attackerId,
+        defenderId,
+        winner: result.winner,
+        rounds: result.rounds,
+        stolenBuildings,
+        debrisValue: result.totalLossesValue * GLOBAL_DEBRIS_RATIO,
+        sections: {
+            attacker: {
+                initial: attackerInitialArmy,
+                losses: result.totalAttackerCasualties,
+                survivors: result.finalAttackerArmy
+            },
+            defender: {
+                initial: defenderInitialArmy,
+                losses: result.totalDefenderCasualties,
+                survivors: result.finalDefenderArmy
+            },
+            allies: result.allyCasualties || {} // Desglose de aliados si existen
+        }
+    };
+
+    // 7. Retorno e Informes
+    const travelTime = Number(mov.end_time) - Number(mov.start_time);
+    await supabase.from('movements').insert({
+        sender_id: attackerId, target_id: attackerId, type: 'return',
+        units: result.finalAttackerArmy, start_time: now, end_time: now + travelTime, status: 'active'
+    });
+
+    await supabase.from('reports').insert([
+        { user_id: attackerId, title: 'Attack Victory', content: detailedReport, type: 'COMBAT' },
+        { user_id: defenderId, title: 'Defense Defeat', content: detailedReport, type: 'COMBAT' }
+    ]);
+}
+
+    // 5. Aplicar bajas al defensor (Unidades)
+    for (const [unitType, count] of Object.entries(result.finalDefenderArmy)) {
+        await supabase.from('player_units').upsert({
+            player_id: defenderId,
+            unit_type: unitType,
+            count: Math.max(0, count)
+        });
+    }
+
+    // 6. Generar Campo de Escombros (30% universal)
+    const debrisValue = result.totalLossesValue * GLOBAL_DEBRIS_RATIO;
+    if (debrisValue > 0) {
+        await supabase.from('salvage_fields').insert({
+            origin: 'Battle Field',
+            resources: { MONEY: debrisValue * 0.5, OIL: debrisValue * 0.5 },
+            expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+            total_value: debrisValue,
+            attacker_id: attackerId,
+            defender_id: defenderId
+        });
+    }
+
+    // 7. Retorno (Con edificios robados en el "cargo" si decidimos que se transforman en recursos o simplemente se pierden)
+    // Según tu regla, los edificios se roban (se pierden del defensor). 
+    // Si el atacante los "gana", podríamos convertirlos en recursos de construcción.
+    const travelTime = Number(mov.end_time) - Number(mov.start_time);
+    await supabase.from('movements').insert({
+        sender_id: attackerId,
+        target_id: attackerId,
+        type: 'return',
+        units: result.finalAttackerArmy,
+        resources: {}, // No robamos recursos directos
+        stolen_buildings: stolenBuildings,
+        start_time: now,
+        end_time: now + travelTime,
+        status: 'active'
+    });
+
+    // 8. Reportes con ID de atacante para el Bash Limit
+    const reportContent = { ...result, attackerId, stolenBuildings };
+    await supabase.from('reports').insert([
+        { user_id: attackerId, title: 'Attack Report', content: reportContent, type: 'COMBAT' },
+        { user_id: defenderId, title: 'Defense Report', content: reportContent, type: 'COMBAT' }
+    ]);
+}
+
+async function cancelMission(mov, reason) {
+    const travelTime = Number(mov.end_time) - Number(mov.start_time);
+    await supabase.from('movements').insert({
+        sender_id: mov.sender_id,
+        target_id: mov.sender_id,
+        type: 'return',
+        units: mov.units,
+        start_time: Date.now(),
+        end_time: Date.now() + travelTime,
+        status: 'active'
+    });
+    await supabase.from('reports').insert({
+        user_id: mov.sender_id,
+        title: 'Mission Cancelled',
+        content: { reason, originalMovement: mov.id },
+        type: 'SYSTEM'
+    });
+}
+
+async function executeReturn(mov, now) {
+    // 1. Devolver unidades al hangar
+    for (const [unitType, count] of Object.entries(mov.units)) {
+        const { data: current } = await supabase.from('player_units')
+            .select('count')
+            .eq('player_id', mov.sender_id)
+            .eq('unit_type', unitType)
+            .single();
+        
+        await supabase.from('player_units').upsert({
+            player_id: mov.sender_id,
+            unit_type: unitType,
+            count: Number(current?.count || 0) + Number(count)
+        });
+    }
+
+    // 2. Entregar recursos robados
+    if (mov.resources) {
+        await supabase.rpc('add_resources', {
+            p_id: mov.sender_id,
+            m: mov.resources.MONEY || 0,
+            o: mov.resources.OIL || 0,
+            a: mov.resources.AMMO || 0
+        });
+    }
+    
+    console.log(`[BattleEngine] Return completed for ${mov.sender_id}`);
 }
 
 async function fetchFullState(userId) {
@@ -57,7 +372,6 @@ async function fetchFullState(userId) {
     const profile = profileRes.data;
     const economy = economyRes.data || {};
     
-    // Reconstruir objeto state para el motor
     const state = {
         ...profile.game_state,
         playerName: profile.username,
@@ -73,12 +387,15 @@ async function fetchFullState(userId) {
         buildings: {},
         units: {},
         techLevels: {},
-        logs: profile.game_state.logs || []
+        logs: [] // Logs are handled via the reports table now
     };
 
     if (buildingsRes.data) {
         buildingsRes.data.forEach(b => {
-            state.buildings[b.building_type] = { level: b.level };
+            const isQuantity = PLUNDERABLE_BUILDINGS.includes(b.building_type);
+            state.buildings[b.building_type] = { 
+                level: isQuantity ? (b.quantity || 0) : (b.level || 0) 
+            };
         });
     }
 
@@ -98,18 +415,16 @@ async function fetchFullState(userId) {
 }
 
 async function persistState(userId, state, now) {
-    // 1. Update Profile & GameState
-    const { logs, ...minimalGameState } = state;
+    const { logs, newLogs, ...minimalGameState } = state;
+    
+    // 1. Profile
     await supabase.from('profiles').update({
         empire_points: state.empirePoints,
-        game_state: {
-            ...minimalGameState,
-            logs: state.logs // Mantenemos logs en JSONB por simplicidad de UI por ahora
-        },
+        game_state: minimalGameState,
         updated_at: new Date(now).toISOString()
     }).eq('id', userId);
 
-    // 2. Update Economy
+    // 2. Economy
     await supabase.from('player_economy').upsert({
         player_id: userId,
         money: state.resources.MONEY,
@@ -121,17 +436,21 @@ async function persistState(userId, state, now) {
         last_calc_time: now
     });
 
-    // 3. Update Buildings (Upsert batch)
-    const buildingData = Object.entries(state.buildings).map(([type, b]) => ({
-        player_id: userId,
-        building_type: type,
-        level: b.level
-    }));
+    // 3. Buildings
+    const buildingData = Object.entries(state.buildings).map(([type, b]) => {
+        const isQuantity = PLUNDERABLE_BUILDINGS.includes(type);
+        return {
+            player_id: userId,
+            building_type: type,
+            level: isQuantity ? 0 : b.level,
+            quantity: isQuantity ? b.level : 0
+        };
+    });
     if (buildingData.length > 0) {
         await supabase.from('player_buildings').upsert(buildingData);
     }
 
-    // 4. Update Units (Upsert batch)
+    // 4. Units
     const unitData = Object.entries(state.units).map(([type, count]) => ({
         player_id: userId,
         unit_type: type,
@@ -140,45 +459,47 @@ async function persistState(userId, state, now) {
     if (unitData.length > 0) {
         await supabase.from('player_units').upsert(unitData);
     }
+
+    // 5. Reports
+    if (newLogs && newLogs.length > 0) {
+        const reportData = newLogs.map(log => ({
+            user_id: userId,
+            title: log.messageKey,
+            content: log.params || {},
+            type: (log.type || 'info').toUpperCase(),
+            created_at: new Date(log.timestamp || now).toISOString()
+        }));
+        await supabase.from('reports').insert(reportData);
+    }
 }
 
 async function processSingleProfile(userId, now) {
     try {
         let state = await fetchFullState(userId);
         let modified = false;
-        let allLogs = [];
+        state.newLogs = [];
 
-        // 1. Process Nemesis/Grudges
+        // 1. Nemesis Tick
         const nemesisResult = processNemesisTick(state, now);
         if (Object.keys(nemesisResult.stateUpdates).length > 0) {
             state = { ...state, ...nemesisResult.stateUpdates };
-            allLogs.push(...nemesisResult.logs);
+            state.newLogs.push(...nemesisResult.logs);
             modified = true;
         }
 
-        // 2. Process Enemy Attack Checks
+        // 2. Enemy Attacks
         const enemyAttackResult = processEnemyAttackCheck(state, now);
         if (Object.keys(enemyAttackResult.stateUpdates).length > 0) {
             state = { ...state, ...enemyAttackResult.stateUpdates };
-            allLogs.push(...enemyAttackResult.logs);
+            state.newLogs.push(...enemyAttackResult.logs);
             modified = true;
         }
 
-        // 3. Process War Tick
-        if (state.activeWar) {
-            const warResult = processWarTick(state, now);
-            if (Object.keys(warResult.stateUpdates).length > 0) {
-                state = { ...state, ...warResult.stateUpdates };
-                allLogs.push(...warResult.logs);
-                modified = true;
-            }
-        }
-
-        // 4. Process Attack Queue (Incoming & Outgoing)
-        const queueResult = processAttackQueue(state, now);
+        // 3. Attack Queue (Resolves the movement)
+        const queueResult = await processAttackQueue(state, now);
         if (queueResult.queuedResults.length > 0) {
             state = queueResult.newState;
-            allLogs.push(...queueResult.newLogs);
+            state.newLogs.push(...queueResult.newLogs);
             modified = true;
 
             for (const item of queueResult.queuedResults) {
@@ -192,9 +513,6 @@ async function processSingleProfile(userId, now) {
         }
 
         if (modified) {
-            if (allLogs.length > 0) {
-                state.logs = [...allLogs, ...(state.logs || [])].slice(0, 100);
-            }
             await persistState(userId, state, now);
         }
     } catch (error) {
@@ -205,46 +523,29 @@ async function processSingleProfile(userId, now) {
 async function applyDefenderUpdates(updates, now) {
     try {
         const { targetId, logKey, logParams, unitsLost, buildingsLost, resourcesLost } = updates;
-        
-        // Fetch current defender state
         let state = await fetchFullState(targetId);
+        state.newLogs = [];
 
         if (unitsLost) {
             Object.entries(unitsLost).forEach(([uType, count]) => {
-                if (state.units[uType]) {
-                    state.units[uType] = Math.max(0, state.units[uType] - count);
-                }
+                if (state.units[uType]) state.units[uType] = Math.max(0, state.units[uType] - count);
             });
         }
-
         if (buildingsLost) {
             Object.entries(buildingsLost).forEach(([bType, count]) => {
-                if (state.buildings[bType]) {
-                    state.buildings[bType].level = Math.max(0, state.buildings[bType].level - count);
-                }
+                if (state.buildings[bType]) state.buildings[bType].level = Math.max(0, state.buildings[bType].level - count);
             });
         }
-
         if (resourcesLost) {
             Object.entries(resourcesLost).forEach(([res, amount]) => {
                 const key = res.toUpperCase();
-                if (state.resources[key] !== undefined) {
-                    state.resources[key] = Math.max(0, state.resources[key] - amount);
-                }
+                if (state.resources[key] !== undefined) state.resources[key] = Math.max(0, state.resources[key] - amount);
             });
         }
 
-        const newLog = {
-            id: `def-log-${targetId}-${now}`,
-            messageKey: logKey,
-            params: logParams,
-            timestamp: now,
-            type: 'combat'
-        };
-        state.logs = [newLog, ...(state.logs || [])].slice(0, 100);
-
+        state.newLogs.push({ id: `def-${targetId}-${now}`, messageKey: logKey, params: logParams, timestamp: now, type: 'combat' });
         await persistState(targetId, state, now);
     } catch (e) {
-        console.error('[Scheduler] Failed to apply defender updates:', e);
+        console.error('[Scheduler] Defender Update Error:', e);
     }
 }
