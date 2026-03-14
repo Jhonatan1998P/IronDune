@@ -96,25 +96,6 @@ export const AuthView: React.FC = () => {
             return;
           }
 
-          // Crear registro de economía inicial
-          const { error: economyError } = await supabase.from('player_economy').insert({
-            player_id: data.user.id,
-            money: 10000,
-            oil: 5000,
-            ammo: 2000,
-            gold: 0,
-            diamond: 0,
-            bank_balance: 0,
-            last_calc_time: Date.now(),
-          });
-
-          if (economyError) {
-            console.error('[Auth] Error creando economía:', economyError);
-            showError(`Error al crear economía: ${economyError.message}`);
-            setLoading(false);
-            return;
-          }
-
           if (data.session) {
             // Si no requiere confirmación de email → sesión directa
             showSuccess(`¡Bienvenido al campo de batalla, ${uname}!`);

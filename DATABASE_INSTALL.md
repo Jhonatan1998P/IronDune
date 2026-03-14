@@ -354,10 +354,12 @@ CREATE TRIGGER tr_update_prod_on_building
 CREATE OR REPLACE FUNCTION public.initialize_player_data()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.player_economy (player_id, last_calc_time)
-  VALUES (NEW.id, EXTRACT(EPOCH FROM NOW()) * 1000)
+  -- Crear economía inicial con recursos de inicio (estilo OGame)
+  INSERT INTO public.player_economy (player_id, last_calc_time, money, oil, ammo)
+  VALUES (NEW.id, EXTRACT(EPOCH FROM NOW()) * 1000, 10000, 5000, 2000)
   ON CONFLICT (player_id) DO NOTHING;
 
+  -- Crear edificios iniciales (producción básica)
   INSERT INTO public.player_buildings (player_id, building_type, quantity)
   VALUES (NEW.id, 'HOUSE', 1), (NEW.id, 'FACTORY', 1)
   ON CONFLICT DO NOTHING;
