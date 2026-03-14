@@ -3,7 +3,7 @@
 // ============================================================
 
 import { UnitType, BotPersonality } from './enums.js';
-import { supabase } from '../lib/supabase.js';
+import { supabase } from '../db/lib/supabase.js';
 import { SALVAGE_TRAVEL_TIME_MS } from './constants.js';
 
 const GLOBAL_STATE_ID = '00000000-0000-0000-0000-000000000000';

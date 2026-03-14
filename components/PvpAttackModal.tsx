@@ -5,7 +5,7 @@ import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { formatNumber, formatDuration } from '../utils';
 import { executePvpAttack } from '../utils/engine/actions';
-import { GLOBAL_ATTACK_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../constants';
+import { GLOBAL_ATTACK_TRAVEL_TIME_MS, MAX_ATTACKS_24H, MAX_ATTACKS_1H } from '../constants';
 
 interface PvpAttackModalProps {
     target: { id: string; name: string; score: number };
@@ -24,7 +24,7 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
     const isWarActiveWithSomeoneElse = activeWar && !isWarTarget;
     
     const attackCount = gameState.targetAttackCounts[target.id] || 0;
-    const attacksRemaining = Math.max(0, MAX_ATTACKS_PER_TARGET - attackCount);
+    const attacksRemaining = Math.max(0, MAX_ATTACKS_24H - attackCount);
     const limitReached = attacksRemaining === 0;
 
     const handleUnitChange = (type: UnitType, change: number) => {
@@ -220,8 +220,8 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
                             {isWarActiveWithSomeoneElse
                                 ? t.common.actions.locked_war
                                 : limitReached
-                                    ? `${t.common.actions.limit_reached} (0/3)`
-                                    : `${t.common.actions.launch_raid} (${attacksRemaining}/3)`}
+                                    ? `${t.common.actions.limit_reached} (0/6)`
+                                    : `${t.common.actions.launch_raid} (${attacksRemaining}/6)`}
                         </button>
                     ) : (
                         <button

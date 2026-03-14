@@ -2,7 +2,7 @@
  * MultiplayerButton Component
  *
  * Botón para abrir el menú multijugador desde cualquier parte de la app.
- * Muestra el estado de la sala global y permite volver a ella si se sale.
+ * Muestra el estado de conexión global y permite abrir el menú de jugadores activos.
  */
 
 import React, { useState } from 'react';

@@ -10,8 +10,34 @@ export const TICK_RATE_MS = 1000;
 export const NEWBIE_PROTECTION_THRESHOLD = 1200;
 export const GLOBAL_ATTACK_TRAVEL_TIME_MS = 15 * 60 * 1000;
 export const P2P_ATTACK_TRAVEL_TIME_MS = 15 * 60 * 1000;
-export const PVP_LOOT_FACTOR = 0.15;
-export const MAX_ATTACKS_PER_TARGET = 3;
+// --- REGLAS DE COMBATE IRON DUNE (ESTRICTO) ---
+export const MAX_ATTACKS_24H = 6;
+export const MAX_ATTACKS_1H = 3;
+export const BASH_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 Horas
+export const SHORT_LIMIT_WINDOW_MS = 60 * 60 * 1000;    // 1 Hora
+
+// --- SALVAMENTO (DEBRIS) ---
+export const GLOBAL_DEBRIS_RATIO = 0.30; // 30% para todos (Atacante, Defensor, Aliados)
+
+export const PVP_LOOT_FACTOR = 0; // Deshabilitamos robo de recursos directo
+export const RETURN_SPEED_MULTIPLIER = 1.0; 
+
+export const RESOURCE_WEIGHTS = {
+    MONEY: 1,
+    OIL: 2,
+    AMMO: 1.5,
+    GOLD: 10,
+    DIAMOND: 500
+};
+
+export const UNIT_STATS = {
+    // Definiremos esto aquí para que el servidor no dependa del frontend
+    INFANTRY: { power: 10, toughness: 10, speed: 100, cargo: 50 },
+    TANK: { power: 500, toughness: 600, speed: 80, cargo: 2000 },
+    JET: { power: 1200, toughness: 800, speed: 400, cargo: 500 },
+    SHIP: { power: 5000, toughness: 10000, speed: 40, cargo: 50000 },
+    SALVAGER_DRONE: { power: 1, toughness: 50, speed: 150, cargo: 500000 }
+};
 
 export const PLUNDER_RATES = [0.33, 0.25, 0.15];
 export const BOT_BUILDINGS_PER_SCORE = 20;

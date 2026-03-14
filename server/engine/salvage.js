@@ -5,7 +5,7 @@
 import { ResourceType, UnitType, TechType } from './enums.js';
 import { DEBRIS_ELIGIBLE_RESOURCES, SALVAGER_CARGO_CAPACITY } from './constants.js';
 import { simulateCombat } from './combat.js';
-import { supabase } from '../lib/supabase.js';
+import { supabase } from '../db/lib/supabase.js';
 
 export const resolveSalvageMission = async (mission, lootField, allMissionsAtSameTime, playerTechs = {}) => {
     // 1. Conflict Check: 50% chance of battle if multiple players arrive at the same second
@@ -113,9 +113,9 @@ async function handleSalvageConflict(currentMission, lootField, allMissions, pla
 async function updateGlobalLootField(field) {
     try {
         if (field.totalValue <= 0) {
-            await supabase.from('logistic_loot').delete().eq('id', field.id);
+            await supabase.from('salvage_fields').delete().eq('id', field.id);
         } else {
-            await supabase.from('logistic_loot').update({
+            await supabase.from('salvage_fields').update({
                 resources: field.resources,
                 is_partially_harvested: true,
                 harvest_count: field.harvestCount,

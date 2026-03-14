@@ -11,7 +11,7 @@ import { recordReputationChange } from './reputationHistory.js';
 import { applyDefendReputation, applyAllyDefenseReputation } from './reputation.js';
 import { PLUNDERABLE_BUILDINGS, PLUNDER_RATES } from './constants.js';
 import { generateLogisticLootFromCombat } from './logisticLoot.js';
-import { supabase } from '../lib/supabase.js';
+import { supabase } from '../db/lib/supabase.js';
 
 export const getQueuedOutgoingAttacks = (state, now) => {
     return (state.activeMissions || [])
@@ -33,7 +33,7 @@ export const processOutgoingAttackInQueue = async (state, mission, now, sameTime
     if (mission.type === 'SALVAGE') {
         const lootFieldId = mission.logisticLootId;
         const { data: lootField, error } = await supabase
-            .from('logistic_loot')
+            .from('salvage_fields')
             .select('*')
             .eq('id', lootFieldId)
             .single();

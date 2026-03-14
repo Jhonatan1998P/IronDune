@@ -7,7 +7,7 @@ import { UnitType, ResourceType, BuildingType } from './enums';
  */
 
 /**
- * Presencia de un jugador en la sala
+ * Presencia de un jugador en el universo global
  */
 export interface PlayerPresence {
   id: string;        // playerId único

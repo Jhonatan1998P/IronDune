@@ -6,7 +6,8 @@ import {
     PVP_RANGE_MIN, 
     GLOBAL_ATTACK_TRAVEL_TIME_MS, 
     MAP_MISSION_TRAVEL_TIME_MS, 
-    MAX_ATTACKS_PER_TARGET,
+    MAX_ATTACKS_24H,
+    MAX_ATTACKS_1H,
     SALVAGE_TRAVEL_TIME_MS 
 } from '../../../constants';
 import { GameState, MissionDuration, ResourceType, TechType, UnitType } from '../../../types';
@@ -161,7 +162,7 @@ export const executePvpAttack = (state: GameState, targetId: string, targetName:
         if (ratio < PVP_RANGE_MIN || ratio > PVP_RANGE_MAX) return { success: false, errorKey: 'invalid_mission' };
         
         const count = currentCounts[targetId] || 0;
-        if (count >= MAX_ATTACKS_PER_TARGET) {
+        if (count >= MAX_ATTACKS_24H) {
             return { success: false, errorKey: 'campaign_busy' };
         }
     }

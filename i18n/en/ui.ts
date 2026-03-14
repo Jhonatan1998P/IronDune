@@ -505,14 +505,11 @@ export const ui = {
         server_connection_error: "Tactical server communication failed"
       },
       menu: {
-        new_game: "New Operation",
-        continue_game: "Resume Mission",
         export_save: "Export Save File",
         import_save: "Import Save File",
         save_exit: "Save & Exit to Menu",
         save_success: "Data Secured.",
         import_error: "Invalid or Tampered Data File.",
-        confirm_new: "Start new game? Unsaved progress will be lost.",
         initializing: "Initializing Systems...",
         access_granted: "Access Granted"
       },

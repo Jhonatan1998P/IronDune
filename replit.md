@@ -70,6 +70,15 @@ server/                 # Express + Socket.io relay
 
 ## Recent Changes
 
+### Auth & Save System Overhaul (Latest Session)
+✅ Fixed Supabase authentication and hybrid save system:
+- **AuthView**: Added username field for registration; creates `profiles` + `player_economy` rows on signup
+- **usePersistence**: Full rewrite with Supabase-first load, localStorage fallback, and 2-min server sync
+- **DATABASE_INSTALL.md**: Added PARCHE CRÍTICO with correct RLS policies (profiles INSERT was missing)
+- **RLS Policies**: Fixed all tables — `profiles` (insert/update/delete own), `player_economy`, `player_buildings`, `player_research`, `player_units`, `reports`, `inbox`
+- **Offline progress**: Re-enabled `calculateOfflineProgress` for localStorage-loaded saves
+- **Export/Import**: Functional save export (`.idb` file) and import with signature validation
+
 ### Post-Merge (Socket.io Migration - Task #1)
 ✅ Migrated P2P from Trystero (WebRTC) to Express + Socket.io
 - Created `server/index.js` with Express.js + Socket.io
@@ -78,12 +87,9 @@ server/                 # Express + Socket.io relay
 - Environment variable: `VITE_SOCKET_SERVER_URL` (default: localhost:3001)
 - Added post-merge setup script at `.local/post-merge/setup.sh`
 
-### Game Loop Fixes (This Session)
+### Game Loop Fixes
 ✅ Fixed critical game loop performance issues:
 - Added proper ref for status to prevent closure staleness
-- Implemented debug logging for tick counting
-- Verified loop runs independently of page navigation
-- Added setGameStateRef to maintain current updater function
 - Loop now properly initializes when status changes to PLAYING
 
 ## How to Run
@@ -114,10 +120,43 @@ npm run build
 cd server && npm start
 ```
 
+## Authentication & Persistence (Supabase)
+
+### Auth System
+- `context/AuthContext.tsx` — Session/user/role state via Supabase Auth
+- `components/auth/AuthView.tsx` — Login + Register form with username field
+- Roles: `user | moderator | admin | dev` from `profiles.role`
+
+### Hybrid Save System (`hooks/usePersistence.ts`)
+| Layer | Frequency | Security |
+|-------|-----------|----------|
+| **localStorage** | Every 30s + on game actions | Base64-encoded + DJB2 signature |
+| **Supabase** | Every 2 minutes + manual save | Row-Level Security per user |
+
+**Load order on startup**: Supabase → localStorage → new game
+
+### Supabase Tables
+- `profiles` — user record, `empire_points`, `game_state` (JSON misc fields)
+- `player_economy` — money, oil, ammo, gold, diamond, bank
+- `player_buildings` — building levels/quantities per user
+- `player_research` — tech levels per user
+- `player_units` — unit counts per user
+- `reports` — game log events
+
+**Critical**: Run the **PARCHE CRÍTICO** SQL block in `DATABASE_INSTALL.md` if tables exist but data isn't saving (missing RLS write policies on `profiles`).
+
+### Environment Variables
+```
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGci...
+VITE_SOCKET_SERVER_URL=https://irondune.onrender.com
+```
+
 ## Key Constants
 - `TICK_RATE_MS`: 1000 (game tick frequency)
 - `SAVE_VERSION`: 6 (schema version)
-- `AUTO_SAVE_INTERVAL_MS`: 30000 (30 seconds)
+- `AUTO_SAVE_LOCAL_MS`: 30000 (30 seconds, localStorage)
+- `AUTO_SAVE_SERVER_MS`: 120000 (2 minutes, Supabase)
 - `MAX_LOGS`: 100 (in-memory log limit)
 
 ## Language Support
@@ -126,8 +165,8 @@ cd server && npm start
 - Toggle in Settings view
 
 ## Important Notes
-1. **No Backend DB**: All data stored in localStorage
+1. **Hybrid Persistence**: localStorage (fast) + Supabase (cloud, 2min interval)
 2. **Migration System**: Auto-runs on load to handle schema changes
-3. **Offline Mode**: Time warp calculation when player returns
+3. **Offline Mode**: Time warp calculation on localStorage loads
 4. **P2P Relay**: Socket.io server relays messages, doesn't store game state
-5. **Persistence**: Encoded save string prevents casual tampering
+5. **Security**: localStorage saves are Base64+signed; Supabase enforces RLS per user

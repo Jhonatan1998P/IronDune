@@ -3,13 +3,14 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { supabase } from './lib/supabase.js';
+import { supabase } from './db/lib/supabase.js';
 import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
+import { runSetupOnDeploy } from './scripts/runSetupOnDeploy.js';
 
 dotenv.config();
 
@@ -102,7 +103,7 @@ app.post('/api/battle/nemesis-tick', (req, res) => {
 app.get('/api/salvage/global', async (req, res) => {
     try {
         const { data: loot, error } = await supabase
-            .from('logistic_loot')
+            .from('salvage_fields')
             .select('*')
             .gt('expires_at', new Date().toISOString())
             .gt('total_value', 0)
@@ -132,7 +133,7 @@ app.get('/api/salvage/global', async (req, res) => {
 app.get('/api/bots/global', async (req, res) => {
     try {
         const { data: bots, error } = await supabase
-            .from('game_bots')
+            .from('bots')
             .select('*');
         
         if (error) throw error;
@@ -204,8 +205,9 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 10000;
-httpServer.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', async () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
+  await runSetupOnDeploy(); // hard reset solo si DB_HARD_RESET=true
   startScheduler();
 });
