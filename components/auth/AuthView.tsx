@@ -85,6 +85,9 @@ export const AuthView: React.FC = () => {
             username: uname,
             role: 'user',
             empire_points: 0,
+            combat_points: 0,
+            economy_points: 0,
+            campaign_points: 0,
             game_state: {},
             updated_at: new Date().toISOString(),
           });

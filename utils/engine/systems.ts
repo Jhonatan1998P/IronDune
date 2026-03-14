@@ -1,5 +1,5 @@
 
-import { BuildingType, GameState, LogEntry, UnitType, WarState } from '../../types';
+import { BuildingType, GameState, LogEntry, UnitType, WarState, TechType } from '../../types';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
@@ -38,13 +38,15 @@ export const processSystemTick = (state: GameState, now: number, _activeWar: War
     // 3. Research (Local UI update)
     let updatedResearchedTechs = [...state.researchedTechs];
     let updatedTechLevels = { ...state.techLevels };
-    let updatedActiveResearch = state.activeResearch;
-    if (state.activeResearch && now >= state.activeResearch.endTime) {
-       const techId = state.activeResearch.techId;
-       updatedTechLevels[techId] = (updatedTechLevels[techId] || 0) + 1;
-       if (!updatedResearchedTechs.includes(techId)) updatedResearchedTechs.push(techId);
-       updatedActiveResearch = null;
-    }
+    const updatedActiveResearch = (state.activeResearch || []).filter(r => {
+        if (now >= r.endTime) {
+            const techId = r.techId;
+            updatedTechLevels[techId] = r.targetLevel || (updatedTechLevels[techId] || 0) + 1;
+            if (!updatedResearchedTechs.includes(techId)) updatedResearchedTechs.push(techId);
+            return false;
+        }
+        return true;
+    });
 
     return {
         stateUpdates: {
@@ -66,20 +68,53 @@ export const processSystemTick = (state: GameState, now: number, _activeWar: War
 export const recalculateProgression = (state: GameState): Partial<GameState> => {
     // 1. Calculate Score
     let points = 0;
-    Object.keys(state.buildings).forEach(b => points += state.buildings[b as BuildingType].level * (BUILDING_DEFS[b as BuildingType].score || 0));
+    let pointsEconomy = 0;
+    let pointsCombat = 0;
+
+    // Buildings
+    Object.keys(state.buildings).forEach(b => {
+        const lvl = state.buildings[b as BuildingType].level;
+        const scorePerLvl = BUILDING_DEFS[b as BuildingType].score || 0;
+        const p = lvl * scorePerLvl;
+        points += p;
+
+        // Categorizar
+        if (b === BuildingType.HOUSE || b === BuildingType.FACTORY || b === BuildingType.SKYSCRAPER || b === BuildingType.OIL_RIG || b === BuildingType.GOLD_MINE || b === BuildingType.BANK || b === BuildingType.DIAMOND_MINE) {
+            pointsEconomy += p;
+        } else {
+            pointsCombat += p;
+        }
+    });
     
     // Base units
-    Object.keys(state.units).forEach(u => points += state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0));
+    Object.keys(state.units).forEach(u => {
+        const p = state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0);
+        points += p;
+        pointsCombat += p;
+    });
     
     // Units on active missions still count towards empire points
     state.activeMissions.forEach(mission => {
         Object.entries(mission.units).forEach(([uType, qty]) => {
-            points += (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
+            const p = (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
+            points += p;
+            pointsCombat += p;
         });
     });
     
-    state.researchedTechs.forEach(t => points += (TECH_DEFS[t]?.score || 0));
-    points += Math.floor(state.bankBalance / 100000);
+    state.researchedTechs.forEach(t => {
+        const p = (TECH_DEFS[t]?.score || 0);
+        points += p;
+        if (t === TechType.DEEP_DRILLING || t === TechType.GOLD_REFINING || t === TechType.MASS_PRODUCTION) {
+            pointsEconomy += p;
+        } else {
+            pointsCombat += p;
+        }
+    });
+
+    const bankPoints = Math.floor(state.bankBalance / 100000);
+    points += bankPoints;
+    pointsEconomy += bankPoints;
 
     // 2. Check Tutorial
     let tutorialClaimable = state.tutorialClaimable;
@@ -90,6 +125,9 @@ export const recalculateProgression = (state: GameState): Partial<GameState> => 
 
     return {
         empirePoints: points,
+        combatPoints: pointsCombat,
+        economyPoints: pointsEconomy,
+        campaignPoints: state.campaignProgress * 100, // Heurística simple
         tutorialClaimable
     };
 };

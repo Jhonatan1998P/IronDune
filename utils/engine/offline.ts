@@ -119,15 +119,20 @@ export const calculateOfflineProgress = (state: GameState): { newState: GameStat
     newState.activeRecruitments = remainingRecruitments;
 
     // 5. Research
-    if (newState.activeResearch && now >= newState.activeResearch.endTime) {
-        const techId = newState.activeResearch.techId;
-        newState.techLevels[techId] = (newState.techLevels[techId] || 0) + 1;
-        if (!newState.researchedTechs.includes(techId)) {
-            newState.researchedTechs.push(techId);
+    const remainingResearch: typeof newState.activeResearch = [];
+    for (const r of (newState.activeResearch || [])) {
+        if (now >= r.endTime) {
+            const techId = r.techId;
+            newState.techLevels[techId] = r.targetLevel || (newState.techLevels[techId] || 0) + 1;
+            if (!newState.researchedTechs.includes(techId)) {
+                newState.researchedTechs.push(techId);
+            }
+            report.completedResearch.push(techId);
+        } else {
+            remainingResearch.push(r);
         }
-        report.completedResearch.push(techId);
-        newState.activeResearch = null;
     }
+    newState.activeResearch = remainingResearch;
 
     // 6. Rankings & Reputation Decay
     if (now - newState.rankingData.lastUpdateTime >= GROWTH_INTERVAL_MS) {

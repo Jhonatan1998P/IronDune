@@ -41,11 +41,40 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
     }, []);
 
     const fullRankings = useMemo(() => {
-        const botRankings = getCurrentStandings(gameState, gameState.rankingData.bots, category);
+        const dbEntries = getCurrentStandings(gameState, gameState.rankingData.bots, category);
         
-        if (!isConnected || remotePlayers.length === 0) {
-            return botRankings;
+        // Integrar jugadores de Trystero (Online) sin duplicar
+        const entriesMap = new Map<string, RankingEntry>();
+        dbEntries.forEach(e => entriesMap.set(e.id, e));
+
+        if (isConnected && remotePlayers.length > 0) {
+            remotePlayers.forEach(player => {
+                if (entriesMap.has(player.id)) {
+                    const entry = entriesMap.get(player.id)!;
+                    entriesMap.set(player.id, { ...entry, isP2P: true });
+                } else {
+                    // Solo si no está en la DB por alguna razón
+                    entriesMap.set(player.id, {
+                        id: player.id,
+                        rank: 0,
+                        name: player.name || 'Unknown',
+                        score: player.level || 0,
+                        isPlayer: false,
+                        avatarId: 0,
+                        country: player.flag || 'XX',
+                        tier: 'D',
+                        trend: 0,
+                        _rawLastRank: 0,
+                        personality: BotPersonality.WARLORD,
+                        canAttack: false,
+                        isP2P: true
+                    });
+                }
+            });
         }
+
+        const allEntries = Array.from(entriesMap.values());
+        allEntries.sort((a, b) => b.score - a.score);
 
         const getTier = (rank: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
             if (rank <= 3) return 'S';
@@ -54,25 +83,6 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
             if (rank <= 100) return 'C';
             return 'D';
         };
-
-        const peerEntries: RankingEntry[] = remotePlayers.map(player => ({
-            id: player.id,
-            rank: 0,
-            name: player.name || 'Unknown',
-            score: player.level || 0,
-            isPlayer: false,
-            avatarId: 0,
-            country: player.flag || 'XX',
-            tier: 'D',
-            trend: 0,
-            _rawLastRank: 0,
-            personality: BotPersonality.WARLORD,
-            canAttack: false,
-            isP2P: true
-        }));
-
-        const allEntries = [...botRankings, ...peerEntries];
-        allEntries.sort((a, b) => b.score - a.score);
 
         return allEntries.map((entry, index) => ({
             ...entry,

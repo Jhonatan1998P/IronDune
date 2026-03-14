@@ -38,7 +38,7 @@ export const INITIAL_GAME_STATE: GameState = {
   units: INITIAL_UNITS,
   researchedTechs: [],
   techLevels: {},
-  activeResearch: null,
+  activeResearch: [],
   activeMissions: [],
   activeRecruitments: [],
   activeConstructions: [],

@@ -56,7 +56,7 @@ export const executeSalvageMission = (state: GameState, lootId: string, drones: 
 
 export const executeRecruit = (state: GameState, type: UnitType, amount: number): ActionResult => {
     if (amount <= 0) return { success: false };
-    if (state.activeRecruitments.length >= 3) return { success: false, errorKey: 'queue_full' };
+    if (state.activeRecruitments.length >= 5) return { success: false, errorKey: 'queue_full' };
 
     const def = UNIT_DEFS[type];
     if (!state.researchedTechs.includes(def.reqTech)) return { success: false, errorKey: 'req_tech' };

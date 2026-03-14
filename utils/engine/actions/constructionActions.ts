@@ -18,6 +18,7 @@ export const executeBuild = (state: GameState, type: BuildingType, amount: numbe
 
     const queuedQty = state.activeConstructions.filter(c => c.buildingType === type).reduce((sum, c) => sum + c.count, 0);
     const effectiveStartLevel = currentQty + queuedQty;
+    const targetLevel = effectiveStartLevel + amount;
     
     // Use centralized formula
     const totalCost = calculateConstructionCost(def, effectiveStartLevel, amount);
@@ -39,7 +40,7 @@ export const executeBuild = (state: GameState, type: BuildingType, amount: numbe
         },
         activeConstructions: [
             ...state.activeConstructions,
-            { id: `build-${Date.now()}`, buildingType: type, count: amount, startTime: Date.now(), endTime: Date.now() + totalTime }
+            { id: `build-${Date.now()}`, buildingType: type, count: targetLevel, startTime: Date.now(), endTime: Date.now() + totalTime }
         ]
     };
     return { success: true, newState };

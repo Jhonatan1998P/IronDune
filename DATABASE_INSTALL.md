@@ -11,6 +11,8 @@
 ```sql
 -- ══════════════════════════════════════════════════════════════════
 -- IRON DUNE OPERATIONS — SCRIPT MAESTRO DE BASE DE DATOS
+-- ⚠️ IMPORTANTE: Este archivo es la FUENTE DE VERDAD. 
+-- Cualquier cambio aquí DEBE replicarse en DATABASE_INSTALL.md
 -- Uso: ejecutar completo para hard reset + reconstrucción total.
 -- ══════════════════════════════════════════════════════════════════
 
@@ -34,6 +36,8 @@ DROP FUNCTION IF EXISTS public.update_player_production_rates(uuid) CASCADE;
 DROP FUNCTION IF EXISTS public.sync_all_production_v2() CASCADE;
 DROP FUNCTION IF EXISTS public.add_resources(uuid, numeric, numeric, numeric) CASCADE;
 DROP FUNCTION IF EXISTS public.subtract_resources(uuid, numeric, numeric, numeric) CASCADE;
+DROP FUNCTION IF EXISTS public.process_queues() CASCADE;
+DROP FUNCTION IF EXISTS public.check_queue_limits() CASCADE;
 
 DROP TABLE IF EXISTS public.inbox             CASCADE;
 DROP TABLE IF EXISTS public.reports           CASCADE;
@@ -47,6 +51,9 @@ DROP TABLE IF EXISTS public.player_buildings  CASCADE;
 DROP TABLE IF EXISTS public.player_economy    CASCADE;
 DROP TABLE IF EXISTS public.bots              CASCADE;
 DROP TABLE IF EXISTS public.profiles          CASCADE;
+DROP TABLE IF EXISTS public.construction_queue CASCADE;
+DROP TABLE IF EXISTS public.research_queue     CASCADE;
+DROP TABLE IF EXISTS public.unit_queue         CASCADE;
 
 DROP TYPE IF EXISTS public.report_type   CASCADE;
 DROP TYPE IF EXISTS public.movement_type CASCADE;
@@ -65,14 +72,74 @@ CREATE TYPE public.report_type   AS ENUM ('COMBAT', 'INTEL', 'SYSTEM', 'TRADE');
 
 -- Perfiles de jugadores
 CREATE TABLE public.profiles (
-  id            uuid PRIMARY KEY,
-  username      text UNIQUE NOT NULL,
-  role          public.user_role NOT NULL DEFAULT 'user',
-  empire_points bigint DEFAULT 0,
-  game_state    jsonb NOT NULL DEFAULT '{}',
-  last_active   timestamp with time zone DEFAULT now(),
-  updated_at    timestamp with time zone DEFAULT now()
+  id               uuid PRIMARY KEY,
+  username         text UNIQUE NOT NULL,
+  role             public.user_role NOT NULL DEFAULT 'user',
+  empire_points    bigint DEFAULT 0,
+  combat_points    bigint DEFAULT 0,
+  economy_points   bigint DEFAULT 0,
+  campaign_points  bigint DEFAULT 0,
+  game_state       jsonb NOT NULL DEFAULT '{}',
+  last_active      timestamp with time zone DEFAULT now(),
+  updated_at       timestamp with time zone DEFAULT now()
 );
+
+-- Colas de Construcción e Investigación (Máx 3)
+CREATE TABLE public.construction_queue (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  player_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  building_type text NOT NULL,
+  target_level integer NOT NULL,
+  end_time bigint NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.research_queue (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  player_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tech_type text NOT NULL,
+  target_level integer NOT NULL,
+  end_time bigint NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Cola de Reclutamiento (Máx 5)
+CREATE TABLE public.unit_queue (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  player_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  unit_type text NOT NULL,
+  amount integer NOT NULL,
+  end_time bigint NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Trigger para límites de cola
+CREATE OR REPLACE FUNCTION public.check_queue_limits()
+RETURNS TRIGGER AS $$
+DECLARE
+    current_count integer;
+    max_limit integer;
+BEGIN
+    IF TG_TABLE_NAME = 'construction_queue' THEN max_limit := 3;
+    ELSIF TG_TABLE_NAME = 'research_queue' THEN max_limit := 3;
+    ELSIF TG_TABLE_NAME = 'unit_queue' THEN max_limit := 5;
+    ELSE max_limit := 10;
+    END IF;
+
+    EXECUTE format('SELECT count(*)::integer FROM public.%I WHERE player_id = $1', TG_TABLE_NAME)
+    INTO current_count
+    USING NEW.player_id;
+
+    IF current_count >= max_limit THEN
+        RAISE EXCEPTION 'Queue limit reached for % (max %)', TG_TABLE_NAME, max_limit;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_check_construction_limit BEFORE INSERT ON public.construction_queue FOR EACH ROW EXECUTE FUNCTION public.check_queue_limits();
+CREATE TRIGGER tr_check_research_limit BEFORE INSERT ON public.research_queue FOR EACH ROW EXECUTE FUNCTION public.check_queue_limits();
+CREATE TRIGGER tr_check_unit_limit BEFORE INSERT ON public.unit_queue FOR EACH ROW EXECUTE FUNCTION public.check_queue_limits();
 
 -- Economía del jugador
 CREATE TABLE public.player_economy (
@@ -208,6 +275,78 @@ CREATE TABLE public.world_events (
   created_at  timestamp with time zone DEFAULT now()
 );
 
+-- Vista de Ranking Global (Jugadores + Bots)
+CREATE OR REPLACE VIEW public.v_global_ranking AS
+SELECT 
+    id, 
+    username as name, 
+    empire_points as score_dominion, 
+    combat_points as score_combat, 
+    economy_points as score_economy, 
+    campaign_points as score_campaign, 
+    'player' as type,
+    role,
+    updated_at
+FROM public.profiles
+UNION ALL
+SELECT 
+    id, 
+    name, 
+    score as score_dominion, 
+    COALESCE((stats->>'MILITARY')::bigint, 0) as score_combat,
+    COALESCE((stats->>'ECONOMY')::bigint, 0) as score_economy,
+    COALESCE((stats->>'DOMINION')::bigint, 0) as score_campaign, -- Reusando dominion para campaña en bots
+    'bot' as type,
+    'user'::user_role as role,
+    created_at as updated_at
+FROM public.bots;
+
+-- Función para procesar colas terminadas
+CREATE OR REPLACE FUNCTION public.process_queues()
+RETURNS TABLE (processed_constructions integer, processed_research integer, processed_units integer) AS $$
+DECLARE
+    now_ms bigint := EXTRACT(EPOCH FROM NOW()) * 1000;
+    c_count integer := 0;
+    r_count integer := 0;
+    u_count integer := 0;
+    rec record;
+BEGIN
+    -- 1. Procesar Construcciones
+    FOR rec IN (SELECT * FROM public.construction_queue WHERE end_time <= now_ms) LOOP
+        INSERT INTO public.player_buildings (player_id, building_type, level, quantity)
+        VALUES (rec.player_id, rec.building_type, rec.target_level, 0)
+        ON CONFLICT (player_id, building_type) DO UPDATE SET 
+            level = EXCLUDED.level,
+            quantity = CASE WHEN public.player_buildings.quantity > 0 THEN EXCLUDED.level ELSE public.player_buildings.quantity END;
+        
+        DELETE FROM public.construction_queue WHERE id = rec.id;
+        c_count := c_count + 1;
+    END LOOP;
+
+    -- 2. Procesar Investigación
+    FOR rec IN (SELECT * FROM public.research_queue WHERE end_time <= now_ms) LOOP
+        INSERT INTO public.player_research (player_id, tech_type, level)
+        VALUES (rec.player_id, rec.tech_type, rec.target_level)
+        ON CONFLICT (player_id, tech_type) DO UPDATE SET level = EXCLUDED.level;
+        
+        DELETE FROM public.research_queue WHERE id = rec.id;
+        r_count := r_count + 1;
+    END LOOP;
+
+    -- 3. Procesar Unidades
+    FOR rec IN (SELECT * FROM public.unit_queue WHERE end_time <= now_ms) LOOP
+        INSERT INTO public.player_units (player_id, unit_type, count)
+        VALUES (rec.player_id, rec.unit_type, rec.amount)
+        ON CONFLICT (player_id, unit_type) DO UPDATE SET count = public.player_units.count + EXCLUDED.count;
+        
+        DELETE FROM public.unit_queue WHERE id = rec.id;
+        u_count := u_count + 1;
+    END LOOP;
+
+    RETURN QUERY SELECT c_count, r_count, u_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ─────────────────────────────────────────────────────────────────
 -- SECCIÓN 4: SEGURIDAD (Row Level Security)
 -- ─────────────────────────────────────────────────────────────────
@@ -222,7 +361,14 @@ ALTER TABLE public.movements        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inbox            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.global_market    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.world_events     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.construction_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.research_queue     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.unit_queue         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.world_events      ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "construction_queue_all" ON public.construction_queue FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "research_queue_all"     ON public.research_queue     FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "unit_queue_all"         ON public.unit_queue         FOR ALL USING (true) WITH CHECK (true);
 
 -- profiles: lectura pública; insert/update abierto (el server usa service_role que bypasa RLS)
 CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT USING (true);
@@ -311,14 +457,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Sincronización de producción offline para TODOS los jugadores.
+-- Sincronización de producción offline y procesamiento de colas para TODOS los jugadores.
 -- Llamada por el Scheduler cada minuto vía: supabase.rpc('sync_all_production_v2')
 CREATE OR REPLACE FUNCTION public.sync_all_production_v2()
-RETURNS TABLE (processed_count integer) AS $$
+RETURNS TABLE (processed_players integer, processed_constructions integer, processed_research integer, processed_units integer) AS $$
 DECLARE
   now_ms   bigint := EXTRACT(EPOCH FROM NOW()) * 1000;
   limit_ms bigint := 6 * 60 * 60 * 1000; -- tope de 6 horas de producción offline
+  p_count  integer;
+  q_results record;
 BEGIN
+  -- 1. Procesar Producción
   UPDATE public.player_economy
   SET
     money  = money  + (money_prod  * LEAST(now_ms - last_calc_time, limit_ms) / 1000.0),
@@ -329,7 +478,12 @@ BEGIN
     last_production_sync = NOW()
   WHERE last_calc_time < now_ms;
 
-  RETURN QUERY SELECT COUNT(*)::integer FROM public.player_economy;
+  SELECT COUNT(*)::integer INTO p_count FROM public.player_economy;
+
+  -- 2. Procesar Colas
+  SELECT * INTO q_results FROM public.process_queues();
+
+  RETURN QUERY SELECT p_count, q_results.processed_constructions, q_results.processed_research, q_results.processed_units;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

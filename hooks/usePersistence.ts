@@ -111,12 +111,15 @@ export const usePersistence = (
     try {
       console.log('[Persistence] Cargando desde servidor (Supabase)...');
 
-      const [profileRes, economyRes, buildingsRes, researchRes, unitsRes] = await Promise.all([
+      const [profileRes, economyRes, buildingsRes, researchRes, unitsRes, cQueueRes, rQueueRes, uQueueRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
         supabase.from('player_buildings').select('*').eq('player_id', userId),
         supabase.from('player_research').select('*').eq('player_id', userId),
         supabase.from('player_units').select('*').eq('player_id', userId),
+        supabase.from('construction_queue').select('*').eq('player_id', userId),
+        supabase.from('research_queue').select('*').eq('player_id', userId),
+        supabase.from('unit_queue').select('*').eq('player_id', userId),
       ]);
 
       if (profileRes.error) {
@@ -138,6 +141,9 @@ export const usePersistence = (
         playerName:   profile.username || 'Commander',
         empirePoints: Number(profile.empire_points || 0),
         lastSaveTime: new Date(profile.updated_at).getTime(),
+        activeConstructions: [],
+        activeResearch: [],
+        activeRecruitments: [],
       };
 
       if (economy) {
@@ -167,6 +173,63 @@ export const usePersistence = (
       unitsRes.data?.forEach((u: any) => {
         serverState.units[u.unit_type as UnitType] = Number(u.count);
       });
+
+      // Mapear colas de la DB al estado local
+      if (cQueueRes.data) {
+        serverState.activeConstructions = cQueueRes.data.map((c: any) => ({
+          id: c.id,
+          buildingType: c.building_type as BuildingType,
+          count: 1,
+          startTime: new Date(c.created_at).getTime(),
+          endTime: Number(c.end_time)
+        }));
+      }
+
+      if (rQueueRes.data) {
+        serverState.activeResearch = rQueueRes.data.map((r: any) => ({
+          techId: r.tech_type as TechType,
+          startTime: new Date(r.created_at).getTime(),
+          endTime: Number(r.end_time)
+        }));
+      }
+
+      if (uQueueRes.data) {
+        serverState.activeRecruitments = uQueueRes.data.map((u: any) => ({
+          id: u.id,
+          unitType: u.unit_type as UnitType,
+          count: u.amount,
+          startTime: new Date(u.created_at).getTime(),
+          endTime: Number(u.end_time)
+        }));
+      }
+
+      // Cargar Ranking Global (Real)
+      const { data: rankingData } = await supabase.from('v_global_ranking').select('*').limit(100);
+      if (rankingData) {
+        serverState.rankingData = {
+          bots: rankingData.map((r: any, idx: number) => ({
+            id: r.id,
+            name: r.name,
+            avatarId: (idx % 8) + 1,
+            country: 'UN',
+            stats: {
+              DOMINION: Number(r.score_dominion),
+              MILITARY: Number(r.score_combat),
+              ECONOMY: Number(r.score_economy),
+              CAMPAIGN: Number(r.score_campaign)
+            },
+            ambition: 1,
+            personality: 'WARLORD',
+            lastRank: idx + 1,
+            currentEvent: 'PEACEFUL_PERIOD',
+            eventTurnsRemaining: 0,
+            growthModifier: 0,
+            reputation: 50,
+            isPlayer: r.type === 'player'
+          })) as any,
+          lastUpdateTime: Date.now()
+        };
+      }
 
       clearBuffer(); // Los datos del servidor son autoritativos; el buffer queda obsoleto
       setHasSave(true);
@@ -229,6 +292,9 @@ export const usePersistence = (
         id:            user.id,
         username:      state.playerName,
         empire_points: state.empirePoints,
+        combat_points: state.combatPoints || 0,
+        economy_points: state.economyPoints || 0,
+        campaign_points: state.campaignPoints || 0,
         game_state: {
           completedTutorials:  state.completedTutorials,
           currentTutorialId:   state.currentTutorialId,

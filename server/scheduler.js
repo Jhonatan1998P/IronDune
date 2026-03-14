@@ -65,9 +65,16 @@ async function cleanupWorldEvents() {
 
 async function syncGlobalProduction() {
     try {
-        console.log('[Scheduler] Syncing global production via SQL RPC...');
-        const { error } = await supabase.rpc('sync_all_production_v2');
+        console.log('[Scheduler] Syncing global production & queues via SQL RPC...');
+        const { data, error } = await supabase.rpc('sync_all_production_v2');
         if (error) throw error;
+
+        if (data && data[0]) {
+            const res = data[0];
+            if (res.processed_constructions > 0 || res.processed_research > 0 || res.processed_units > 0) {
+                console.log(`[Scheduler] Queues completed: Buildings: ${res.processed_constructions}, Research: ${res.processed_research}, Units: ${res.processed_units}`);
+            }
+        }
     } catch (error) {
         console.error('[Scheduler] SQL Production Sync Error:', error);
     }

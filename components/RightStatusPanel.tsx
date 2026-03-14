@@ -145,7 +145,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                 <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full"></span> {t.common.ui.training_queue}
                                 </span>
-                                <span className="text-[9px] text-slate-500 font-mono">{activeRecruitments.length} / 3</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{activeRecruitments.length} / 5</span>
                             </div>
                             <div className="space-y-1.5">
                                 {activeRecruitments.length === 0 && (
@@ -179,32 +179,32 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                 <span className="text-[10px] text-purple-400 uppercase tracking-widest font-bold flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span> {t.common.ui.nav_research}
                                 </span>
-                                <span className="text-[9px] text-slate-500 font-mono">{activeResearch ? '1' : '0'} / 1</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{(activeResearch || []).length} / 3</span>
                             </div>
                             <div className="space-y-1.5">
-                                {!activeResearch ? (
+                                {(!activeResearch || activeResearch.length === 0) ? (
                                     <div className="text-[10px] text-slate-600 italic pl-3 border-l border-slate-800 py-1">{t.common.ui.lab_idle}</div>
                                 ) : (
-                                    (() => {
-                                        const def = TECH_DEFS[activeResearch.techId as TechType];
-                                        const name = t.techs[def?.translationKey ?? '']?.name || activeResearch.techId;
-                                        const left = Math.max(0, activeResearch.endTime - Date.now());
-                                        const total = activeResearch.endTime - activeResearch.startTime;
+                                    activeResearch.map((res, idx) => {
+                                        const def = TECH_DEFS[res.techId as TechType];
+                                        const name = t.techs[def?.translationKey ?? '']?.name || res.techId;
+                                        const left = Math.max(0, res.endTime - Date.now());
+                                        const total = res.endTime - res.startTime;
                                         const percent = 100 - (left / total * 100);
 
                                         return (
-                                            <div className="bg-slate-800/40 border border-white/5 p-2 rounded relative overflow-hidden">
+                                            <div key={`${res.techId}-${idx}`} className="bg-slate-800/40 border border-white/5 p-2 rounded relative overflow-hidden">
                                                 <div className="flex justify-between items-center text-xs relative z-10">
-                                                    <span className="text-slate-300 truncate max-w-[65%] text-[11px]">{name}</span>
+                                                    <span className="text-slate-300 truncate max-w-[65%] text-[11px]">{name} {res.targetLevel ? <span className="text-purple-400 font-mono text-[9px]">(Lvl {res.targetLevel})</span> : ''}</span>
                                                     <div className="flex items-center gap-2 shrink-0">
                                                         <span className="font-mono text-purple-400 text-[10px]">{formatDuration(left)}</span>
-                                                        <SpeedUpButton onClick={() => speedUp(activeResearch.techId, 'RESEARCH')} />
+                                                        <SpeedUpButton onClick={() => speedUp(res.techId, 'RESEARCH')} />
                                                     </div>
                                                 </div>
                                                 <div className="absolute bottom-0 left-0 h-0.5 bg-purple-500/50 transition-all duration-1000" style={{ width: `${percent}%` }}></div>
                                             </div>
                                         );
-                                    })()
+                                    })
                                 )}
                             </div>
                         </section>

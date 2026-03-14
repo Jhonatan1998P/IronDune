@@ -135,6 +135,7 @@ export interface ActiveConstruction {
 
 export interface ActiveResearch {
   techId: TechType;
+  targetLevel?: number; // New: final level after research
   startTime: number;
   endTime: number;
 }
@@ -293,7 +294,7 @@ export interface GameState {
   units: Record<UnitType, number>;
   researchedTechs: TechType[];
   techLevels: Partial<Record<TechType, number>>;
-  activeResearch: ActiveResearch | null; 
+  activeResearch: ActiveResearch[]; 
   activeMissions: ActiveMission[]; 
   activeRecruitments: ActiveRecruitment[]; 
   activeConstructions: ActiveConstruction[]; 
@@ -302,6 +303,9 @@ export interface GameState {
   nextRateChangeTime: number; 
   lastInterestPayoutTime: number; 
   empirePoints: number;
+  combatPoints?: number;
+  economyPoints?: number;
+  campaignPoints?: number;
   lastSaveTime: number;
   campaignProgress: number; 
   lastCampaignMissionFinishedTime: number; 

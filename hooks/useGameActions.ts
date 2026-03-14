@@ -19,6 +19,8 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -39,11 +41,21 @@ export const useGameActions = (
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
   addLog: (messageKey: string, type?: LogEntry['type'], params?: any) => void
 ) => {
+  const { user } = useAuth();
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     setGameState(prev => {
         const result = executeBuild(prev, type, amount);
         if (result.success && result.newState) {
+            const task = result.newState.activeConstructions[result.newState.activeConstructions.length - 1];
+            if (user) {
+                supabase.from('construction_queue').insert({
+                    player_id: user.id,
+                    building_type: task.buildingType,
+                    target_level: task.count, // Ahora 'count' en activeConstructions es el target level
+                    end_time: task.endTime
+                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
+            }
             // Trigger immediate save for critical action
             setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
             return result.newState;
@@ -51,7 +63,7 @@ export const useGameActions = (
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
-  }, [addLog, setGameState]);
+  }, [addLog, setGameState, user]);
 
   const repair = useCallback((type: BuildingType) => {
       setGameState(prev => {
@@ -69,25 +81,43 @@ export const useGameActions = (
     setGameState(prev => {
         const result = executeRecruit(prev, type, amount);
         if (result.success && result.newState) {
+            const task = result.newState.activeRecruitments[result.newState.activeRecruitments.length - 1];
+            if (user) {
+                supabase.from('unit_queue').insert({
+                    player_id: user.id,
+                    unit_type: task.unitType,
+                    amount: task.count,
+                    end_time: task.endTime
+                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
+            }
             setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
             return result.newState;
         }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
-  }, [addLog, setGameState]);
+  }, [addLog, setGameState, user]);
 
   const research = useCallback((techId: TechType) => {
     setGameState(prev => {
         const result = executeResearch(prev, techId);
         if (result.success && result.newState) {
+            const task = result.newState.activeResearch[result.newState.activeResearch.length - 1];
+            if (user) {
+                supabase.from('research_queue').insert({
+                    player_id: user.id,
+                    tech_type: task.techId,
+                    target_level: task.targetLevel,
+                    end_time: task.endTime
+                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
+            }
             setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
             return result.newState;
         }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
     });
-  }, [addLog, setGameState]);
+  }, [addLog, setGameState, user]);
 
   const handleBankTransaction = useCallback((amount: number, type: 'deposit' | 'withdraw') => {
       setGameState(prev => {

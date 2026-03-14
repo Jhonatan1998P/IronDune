@@ -9,117 +9,6 @@ export enum RankingCategory {
     CAMPAIGN = 'CAMPAIGN'
 }
 
-const BOT_NAME_PREFIXES = [
-    'Night', 'Dark', 'Iron', 'Steel', 'Shadow', 'Ghost', 'Cyber', 'Neo', 'Ultra', 'Mega',
-    'Death', 'Blood', 'Skull', 'War', 'Battle', 'Strike', 'Thunder', 'Storm', 'Fire', 'Frost',
-    'Zero', 'Alpha', 'Omega', 'Delta', 'Sigma', 'Prime', 'Elite', 'Viper', 'Cobra', 'Titan',
-    'Raven', 'Wolf', 'Fox', 'Eagle', 'Hawk', 'Dragon', 'Phoenix', 'Reaper', 'Slayer', 'Hunter',
-    'Chrome', 'Toxic', 'Venom', 'Chaos', 'Demon', 'Angel', 'Ninja', 'Samurai', 'Knight', 'Warlord',
-    'Blaze', 'Tempest', 'Avalanche', 'Cyclone', 'Thunder', 'Onyx', 'Crimson', 'Azure', 'Emerald', 'Violet'
-];
-
-const BOT_NAME_ROOTS = [
-    'Wolf', 'Hawk', 'Fox', 'Viper', 'Cobra', 'Raven', 'Tiger', 'Lion', 'Eagle', 'Shark',
-    'Blade', 'Fang', 'Claw', 'Strike', 'Force', 'Power', 'Might', 'Fury', 'Rage', 'Wrath',
-    'Star', 'Nova', 'Comet', 'Storm', 'Blaze', 'Frost', 'Shadow', 'Ghost', 'Spectre', 'Phantom',
-    'Wraith', 'Titan', 'Giant', 'Colossus', 'Behemoth', 'Leviathan', 'Hydra', 'Basilisk', 'Sphinx', 'Minotaur',
-    'Nexus', 'Core', 'Node', 'Link', 'Sync', 'Grid', 'Net', 'Web', 'Signal', 'Wave',
-    'Secutor', 'Centurion', 'Legion', 'Cohort', 'Phalanx', 'Battalion', 'Regiment', 'Division', 'Corp', 'Force',
-    'Commander', 'General', 'Colonel', 'Captain', 'Sergeant', 'Major', 'Lieutenant', 'Warden', 'Guardian', 'Protector'
-];
-
-const BOT_NAME_SUFFIXES = [
-    'X', 'XX', 'XXX', 'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
-    '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15',
-    'King', 'Lord', 'Master', 'Chief', 'Boss', 'Head', 'Lord', 'Queen', 'Prince', 'Duke',
-    'Strike', 'Force', 'Power', 'Fury', 'Rage', 'Vengeance', 'Retribution', 'Justice', 'Wrath', 'Dominion',
-    'Unit', 'Squad', 'Team', ' Platoon', 'Company', 'Detachment', 'Section', 'Troop', 'Battalion', 'Regiment',
-    'Ace', 'Pro', 'Elite', 'Prime', 'Ultra', 'Super', 'Mega', 'Giga', 'Tera', 'Omega'
-];
-
-const SPANISH_BOT_NAME_PREFIXES = [
-    'Noche', 'Sombra', 'Fantasma', 'Cyber', 'Neo', 'Acero', 'Hierro', 'Lobo', 'Halcón', 'Cuervo',
-    'Víbora', 'Cobra', 'Tigre', 'León', 'Águila', 'Tiburón', 'Dragón', 'Fénix', 'Guerrero', 'Cazador',
-    'Sombras', 'Oscuridad', 'Tormenta', 'Trueno', 'Fuego', 'Hielo', 'Veneno', 'Caos', 'Demonio', 'Ángel',
-    'Ninja', 'Samurái', 'Caballero', 'Señor', 'General', 'Capitán', 'Comandante', 'Alfa', 'Omega', 'Delta',
-    'Sigma', 'Primo', 'Élite', 'Cromo', 'Tóxico', 'Espada', 'Garras', 'Colmillo', 'Rayo', 'Ciclón',
-    'Avalancha', 'Tempestad', 'Violeta', 'Escarlata', 'Carmesí', 'Azur', 'Esmeralda', 'Negro', 'Blanco', 'Gris'
-];
-
-const SPANISH_BOT_NAME_ROOTS = [
-    'Wolf', 'Hawk', 'Fox', 'Viper', 'Cobra', 'Raven', 'Tiger', 'Lion', 'Eagle', 'Shark',
-    'Lobo', 'Halcón', 'Zorro', 'Víbora', 'Serpiente', 'Cuervo', 'Tigre', 'León', 'Águila', 'Tiburón',
-    'Fuego', 'Lluvia', 'Viento', 'Tierra', 'Mar', 'Cielo', 'Sol', 'Luna', 'Estrella', 'Cometa',
-    'Garra', 'Colmillo', 'Espada', 'Escudo', 'Armadura', 'Yelmo', 'Lanza', 'Arco', 'Ballesta', 'Bomba',
-    'Centinela', 'Guardián', 'Vigilante', ' Protector', 'Defensor', 'Escudero', 'Paladín', ' Templario', 'Cruzado', 'Mago',
-    'Brujo', 'Hechicero', 'Conjurador', 'Nigromante', 'Invocador', 'Artesano', 'Maestro', 'Experto', 'Veterano', 'Leyenda'
-];
-
-const SPANISH_BOT_NAME_SUFFIXES = [
-    'X', 'XX', 'XXX', 'Cero', 'Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis', 'Siete', 'Ocho', 'Nueve', 'Diez',
-    '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15',
-    'Rey', 'Señor', 'Maestro', 'Jefe', 'Capitán', 'Comandante', 'General', 'Coronel', 'Teniente', 'Sargento',
-    'Force', 'Power', 'Fury', 'Rage', 'Vengeance', 'Justice', 'Wrath', 'Dominion', 'Strike', 'Team',
-    'Squad', 'Unit', 'Platoon', 'Company', 'Regiment', 'Division', 'Corp', 'Legion', 'Cohort', 'Phalanx',
-    'Pro', 'Elite', 'Prime', 'Ultra', 'Super', 'Mega', 'Giga', 'Tera', 'Omega', 'Alpha'
-];
-
-const usedBotNames = new Set<string>();
-
-const randomElement = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-
-const generateEnglishBotName = (): string => {
-    const patterns = [
-        () => `${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}_${randomElement(BOT_NAME_SUFFIXES)}`,
-        () => `${randomElement(BOT_NAME_PREFIXES)}${randomElement(BOT_NAME_ROOTS)}${randomElement(BOT_NAME_SUFFIXES)}`,
-        () => `${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}${Math.floor(Math.random() * 99)}`,
-        () => `${randomElement(BOT_NAME_ROOTS)}${Math.floor(Math.random() * 999)}`,
-        () => `${randomElement(BOT_NAME_PREFIXES)}${Math.floor(Math.random() * 999)}`,
-        () => `The_${randomElement(BOT_NAME_PREFIXES)}_${randomElement(BOT_NAME_ROOTS)}`,
-        () => `${randomElement(BOT_NAME_PREFIXES)}${randomElement(BOT_NAME_SUFFIXES)}`,
-    ];
-    
-    let name = '';
-    let attempts = 0;
-    do {
-        name = randomElement(patterns)();
-        attempts++;
-    } while (usedBotNames.has(name) && attempts < 50);
-    
-    usedBotNames.add(name);
-    return name;
-};
-
-const generateSpanishBotName = (): string => {
-    const patterns = [
-        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}_${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
-        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${randomElement(SPANISH_BOT_NAME_ROOTS)}${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
-        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}${Math.floor(Math.random() * 99)}`,
-        () => `${randomElement(SPANISH_BOT_NAME_ROOTS)}${Math.floor(Math.random() * 999)}`,
-        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${Math.floor(Math.random() * 999)}`,
-        () => `El_${randomElement(SPANISH_BOT_NAME_PREFIXES)}_${randomElement(SPANISH_BOT_NAME_ROOTS)}`,
-        () => `${randomElement(SPANISH_BOT_NAME_PREFIXES)}${randomElement(SPANISH_BOT_NAME_SUFFIXES)}`,
-    ];
-    
-    let name = '';
-    let attempts = 0;
-    do {
-        name = randomElement(patterns)();
-        attempts++;
-    } while (usedBotNames.has(name) && attempts < 50);
-    
-    usedBotNames.add(name);
-    return name;
-};
-
-export const generateBotName = (language: 'en' | 'es' = 'en'): string => {
-    return language === 'es' ? generateSpanishBotName() : generateEnglishBotName();
-};
-
-export const resetBotNameGenerator = (): void => {
-    usedBotNames.clear();
-};
-
 export interface RankingEntry {
     id: string;
     rank: number;
@@ -149,10 +38,9 @@ export interface StaticBot {
     eventTurnsRemaining: number;
     growthModifier: number;
     reputation: number;
+    isPlayer?: boolean;
 }
 
-const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
-const TOTAL_BOTS = 199;
 export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
 
@@ -187,39 +75,57 @@ export const getFlagEmoji = (countryCode: string) => {
     return String.fromCodePoint(...codePoints);
 };
 
-const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersonality.TYCOON, BotPersonality.ROGUE];
-
 export const initializeRankingState = (): RankingData => ({
-    bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
-        const personality = PERSONALITIES[i % PERSONALITIES.length];
-        // Higher index = higher rank (more points)
-        const basePoints = 1000 * Math.pow(1.04, i);
-        const dominionScore = Math.round(basePoints / 50) * 50;
-
-        return {
-            id: `bot-${i}`,
-            name: generateBotName('en'),
-            avatarId: (i % 8) + 1,
-            country: COUNTRIES[i % COUNTRIES.length],
-            stats: {
-                [RankingCategory.DOMINION]: dominionScore,
-                [RankingCategory.MILITARY]: Math.floor(dominionScore * 0.5),
-                [RankingCategory.ECONOMY]: dominionScore * 10,
-                [RankingCategory.CAMPAIGN]: 1
-            },
-            ambition: 1.0,
-            personality,
-            // Higher score = better rank (lower number), so invert the index
-            lastRank: TOTAL_BOTS - i,
-            currentEvent: BotEvent.PEACEFUL_PERIOD,
-            eventTurnsRemaining: 0,
-            growthModifier: 0,
-            reputation: 50
-        };
-    }),
+    bots: [], // Empezamos vacío, usePersistence cargará los datos reales de Supabase
     lastUpdateTime: Date.now(),
-    lastPlayerRank: TOTAL_BOTS + 1
+    lastPlayerRank: 1
 });
+
+const getTier = (rank: number): RankingEntry['tier'] => {
+    if (rank <= 3) return 'S';
+    if (rank <= 10) return 'A';
+    if (rank <= 50) return 'B';
+    if (rank <= 100) return 'C';
+    return 'D';
+};
+
+export const getCurrentStandings = (state: GameState, allEntries: any[], category: RankingCategory): RankingEntry[] => {
+    const entries: RankingEntry[] = (allEntries || []).map(entry => {
+        const score = entry.stats ? (entry.stats[category] || 0) : 0;
+        const ratio = score / Math.max(1, state.empirePoints);
+        
+        return {
+            id: entry.id,
+            rank: 0,
+            name: entry.name,
+            score,
+            isPlayer: entry.isPlayer || entry.id === state.gameId,
+            avatarId: entry.avatarId || 0,
+            country: entry.country || 'UN',
+            tier: 'D',
+            trend: 0,
+            _rawLastRank: entry.lastRank,
+            personality: entry.personality || BotPersonality.WARLORD,
+            canAttack: !entry.isPlayer && ratio >= 0.5 && ratio <= 1.5
+        };
+    });
+
+    entries.sort((a, b) => b.score - a.score);
+
+    const result = entries.map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+        tier: getTier(index + 1),
+        trend: (entry._rawLastRank || 0) - (index + 1)
+    }));
+
+    const playerEntry = result.find(e => e.isPlayer);
+    if (playerEntry && state.rankingData) {
+        state.rankingData.lastPlayerRank = playerEntry.rank;
+    }
+
+    return result;
+};
 
 const applyEvent = (bot: StaticBot): StaticBot => {
     const roll = Math.random();
@@ -324,7 +230,7 @@ export const processRankingEvolution = (currentBots: StaticBot[], elapsed: numbe
     // Before applying growth, update lastRank to current standings
     // This captures the rank BEFORE the growth cycle for trend calculation
     const preGrowthSorted = [...currentBots].sort((a, b) => 
-        b.stats[RankingCategory.DOMINION] - a.stats[RankingCategory.DOMINION]
+        (b.stats ? b.stats[RankingCategory.DOMINION] : 0) - (a.stats ? a.stats[RankingCategory.DOMINION] : 0)
     );
     
     const preGrowthRanks = new Map<string, number>();
@@ -353,65 +259,4 @@ export const processRankingEvolution = (currentBots: StaticBot[], elapsed: numbe
         bots: updatedBots,
         cycles: totalCycles
     };
-};
-
-const getTier = (rank: number): RankingEntry['tier'] => {
-    if (rank <= 3) return 'S';
-    if (rank <= 10) return 'A';
-    if (rank <= 50) return 'B';
-    if (rank <= 100) return 'C';
-    return 'D';
-};
-
-export const getCurrentStandings = (state: GameState, bots: StaticBot[], category: RankingCategory): RankingEntry[] => {
-    const previousPlayerRank = state.rankingData.lastPlayerRank;
-
-    const entries: RankingEntry[] = bots.map(bot => {
-        const score = bot.stats[category];
-        const ratio = score / Math.max(1, state.empirePoints);
-        return {
-            id: bot.id,
-            rank: 0,
-            name: bot.name,
-            score,
-            isPlayer: false,
-            avatarId: bot.avatarId,
-            country: bot.country,
-            tier: 'D',
-            trend: 0,
-            _rawLastRank: bot.lastRank,
-            personality: bot.personality,
-            canAttack: ratio >= 0.5 && ratio <= 1.5
-        };
-    });
-
-    entries.push({
-        id: 'PLAYER',
-        rank: 0,
-        name: state.playerName || 'Commander',
-        score: state.empirePoints,
-        isPlayer: true,
-        avatarId: 0,
-        country: state.playerFlag || 'US',
-        tier: 'D',
-        trend: 0,
-        _rawLastRank: previousPlayerRank,
-        personality: BotPersonality.WARLORD
-    });
-
-    entries.sort((a, b) => b.score - a.score);
-
-    const result = entries.map((entry, index) => ({
-        ...entry,
-        rank: index + 1,
-        tier: getTier(index + 1),
-        trend: (entry._rawLastRank || 0) - (index + 1)
-    }));
-
-    const playerEntry = result.find(e => e.isPlayer);
-    if (playerEntry && state.rankingData) {
-        state.rankingData.lastPlayerRank = playerEntry.rank;
-    }
-
-    return result;
 };

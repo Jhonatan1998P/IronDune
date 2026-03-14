@@ -9,10 +9,14 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
     if (!def) return { success: false, errorKey: 'unknown_tech' };
     
     const currentLevel = state.techLevels[techId] || 0;
+    const queuedCount = (state.activeResearch || []).filter(r => r.techId === techId).length;
+    const effectiveStartLevel = currentLevel + queuedCount;
+    const targetLevel = effectiveStartLevel + 1;
+
     const maxLevel = def.maxLevel || 1;
-    if (currentLevel >= maxLevel) return { success: false }; 
+    if (effectiveStartLevel >= maxLevel) return { success: false }; 
     if (maxLevel === 1 && state.researchedTechs.includes(techId)) return { success: false };
-    if (state.activeResearch) return { success: false, errorKey: 'research_busy' };
+    if ((state.activeResearch || []).length >= 3) return { success: false, errorKey: 'research_busy' };
 
     // Validations
     let reqUniversityLvl = def.reqUniversityLevel;
@@ -42,7 +46,7 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
         return { success: false, errorKey: 'req_score' };
     }
 
-    const calculatedCost = calculateResearchCost(def, currentLevel);
+    const calculatedCost = calculateResearchCost(def, effectiveStartLevel);
 
     if (state.resources[ResourceType.MONEY] < calculatedCost.money || 
         state.resources[ResourceType.OIL] < calculatedCost.oil || 
@@ -52,7 +56,7 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
         return { success: false, errorKey: 'insufficient_funds' };
     }
 
-    const newState = {
+    const newState: GameState = {
         ...state,
         resources: {
             ...state.resources,
@@ -62,7 +66,10 @@ export const executeResearch = (state: GameState, techId: TechType): ActionResul
             [ResourceType.GOLD]: state.resources[ResourceType.GOLD] - (calculatedCost.gold || 0),
             [ResourceType.DIAMOND]: state.resources[ResourceType.DIAMOND] - (calculatedCost.diamond || 0),
         },
-        activeResearch: { techId, startTime: Date.now(), endTime: Date.now() + def.researchTime }
+        activeResearch: [
+            ...(state.activeResearch || []),
+            { techId, targetLevel, startTime: Date.now(), endTime: Date.now() + def.researchTime }
+        ]
     };
     return { success: true, newState };
 };
