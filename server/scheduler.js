@@ -38,7 +38,6 @@ async function tickGlobalMarket() {
         if (error) throw error;
 
         for (const res of market) {
-            // Fluctuación orgánica +/- 2%
             const change = 1 + (Math.random() * 0.04 - 0.02);
             const newPrice = Math.max(res.base_price * 0.5, res.current_price * change);
             
@@ -58,11 +57,7 @@ async function tickGlobalMarket() {
 async function cleanupWorldEvents() {
     try {
         const now = new Date().toISOString();
-        const { error } = await supabase
-            .from('world_events')
-            .delete()
-            .lte('expires_at', now);
-        if (error) throw error;
+        await supabase.from('world_events').delete().lte('expires_at', now);
     } catch (error) {
         console.error('[Scheduler] Event Cleanup Error:', error);
     }
@@ -100,7 +95,7 @@ async function processEngineTick() {
             }
         }
 
-        // 2. Process Stale Profiles (Bot interactions, Grudges, etc.)
+        // 2. Process Stale Profiles
         const staleTime = new Date(now - STALE_THRESHOLD_MS).toISOString();
         const { data: profiles } = await supabase
             .from('profiles')
@@ -128,7 +123,6 @@ async function resolveMovement(mov, now) {
         } else if (mov.type === 'return') {
             await executeReturn(mov, now);
         } else {
-            // Misiones normales de bots/campaña
             await processSingleProfile(mov.sender_id, now);
         }
 
@@ -143,16 +137,10 @@ async function executeP2PBattle(mov, now) {
     const attackerId = mov.sender_id;
     const defenderId = mov.target_id;
     const { 
-        MAX_ATTACKS_24H, 
-        MAX_ATTACKS_1H, 
-        BASH_LIMIT_WINDOW_MS,
-        SHORT_LIMIT_WINDOW_MS,
-        FIRST_ATTACK_PLUNDER_RATE, 
-        SUBSEQUENT_ATTACK_PLUNDER_RATE,
-        GLOBAL_DEBRIS_RATIO 
+        MAX_ATTACKS_24H, MAX_ATTACKS_1H, BASH_LIMIT_WINDOW_MS, SHORT_LIMIT_WINDOW_MS,
+        FIRST_ATTACK_PLUNDER_RATE, SUBSEQUENT_ATTACK_PLUNDER_RATE, GLOBAL_DEBRIS_RATIO 
     } = await import('./engine/constants.js');
 
-    // 1. CHEQUEO DE BASH LIMIT ESTRICTO (6 en 24h, 3 en 1h)
     const window24h = new Date(now - BASH_LIMIT_WINDOW_MS).toISOString();
     const window1h = new Date(now - SHORT_LIMIT_WINDOW_MS).toISOString();
     
@@ -171,7 +159,6 @@ async function executeP2PBattle(mov, now) {
         return cancelMission(mov, 'Bash Limit: Max 6/24h or 3/1h reached.');
     }
 
-    // 2. Cargar datos para el reporte de precisión
     const { data: defUnits } = await supabase.from('player_units').select('*').eq('player_id', defenderId);
     const { data: defBuildings } = await supabase.from('player_buildings').select('*').eq('player_id', defenderId);
     
@@ -181,41 +168,25 @@ async function executeP2PBattle(mov, now) {
         return acc;
     }, {});
 
-    // 3. Simular Combate
     const { simulateCombat } = await import('./engine/combat.js');
     const result = simulateCombat(defenderInitialArmy, attackerInitialArmy);
     
-    // 4. TRANSFERENCIA DE EDIFICIOS (Robo Real)
     let stolenBuildings = {};
     if (result.winner === 'ATTACKER') {
         const rate = (total24h === 0) ? FIRST_ATTACK_PLUNDER_RATE : SUBSEQUENT_ATTACK_PLUNDER_RATE;
-        
         for (const b of (defBuildings || [])) {
             const currentVal = (b.quantity > 0) ? b.quantity : b.level;
             const stolenAmount = Math.floor(currentVal * rate);
-            
             if (stolenAmount > 0) {
                 stolenBuildings[b.building_type] = stolenAmount;
-                
-                // A. Restar del Defensor
-                await supabase.from('player_buildings')
-                    .update({ 
-                        quantity: (b.quantity > 0) ? Math.max(0, b.quantity - stolenAmount) : 0,
-                        level: (b.level > 0) ? Math.max(0, b.level - stolenAmount) : 0
-                    })
-                    .eq('player_id', defenderId)
-                    .eq('building_type', b.building_type);
+                await supabase.from('player_buildings').update({ 
+                    quantity: (b.quantity > 0) ? Math.max(0, b.quantity - stolenAmount) : 0,
+                    level: (b.level > 0) ? Math.max(0, b.level - stolenAmount) : 0
+                }).eq('player_id', defenderId).eq('building_type', b.building_type);
 
-                // B. Añadir al Atacante (Transferencia)
-                const { data: attB } = await supabase.from('player_buildings')
-                    .select('*')
-                    .eq('player_id', attackerId)
-                    .eq('building_type', b.building_type)
-                    .single();
-
+                const { data: attB } = await supabase.from('player_buildings').select('*').eq('player_id', attackerId).eq('building_type', b.building_type).single();
                 await supabase.from('player_buildings').upsert({
-                    player_id: attackerId,
-                    building_type: b.building_type,
+                    player_id: attackerId, building_type: b.building_type,
                     quantity: (b.quantity > 0) ? (Number(attB?.quantity || 0) + stolenAmount) : 0,
                     level: (b.level > 0) ? (Number(attB?.level || 0) + stolenAmount) : 0
                 });
@@ -223,35 +194,20 @@ async function executeP2PBattle(mov, now) {
         }
     }
 
-    // 5. Aplicar Bajas de Unidades
     for (const [uType, count] of Object.entries(result.finalDefenderArmy)) {
         await supabase.from('player_units').upsert({ player_id: defenderId, unit_type: uType, count: Math.max(0, count) });
     }
 
-    // 6. Reporte Detallado de Alta Precisión
     const detailedReport = {
-        attackerId,
-        defenderId,
-        winner: result.winner,
-        rounds: result.rounds,
-        stolenBuildings,
+        attackerId, defenderId, winner: result.winner, rounds: result.rounds, stolenBuildings,
         debrisValue: result.totalLossesValue * GLOBAL_DEBRIS_RATIO,
         sections: {
-            attacker: {
-                initial: attackerInitialArmy,
-                losses: result.totalAttackerCasualties,
-                survivors: result.finalAttackerArmy
-            },
-            defender: {
-                initial: defenderInitialArmy,
-                losses: result.totalDefenderCasualties,
-                survivors: result.finalDefenderArmy
-            },
-            allies: result.allyCasualties || {} // Desglose de aliados si existen
+            attacker: { initial: attackerInitialArmy, losses: result.totalAttackerCasualties, survivors: result.finalAttackerArmy },
+            defender: { initial: defenderInitialArmy, losses: result.totalDefenderCasualties, survivors: result.finalDefenderArmy },
+            allies: result.allyCasualties || {}
         }
     };
 
-    // 7. Retorno e Informes
     const travelTime = Number(mov.end_time) - Number(mov.start_time);
     await supabase.from('movements').insert({
         sender_id: attackerId, target_id: attackerId, type: 'return',
@@ -264,97 +220,29 @@ async function executeP2PBattle(mov, now) {
     ]);
 }
 
-    // 5. Aplicar bajas al defensor (Unidades)
-    for (const [unitType, count] of Object.entries(result.finalDefenderArmy)) {
-        await supabase.from('player_units').upsert({
-            player_id: defenderId,
-            unit_type: unitType,
-            count: Math.max(0, count)
-        });
-    }
-
-    // 6. Generar Campo de Escombros (30% universal)
-    const debrisValue = result.totalLossesValue * GLOBAL_DEBRIS_RATIO;
-    if (debrisValue > 0) {
-        await supabase.from('salvage_fields').insert({
-            origin: 'Battle Field',
-            resources: { MONEY: debrisValue * 0.5, OIL: debrisValue * 0.5 },
-            expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
-            total_value: debrisValue,
-            attacker_id: attackerId,
-            defender_id: defenderId
-        });
-    }
-
-    // 7. Retorno (Con edificios robados en el "cargo" si decidimos que se transforman en recursos o simplemente se pierden)
-    // Según tu regla, los edificios se roban (se pierden del defensor). 
-    // Si el atacante los "gana", podríamos convertirlos en recursos de construcción.
-    const travelTime = Number(mov.end_time) - Number(mov.start_time);
-    await supabase.from('movements').insert({
-        sender_id: attackerId,
-        target_id: attackerId,
-        type: 'return',
-        units: result.finalAttackerArmy,
-        resources: {}, // No robamos recursos directos
-        stolen_buildings: stolenBuildings,
-        start_time: now,
-        end_time: now + travelTime,
-        status: 'active'
-    });
-
-    // 8. Reportes con ID de atacante para el Bash Limit
-    const reportContent = { ...result, attackerId, stolenBuildings };
-    await supabase.from('reports').insert([
-        { user_id: attackerId, title: 'Attack Report', content: reportContent, type: 'COMBAT' },
-        { user_id: defenderId, title: 'Defense Report', content: reportContent, type: 'COMBAT' }
-    ]);
-}
-
 async function cancelMission(mov, reason) {
     const travelTime = Number(mov.end_time) - Number(mov.start_time);
     await supabase.from('movements').insert({
-        sender_id: mov.sender_id,
-        target_id: mov.sender_id,
-        type: 'return',
-        units: mov.units,
-        start_time: Date.now(),
-        end_time: Date.now() + travelTime,
-        status: 'active'
+        sender_id: mov.sender_id, target_id: mov.sender_id, type: 'return',
+        units: mov.units, start_time: Date.now(), end_time: Date.now() + travelTime, status: 'active'
     });
     await supabase.from('reports').insert({
-        user_id: mov.sender_id,
-        title: 'Mission Cancelled',
-        content: { reason, originalMovement: mov.id },
-        type: 'SYSTEM'
+        user_id: mov.sender_id, title: 'Mission Cancelled', content: { reason, originalMovement: mov.id }, type: 'SYSTEM'
     });
 }
 
 async function executeReturn(mov, now) {
-    // 1. Devolver unidades al hangar
     for (const [unitType, count] of Object.entries(mov.units)) {
-        const { data: current } = await supabase.from('player_units')
-            .select('count')
-            .eq('player_id', mov.sender_id)
-            .eq('unit_type', unitType)
-            .single();
-        
+        const { data: current } = await supabase.from('player_units').select('count').eq('player_id', mov.sender_id).eq('unit_type', unitType).single();
         await supabase.from('player_units').upsert({
-            player_id: mov.sender_id,
-            unit_type: unitType,
-            count: Number(current?.count || 0) + Number(count)
+            player_id: mov.sender_id, unit_type: unitType, count: Number(current?.count || 0) + Number(count)
         });
     }
-
-    // 2. Entregar recursos robados
     if (mov.resources) {
         await supabase.rpc('add_resources', {
-            p_id: mov.sender_id,
-            m: mov.resources.MONEY || 0,
-            o: mov.resources.OIL || 0,
-            a: mov.resources.AMMO || 0
+            p_id: mov.sender_id, m: mov.resources.MONEY || 0, o: mov.resources.OIL || 0, a: mov.resources.AMMO || 0
         });
     }
-    
     console.log(`[BattleEngine] Return completed for ${mov.sender_id}`);
 }
 
@@ -366,109 +254,40 @@ async function fetchFullState(userId) {
         supabase.from('player_research').select('*').eq('player_id', userId),
         supabase.from('player_units').select('*').eq('player_id', userId)
     ]);
-
     if (profileRes.error) throw profileRes.error;
-
     const profile = profileRes.data;
     const economy = economyRes.data || {};
-    
     const state = {
-        ...profile.game_state,
-        playerName: profile.username,
-        empirePoints: Number(profile.empire_points),
-        resources: {
-            MONEY: Number(economy.money || 0),
-            OIL: Number(economy.oil || 0),
-            AMMO: Number(economy.ammo || 0),
-            GOLD: Number(economy.gold || 0),
-            DIAMOND: Number(economy.diamond || 0)
-        },
-        bankBalance: Number(economy.bank_balance || 0),
-        buildings: {},
-        units: {},
-        techLevels: {},
-        logs: [] // Logs are handled via the reports table now
+        ...profile.game_state, playerName: profile.username, empirePoints: Number(profile.empire_points),
+        resources: { MONEY: Number(economy.money || 0), OIL: Number(economy.oil || 0), AMMO: Number(economy.ammo || 0), GOLD: Number(economy.gold || 0), DIAMOND: Number(economy.diamond || 0) },
+        bankBalance: Number(economy.bank_balance || 0), buildings: {}, units: {}, techLevels: {}, logs: []
     };
-
     if (buildingsRes.data) {
         buildingsRes.data.forEach(b => {
             const isQuantity = PLUNDERABLE_BUILDINGS.includes(b.building_type);
-            state.buildings[b.building_type] = { 
-                level: isQuantity ? (b.quantity || 0) : (b.level || 0) 
-            };
+            state.buildings[b.building_type] = { level: isQuantity ? (b.quantity || 0) : (b.level || 0) };
         });
     }
-
-    if (researchRes.data) {
-        researchRes.data.forEach(r => {
-            state.techLevels[r.tech_type] = r.level;
-        });
-    }
-
-    if (unitsRes.data) {
-        unitsRes.data.forEach(u => {
-            state.units[u.unit_type] = Number(u.count);
-        });
-    }
-
+    if (researchRes.data) { buildingsRes.data.forEach(r => { state.techLevels[r.tech_type] = r.level; }); }
+    if (unitsRes.data) { unitsRes.data.forEach(u => { state.units[u.unit_type] = Number(u.count); }); }
     return state;
 }
 
 async function persistState(userId, state, now) {
     const { logs, newLogs, ...minimalGameState } = state;
-    
-    // 1. Profile
-    await supabase.from('profiles').update({
-        empire_points: state.empirePoints,
-        game_state: minimalGameState,
-        updated_at: new Date(now).toISOString()
-    }).eq('id', userId);
-
-    // 2. Economy
+    await supabase.from('profiles').update({ empire_points: state.empirePoints, game_state: minimalGameState, updated_at: new Date(now).toISOString() }).eq('id', userId);
     await supabase.from('player_economy').upsert({
-        player_id: userId,
-        money: state.resources.MONEY,
-        oil: state.resources.OIL,
-        ammo: state.resources.AMMO,
-        gold: state.resources.GOLD,
-        diamond: state.resources.DIAMOND,
-        bank_balance: state.bankBalance,
-        last_calc_time: now
+        player_id: userId, money: state.resources.MONEY, oil: state.resources.OIL, ammo: state.resources.AMMO, gold: state.resources.GOLD, diamond: state.resources.DIAMOND, bank_balance: state.bankBalance, last_calc_time: now
     });
-
-    // 3. Buildings
     const buildingData = Object.entries(state.buildings).map(([type, b]) => {
         const isQuantity = PLUNDERABLE_BUILDINGS.includes(type);
-        return {
-            player_id: userId,
-            building_type: type,
-            level: isQuantity ? 0 : b.level,
-            quantity: isQuantity ? b.level : 0
-        };
+        return { player_id: userId, building_type: type, level: isQuantity ? 0 : b.level, quantity: isQuantity ? b.level : 0 };
     });
-    if (buildingData.length > 0) {
-        await supabase.from('player_buildings').upsert(buildingData);
-    }
-
-    // 4. Units
-    const unitData = Object.entries(state.units).map(([type, count]) => ({
-        player_id: userId,
-        unit_type: type,
-        count: count
-    }));
-    if (unitData.length > 0) {
-        await supabase.from('player_units').upsert(unitData);
-    }
-
-    // 5. Reports
+    if (buildingData.length > 0) await supabase.from('player_buildings').upsert(buildingData);
+    const unitData = Object.entries(state.units).map(([type, count]) => ({ player_id: userId, unit_type: type, count: count }));
+    if (unitData.length > 0) await supabase.from('player_units').upsert(unitData);
     if (newLogs && newLogs.length > 0) {
-        const reportData = newLogs.map(log => ({
-            user_id: userId,
-            title: log.messageKey,
-            content: log.params || {},
-            type: (log.type || 'info').toUpperCase(),
-            created_at: new Date(log.timestamp || now).toISOString()
-        }));
+        const reportData = newLogs.map(log => ({ user_id: userId, title: log.messageKey, content: log.params || {}, type: (log.type || 'info').toUpperCase(), created_at: new Date(log.timestamp || now).toISOString() }));
         await supabase.from('reports').insert(reportData);
     }
 }
@@ -478,46 +297,20 @@ async function processSingleProfile(userId, now) {
         let state = await fetchFullState(userId);
         let modified = false;
         state.newLogs = [];
-
-        // 1. Nemesis Tick
         const nemesisResult = processNemesisTick(state, now);
-        if (Object.keys(nemesisResult.stateUpdates).length > 0) {
-            state = { ...state, ...nemesisResult.stateUpdates };
-            state.newLogs.push(...nemesisResult.logs);
-            modified = true;
-        }
-
-        // 2. Enemy Attacks
+        if (Object.keys(nemesisResult.stateUpdates).length > 0) { state = { ...state, ...nemesisResult.stateUpdates }; state.newLogs.push(...nemesisResult.logs); modified = true; }
         const enemyAttackResult = processEnemyAttackCheck(state, now);
-        if (Object.keys(enemyAttackResult.stateUpdates).length > 0) {
-            state = { ...state, ...enemyAttackResult.stateUpdates };
-            state.newLogs.push(...enemyAttackResult.logs);
-            modified = true;
-        }
-
-        // 3. Attack Queue (Resolves the movement)
+        if (Object.keys(enemyAttackResult.stateUpdates).length > 0) { state = { ...state, ...enemyAttackResult.stateUpdates }; state.newLogs.push(...enemyAttackResult.logs); modified = true; }
         const queueResult = await processAttackQueue(state, now);
         if (queueResult.queuedResults.length > 0) {
-            state = queueResult.newState;
-            state.newLogs.push(...queueResult.newLogs);
-            modified = true;
-
+            state = queueResult.newState; state.newLogs.push(...queueResult.newLogs); modified = true;
             for (const item of queueResult.queuedResults) {
-                if (item.result?.defenderUpdates) {
-                    await applyDefenderUpdates(item.result.defenderUpdates, now);
-                }
-                if (item.result?.generatedLogisticLoot) {
-                    await saveGlobalLoot(item.result.generatedLogisticLoot);
-                }
+                if (item.result?.defenderUpdates) await applyDefenderUpdates(item.result.defenderUpdates, now);
+                if (item.result?.generatedLogisticLoot) await saveGlobalLoot(item.result.generatedLogisticLoot);
             }
         }
-
-        if (modified) {
-            await persistState(userId, state, now);
-        }
-    } catch (error) {
-        console.error(`[Scheduler] Error processing profile ${userId}:`, error);
-    }
+        if (modified) await persistState(userId, state, now);
+    } catch (error) { console.error(`[Scheduler] Error processing profile ${userId}:`, error); }
 }
 
 async function applyDefenderUpdates(updates, now) {
@@ -525,27 +318,10 @@ async function applyDefenderUpdates(updates, now) {
         const { targetId, logKey, logParams, unitsLost, buildingsLost, resourcesLost } = updates;
         let state = await fetchFullState(targetId);
         state.newLogs = [];
-
-        if (unitsLost) {
-            Object.entries(unitsLost).forEach(([uType, count]) => {
-                if (state.units[uType]) state.units[uType] = Math.max(0, state.units[uType] - count);
-            });
-        }
-        if (buildingsLost) {
-            Object.entries(buildingsLost).forEach(([bType, count]) => {
-                if (state.buildings[bType]) state.buildings[bType].level = Math.max(0, state.buildings[bType].level - count);
-            });
-        }
-        if (resourcesLost) {
-            Object.entries(resourcesLost).forEach(([res, amount]) => {
-                const key = res.toUpperCase();
-                if (state.resources[key] !== undefined) state.resources[key] = Math.max(0, state.resources[key] - amount);
-            });
-        }
-
+        if (unitsLost) Object.entries(unitsLost).forEach(([uType, count]) => { if (state.units[uType]) state.units[uType] = Math.max(0, state.units[uType] - count); });
+        if (buildingsLost) Object.entries(buildingsLost).forEach(([bType, count]) => { if (state.buildings[bType]) state.buildings[bType].level = Math.max(0, state.buildings[bType].level - count); });
+        if (resourcesLost) Object.entries(resourcesLost).forEach(([res, amount]) => { const key = res.toUpperCase(); if (state.resources[key] !== undefined) state.resources[key] = Math.max(0, state.resources[key] - amount); });
         state.newLogs.push({ id: `def-${targetId}-${now}`, messageKey: logKey, params: logParams, timestamp: now, type: 'combat' });
         await persistState(targetId, state, now);
-    } catch (e) {
-        console.error('[Scheduler] Defender Update Error:', e);
-    }
+    } catch (e) { console.error('[Scheduler] Defender Update Error:', e); }
 }
