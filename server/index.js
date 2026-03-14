@@ -146,60 +146,69 @@ app.get('/api/bots/global', async (req, res) => {
 // --- SOCKET.IO LOGIC ---
 
 const playerPresence = new Map();
+const playerLiveStates = new Map(); // Cache para cálculos rápidos
 const GLOBAL_ROOM = 'global';
 
 io.on('connection', (socket) => {
   let playerId = null;
 
-  socket.on('join_room', ({ peerId }) => {
+  socket.on('join_room', async ({ peerId }) => {
     playerId = peerId;
     socket.join(GLOBAL_ROOM);
+    
+    // Cargar estado inicial para la caché de autoridad
+    const { data: economy } = await supabase.from('player_economy').select('*').eq('player_id', peerId).single();
+    if (economy) {
+        playerLiveStates.set(peerId, {
+            resources: {
+                MONEY: Number(economy.money),
+                OIL: Number(economy.oil),
+                AMMO: Number(economy.ammo),
+                GOLD: Number(economy.gold)
+            },
+            rates: {
+                MONEY: Number(economy.money_prod),
+                OIL: Number(economy.oil_prod),
+                AMMO: Number(economy.ammo_prod),
+                GOLD: Number(economy.gold_prod)
+            },
+            lastUpdate: Number(economy.last_calc_time)
+        });
+    }
 
     playerPresence.set(peerId, {
       id: peerId,
       socketId: socket.id,
-      name: 'Player',
-      level: 0,
       lastSeen: Date.now(),
     });
-
-    const peersInRoom = [];
-    for (const [pid, data] of playerPresence.entries()) {
-      if (pid !== peerId) {
-        peersInRoom.push(pid);
-      }
-    }
-
-    socket.emit('room_joined', { roomId: GLOBAL_ROOM, peers: peersInRoom });
-    socket.to(GLOBAL_ROOM).emit('peer_join', { peerId });
   });
 
-  socket.on('broadcast_action', ({ action }) => {
-    socket.to(GLOBAL_ROOM).emit('remote_action', { action, fromPeerId: playerId });
-  });
+  // HEARTBEAT AUTORITATIVO: El cliente pide sincronización cada segundo
+  socket.on('request_engine_sync', () => {
+    if (!playerId || !playerLiveStates.has(playerId)) return;
 
-  socket.on('send_to_peer', ({ targetPeerId, action }) => {
-    const target = playerPresence.get(targetPeerId);
-    if (!target) return;
-    const targetSocketId = target.socketId;
-    io.to(targetSocketId).emit('remote_action', { action, fromPeerId: playerId });
-  });
+    const live = playerLiveStates.get(playerId);
+    const now = Date.now();
+    const delta = (now - live.lastUpdate) / 1000;
 
-  socket.on('presence_update', ({ playerData }) => {
-    if (!playerId) return;
-    const existing = playerPresence.get(playerId);
-    if (existing) {
-      existing.name = playerData.name || existing.name;
-      existing.level = playerData.level ?? existing.level;
-      existing.flag = playerData.flag;
-      existing.lastSeen = Date.now();
-    }
+    // Cálculo autoritativo en memoria (Source of Truth temporal)
+    const currentResources = {
+        MONEY: live.resources.MONEY + (live.rates.MONEY * delta),
+        OIL: live.resources.OIL + (live.rates.OIL * delta),
+        AMMO: live.resources.AMMO + (live.rates.AMMO * delta),
+        GOLD: live.resources.GOLD + (live.rates.GOLD * delta),
+    };
+
+    socket.emit('engine_sync_update', {
+        resources: currentResources,
+        serverTime: now
+    });
   });
 
   socket.on('disconnect', () => {
     if (playerId) {
-      socket.to(GLOBAL_ROOM).emit('peer_leave', { peerId: playerId });
       playerPresence.delete(playerId);
+      playerLiveStates.delete(playerId);
     }
   });
 });

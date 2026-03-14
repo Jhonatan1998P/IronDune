@@ -441,32 +441,125 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Sincronización de producción offline y procesamiento de colas para TODOS los jugadores.
--- Llamada por el Scheduler cada minuto vía: supabase.rpc('sync_all_production_v2')
-CREATE OR REPLACE FUNCTION public.sync_all_production_v2()
+-- Llamada por el Scheduler cada minuto vía: supabase.rpc('sync_all_production_v3')
+-- V3: Implementa procesamiento retroactivo preciso (Delta Calculation)
+CREATE OR REPLACE FUNCTION public.sync_all_production_v3()
 RETURNS TABLE (processed_players integer, processed_constructions integer, processed_research integer, processed_units integer) AS $$
 DECLARE
   now_ms   bigint := EXTRACT(EPOCH FROM NOW()) * 1000;
-  limit_ms bigint := 6 * 60 * 60 * 1000; -- tope de 6 horas de producción offline
-  p_count  integer;
-  q_results record;
+  p_count  integer := 0;
+  total_c  integer := 0;
+  total_r  integer := 0;
+  total_u  integer := 0;
+  rec_p    record;
+  rec_q    record;
+  last_t   bigint;
+  delta_t  numeric;
 BEGIN
-  -- 1. Procesar Producción
-  UPDATE public.player_economy
-  SET
-    money  = money  + (money_prod  * LEAST(now_ms - last_calc_time, limit_ms) / 1000.0),
-    oil    = oil    + (oil_prod    * LEAST(now_ms - last_calc_time, limit_ms) / 1000.0),
-    ammo   = ammo   + (ammo_prod   * LEAST(now_ms - last_calc_time, limit_ms) / 1000.0),
-    gold   = gold   + (gold_prod   * LEAST(now_ms - last_calc_time, limit_ms) / 1000.0),
-    last_calc_time       = now_ms,
-    last_production_sync = NOW()
-  WHERE last_calc_time < now_ms;
+  -- Iterar por cada jugador que necesite actualización
+  FOR rec_p IN SELECT player_id, last_calc_time, money_prod, oil_prod, ammo_prod, gold_prod FROM public.player_economy WHERE last_calc_time < now_ms LOOP
+    p_count := p_count + 1;
+    last_t := rec_p.last_calc_time;
 
-  SELECT COUNT(*)::integer INTO p_count FROM public.player_economy;
+    -- 1. Procesar colas cronológicamente para este jugador
+    -- Nota: En un sistema real, combinaríamos las 3 colas y las ordenaríamos por end_time.
+    -- Para simplificar pero mantener precisión, procesamos una a una pero actualizando producción entre ellas.
+    
+    -- Construcciones (afectan producción)
+    FOR rec_q IN (SELECT * FROM public.construction_queue WHERE player_id = rec_p.player_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+        delta_t := (rec_q.end_time - last_t) / 1000.0;
+        IF delta_t > 0 THEN
+            UPDATE public.player_economy SET 
+                money = money + (money_prod * delta_t),
+                oil = oil + (oil_prod * delta_t),
+                ammo = ammo + (ammo_prod * delta_t),
+                gold = gold + (gold_prod * delta_t)
+            WHERE player_id = rec_p.player_id;
+        END IF;
 
-  -- 2. Procesar Colas
-  SELECT * INTO q_results FROM public.process_queues();
+        -- Aplicar mejora
+        INSERT INTO public.player_buildings (player_id, building_type, level, quantity)
+        VALUES (rec_q.player_id, rec_q.building_type, rec_q.target_level, 0)
+        ON CONFLICT (player_id, building_type) DO UPDATE SET 
+            level = EXCLUDED.level,
+            quantity = CASE WHEN public.player_buildings.quantity > 0 THEN EXCLUDED.level ELSE public.player_buildings.quantity END;
+        
+        -- Recalcular tasas de producción inmediatamente para el siguiente tramo
+        PERFORM public.update_player_production_rates(rec_q.player_id);
+        
+        -- Actualizar tasas locales para el loop
+        SELECT money_prod, oil_prod, ammo_prod, gold_prod INTO rec_p.money_prod, rec_p.oil_prod, rec_p.ammo_prod, rec_p.gold_prod 
+        FROM public.player_economy WHERE player_id = rec_p.player_id;
 
-  RETURN QUERY SELECT p_count, q_results.processed_constructions, q_results.processed_research, q_results.processed_units;
+        DELETE FROM public.construction_queue WHERE id = rec_q.id;
+        last_t := rec_q.end_time;
+        total_c := total_c + 1;
+    END LOOP;
+
+    -- Procesar Investigación y Unidades (no afectan producción directamente de la misma forma en este esquema, pero siguen el tiempo)
+    -- Investigación
+    FOR rec_q IN (SELECT * FROM public.research_queue WHERE player_id = rec_p.player_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+        delta_t := (rec_q.end_time - last_t) / 1000.0;
+        IF delta_t > 0 THEN
+            UPDATE public.player_economy SET 
+                money = money + (money_prod * delta_t),
+                oil = oil + (oil_prod * delta_t),
+                ammo = ammo + (ammo_prod * delta_t),
+                gold = gold + (gold_prod * delta_t)
+            WHERE player_id = rec_p.player_id;
+        END IF;
+
+        INSERT INTO public.player_research (player_id, tech_type, level)
+        VALUES (rec_q.player_id, rec_q.tech_type, rec_q.target_level)
+        ON CONFLICT (player_id, tech_type) DO UPDATE SET level = EXCLUDED.level;
+        
+        DELETE FROM public.research_queue WHERE id = rec_q.id;
+        last_t := rec_q.end_time;
+        total_r := total_r + 1;
+    END LOOP;
+
+    -- Unidades
+    FOR rec_q IN (SELECT * FROM public.unit_queue WHERE player_id = rec_p.player_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+        delta_t := (rec_q.end_time - last_t) / 1000.0;
+        IF delta_t > 0 THEN
+            UPDATE public.player_economy SET 
+                money = money + (money_prod * delta_t),
+                oil = oil + (oil_prod * delta_t),
+                ammo = ammo + (ammo_prod * delta_t),
+                gold = gold + (gold_prod * delta_t)
+            WHERE player_id = rec_p.player_id;
+        END IF;
+
+        INSERT INTO public.player_units (player_id, unit_type, count)
+        VALUES (rec_q.player_id, rec_q.unit_type, rec_q.amount)
+        ON CONFLICT (player_id, unit_type) DO UPDATE SET count = public.player_units.count + EXCLUDED.count;
+        
+        DELETE FROM public.unit_queue WHERE id = rec_q.id;
+        last_t := rec_q.end_time;
+        total_u := total_u + 1;
+    END LOOP;
+
+    -- Final: Procesar tiempo restante hasta "ahora"
+    delta_t := (now_ms - last_t) / 1000.0;
+    IF delta_t > 0 THEN
+        UPDATE public.player_economy SET 
+            money = money + (money_prod * delta_t),
+            oil = oil + (oil_prod * delta_t),
+            ammo = ammo + (ammo_prod * delta_t),
+            gold = gold + (gold_prod * delta_t),
+            last_calc_time = now_ms,
+            last_production_sync = NOW()
+        WHERE player_id = rec_p.player_id;
+    ELSE
+        UPDATE public.player_economy SET 
+            last_calc_time = now_ms,
+            last_production_sync = NOW()
+        WHERE player_id = rec_p.player_id;
+    END IF;
+
+  END LOOP;
+
+  RETURN QUERY SELECT p_count, total_c, total_r, total_u;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

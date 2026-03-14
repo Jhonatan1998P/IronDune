@@ -1,6 +1,6 @@
 /**
- * BACKGROUND SCHEDULER - REFACTORED FOR GLOBAL REAL-TIME RESOLUTION
- * Processes production via SQL and resolves movements globally.
+ * BACKGROUND SCHEDULER - REFACTORED FOR GLOBAL AUTHORITY & PERSISTENCE
+ * Processes production via SQL (V3 Delta) and resolves movements globally.
  */
 
 import { supabase } from './db/lib/supabase.js';
@@ -11,14 +11,14 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { saveGlobalLoot } from './engine/logisticLoot.js';
 import { PLUNDERABLE_BUILDINGS } from './engine/constants.js';
 
-const SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 Minute
-const MARKET_TICK_MS = 10 * 60 * 1000; // 10 Minutes (Fast for dev)
+const SCHEDULER_INTERVAL_MS = 2 * 60 * 1000; // 2 Minutes (User requested auto-sync)
+const MARKET_TICK_MS = 10 * 60 * 1000; // 10 Minutes
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 Minutes
 
 export const startScheduler = () => {
-    console.log('[Scheduler] Starting global production & movement engine...');
+    console.log('[Scheduler] Starting global authority & persistence engine (2m sync)...');
     
-    // 1. Global SQL Production (All players)
+    // 1. Global Authority Production & Delta Calculation (All players)
     setInterval(syncGlobalProduction, SCHEDULER_INTERVAL_MS);
     
     // 2. Movement & Offline Events Engine
@@ -29,7 +29,31 @@ export const startScheduler = () => {
 
     // 4. Cleanup Expired Events
     setInterval(cleanupWorldEvents, SCHEDULER_INTERVAL_MS);
+    
+    // 5. Bot Growth & Reputation IA
+    setInterval(processBotIntelligence, SCHEDULER_INTERVAL_MS * 5); // Every 10m
 };
+
+async function processBotIntelligence() {
+    try {
+        console.log('[Scheduler] Processing Bot IA growth & reputation...');
+        const { data: bots, error } = await supabase.from('bots').select('*');
+        if (error) throw error;
+
+        for (const bot of bots) {
+            // IA simple: crecimiento de puntos basado en reputación
+            const growth = Math.floor(bot.reputation * (1 + Math.random()));
+            await supabase.from('bots')
+                .update({ 
+                    score: bot.score + growth,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', bot.id);
+        }
+    } catch (error) {
+        console.error('[Scheduler] Bot IA Error:', error);
+    }
+}
 
 async function tickGlobalMarket() {
     try {
@@ -65,18 +89,18 @@ async function cleanupWorldEvents() {
 
 async function syncGlobalProduction() {
     try {
-        console.log('[Scheduler] Syncing global production & queues via SQL RPC...');
-        const { data, error } = await supabase.rpc('sync_all_production_v2');
+        console.log('[Scheduler] Executing Server-Side Authority: Global Sync (V3 Delta)...');
+        const { data, error } = await supabase.rpc('sync_all_production_v3');
         if (error) throw error;
 
         if (data && data[0]) {
             const res = data[0];
             if (res.processed_constructions > 0 || res.processed_research > 0 || res.processed_units > 0) {
-                console.log(`[Scheduler] Queues completed: Buildings: ${res.processed_constructions}, Research: ${res.processed_research}, Units: ${res.processed_units}`);
+                console.log(`[Authority] Queues processed retroactively: Buildings: ${res.processed_constructions}, Research: ${res.processed_research}, Units: ${res.processed_units}`);
             }
         }
     } catch (error) {
-        console.error('[Scheduler] SQL Production Sync Error:', error);
+        console.error('[Scheduler] Global Production Sync Error:', error);
     }
 }
 
@@ -84,7 +108,7 @@ async function processEngineTick() {
     try {
         const now = Date.now();
         
-        // 1. Resolve Expired Movements (Global Precision)
+        // 1. Resolve Expired Movements
         const { data: movements, error } = await supabase
             .from('movements')
             .select('*')
