@@ -1,0 +1,292 @@
+import { useEffect, useRef } from 'react';
+import { useGame } from '../context/GameContext';
+import { useMultiplayer } from './useMultiplayer';
+import { useLanguage } from '../context/LanguageContext';
+import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
+import { IncomingAttack } from '../types/state';
+import { gameEventBus } from '../utils/eventBus';
+import type { UnitType, BuildingType, ResourceType } from '../types/enums';
+
+// ============================================================================
+// Verificación de Integridad del resultado de batalla
+// ============================================================================
+
+const countUnits = (units: Partial<Record<string, number>>): number =>
+  Object.values(units).reduce((a: number, b) => a + (b || 0), 0);
+
+const verifyBattleResult = (
+  result: P2PAttackResult,
+  myUnits: Record<UnitType, number>,
+  myBuildings: Record<BuildingType, { level: number }>
+): { valid: boolean; reason?: string } => {
+  // 1. Las bajas reclamadas no pueden superar las tropas actuales del defensor
+  const claimedCasualties = countUnits(result.defenderCasualties || {});
+  const myCurrentUnits = countUnits(myUnits);
+
+  if (claimedCasualties > myCurrentUnits) {
+    return { valid: false, reason: `Invalid defender casualties (${claimedCasualties}) > current units (${myCurrentUnits})` };
+  }
+
+  // 2. Edificios robados solo si el atacante ganó (winner === 'PLAYER')
+  if (result.winner === 'PLAYER' && result.stolenBuildings) {
+    for (const [bType, count] of Object.entries(result.stolenBuildings)) {
+      const myCount = myBuildings[bType as BuildingType]?.level || 0;
+      if ((count as number) > myCount) {
+        return { valid: false, reason: `Invalid building theft: exceeds buildings owned (${bType})` };
+      }
+    }
+  }
+
+  // 3. Si el atacante ganó, debe haber sobrevivientes en su ejército
+  const attackerOriginal = countUnits(result.battleResult?.initialPlayerArmy || {});
+  const attackerCasualtiesCount = countUnits(result.attackerCasualties || {});
+  const attackerRemaining = attackerOriginal - attackerCasualtiesCount;
+
+  if (result.winner === 'PLAYER' && attackerRemaining <= 0 && attackerOriginal > 0) {
+    return { valid: false, reason: 'Inconsistent result: attacker claimed victory but has no survivors' };
+  }
+
+  return { valid: true };
+};
+
+export const useP2PGameSync = () => {
+  const { addP2PIncomingAttack, applyP2PBattleResult, gameState } = useGame();
+  const { sendToPeer, localPlayerId } = useMultiplayer();
+  const { t } = useLanguage();
+
+  // Refs para evitar closures stale en los listeners del eventBus
+  const gameStateRef = useRef(gameState);
+  const localPlayerIdRef = useRef(localPlayerId);
+  const sendToPeerRef = useRef(sendToPeer);
+  const applyP2PBattleResultRef = useRef(applyP2PBattleResult);
+  const addP2PIncomingAttackRef = useRef(addP2PIncomingAttack);
+
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { localPlayerIdRef.current = localPlayerId; }, [localPlayerId]);
+  useEffect(() => { sendToPeerRef.current = sendToPeer; }, [sendToPeer]);
+  useEffect(() => { applyP2PBattleResultRef.current = applyP2PBattleResult; }, [applyP2PBattleResult]);
+  useEffect(() => { addP2PIncomingAttackRef.current = addP2PIncomingAttack; }, [addP2PIncomingAttack]);
+
+  // Convertir ataque P2P a formato IncomingAttack
+  // CORRECCIÓN: Usamos el endTime original del atacante (ajustado por latencia de red)
+  // para que el defensor vea el mismo tiempo restante que el atacante.
+  const convertToIncomingAttack = (request: P2PAttackRequest): IncomingAttack => {
+    const now = Date.now();
+    const clientSentTime = request.clientSentTime || request.timestamp;
+    const networkLatency = now - clientSentTime;
+
+    // El atacante calculó: endTime = startTime + travelDuration
+    // Cuando el mensaje llegó al defensor ya pasaron 'networkLatency' ms del viaje
+    // Por tanto, el tiempo real restante = request.endTime - clientSentTime - networkLatency
+    //                                    = request.endTime - now
+    // Usamos directamente request.endTime como referencia absoluta y solo ajustamos
+    // por la latencia de red para sincronizar ambos relojes:
+    const defenderEndTime = request.endTime + networkLatency;
+
+    return {
+      id: request.attackId,
+      attackerName: request.attackerName,
+      attackerScore: request.attackerScore,
+      units: request.units,
+      startTime: request.startTime,
+      endTime: defenderEndTime,
+      isP2P: true,
+      attackerId: request.attackerId,
+      isScouted: false,
+    };
+  };
+
+  // Registrar listeners UNA sola vez — usan refs internamente para datos frescos
+  useEffect(() => {
+    const handleIncomingAttack = (payload: any) => {
+      const request = payload as P2PAttackRequest;
+      const attack = convertToIncomingAttack(request);
+      addP2PIncomingAttackRef.current(attack);
+    };
+
+    const handleBattleResult = (payload: any) => {
+      const result = payload as P2PAttackResult;
+      const gs = gameStateRef.current;
+
+      // Verificar integridad antes de aplicar
+      const verification = verifyBattleResult(result, gs.units, gs.buildings);
+      if (!verification.valid) {
+        return;
+      }
+
+      // Aplicar como defensor
+      applyP2PBattleResultRef.current(result, false);
+    };
+
+    const handleRequestTroops = (payload: any) => {
+      const request = payload as P2PBattleRequestTroops;
+      const gs = gameStateRef.current;
+      const myId = localPlayerIdRef.current;
+
+      const senderPeerId: string | undefined = (payload as any)._senderPeerId;
+
+      const hasAttack = gs.incomingAttacks.some(a => a.id === request.attackId);
+      if (!hasAttack) {
+          // Attack not found in incomingAttacks, responding anyway (Trystero routing guarantees target)
+      }
+
+      const snapshot: Partial<Record<UnitType, number>> = {};
+      for (const [k, v] of Object.entries(gs.units)) {
+        if (v > 0) snapshot[k as UnitType] = v;
+      }
+
+      const reply: P2PBattleDefenderTroops = {
+        type: 'P2P_BATTLE_DEFENDER_TROOPS',
+        attackId: request.attackId,
+        attackerId: request.attackerId,
+        defenderId: myId || 'UNKNOWN_DEFENDER',
+        defenderUnits: snapshot,
+        defenderBuildings: gs.buildings,
+        timestamp: Date.now(),
+      };
+
+      const replyTarget = senderPeerId || request.attackerId;
+      sendToPeerRef.current(replyTarget, {
+        type: 'P2P_BATTLE_DEFENDER_TROOPS',
+        payload: reply,
+        playerId: myId || '',
+        timestamp: Date.now(),
+      });
+    };
+
+    // Handler: Responder a solicitud de espionaje P2P
+    // Cuando otro jugador nos espía, respondemos con nuestros datos reales
+    const handleSpyRequest = (payload: any) => {
+      try {
+        const request = payload as P2PSpyRequest & { _senderPeerId?: string };
+        const gs = gameStateRef.current;
+        const myId = localPlayerIdRef.current;
+        
+        console.log(`[P2P-SPY] Defensor: Procesando solicitud de espionaje de ${request.attackerName}`, request);
+
+        if (!gs || !request) {
+          console.warn('[P2P-SPY] Defensor: Estado no disponible o solicitud inválida');
+          return;
+        }
+
+        const senderPeerId: string | undefined = request._senderPeerId;
+        
+        // ... snapshots ...
+        const unitSnapshot: Partial<Record<UnitType, number>> = {};
+        if (gs.units) {
+          for (const [k, v] of Object.entries(gs.units)) {
+            if (v > 0) unitSnapshot[k as UnitType] = v;
+          }
+        }
+        const resourceSnapshot: Partial<Record<ResourceType, number>> = {};
+        if (gs.resources) {
+          for (const [k, v] of Object.entries(gs.resources)) {
+            if (v > 0) resourceSnapshot[k as ResourceType] = Math.floor(v);
+          }
+        }
+        const buildingSnapshot: Partial<Record<BuildingType, number>> = {};
+        if (gs.buildings) {
+          for (const [k, v] of Object.entries(gs.buildings)) {
+            if (v && v.level > 0) buildingSnapshot[k as BuildingType] = v.level;
+          }
+        }
+
+        const reply: P2PSpyResponse = {
+          type: 'P2P_SPY_RESPONSE',
+          spyId: request.spyId,
+          targetId: myId || 'UNKNOWN',
+          targetName: gs.playerName || 'Unknown',
+          targetScore: gs.empirePoints || 0,
+          units: unitSnapshot,
+          resources: resourceSnapshot,
+          buildings: buildingSnapshot,
+          timestamp: Date.now(),
+        };
+
+        const replyTarget = senderPeerId || request.attackerId;
+        console.log(`[P2P-SPY] Defensor: Enviando respuesta a ${replyTarget}`, reply);
+        
+        sendToPeerRef.current(replyTarget, {
+          type: 'P2P_SPY_RESPONSE',
+          payload: reply,
+          playerId: myId || '',
+          timestamp: Date.now(),
+        });
+
+        // NOTIFICAR A LA VÍCTIMA (Nosotros)
+        const attackerName = request.attackerName || 'Unknown Commander';
+        
+        // Mostrar Toast con fallback de seguridad
+        const toastMsg = (t.common.actions as any)?.toast_p2p_spy_detected || 'You have been spied on by {attackerName}!';
+        gameEventBus.emit('SHOW_TOAST' as any, { 
+          message: toastMsg.replace('{attackerName}', attackerName), 
+          type: 'warning' 
+        });
+
+        // NOTA: No añadimos log a la vista de informes para el defensor por petición del usuario
+        // Solo se mantiene el toast y el log de consola para rastreo técnico
+      } catch (error) {
+        console.error('[P2P-SPY] Defensor: Error manejando P2P_SPY_REQUEST:', error);
+      }
+    };
+
+    const handleChatMessage = (payload: any) => {
+      try {
+        const saved = localStorage.getItem('ironDuneP2PChatMessages');
+        let messages = saved ? JSON.parse(saved) : [];
+        
+        const newMessage = {
+          id: `${payload.playerId}-${payload.timestamp}`,
+          senderId: payload.playerId,
+          senderName: payload.senderName || 'Jugador Desconocido',
+          text: payload.text,
+          timestamp: payload.timestamp,
+          isLocal: false,
+        };
+
+        if (!messages.some((m: any) => m.id === newMessage.id)) {
+          messages.push(newMessage);
+          messages = messages.slice(-20);
+          localStorage.setItem('ironDuneP2PChatMessages', JSON.stringify(messages));
+          // Emitir un evento secundario para que la UI se actualice si está abierta
+          gameEventBus.emit('LOCAL_CHAT_UPDATED' as any, messages);
+
+          // Detectar mención @playerName
+          const myName = gameStateRef.current.playerName;
+          if (myName) {
+            // Escapar caracteres especiales de regex
+            const escapedName = myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Usar lookahead en lugar de \b para manejar nombres con caracteres no-ASCII
+            const mentionPattern = new RegExp(`@${escapedName}(?=[^\\w]|$)`, 'i');
+            const messageText = payload.text ?? '';
+            if (mentionPattern.test(messageText)) {
+              const senderName = payload.senderName || 'Jugador Desconocido';
+              gameEventBus.emit('SHOW_TOAST' as any, {
+                message: `${senderName} te ha mencionado en el chat`,
+                type: 'info',
+              });
+            }
+          }
+        }
+      } catch (e) {
+      }
+    };
+
+    gameEventBus.on('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
+    gameEventBus.on('P2P_BATTLE_RESULT' as any, handleBattleResult);
+    gameEventBus.on('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
+    gameEventBus.on('P2P_CHAT_MESSAGE' as any, handleChatMessage);
+    gameEventBus.on('P2P_SPY_REQUEST' as any, handleSpyRequest);
+
+    return () => {
+      gameEventBus.off('INCOMING_P2P_ATTACK' as any, handleIncomingAttack);
+      gameEventBus.off('P2P_BATTLE_RESULT' as any, handleBattleResult);
+      gameEventBus.off('P2P_BATTLE_REQUEST_TROOPS' as any, handleRequestTroops);
+      gameEventBus.off('P2P_CHAT_MESSAGE' as any, handleChatMessage);
+      gameEventBus.off('P2P_SPY_REQUEST' as any, handleSpyRequest);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo una vez — datos frescos vienen de los refs
+
+  return { convertToIncomingAttack };
+};

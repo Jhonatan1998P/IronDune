@@ -1,0 +1,437 @@
+
+import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
+import type { MarketEvent, MarketOffer } from './defs';
+import { StaticBot } from '../utils/engine/rankings';
+
+export enum ReputationChangeType {
+    ATTACK = 'ATTACK',
+    RAID = 'RAID',
+    DEFEND = 'DEFEND',
+    ALLIANCE_DEFEND = 'ALLIANCE_DEFEND',
+    GIFT = 'GIFT',
+    ALLIANCE = 'ALLIANCE',
+    PEACE = 'PEACE',
+    WAR_WIN = 'WAR_WIN',
+    WAR_LOSS = 'WAR_LOSS',
+    DECAY = 'DECAY'
+}
+
+export interface ReputationChange {
+    type: ReputationChangeType;
+    amount: number;
+    timestamp: number;
+    reason?: string;
+}
+
+export interface ReputationHistory {
+    [botId: string]: ReputationChange[];
+}
+
+export interface InteractionRecord {
+    type: 'ATTACK' | 'RAID' | 'GIFT' | 'DIPLOMACY';
+    timestamp: number;
+    details?: string;
+}
+
+export interface AllInteractions {
+    [botId: string]: InteractionRecord[];
+}
+
+export interface BuildingState {
+  level: number;
+  isDamaged?: boolean; // New: Diamond Mine damage state
+}
+
+export type GameStatus = 'MENU' | 'PLAYING' | 'LOADING';
+
+export type MissionDuration = 5 | 15 | 30 | 60; 
+
+export interface ActiveMission {
+  id: string;
+  type: 'PATROL' | 'CAMPAIGN_ATTACK' | 'PVP_ATTACK' | 'SALVAGE';
+  startTime: number;
+  endTime: number;
+  duration: number; // in minutes
+  units: Partial<Record<UnitType, number>>; 
+  levelId?: number; // For Campaign
+  targetId?: string; // For PvP
+  targetName?: string; // For PvP
+  targetScore?: number; // For PvP (to calculate army size)
+  isWarAttack?: boolean; // Flag for War specific attacks
+  isP2P?: boolean; // Flag for P2P multiplayer missions
+  logisticLootId?: string; // Target ID for Salvage mission
+  cargoCapacity?: number; // Total capacity for Salvage mission
+  harvestedResources?: Partial<Record<ResourceType, number>>; // Resources gained from Salvage
+}
+
+export interface IncomingAttack {
+  id: string;
+  attackerName: string;
+  attackerScore: number;
+  units: Partial<Record<UnitType, number>>;
+  startTime: number;
+  endTime: number; // Impact time
+  delayCount?: number; // Track how many times grace period was applied
+  isWarWave?: boolean; // Flag to identify war waves
+  isScouted?: boolean; // Flag if player paid to reveal composition
+  isP2P?: boolean;           // Flag para identificar ataques P2P
+  attackerId?: string;       // ID del jugador atacante (para respuestas)
+}
+
+export interface QueuedAttackResult {
+  id: string;
+  type: 'OUTGOING' | 'INCOMING';
+  missionId?: string;
+  attackId?: string;
+  result: {
+    resources?: Partial<Record<ResourceType, number>>;
+    unitsToAdd?: Partial<Record<UnitType, number>>;
+    buildingsToAdd?: Partial<Record<BuildingType, number>>;
+    logKey?: string;
+    logType?: 'info' | 'combat' | 'build' | 'research' | 'finance' | 'mission' | 'market' | 'tutorial' | 'economy' | 'war' | 'intel';
+    logParams?: Partial<CombatLogParams> & Partial<MarketLogParams> & Partial<DesertionLogParams> & Partial<IntelLogParams> & { [key: string]: any };
+    battleResult?: BattleResult;
+  };
+  processedAt: number;
+}
+
+export interface AllyReinforcement {
+  id: string;
+  botId: string;
+  botName: string;
+  botScore: number;
+  units: Partial<Record<UnitType, number>>;
+  totalUnits: number;
+  arrivalTime: number; // When reinforcements arrived
+  expiresAt: number; // When reinforcements expire (after battle ends)
+}
+
+export interface Grudge {
+    id: string;
+    botId: string;
+    botName: string;
+    botPersonality: BotPersonality;
+    botScore: number; // Score at time of grudge
+    createdAt: number;
+    retaliationTime: number; // When they plan to strike back
+    notified: boolean; // Has the player been warned?
+}
+
+export interface ActiveRecruitment {
+  id: string;
+  unitType: UnitType;
+  count: number;
+  startTime: number;
+  endTime: number;
+}
+
+export interface ActiveConstruction {
+  id: string;
+  buildingType: BuildingType;
+  count: number; // Levels to add or Quantity to build
+  startTime: number;
+  endTime: number;
+}
+
+export interface ActiveResearch {
+  techId: TechType;
+  startTime: number;
+  endTime: number;
+}
+
+// Log Params Definitions for Type Safety
+export interface CombatLogParams {
+  combatResult?: any; // Keeping as any for now due to complexity, but typed in usage
+  loot?: Partial<Record<ResourceType, number>>;
+  buildingLoot?: Partial<Record<BuildingType, number>>; // New V1.3: Building Theft
+  attacker?: string;
+  targetName?: string;
+}
+
+export interface MarketLogParams {
+  type: 'BUY' | 'SELL';
+  amount: number;
+  resource: ResourceType;
+  event?: string;
+}
+
+export interface DesertionLogParams {
+  unit: UnitType;
+  reasons: string[];
+}
+
+export interface IntelLogParams {
+  targetName: string;
+  units: Partial<Record<UnitType, number>>;
+  score: number;
+  wave?: number;
+}
+
+export interface LogEntry {
+  id: string;
+  messageKey: string; 
+  // Union type for safer access, defaulting to any for backwards compat where strictly needed
+  params?: Partial<CombatLogParams> & Partial<MarketLogParams> & Partial<DesertionLogParams> & Partial<IntelLogParams> & { [key: string]: any }; 
+  timestamp: number;
+  type: 'info' | 'combat' | 'build' | 'research' | 'finance' | 'mission' | 'market' | 'tutorial' | 'economy' | 'war' | 'intel';
+  archived?: boolean; 
+}
+
+export interface LifetimeStats {
+  enemiesKilled: number;
+  unitsLost: number;
+  resourcesMined: number; // Total value
+  missionsCompleted: number;
+  highestRankAchieved: number;
+  battlesWon: number;
+  battlesLost: number;
+}
+
+export interface LogisticLootField {
+    id: string;                                          
+    battleId: string;                                    
+    origin: 'WAR' | 'RAID' | 'P2P' | 'CAMPAIGN';       
+    resources: Partial<Record<ResourceType, number>>;    
+    initialResources: Partial<Record<ResourceType, number>>; // Los recursos originales al crearse
+    createdAt: number;                                   
+    expiresAt: number;                                   
+    totalValue: number;                                  
+    attackerId: string;                                  
+    attackerName: string;
+    defenderId: string;                                  
+    defenderName: string;
+    isPartiallyHarvested: boolean;                       
+    harvestedBy: string[];                               
+    harvestCount: number; // Veces que ha sido recolectado
+    isP2P: boolean;                                      
+    p2pBroadcasted: boolean;                             
+    warId?: string;                                      
+    waveNumber?: number;                                 
+}
+
+export interface WarState {
+    id: string;
+    enemyId: string;
+    enemyName: string;
+    enemyScore: number;
+    startTime: number;
+    duration: number; // Mutable duration to handle Overtime
+    nextWaveTime: number;
+    currentWave: number; // 1 to 8 (can exceed 8 in Overtime)
+    totalWaves: number; // Mutable total waves
+    playerVictories: number;
+    enemyVictories: number;
+    playerAttacksLeft: number; // Max 8 (can increase in Overtime)
+    
+    // Detailed Statistics
+    playerResourceLosses: Record<ResourceType, number>;
+    enemyResourceLosses: Record<ResourceType, number>;
+    playerUnitLosses: number;
+    enemyUnitLosses: number;
+
+    // Persistence for Total War logic
+    currentEnemyGarrison: Partial<Record<UnitType, number>>;
+
+    // Logistic Loot
+    warLogisticLootIds: string[];
+    totalLogisticLootGenerated: Record<ResourceType, number>;
+    logisticLootHarvestedDuringWar: Record<ResourceType, number>;
+    lootPool: Record<ResourceType, number>;
+}
+
+export interface RankingData {
+    bots: StaticBot[];
+    lastUpdateTime: number;
+    lastPlayerRank?: number;
+}
+
+export interface DiplomaticActionRecord {
+    lastGiftTime: number;
+    lastAllianceTime: number;
+    lastPeaceTime: number;
+}
+
+export interface DiplomaticActions {
+    [botId: string]: DiplomaticActionRecord;
+}
+
+export interface SpyReport {
+    id: string;
+    botId: string; // Target ID (can be bot or player)
+    botName: string;
+    botScore: number;
+    botPersonality?: BotPersonality; // Optional for P2P players
+    isP2P?: boolean; // Flag to indicate if it's a P2P player
+    createdAt: number;
+    expiresAt: number; // 10 minutes after spy
+    units: Partial<Record<UnitType, number>>;
+    resources: Partial<Record<ResourceType, number>>;
+    buildings: Partial<Record<BuildingType, number>>;
+}
+
+export interface GiftCode {
+  code: string;
+  rewards: Partial<Record<ResourceType, number>>;
+  cooldownHours: number; // 0 = one-time only
+}
+
+export interface GiftCodeRedeemed {
+  code: string;
+  redeemedAt: number;
+}
+
+export interface GameState {
+  saveVersion: number; 
+  gameId: string; // Unique identifier for this save game
+  playerName: string;
+  playerFlag?: string; // Bandera seleccionada por el jugador
+  peerId: string | null; // PvP Peer ID for this player
+  hasChangedName: boolean;
+  resources: Record<ResourceType, number>;
+  maxResources: Record<ResourceType, number>; 
+  buildings: Record<BuildingType, BuildingState>;
+  units: Record<UnitType, number>;
+  researchedTechs: TechType[];
+  techLevels: Partial<Record<TechType, number>>;
+  activeResearch: ActiveResearch | null; 
+  activeMissions: ActiveMission[]; 
+  activeRecruitments: ActiveRecruitment[]; 
+  activeConstructions: ActiveConstruction[]; 
+  bankBalance: number; 
+  currentInterestRate: number; 
+  nextRateChangeTime: number; 
+  lastInterestPayoutTime: number; 
+  empirePoints: number;
+  lastSaveTime: number;
+  campaignProgress: number; 
+  lastCampaignMissionFinishedTime: number; 
+  
+  marketOffers: MarketOffer[];
+  marketNextRefreshTime: number;
+  activeMarketEvent: MarketEvent | null;
+
+  completedTutorials: string[];
+  currentTutorialId: string | null;
+  tutorialClaimable: boolean; 
+  tutorialAccepted: boolean;
+  isTutorialMinimized: boolean; 
+
+  // Attack System (New V1.4)
+  nextAttackTime: number; // Timestamp for the next scheduled bot attack
+  incomingAttacks: IncomingAttack[];
+  activeWar: WarState | null; // New War System
+
+  // Attack Queue System (New V1.5)
+  attackQueue: string[]; // Array of attack IDs pending processing (temporary during offline processing)
+  lastProcessedAttackTime: number; // Timestamp of last processed attack to maintain sequence
+
+  // Allied Reinforcements System (New)
+  allyReinforcements: AllyReinforcement[]; // Active reinforcements from allies
+
+  // Grudge System (New)
+  grudges: Grudge[];
+
+  // Enemy Attack System (New)
+  enemyAttackCounts: Record<string, { count: number; lastAttackTime: number }>; // BotID -> attack count & last attack
+  lastEnemyAttackCheckTime: number; // Last time we checked for enemy attacks (30min interval)
+  lastEnemyAttackResetTime: number; // 24h reset timestamp for attack counts
+
+  // Spy System (New)
+  spyReports: SpyReport[];
+
+  // PvP Limits
+  targetAttackCounts: Record<string, number>; // TargetID -> Count
+  lastAttackResetTime: number; // For daily resets
+
+  // Ranking System (Moved to State for Persistence)
+  rankingData: RankingData;
+
+  // Diplomacy System
+  diplomaticActions: DiplomaticActions;
+  lastReputationDecayTime: number;
+
+  // Reputation History System (New)
+  reputationHistory: ReputationHistory; // Track reputation changes per bot
+  interactionRecords: AllInteractions; // Track all interactions per bot
+
+  lifetimeStats: LifetimeStats; 
+
+  // Botín Logístico (Logistic Loot System)
+  logisticLootFields: LogisticLootField[];
+  visibleLogisticLootFields: (LogisticLootField & { isRemote: boolean })[];
+  
+  lifetimeLogisticStats: {
+      totalGenerated: number;
+      totalHarvested: number;
+      totalExpired: number;
+      totalDisputed: number;
+      totalDisputeWins: number;
+      fieldsCreated: number;
+      fieldsHarvested: number;
+  };
+
+  // Gift Code System
+  redeemedGiftCodes: GiftCodeRedeemed[];
+  giftCodeCooldowns: Record<string, number>; // code -> last redemption timestamp
+
+  logs: LogEntry[]; 
+}
+
+export interface BattleRoundLog {
+  round: number;
+  playerUnitsStart: number;
+  enemyUnitsStart: number;
+  playerUnitsLost: number;
+  enemyUnitsLost: number;
+  details: string[]; 
+}
+
+export interface UnitPerformanceStats {
+    kills: Partial<Record<UnitType, number>>;
+    deathsBy: Partial<Record<UnitType, number>>;
+    damageDealt: number;
+    criticalKills: number; // New: Number of kills via 70% HP rule
+    criticalDeaths: number; // New: Number of times this unit died via 70% HP rule
+}
+
+export interface BattleResult {
+  winner: 'PLAYER' | 'ENEMY' | 'DRAW';
+  rounds: BattleRoundLog[];
+  initialPlayerArmy: Partial<Record<UnitType, number>>;
+  initialEnemyArmy: Partial<Record<UnitType, number>>;
+  finalPlayerArmy: Partial<Record<UnitType, number>>;
+  finalEnemyArmy: Partial<Record<UnitType, number>>;
+  totalPlayerCasualties: Partial<Record<UnitType, number>>;
+  totalEnemyCasualties: Partial<Record<UnitType, number>>;
+  playerTotalHpStart: number;
+  playerTotalHpLost: number;
+  enemyTotalHpStart: number;
+  enemyTotalHpLost: number;
+  playerDamageDealt: number;
+  enemyDamageDealt: number;
+
+  // New: Detailed performance tracking
+  playerPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
+  enemyPerformance?: Partial<Record<UnitType, UnitPerformanceStats>>;
+
+  // New: Allied Reinforcements (V1.5)
+  initialAllyArmies?: Record<string, Partial<Record<UnitType, number>>>; // botId -> army
+  finalAllyArmies?: Record<string, Partial<Record<UnitType, number>>>; // botId -> army
+  totalAllyCasualties?: Record<string, Partial<Record<UnitType, number>>>; // botId -> casualties
+  allyDamageDealt?: Record<string, number>; // botId -> damage
+  allyPerformance?: Record<string, Partial<Record<UnitType, UnitPerformanceStats>>>; // botId -> performance
+}
+
+export interface OfflineReport {
+    timeElapsed: number; 
+    resourcesGained: Record<ResourceType, number>;
+    resourcesConsumed: Record<ResourceType, number>;
+    bankInterestEarned: number;
+    completedResearch: TechType[];
+    completedMissions: {
+        id: string;
+        success: boolean;
+        loot: Partial<Record<ResourceType, number>>;
+    }[];
+    queuedAttackResults: QueuedAttackResult[];
+}

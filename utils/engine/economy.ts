@@ -1,0 +1,104 @@
+
+import { BuildingType, GameState, ResourceType } from '../../types';
+import { calculateTechMultipliers, calculateMaxStorage, calculateProductionRates, calculateUpkeepCosts } from './modifiers';
+import { generateMarketState } from './market';
+import { 
+    BANK_RATE_CHANGE_INTERVAL_MS, 
+    BANK_INTEREST_RATE_MIN, 
+    BANK_INTEREST_RATE_MAX,
+    calculateMaxBankCapacity,
+    calculateInterestEarned
+} from '../../constants';
+
+/**
+ * Handles resource production, consumption, bank interest, and market refreshes.
+ */
+export const processEconomyTick = (state: GameState, deltaTimeMs: number, now: number): Partial<GameState> => {
+    const timeMultiplier = deltaTimeMs / 1000;
+    const multipliers = calculateTechMultipliers(state.researchedTechs, state.techLevels);
+    const prodRates = calculateProductionRates(state.buildings, multipliers);
+    const upkeepCosts = calculateUpkeepCosts(state.units);
+    const maxStorage = calculateMaxStorage(state.buildings, multipliers, state.empirePoints);
+    
+    // 1. Resource Accumulation
+    const newResources = { ...state.resources };
+    const resourcesMinedIncrement = { value: 0 };
+
+    Object.values(ResourceType).forEach((res) => {
+        const prod = (prodRates[res] || 0) * timeMultiplier;
+        const upkeep = (upkeepCosts[res] || 0) * timeMultiplier;
+        const netChange = prod - upkeep;
+        
+        // Diamond Production: Handle damaged state
+        if (res === ResourceType.DIAMOND) {
+            const diamondMine = state.buildings[BuildingType.DIAMOND_MINE];
+            if (diamondMine && diamondMine.level > 0 && diamondMine.isDamaged) {
+                // Si la mina está dañada, solo se resta el mantenimiento
+                newResources[res] = Math.max(0, newResources[res] - upkeep);
+                return;
+            }
+        }
+
+        if (prod > 0 && res !== ResourceType.DIAMOND) {
+            resourcesMinedIncrement.value += prod;
+        }
+        
+        if (netChange > 0) {
+            // Permitir conservar el desbordamiento si ya existía (ej. recompensas)
+            // pero no añadir más producción si ya se superó el cap.
+            const availableSpace = Math.max(0, maxStorage[res] - newResources[res]);
+            newResources[res] = newResources[res] + Math.min(netChange, availableSpace);
+        } else {
+            // El mantenimiento siempre se resta
+            newResources[res] = Math.max(0, newResources[res] + netChange);
+        }
+    });
+
+    // 2. Bank Logic
+    let newBankBalance = state.bankBalance;
+    let newRate = state.currentInterestRate;
+    let newNextRateChange = state.nextRateChangeTime;
+    const bankLevel = state.buildings[BuildingType.BANK].level;
+
+    if (now >= state.nextRateChangeTime) {
+       // Interest rate changes every 24 hours: Random between 10% (0.10) and 20% (0.20)
+       newRate = Math.random() * (BANK_INTEREST_RATE_MAX - BANK_INTEREST_RATE_MIN) + BANK_INTEREST_RATE_MIN;
+       newNextRateChange = now + BANK_RATE_CHANGE_INTERVAL_MS;
+    }
+
+    if (newBankBalance > 0 && bankLevel > 0) {
+        const maxBankCapacity = calculateMaxBankCapacity(state.empirePoints, bankLevel);
+        if (newBankBalance < maxBankCapacity) {
+            const interestEarned = calculateInterestEarned(newBankBalance, newRate, deltaTimeMs);
+            newBankBalance = Math.min(maxBankCapacity, newBankBalance + interestEarned);
+        }
+    }
+
+    // 3. Market Refresh
+    let newMarketOffers = [...state.marketOffers];
+    let newActiveMarketEvent = state.activeMarketEvent;
+    let newMarketNextRefreshTime = state.marketNextRefreshTime;
+
+    if (now >= state.marketNextRefreshTime) {
+        const marketLevel = state.buildings[BuildingType.MARKET].level;
+        const marketData = generateMarketState(state.empirePoints, marketLevel);
+        newMarketOffers = marketData.offers;
+        newActiveMarketEvent = marketData.event;
+        newMarketNextRefreshTime = marketData.nextRefresh;
+    }
+
+    return {
+        resources: newResources,
+        maxResources: maxStorage,
+        bankBalance: newBankBalance,
+        currentInterestRate: newRate,
+        nextRateChangeTime: newNextRateChange,
+        marketOffers: newMarketOffers,
+        activeMarketEvent: newActiveMarketEvent,
+        marketNextRefreshTime: newMarketNextRefreshTime,
+        lifetimeStats: {
+            ...state.lifetimeStats,
+            resourcesMined: state.lifetimeStats.resourcesMined + resourcesMinedIncrement.value
+        }
+    };
+};
