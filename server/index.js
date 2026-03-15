@@ -454,7 +454,11 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   
   // Sync offline delta immediately on boot (Render sleep recovery)
   console.log('[BattleServer] Performing initial offline delta sync...');
-  await supabase.rpc('sync_all_production_v3').catch(e => console.warn('[Boot] Sync error:', e.message));
+  try {
+    await supabase.rpc('sync_all_production_v3');
+  } catch (e) {
+    console.warn('[Boot] Sync error:', e.message);
+  }
 
   // Start scheduler with access to io + presence maps for real-time push
   startScheduler(io, playerPresence, playerLiveStates);
