@@ -16,55 +16,50 @@ Esta guía detalla el proceso de despliegue completo del motor de juego persiste
 
 Iron Dune utiliza lógica procedural en PostgreSQL para garantizar la atomicidad de las acciones.
 
-1. Crea un nuevo proyecto en **Supabase**.
-2. Ve al **SQL Editor**.
-3. Ejecuta los siguientes scripts en orden (ubicados en `packages/db/migrations/`):
-   - `20260315_initial_schema.sql`: Crea las tablas core, índices y habilita RLS.
-   - `20260315_atomic_functions.sql`: Implementa `fn_start_construction` (lógica de recursos segura).
-   - `20260315_worker_functions.sql`: Implementa `fn_claim_events` para el procesamiento del worker.
-   - `20260315_ranking_functions.sql`: Implementa el cálculo de puntos global.
-
-4. **Variables de Supabase a guardar:**
-   - `Project URL`: (Ej. `https://xyz.supabase.co`)
-   - `Service Role Key`: (Clave secreta que permite al backend saltar RLS). **NUNCA la compartas.**
+1.  Crea un nuevo proyecto en **Supabase**.
+2.  Obtén tus credenciales desde **Project Settings > Database**:
+    *   **Transaction Connection String**: Para el uso normal de la API.
+    *   **Direct Connection String (URI)**: Esta es la que usaremos para la variable `DATABASE_URL`. Asegúrate de habilitar el modo "Direct" si usas IPv4/v6.
 
 ---
 
 ## 3. Fase 2: Backend & Worker (Render)
 
-Render desplegará dos servicios definidos en `render.yaml`.
+Render desplegará dos servicios definidos en `render.yaml`: la API y el Worker de fondo.
 
-1. En Render Dashboard, haz clic en **New +** > **Blueprint**.
-2. Selecciona tu repositorio de GitHub.
-3. Render detectará el archivo `render.yaml` y te pedirá configurar las variables de entorno.
+### Despliegue Automático (Hard Reset):
+El backend tiene una función de **autoinstalación** que crea todas las tablas y funciones por ti.
 
-### Variables de Entorno en Render:
+1.  En Render Dashboard, haz clic en **New +** > **Blueprint**.
+2.  Conecta tu repositorio de GitHub.
+3.  Render detectará `render.yaml`. Se te pedirán las siguientes variables:
+
+#### Variables de Entorno en Render:
 | Variable | Valor / Origen |
 | :--- | :--- |
 | `NODE_VERSION` | `20.x` |
 | `SUPABASE_URL` | Tu Project URL de Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Tu Service Role Key (secreta) |
+| `DATABASE_URL` | La **Direct Connection URI** de Supabase |
+| `DB_HARD_RESET` | Ponla en `true` para la primera ejecución, luego cámbiala a `false` |
 | `NODE_ENV` | `production` |
-| `PORT` | `10000` (Render lo asigna por defecto) |
 
-4. Render creará automáticamente:
-   - **Web Service (`iron-dune-api`)**: Expone la API y los WebSockets.
-   - **Background Worker (`iron-dune-worker`)**: Procesa las colas en segundo plano.
+4.  **Resultado**: Render creará `iron-dune-api` y `iron-dune-worker`. En el primer inicio de la API, se borrará la DB actual y se recreará todo el esquema de Iron Dune automáticamente.
 
 ---
 
 ## 4. Fase 3: Frontend (Vercel)
 
-Vercel servirá la UI de React optimizada.
+Vercel servirá la UI de React optimizada para alto rendimiento.
 
-1. En Vercel, haz clic en **Add New** > **Project**.
-2. Importa tu repositorio.
-3. **Configuración del proyecto:**
-   - **Framework Preset**: `Vite`
-   - **Root Directory**: `./` (La raíz del monorepo)
-   - **Build Command**: `npm run build -w apps/frontend`
-   - **Output Directory**: `apps/frontend/dist`
-4. **Variables de Entorno en Vercel:**
+1.  En Vercel, haz clic en **Add New** > **Project**.
+2.  Importa tu repositorio.
+3.  **Configuración del proyecto:**
+    *   **Framework Preset**: `Vite`
+    *   **Root Directory**: `./` (La raíz del monorepo)
+    *   **Build Command**: `npm run build -w apps/frontend`
+    *   **Output Directory**: `apps/frontend/dist`
+4.  **Variables de Entorno en Vercel:**
 | Variable | Valor / Origen |
 | :--- | :--- |
 | `VITE_SUPABASE_URL` | Tu Project URL de Supabase |
@@ -76,19 +71,20 @@ Vercel servirá la UI de React optimizada.
 ## 5. Mantenimiento y Comandos Útiles
 
 ### Desarrollo Local
-Para trabajar en todo el sistema a la vez:
 ```bash
 npm install
 npm run dev
 ```
-Esto lanzará la API, el Worker y el Frontend simultáneamente.
+Este comando (vía `concurrently`) lanza la API en el puerto 3001, el Worker y el Frontend en el puerto de Vite simultáneamente.
 
-### Verificación de Salud
-- **API Health**: `GET https://tu-url-render.com/health`
-- **Logs del Worker**: Revisa los logs en Render para ver el procesamiento de eventos (ej: `Building finished: mine_1`).
+### Verificación del Hard Reset
+Si el reset fue exitoso, verás en los logs de la API de Render:
+`⚠️ DB_HARD_RESET is enabled. Resetting database...`
+`✅ DB_HARD_RESET completado con éxito.`
 
 ---
 
 ## Seguridad Crítica
-- **Autoridad**: El frontend nunca descuenta recursos. Si intentas hackear el cliente, el backend rechazará la transacción mediante las funciones SQL.
-- **Caché**: Vercel está configurado mediante `vercel.json` para evitar que el navegador guarde versiones viejas del `index.html`, asegurando que los jugadores siempre tengan el código más reciente.
+- **Autoridad Total**: No permitas escrituras directas desde el cliente en tablas de recursos.
+- **Idempotencia**: Todas las acciones RPC de la DB (`fn_start_construction`) requieren una `idempotency_key` enviada por el frontend para evitar duplicidad por lag de red.
+- **CORS**: La API está configurada para aceptar conexiones de cualquier origen por defecto (`cors: { origin: '*' }`), pero se recomienda limitarla a tu dominio de Vercel en producción.

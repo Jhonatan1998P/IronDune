@@ -7,8 +7,19 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import logger from './utils/logger.js';
 import { startOutboxDispatcher } from './socket/dispatcher.js';
+// @ts-ignore
+import { runHardReset } from '../../../packages/db/src/index.ts';
 
 dotenv.config();
+
+// Check for Hard Reset
+if (process.env.DB_HARD_RESET === 'true') {
+  logger.warn('⚠️ DB_HARD_RESET is enabled. Resetting database...');
+  await runHardReset().catch((err: any) => {
+    logger.error('❌ Failed to hard reset database:', err);
+    process.exit(1);
+  });
+}
 
 const app = express();
 const httpServer = createServer(app);

@@ -3,20 +3,16 @@ services:
   - type: web
     name: iron-dune-api
     runtime: node
-    buildCommand: npm install && npm run build
-    startCommand: npm run api:start
-    envVars:
-      - key: PORT
-        value: 10000
-      - key: NODE_ENV
-        value: production
-
+    buildCommand: npm install
+    startCommand: npx tsx apps/api/src/index.ts
+...
   # Background Worker
   - type: worker
     name: iron-dune-worker
     runtime: node
-    buildCommand: npm install && npm run build
-    startCommand: npm run worker:start
+    buildCommand: npm install
+    startCommand: npx tsx apps/worker/src/index.ts
+
     envVars:
       - key: NODE_ENV
         value: production
