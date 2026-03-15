@@ -4,10 +4,8 @@ import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry,
 import { gameEventBus } from '../utils/eventBus';
 import { GameEventType } from '../types/events';
 import { 
-    executeSalvageMission,
     executeCampaignAttack, 
     executeSpeedUp, 
-    executeEspionage,
     executeTrade as executeTradeAction
 } from '../utils/engine/actions';
 import { TUTORIAL_STEPS } from '../data/tutorial';
@@ -131,17 +129,17 @@ export const useGameActions = (
     }
   }, [addLog, user]);
 
-  const startSalvageMission = useCallback((lootId: string, drones: number) => {
-    setGameState(prev => {
-        const result = executeSalvageMission(prev, lootId, drones);
-        if (result.success && result.newState) {
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: result.newState });
-          return result.newState;
+  const startSalvageMission = useCallback(async (lootId: string, drones: number) => {
+    if (!user) return;
+    try {
+        const result = await gameService.startSalvageMission(user.id, lootId, drones);
+        if (result.success) {
+            addLog('salvage_mission_started', 'info', { drones });
         }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState]);
+    } catch (e: any) {
+        addLog(e.message || 'error_salvage', 'info');
+    }
+  }, [addLog, user]);
 
   const executeCampaignBattle = useCallback((levelId: number, playerUnits: Partial<Record<UnitType, number>>) => {
       const result = executeCampaignAttack(gameState, levelId, playerUnits);
@@ -246,14 +244,19 @@ export const useGameActions = (
     setGameState(prev => ({ ...prev, isTutorialMinimized: !prev.isTutorialMinimized }));
   }, [setGameState]);
 
-  const spyOnAttacker = useCallback((attackId: string) => {
-      setGameState(prev => {
-          const result = executeEspionage(prev, attackId);
-          if (result.success && result.newState) return result.newState;
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+  const spyOnAttacker = useCallback(async (targetId: string) => {
+    if (!user) return;
+    try {
+        const result = await gameService.executeEspionage(user.id, targetId);
+        if (result.success) {
+            addLog('espionage_success', 'intel', { report: result.report });
+        } else {
+            addLog(result.message || 'espionage_failed', 'intel');
+        }
+    } catch (e: any) {
+        addLog(e.message || 'error_espionage', 'info');
+    }
+  }, [addLog, user]);
 
   const changePlayerName = useCallback((newName: string, flag?: string): { success: boolean; errorKey?: string } => {
       const trimmedName = newName.trim();

@@ -82,6 +82,32 @@ export const gameService = {
     return response.json();
   },
 
+  async executeEspionage(userId: string, targetId: string) {
+    const response = await fetch(`${API_URL}/api/game/espionage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, targetId })
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Espionage failed');
+    }
+    return response.json();
+  },
+
+  async startSalvageMission(userId: string, lootId: string, drones: number) {
+    const response = await fetch(`${API_URL}/api/game/salvage-mission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, lootId, drones })
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to start salvage mission');
+    }
+    return response.json();
+  },
+
   async startMission(params: {
     userId: string;
     targetId: string;

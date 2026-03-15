@@ -11,7 +11,7 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 import { runSetupOnDeploy } from './scripts/runSetupOnDeploy.js';
-import { handleBuild, handleRecruit, handleResearch, handleBankTransaction, handleRepair, handleDiamondExchange } from './engine/actions.js';
+import { handleBuild, handleRecruit, handleResearch, handleBankTransaction, handleRepair, handleDiamondExchange, handleEspionage, handleSalvageMission } from './engine/actions.js';
 
 dotenv.config();
 
@@ -232,6 +232,30 @@ app.post('/api/game/diamond-exchange', async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('[ActionServer] Diamond exchange error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/espionage', async (req, res) => {
+    try {
+        const { userId, targetId } = req.body;
+        if (!userId || !targetId) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleEspionage(userId, targetId);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Espionage error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/salvage-mission', async (req, res) => {
+    try {
+        const { userId, lootId, drones } = req.body;
+        if (!userId || !lootId || !drones) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleSalvageMission(userId, lootId, drones);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Salvage error:', error);
         res.status(500).json({ error: error.message });
     }
 });

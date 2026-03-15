@@ -3,7 +3,6 @@ import { supabase } from '../db/lib/supabase.js';
 import { BUILDING_DEFS } from './buildings.js';
 import { TECH_DEFS } from './techs.js';
 import { UNIT_DEFS } from './units.js';
-import { ResourceType } from './enums.js';
 
 export async function handleBuild(userId, buildingType, amount = 1) {
     // 1. Fetch current state
@@ -26,16 +25,12 @@ export async function handleBuild(userId, buildingType, amount = 1) {
     const isQuantity = def.buildMode === 'QUANTITY';
     const currentVal = isQuantity ? currentBuilding.quantity : currentBuilding.level;
     
-    // Si es modo QUANTITY, el amount puede ser > 1. Si es LEVEL, siempre es 1 nivel.
     const actualAmount = isQuantity ? amount : 1;
     const targetVal = currentVal + actualAmount;
 
     if (targetVal > def.maxLevel) throw new Error('Max level reached');
 
-    // Cost calculation
-    // En modo QUANTITY, el coste escala por cada unidad comprada.
     let totalCost = { money: 0, oil: 0, ammo: 0 };
-    
     for (let i = 0; i < actualAmount; i++) {
         const stepVal = currentVal + i;
         const costMult = Math.pow(def.costMultiplier || 1.1, stepVal);
@@ -44,29 +39,23 @@ export async function handleBuild(userId, buildingType, amount = 1) {
         totalCost.ammo += Math.floor((def.baseCost.ammo || 0) * costMult);
     }
 
-    // 3. Validate resources
     if (economy.money < totalCost.money || economy.oil < totalCost.oil || economy.ammo < totalCost.ammo) {
         throw new Error('Not enough resources');
     }
 
-    // 4. Atomic deduction and queue insertion
     const { error: subError } = await supabase.rpc('subtract_resources', {
-        p_id: userId,
-        m: totalCost.money,
-        o: totalCost.oil,
-        a: totalCost.ammo
+        p_id: userId, m: totalCost.money, o: totalCost.oil, a: totalCost.ammo
     });
 
     if (subError) throw subError;
 
-    // Time scaling: base build time * amount (o logarítmico si prefieres, aquí lineal)
     const buildTime = isQuantity ? (def.buildTime * actualAmount) : def.buildTime;
     const endTime = Date.now() + buildTime;
     
     const { error: insError } = await supabase.from('construction_queue').insert({
         player_id: userId,
         building_type: buildingType,
-        target_level: targetVal, // Para QUANTITY es la nueva cantidad total
+        target_level: targetVal,
         end_time: endTime
     });
 
@@ -81,9 +70,8 @@ export async function handleBuild(userId, buildingType, amount = 1) {
 }
 
 export async function handleRecruit(userId, unitType, amount) {
-    const [economyRes, unitRes, queueRes, techRes] = await Promise.all([
+    const [economyRes, queueRes, techRes] = await Promise.all([
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
-        supabase.from('player_units').select('*').eq('player_id', userId).eq('unit_type', unitType).single(),
         supabase.from('unit_queue').select('*').eq('player_id', userId),
         supabase.from('player_research').select('*').eq('player_id', userId)
     ]);
@@ -93,7 +81,6 @@ export async function handleRecruit(userId, unitType, amount) {
     const def = UNIT_DEFS[unitType];
     if (!def) throw new Error('Invalid unit type');
 
-    // Check tech requirements
     if (def.reqTech) {
         const tech = techRes.data?.find(r => r.tech_type === def.reqTech);
         if (!tech || tech.level <= 0) throw new Error('Missing required technology');
@@ -147,7 +134,6 @@ export async function handleResearch(userId, techType) {
     const def = TECH_DEFS[techType];
     if (!def) throw new Error('Invalid tech type');
 
-    // Check university level
     const univLevel = univRes.data?.level || 0;
     if (univLevel < def.reqUniversityLevel) throw new Error('University level too low');
 
@@ -171,7 +157,6 @@ export async function handleResearch(userId, techType) {
     const { error: subError } = await supabase.rpc('subtract_resources', {
         p_id: userId, m: cost.money, o: cost.oil, a: cost.ammo
     });
-    // Gold is handled via direct update if no gold RPC exists
     if (cost.gold > 0) {
         await supabase.from('player_economy').update({ gold: economy.gold - cost.gold }).eq('player_id', userId);
     }
@@ -228,18 +213,15 @@ export async function handleBankTransaction(userId, amount, type) {
 export async function handleRepair(userId, buildingType) {
     const { data: building, error } = await supabase.from('player_buildings').select('*').eq('player_id', userId).eq('building_type', buildingType).single();
     if (error) throw error;
-    if (!building.is_damaged && !building.isDamaged) return { success: true }; // Already repaired
+    if (!building.is_damaged && !building.isDamaged) return { success: true };
 
-    // Cost to repair could be fixed or based on level
     const cost = 5000; 
-
     const { error: subError } = await supabase.rpc('subtract_resources', {
         p_id: userId, m: cost, o: 0, a: 0
     });
     if (subError) throw subError;
 
     await supabase.from('player_buildings').update({ is_damaged: false }).eq('player_id', userId).eq('building_type', buildingType);
-    
     return { success: true };
 }
 
@@ -247,7 +229,6 @@ export async function handleDiamondExchange(userId, targetResource, amount) {
     const { data: economy, error } = await supabase.from('player_economy').select('*').eq('player_id', userId).single();
     if (error) throw error;
 
-    const DIAMOND_COST = 1; // 1 Diamond for X resources
     const EXCHANGE_RATES = {
         MONEY: 1000000,
         OIL: 50000,
@@ -269,4 +250,47 @@ export async function handleDiamondExchange(userId, targetResource, amount) {
     if (updError) throw updError;
 
     return { success: true, newDiamonds: updateData.diamond };
+}
+
+export async function handleEspionage(userId, targetId) {
+    const COST_PER_SPY = 5000;
+    const { data: economy } = await supabase.from('player_economy').select('money').eq('player_id', userId).single();
+    if (economy.money < COST_PER_SPY) throw new Error('Not enough money for espionage');
+
+    await supabase.rpc('subtract_resources', { p_id: userId, m: COST_PER_SPY, o: 0, a: 0 });
+
+    const success = Math.random() > 0.2;
+    if (!success) return { success: false, message: 'Espionage failed: Spies captured.' };
+
+    const { data: targetEco } = await supabase.from('player_economy').select('*').eq('player_id', targetId).single();
+    const { data: targetUnits } = await supabase.from('player_units').select('*').eq('player_id', targetId);
+
+    return {
+        success: true,
+        report: { resources: targetEco, units: targetUnits, timestamp: Date.now() }
+    };
+}
+
+export async function handleSalvageMission(userId, lootId, drones) {
+    const { data: currentDrones } = await supabase.from('player_units').select('count').eq('player_id', userId).eq('unit_type', 'SALVAGER_DRONE').single();
+    if (!currentDrones || currentDrones.count < drones) throw new Error('Not enough salvager drones');
+
+    // Substract drones
+    await supabase.from('player_units').update({ count: currentDrones.count - drones }).eq('player_id', userId).eq('unit_type', 'SALVAGER_DRONE');
+
+    const travelTime = 450000; // 7.5m
+    const endTime = Date.now() + travelTime;
+
+    const { data: mov, error } = await supabase.from('movements').insert({
+        sender_id: userId,
+        target_id: lootId,
+        type: 'SALVAGE',
+        units: { SALVAGER_DRONE: drones },
+        start_time: Date.now(),
+        end_time: endTime,
+        status: 'active'
+    }).select().single();
+
+    if (error) throw error;
+    return { success: true, movement: mov };
 }
