@@ -5,6 +5,8 @@ import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton, Icons } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { calculateDiamondExchangeRate } from '../../utils/engine/market';
+import { useGlobalMarket } from '../../hooks/useGlobalMarket';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 // --- SUB-COMPONENT: DIAMOND LIQUIDATION CARD ---
 // extracted for cleaner main component code
@@ -186,6 +188,51 @@ interface MarketViewProps {
     onDiamondExchange?: (resource: ResourceType, amount: number) => void;
 }
 
+const GLOBAL_MARKET_RESOURCES = [
+    { key: 'MONEY', label: 'Dinero', icon: Icons.Resources.Money, color: 'text-emerald-400' },
+    { key: 'OIL', label: 'Petróleo', icon: Icons.Resources.Oil, color: 'text-purple-400' },
+    { key: 'AMMO', label: 'Munición', icon: Icons.Resources.Ammo, color: 'text-orange-400' },
+    { key: 'GOLD', label: 'Oro', icon: Icons.Resources.Gold, color: 'text-yellow-400' },
+];
+
+const GlobalMarketTicker: React.FC = () => {
+    const { prices, loading, getPriceChangePercent } = useGlobalMarket();
+
+    if (loading) return null;
+    if (Object.keys(prices).length === 0) return null;
+
+    return (
+        <Card title="Precios de Mercado Global" className="border-violet-500/20 bg-violet-900/5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {GLOBAL_MARKET_RESOURCES.map(({ key, label, icon: Icon, color }) => {
+                    const price = prices[key];
+                    if (!price) return null;
+                    const changePct = getPriceChangePercent(key);
+                    const isUp = changePct > 0.5;
+                    const isDown = changePct < -0.5;
+
+                    return (
+                        <div key={key} className="bg-black/30 rounded-lg p-3 border border-white/5 flex flex-col gap-1.5">
+                            <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold ${color}`}>
+                                <Icon className="w-3 h-3" />
+                                {label}
+                            </div>
+                            <div className="font-mono text-white font-bold text-sm">
+                                ${formatNumber(Math.round(price.current_price))}
+                            </div>
+                            <div className={`flex items-center gap-1 text-[10px] font-mono ${isUp ? 'text-emerald-400' : isDown ? 'text-red-400' : 'text-slate-500'}`}>
+                                {isUp ? <TrendingUp className="w-3 h-3" /> : isDown ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                                {changePct > 0 ? '+' : ''}{changePct.toFixed(1)}%
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <p className="text-[9px] text-slate-600 mt-2 text-right">Precios globales actualizados automáticamente por el servidor</p>
+        </Card>
+    );
+};
+
 export const MarketView: React.FC<MarketViewProps> = ({ gameState, onExecuteTrade, onDiamondExchange }) => {
     const { t } = useLanguage();
     const [tradeAmounts, setTradeAmounts] = useState<Record<string, number>>({});
@@ -243,6 +290,9 @@ export const MarketView: React.FC<MarketViewProps> = ({ gameState, onExecuteTrad
                     </div>
                 </div>
             </div>
+
+            {/* Global Market Prices from Server */}
+            <GlobalMarketTicker />
 
             {/* Diamond Exchange (Refactored Sub-Component) */}
             {onDiamondExchange && (

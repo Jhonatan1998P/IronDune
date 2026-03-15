@@ -70,6 +70,7 @@ async function tickGlobalMarket() {
         const { data: market, error } = await supabase.from('global_market').select('*');
         if (error) throw error;
 
+        const updatedPrices = {};
         for (const res of market) {
             const change = 1 + (Math.random() * 0.04 - 0.02);
             const newPrice = Math.max(res.base_price * 0.5, res.current_price * change);
@@ -80,8 +81,18 @@ async function tickGlobalMarket() {
                     last_update: new Date().toISOString()
                 })
                 .eq('resource_type', res.resource_type);
+
+            updatedPrices[res.resource_type] = {
+                current_price: newPrice,
+                base_price: res.base_price,
+            };
         }
         console.log('[Scheduler] Market prices updated.');
+
+        // Broadcast market update to all connected players
+        if (_io && Object.keys(updatedPrices).length > 0) {
+            _io.emit('market_update', { prices: updatedPrices, serverTime: Date.now() });
+        }
     } catch (error) {
         console.error('[Scheduler] Market Tick Error:', error);
     }

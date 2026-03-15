@@ -4,7 +4,7 @@ import { SALVAGER_CARGO_CAPACITY } from '../../constants';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
 
-const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_BATTLE_SERVER_URL || 'http://localhost:3001';
+const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
 
 interface SalvageZoneViewProps {
     gameState: GameState;

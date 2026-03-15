@@ -113,7 +113,7 @@ const useViewProps = (
             case 'settings':
                 return { gameState, changePlayerName: actionsRef.current.changePlayerName, redeemGiftCode: actionsRef.current.redeemGiftCode, resetGame: actionsRef.current.resetGame };
             case 'p2p':
-                return { playerName: gameState.playerName, playerScore: gameState.empirePoints, playerFlag: gameState.playerFlag };
+                return {};
             case 'chat':
                 return { gameState };
             case 'salvage':

@@ -22,6 +22,8 @@ import {
     DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT
 } from '../../constants';
 
+const SERVER_URL = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
+
 const DiplomacyView: React.FC = () => {
     const { gameState: state, sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace } = useGame();
     const { t } = useLanguage();
@@ -36,7 +38,27 @@ const DiplomacyView: React.FC = () => {
     const [selectedBot, setSelectedBot] = useState<StaticBot | null>(null);
     const [bottomSheetBot, setBottomSheetBot] = useState<StaticBot | null>(null);
 
-    const bots = state.rankingData.bots;
+    // Sync bots from server (Supabase bots table) and merge with player's local relationships
+    const [serverBotIds, setServerBotIds] = useState<Set<string>>(new Set());
+    useEffect(() => {
+        const fetchServerBots = async () => {
+            try {
+                const res = await fetch(`${SERVER_URL}/api/bots/global`);
+                if (!res.ok) return;
+                const serverBots: any[] = await res.json();
+                setServerBotIds(new Set(serverBots.map((b: any) => b.id)));
+            } catch (_e) {}
+        };
+        fetchServerBots();
+    }, []);
+
+    // Merge: use local state bots (which have per-player reputation) as base,
+    // filtered by what's actually in the server's bots table
+    const bots = useMemo((): StaticBot[] => {
+        if (serverBotIds.size === 0) return state.rankingData.bots;
+        // Keep only bots that exist in the server + always include local ones we have relationships with
+        return state.rankingData.bots.filter(b => serverBotIds.has(b.id) || b.reputation !== 50);
+    }, [state.rankingData.bots, serverBotIds]);
 
     // Handlers para acciones desde bottom sheet
     const handleGiftFromSheet = async (botId: string) => {

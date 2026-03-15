@@ -1,21 +1,24 @@
 /**
  * MultiplayerMenu Component
  *
- * Menú modal simplificado para el sistema multijugador.
- * Muestra la lista de jugadores conectados globalmente.
+ * Menú modal para el sistema multijugador.
+ * Solo admin/dev pueden ver la lista de quién está conectado.
+ * El resto solo ve el conteo total.
  */
 
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { useAuth } from '../../context/AuthContext';
+import { useOnlineCount } from '../../hooks/useServerRankings';
 import type { PlayerPresence } from '../../types/multiplayer';
 
-// Iconos de lucide-react
 import {
   User,
   Users,
   X,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface MultiplayerMenuProps {
@@ -28,6 +31,10 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
     isConnecting,
     remotePlayers,
   } = useMultiplayer();
+
+  const { role } = useAuth();
+  const onlineCount = useOnlineCount();
+  const isPrivileged = role === 'admin' || role === 'dev';
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -52,12 +59,10 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
       aria-modal="true"
       aria-labelledby="multiplayer-modal-title"
     >
-      {/* Modal Container */}
       <div
         className="relative w-full max-w-md mx-auto h-[70dvh] md:h-auto md:max-h-[85vh] md:my-auto flex flex-col animate-[slideUp_0.3s_ease-out] bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-white/10 shadow-2xl rounded-t-2xl md:rounded-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Background Effects */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-violet-900/20 via-transparent to-transparent pointer-events-none" />
 
         {/* Header */}
@@ -73,25 +78,24 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
             <div className="min-w-0">
               <h2
                 id="multiplayer-modal-title"
-                className="font-tech text-sm text-white uppercase tracking-wider truncate"
+                className="font-tech text-sm text-white uppercase tracking-wider truncate flex items-center gap-2"
               >
-                Jugadores en línea
+                Jugadores activos
+                {isPrivileged && (
+                  <ShieldCheck className="w-3.5 h-3.5 text-violet-400" aria-label="Vista de administrador" />
+                )}
               </h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-[10px] text-slate-400 font-medium">
-                  {isConnected
-                    ? `${remotePlayers.length + 1} usuarios conectados`
-                    : isConnecting
-                    ? 'Conectando...'
-                    : 'Desconectado'}
-                </p>
-              </div>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                {isConnecting && !isConnected
+                  ? 'Conectando...'
+                  : `${onlineCount} jugadores en línea`}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/10 rounded-lg transition-all duration-200 hover:rotate-90 shrink-0 z-10"
-            aria-label="Cerrar modal"
+            aria-label="Cerrar"
           >
             <X className="w-5 h-5 text-slate-400" />
           </button>
@@ -100,7 +104,6 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
         {/* Content */}
         <div className="relative flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 z-10">
 
-          {/* Estado: Conectando */}
           {isConnecting && !isConnected && (
             <div className="relative p-6 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-900/30 to-slate-900/30 text-center overflow-hidden">
               <div className="absolute inset-0 bg-violet-500/5 animate-pulse" />
@@ -115,17 +118,32 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
             </div>
           )}
 
-          {/* Lista de jugadores */}
-          {isConnected && (
+          {/* Count-only view for regular users */}
+          {!isPrivileged && (
+            <div className="flex flex-col items-center justify-center py-10 gap-4">
+              <div className="w-20 h-20 rounded-full bg-violet-900/30 border border-violet-500/30 flex items-center justify-center">
+                <span className="text-3xl font-bold text-white">{onlineCount}</span>
+              </div>
+              <div className="text-center">
+                <p className="text-slate-300 font-bold">Jugadores en línea</p>
+                <p className="text-slate-500 text-xs mt-1">Información de jugadores privada</p>
+              </div>
+            </div>
+          )}
+
+          {/* Full list for admin/dev only */}
+          {isPrivileged && isConnected && (
             <div className="space-y-4">
+              <div className="text-[10px] text-violet-400 uppercase tracking-widest font-bold px-1">
+                Vista de administrador — {remotePlayers.length + 1} conectados
+              </div>
               <div className="rounded-xl border border-white/10 bg-slate-900/50 overflow-hidden">
                 <div className="p-2 space-y-2">
-                  {/* Tú (Local Player) */}
                   <div className="flex items-center justify-between bg-violet-900/20 p-3 rounded-lg border border-violet-500/30">
                     <div className="min-w-0 flex-1">
                       <div className="text-violet-200 font-bold text-sm truncate flex items-center gap-2">
                         <User className="w-4 h-4 text-violet-400" />
-                        Tú (Jugador)
+                        Tú (Admin)
                       </div>
                       <div className="text-violet-400/70 text-[10px] pl-6 uppercase tracking-widest font-tech">
                         En línea
@@ -133,7 +151,6 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
                     </div>
                   </div>
 
-                  {/* Otros Jugadores */}
                   {remotePlayers.length > 0 ? (
                     remotePlayers.map((player: PlayerPresence) => (
                       <div
@@ -145,19 +162,16 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
                             <span className="w-2 h-2 bg-violet-400 rounded-full shrink-0" />
                             {player.name}
                           </div>
-                          <div className="text-slate-500 text-xs pl-4">
-                            Nivel {player.level.toLocaleString()}
+                          <div className="text-slate-500 text-xs pl-4 font-mono">
+                            {player.id.slice(0, 8)}… · Nivel {player.level.toLocaleString()}
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-12 text-slate-500 text-sm">
+                    <div className="text-center py-8 text-slate-500 text-sm">
                       <Users className="w-8 h-8 mx-auto mb-2 text-slate-700" />
                       <p>No hay otros jugadores en línea</p>
-                      <p className="text-xs text-slate-600 mt-1">
-                        ¡Invita a tus amigos a unirse al universo!
-                      </p>
                     </div>
                   )}
                 </div>
@@ -170,7 +184,9 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
         <div className="relative shrink-0 p-4 border-t border-white/10 bg-slate-900/80 backdrop-blur-sm z-10">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <p className="text-[10px] text-slate-500 text-center">
-            Estás conectado al universo de Iron Dune. Todos los jugadores activos son visibles aquí.
+            {isPrivileged
+              ? 'Modo administrador — lista completa de conexiones activas'
+              : 'Iron Dune protege la privacidad de los jugadores'}
           </p>
         </div>
       </div>
@@ -178,9 +194,6 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
   );
 };
 
-/**
- * MultiplayerMenu - Portal version
- */
 export const MultiplayerMenu: React.FC<MultiplayerMenuProps> = (props) => {
   const [mountPoint, setMountPoint] = React.useState<HTMLElement | null>(null);
 

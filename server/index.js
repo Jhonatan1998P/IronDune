@@ -162,6 +162,136 @@ app.get('/api/bots/global', async (req, res) => {
     }
 });
 
+// --- RANKINGS ENDPOINTS ---
+
+// GET /api/rankings?category=DOMINION|MILITARY|ECONOMY|CAMPAIGN
+// Returns combined player + bot rankings from Supabase v_global_ranking view
+app.get('/api/rankings', async (req, res) => {
+    try {
+        const category = (req.query.category || 'DOMINION').toUpperCase();
+        const categoryField = {
+            DOMINION: 'score_dominion',
+            MILITARY: 'score_combat',
+            ECONOMY: 'score_economy',
+            CAMPAIGN: 'score_campaign',
+        }[category] || 'score_dominion';
+
+        // Query players and bots separately to include country/personality
+        const [playersRes, botsRes] = await Promise.all([
+            supabase.from('profiles')
+                .select(`id, username, empire_points, combat_points, economy_points, campaign_points, game_state`)
+                .order(categoryField === 'score_dominion' ? 'empire_points' : categoryField === 'score_combat' ? 'combat_points' : categoryField === 'score_economy' ? 'economy_points' : 'campaign_points', { ascending: false })
+                .limit(200),
+            supabase.from('bots')
+                .select(`id, name, score, personality, country, stats`)
+                .order('score', { ascending: false })
+                .limit(100),
+        ]);
+
+        const scoreKey = { score_dominion: 'empire_points', score_combat: 'combat_points', score_economy: 'economy_points', score_campaign: 'campaign_points' }[categoryField] || 'empire_points';
+
+        const players = (playersRes.data || []).map(p => ({
+            id: p.id,
+            name: p.username || 'Commander',
+            score: Number(p[scoreKey] || p.empire_points || 0),
+            isPlayer: true,
+            isBot: false,
+            country: p.game_state?.country || 'XX',
+            personality: null,
+            avatarId: p.game_state?.avatarId || 0,
+        }));
+
+        const botScoreField = { score_dominion: null, score_combat: 'MILITARY', score_economy: 'ECONOMY', score_campaign: 'DOMINION' }[categoryField];
+        const bots = (botsRes.data || []).map(b => ({
+            id: b.id,
+            name: b.name || 'Bot',
+            score: botScoreField && b.stats ? Number(b.stats[botScoreField] || 0) : Number(b.score || 0),
+            isPlayer: false,
+            isBot: true,
+            country: b.country || 'XX',
+            personality: b.personality || 'WARLORD',
+            avatarId: 0,
+        }));
+
+        const combined = [...players, ...bots].sort((a, b) => b.score - a.score);
+
+        const getTier = (rank) => {
+            if (rank <= 3) return 'S';
+            if (rank <= 10) return 'A';
+            if (rank <= 50) return 'B';
+            if (rank <= 100) return 'C';
+            return 'D';
+        };
+
+        const ranked = combined.map((entry, i) => ({
+            ...entry,
+            rank: i + 1,
+            tier: getTier(i + 1),
+        }));
+
+        res.json(ranked);
+    } catch (e) {
+        console.error('[Rankings] Error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/pvp-rankings
+// Returns player-only PvP ranking with online status from playerPresence
+app.get('/api/pvp-rankings', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, empire_points, combat_points')
+            .order('combat_points', { ascending: false })
+            .limit(200);
+
+        if (error) throw error;
+
+        const getTier = (rank) => {
+            if (rank <= 3) return 'S';
+            if (rank <= 10) return 'A';
+            if (rank <= 50) return 'B';
+            if (rank <= 100) return 'C';
+            return 'D';
+        };
+
+        const ranked = (data || []).map((p, i) => ({
+            id: p.id,
+            rank: i + 1,
+            name: p.username || 'Commander',
+            score: Number(p.combat_points || p.empire_points || 0),
+            isOnline: playerPresence.has(p.id),
+            tier: getTier(i + 1),
+        }));
+
+        res.json(ranked);
+    } catch (e) {
+        console.error('[PvP Rankings] Error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/online-count
+// Returns only the count of online players (no names — for privacy)
+app.get('/api/online-count', (_req, res) => {
+    res.json({ count: playerPresence.size });
+});
+
+// GET /api/market/global
+// Returns current global market prices from Supabase
+app.get('/api/market/global', async (_req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('global_market')
+            .select('resource_type, current_price, base_price, last_update');
+        if (error) throw error;
+        res.json(data || []);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- AUTHORITATIVE ACTIONS ---
 
 async function refreshPlayerCache(userId) {

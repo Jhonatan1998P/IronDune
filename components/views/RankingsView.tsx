@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GameState } from '../../types';
-import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
+import { RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
@@ -12,6 +12,8 @@ import { executeDeclareWar } from '../../utils/engine/actions';
 import { CommanderProfileModal } from '../modals/CommanderProfileModal';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { P2PAttackModal } from '../modals/P2PAttackModal';
+import { useServerRankings } from '../../hooks/useServerRankings';
+import { useAuth } from '../../context/AuthContext';
 
  interface RankingsViewProps {
     gameState: GameState;
@@ -32,7 +34,15 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
     const [attackTarget, setAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
     const [p2pAttackTarget, setP2PAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
 
-    const { isConnected, remotePlayers } = useMultiplayer();
+    const { remotePlayers } = useMultiplayer();
+    const { user } = useAuth();
+    const currentPlayerId = user?.id;
+
+    // Fetch rankings from authoritative server (Supabase DB: real players + bots)
+    const { rankings: serverRankings, loading: rankingsLoading } = useServerRankings(
+        category,
+        currentPlayerId
+    );
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -40,56 +50,26 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const fullRankings = useMemo(() => {
-        const dbEntries = getCurrentStandings(gameState, gameState.rankingData.bots, category);
+    // Convert server entries to RankingEntry format, overlay online status from Socket.io
+    const fullRankings = useMemo((): RankingEntry[] => {
+        const onlineIds = new Set(remotePlayers.map(p => p.id));
         
-        // Integrar jugadores de Trystero (Online) sin duplicar
-        const entriesMap = new Map<string, RankingEntry>();
-        dbEntries.forEach(e => entriesMap.set(e.id, e));
-
-        if (isConnected && remotePlayers.length > 0) {
-            remotePlayers.forEach(player => {
-                if (entriesMap.has(player.id)) {
-                    const entry = entriesMap.get(player.id)!;
-                    entriesMap.set(player.id, { ...entry, isP2P: true });
-                } else {
-                    // Solo si no está en la DB por alguna razón
-                    entriesMap.set(player.id, {
-                        id: player.id,
-                        rank: 0,
-                        name: player.name || 'Unknown',
-                        score: player.level || 0,
-                        isPlayer: false,
-                        avatarId: 0,
-                        country: player.flag || 'XX',
-                        tier: 'D',
-                        trend: 0,
-                        _rawLastRank: 0,
-                        personality: BotPersonality.WARLORD,
-                        canAttack: false,
-                        isP2P: true
-                    });
-                }
-            });
-        }
-
-        const allEntries = Array.from(entriesMap.values());
-        allEntries.sort((a, b) => b.score - a.score);
-
-        const getTier = (rank: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
-            if (rank <= 3) return 'S';
-            if (rank <= 10) return 'A';
-            if (rank <= 50) return 'B';
-            if (rank <= 100) return 'C';
-            return 'D';
-        };
-
-        return allEntries.map((entry, index) => ({
-            ...entry,
-            rank: index + 1,
-            tier: getTier(index + 1)
+        return serverRankings.map(entry => ({
+            id: entry.id,
+            rank: entry.rank,
+            name: entry.name,
+            score: entry.score,
+            isPlayer: entry.id === currentPlayerId,
+            avatarId: entry.avatarId || 0,
+            country: entry.country || 'XX',
+            tier: entry.tier,
+            trend: 0,
+            _rawLastRank: entry.rank,
+            personality: (entry.personality as BotPersonality) || BotPersonality.WARLORD,
+            canAttack: entry.isBot,
+            isP2P: onlineIds.has(entry.id),
         }));
-    }, [gameState, category, isConnected, remotePlayers]);
+    }, [serverRankings, remotePlayers, currentPlayerId]);
 
     const playerEntry = fullRankings.find(e => e.isPlayer);
     
@@ -439,11 +419,23 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
             )}
 
             <div className="flex-1 min-h-0 custom-scrollbar pr-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 md:p-2">
-                    {paginatedData.map((entry) => (
-                        <RankingCard key={entry.id} entry={entry} />
-                    ))}
-                </div>
+                {rankingsLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-500">
+                        <div className="w-8 h-8 border-2 border-cyan-500/40 border-t-cyan-500 rounded-full animate-spin" />
+                        <span className="text-xs font-tech uppercase tracking-widest">Cargando clasificación...</span>
+                    </div>
+                ) : fullRankings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
+                        <Icons.Crown className="w-10 h-10 text-slate-700" />
+                        <span className="text-sm">No hay datos de clasificación disponibles</span>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 md:p-2">
+                        {paginatedData.map((entry) => (
+                            <RankingCard key={entry.id} entry={entry} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
