@@ -14,23 +14,21 @@ export const ResourceDisplay: React.FC<{
   production?: number; 
   upkeep?: number; 
   icon?: React.ReactNode; 
-  resourceType?: string 
+  resourceType: ResourceType 
 }> = React.memo(({ label, value: initialValue, max, color, production = 0, upkeep = 0, icon, resourceType }) => {
   const { t } = useLanguage();
   const [liveValue, setLiveValue] = useState(initialValue);
   
-  const rType = (resourceType?.toUpperCase() || label.toUpperCase()) as ResourceType;
-
   useEffect(() => {
     const unsubscribe = resourceStore.subscribe((resources) => {
-        if (resources[rType] !== undefined) {
-            setLiveValue(resources[rType]);
+        if (resources[resourceType] !== undefined) {
+            setLiveValue(resources[resourceType]);
         }
     });
     return () => { unsubscribe(); };
-  }, [rType]);
+  }, [resourceType]);
 
-  const isDiamond = rType === ResourceType.DIAMOND;
+  const isDiamond = resourceType === ResourceType.DIAMOND;
   const percent = isDiamond && max > 0 ? Math.min(100, Math.max(0, (liveValue / max) * 100)) : 0;
   const net = production - upkeep;
   const fmt = (n: number) => formatNumber(Math.round(n));

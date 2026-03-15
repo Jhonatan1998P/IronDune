@@ -100,7 +100,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     production={production[ResourceType.DIAMOND] * 600} 
                     upkeep={0}
                     icon={<Icons.Resources.Diamond className="w-4 h-4 text-cyan-400" />}
-                    resourceType="DIAMOND"
+                    resourceType={ResourceType.DIAMOND}
                 />
 
                 <ResourceDisplay 
@@ -111,6 +111,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     production={production[ResourceType.MONEY] * 600}
                     upkeep={upkeep[ResourceType.MONEY] * 600}
                     icon={<Icons.Resources.Money className="w-4 h-4 text-emerald-500" />}
+                    resourceType={ResourceType.MONEY}
                 />
 
                 <ResourceDisplay 
@@ -121,6 +122,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     production={production[ResourceType.AMMO] * 600}
                     upkeep={upkeep[ResourceType.AMMO] * 600}
                     icon={<Icons.Resources.Ammo className="w-4 h-4 text-orange-500" />}
+                    resourceType={ResourceType.AMMO}
                 />
 
                 <ResourceDisplay 
@@ -131,6 +133,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     production={production[ResourceType.OIL] * 600}
                     upkeep={upkeep[ResourceType.OIL] * 600}
                     icon={<Icons.Resources.Oil className="w-4 h-4 text-purple-500" />}
+                    resourceType={ResourceType.OIL}
                 />
 
                 <ResourceDisplay 
@@ -141,6 +144,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     production={production[ResourceType.GOLD] * 600}
                     upkeep={upkeep[ResourceType.GOLD] * 600}
                     icon={<Icons.Resources.Gold className="w-4 h-4 text-yellow-500" />}
+                    resourceType={ResourceType.GOLD}
                 />
 
                 {/* ATTACK STATUS */}
