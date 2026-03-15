@@ -5,6 +5,9 @@ import { TECH_DEFS } from './techs.js';
 import { UNIT_DEFS } from './units.js';
 
 export async function handleBuild(userId, buildingType, amount = 1) {
+    // 0. Sincronizar producción offline antes de cualquier acción
+    await supabase.rpc('sync_player_production_v3', { p_id: userId });
+
     // 1. Fetch current state
     const [economyRes, buildingsRes, queueRes] = await Promise.all([
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
@@ -70,6 +73,9 @@ export async function handleBuild(userId, buildingType, amount = 1) {
 }
 
 export async function handleRecruit(userId, unitType, amount) {
+    // 0. Sincronizar producción offline antes de cualquier acción
+    await supabase.rpc('sync_player_production_v3', { p_id: userId });
+
     const [economyRes, queueRes, techRes] = await Promise.all([
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
         supabase.from('unit_queue').select('*').eq('player_id', userId),
@@ -122,6 +128,9 @@ export async function handleRecruit(userId, unitType, amount) {
 }
 
 export async function handleResearch(userId, techType) {
+    // 0. Sincronizar producción offline antes de cualquier acción
+    await supabase.rpc('sync_player_production_v3', { p_id: userId });
+
     const [economyRes, techRes, queueRes, univRes] = await Promise.all([
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
         supabase.from('player_research').select('*').eq('player_id', userId).eq('tech_type', techType).single(),

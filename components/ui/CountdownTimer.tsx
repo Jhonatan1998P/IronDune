@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { resourceStore } from '../../store/ResourceStore';
 
 interface Props {
   endTime: number;
@@ -10,7 +11,7 @@ interface Props {
 
 /**
  * CountdownTimer — Componente de alta precisión para tiempos de juego.
- * Calcula la diferencia contra el reloj real del sistema cada 100ms.
+ * Sincronizado con el tiempo del servidor mediante resourceStore.
  */
 export const CountdownTimer: React.FC<Props> = ({ 
     endTime, 
@@ -18,10 +19,10 @@ export const CountdownTimer: React.FC<Props> = ({
     format = 'long', 
     className = "" 
 }) => {
-  const [timeLeft, setTimeLeft] = useState<number>(Math.max(0, endTime - Date.now()));
+  const [timeLeft, setTimeLeft] = useState<number>(Math.max(0, endTime - resourceStore.getServerTime()));
 
   useEffect(() => {
-    const remaining = endTime - Date.now();
+    const remaining = endTime - resourceStore.getServerTime();
     if (remaining <= 0) {
         setTimeLeft(0);
         onComplete?.();
@@ -31,7 +32,7 @@ export const CountdownTimer: React.FC<Props> = ({
     setTimeLeft(remaining);
 
     const timer = setInterval(() => {
-      const now = Date.now();
+      const now = resourceStore.getServerTime();
       const diff = endTime - now;
       
       if (diff <= 0) {
@@ -41,7 +42,7 @@ export const CountdownTimer: React.FC<Props> = ({
       } else {
         setTimeLeft(diff);
       }
-    }, 100);
+    }, 1000); // 1s es suficiente para timers de construcción
 
     return () => clearInterval(timer);
   }, [endTime, onComplete]);

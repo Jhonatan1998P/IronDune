@@ -20,9 +20,11 @@ import { GameState, ResourceType, BuildingType, BuildingDef, TranslationDictiona
 import { useLanguage } from '../../context/LanguageContext';
 import { Card, GlassButton, CostDisplay, QuantitySelector, Icons } from '../UIComponents';
 import { GameTooltip } from '../GameTooltip';
-import { formatDuration } from '../../utils';
+import { formatDuration, formatNumber } from '../../utils';
 import { calculateConstructionCost, calculateConstructionTime, calculateMaxAffordableBuildings, calculateRepairCost } from '../../utils/formulas';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
+import { UNIT_ASSETS } from '../../constants/unitAssets';
+import { UnitType } from '../../types';
 
 interface ViewProps {
   gameState: GameState;
@@ -42,7 +44,7 @@ interface ViewProps {
  * - Costos de construcción/mejora
  * - Botón de acción (construir/mejorar/reparar)
  */
-  const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction: (id: BuildingType, amount: number) => void, onRepair?: (id: BuildingType) => void, t: TranslationDictionary }> = React.memo(({ def, gameState, onAction, onRepair, t }) => {
+const BuildingCard: React.FC<{ def: BuildingDef, gameState: GameState, onAction: (id: BuildingType, amount: number) => void, onRepair?: (id: BuildingType) => void, t: TranslationDictionary }> = React.memo(({ def, gameState, onAction, onRepair, t }) => {
     const buildingState = gameState.buildings[def.id];
     const qty = buildingState?.level || 0;
     const isDamaged = buildingState?.isDamaged || false;
@@ -173,14 +175,39 @@ interface ViewProps {
     );
 });
 
+const StationedTroops: React.FC<{ gameState: GameState, t: TranslationDictionary }> = ({ gameState, t }) => {
+  const activeUnits = Object.entries(gameState.units).filter(([_, count]) => count > 0);
+  
+  if (activeUnits.length === 0) return null;
+
+  return (
+    <div className="mb-6 bg-slate-900/40 rounded-xl border border-white/5 p-3 backdrop-blur-sm">
+      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
+        <Icons.Radar className="w-3 h-3 text-cyan-500" />
+        {t.common.ui.active_units}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {activeUnits.map(([type, count]) => (
+          <div key={type} className="group relative">
+             <div className="w-12 h-12 rounded-lg overflow-hidden border border-white/10 bg-black/40 group-hover:border-cyan-500/50 transition-colors shadow-lg">
+                <img 
+                  src={UNIT_ASSETS[type as UnitType]} 
+                  alt={type}
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100"
+                />
+             </div>
+             <div className="absolute -bottom-1 -right-1 bg-cyan-600 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-xl border border-cyan-400/30">
+                {formatNumber(count)}
+             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /**
  * BuildingsView - Componente Principal
- * 
- * Vista principal para gestionar todos los edificios del juego.
- * Incluye:
- * - Grid responsivo de tarjetas de edificios
- * - Paginación en dispositivos móviles
- * - Integración con el sistema de tutorial
  */
 export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType) => void }> = React.memo(({ gameState, onAction, onSpeedUp: _onSpeedUp, onRepair }) => {
   const { t } = useLanguage();
@@ -260,6 +287,9 @@ export const BuildingsView: React.FC<ViewProps & { onRepair?: (id: BuildingType)
                 </div>
             </div>
         )}
+
+        {/* Stationed Troops Bar */}
+        <StationedTroops gameState={gameState} t={t} />
 
         {/* ============================================================
             CONTENT - Grid de Edificios

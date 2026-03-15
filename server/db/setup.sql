@@ -478,6 +478,112 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Sincronización de producción para UN jugador específico.
+CREATE OR REPLACE FUNCTION public.sync_player_production_v3(p_id uuid)
+RETURNS void AS $$
+DECLARE
+  now_ms   bigint := EXTRACT(EPOCH FROM NOW()) * 1000;
+  rec_p    record;
+  rec_q    record;
+  last_t   bigint;
+  delta_t  numeric;
+BEGIN
+  SELECT player_id, last_calc_time, money_prod, oil_prod, ammo_prod, gold_prod 
+  INTO rec_p 
+  FROM public.player_economy 
+  WHERE player_id = p_id;
+
+  IF NOT FOUND OR rec_p.last_calc_time >= now_ms THEN
+    RETURN;
+  END IF;
+
+  last_t := rec_p.last_calc_time;
+
+  -- 1. Procesar colas cronológicamente
+  -- Construcciones
+  FOR rec_q IN (SELECT * FROM public.construction_queue WHERE player_id = p_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+      delta_t := (rec_q.end_time - last_t) / 1000.0;
+      IF delta_t > 0 THEN
+          UPDATE public.player_economy SET 
+              money = money + (money_prod * delta_t),
+              oil = oil + (oil_prod * delta_t),
+              ammo = ammo + (ammo_prod * delta_t),
+              gold = gold + (gold_prod * delta_t)
+          WHERE player_id = p_id;
+      END IF;
+
+      INSERT INTO public.player_buildings (player_id, building_type, level, quantity)
+      VALUES (rec_q.player_id, rec_q.building_type, rec_q.target_level, 0)
+      ON CONFLICT (player_id, building_type) DO UPDATE SET 
+          level = EXCLUDED.level,
+          quantity = CASE WHEN public.player_buildings.quantity > 0 THEN EXCLUDED.level ELSE public.player_buildings.quantity END;
+      
+      PERFORM public.update_player_production_rates(rec_q.player_id);
+      
+      SELECT money_prod, oil_prod, ammo_prod, gold_prod INTO rec_p.money_prod, rec_p.oil_prod, rec_p.ammo_prod, rec_p.gold_prod 
+      FROM public.player_economy WHERE player_id = p_id;
+
+      DELETE FROM public.construction_queue WHERE id = rec_q.id;
+      last_t := rec_q.end_time;
+  END LOOP;
+
+  -- Investigación
+  FOR rec_q IN (SELECT * FROM public.research_queue WHERE player_id = p_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+      delta_t := (rec_q.end_time - last_t) / 1000.0;
+      IF delta_t > 0 THEN
+          UPDATE public.player_economy SET 
+              money = money + (money_prod * delta_t),
+              oil = oil + (oil_prod * delta_t),
+              ammo = ammo + (ammo_prod * delta_t),
+              gold = gold + (gold_prod * delta_t)
+          WHERE player_id = p_id;
+      END IF;
+
+      INSERT INTO public.player_research (player_id, tech_type, level)
+      VALUES (rec_q.player_id, rec_q.tech_type, rec_q.target_level)
+      ON CONFLICT (player_id, tech_type) DO UPDATE SET level = EXCLUDED.level;
+      
+      DELETE FROM public.research_queue WHERE id = rec_q.id;
+      last_t := rec_q.end_time;
+  END LOOP;
+
+  -- Unidades
+  FOR rec_q IN (SELECT * FROM public.unit_queue WHERE player_id = p_id AND end_time <= now_ms ORDER BY end_time ASC) LOOP
+      delta_t := (rec_q.end_time - last_t) / 1000.0;
+      IF delta_t > 0 THEN
+          UPDATE public.player_economy SET 
+              money = money + (money_prod * delta_t),
+              oil = oil + (oil_prod * delta_t),
+              ammo = ammo + (ammo_prod * delta_t),
+              gold = gold + (gold_prod * delta_t)
+          WHERE player_id = p_id;
+      END IF;
+
+      INSERT INTO public.player_units (player_id, unit_type, count)
+      VALUES (rec_q.player_id, rec_q.unit_type, rec_q.amount)
+      ON CONFLICT (player_id, unit_type) DO UPDATE SET count = public.player_units.count + EXCLUDED.count;
+      
+      DELETE FROM public.unit_queue WHERE id = rec_q.id;
+      last_t := rec_q.end_time;
+  END LOOP;
+
+  -- Final
+  delta_t := (now_ms - last_t) / 1000.0;
+  IF delta_t > 0 THEN
+      UPDATE public.player_economy SET 
+          money = money + (money_prod * delta_t),
+          oil = oil + (oil_prod * delta_t),
+          ammo = ammo + (ammo_prod * delta_t),
+          gold = gold + (gold_prod * delta_t),
+          last_calc_time = now_ms,
+          last_production_sync = NOW()
+      WHERE player_id = p_id;
+  ELSE
+      UPDATE public.player_economy SET last_calc_time = now_ms, last_production_sync = NOW() WHERE player_id = p_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Sincronización de producción offline y procesamiento de colas para TODOS los jugadores.
 -- Llamada por el Scheduler cada minuto vía: supabase.rpc('sync_all_production_v3')
 -- V3: Implementa procesamiento retroactivo preciso (Delta Calculation)

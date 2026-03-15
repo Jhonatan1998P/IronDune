@@ -1,7 +1,8 @@
 
 import { useEffect, useRef } from 'react';
-import { GameStatus, GameState, ResourceType, BuildingType, UnitType, TechType } from '../types';
+import { GameStatus, GameState, BuildingType, UnitType, TechType } from '../types';
 import { socket } from '../lib/socket';
+import { resourceStore } from '../store/ResourceStore';
 
 /**
  * useGameLoop — ALTA FRECUENCIA (Interpolación Autoritativa)
@@ -34,6 +35,9 @@ export const useGameLoop = (
     // 1. Escuchar actualizaciones del servidor
     const handleSyncUpdate = (data: any) => {
         lastSyncRef.current = data;
+        
+        // Sincronizar store de recursos (Alta frecuencia)
+        resourceStore.updateFromServer(data.resources, data.rates, data.serverTime);
         
         // Sincronización inmediata de colas y estado pesado al recibir sync
         setGameState(prev => {
@@ -84,21 +88,8 @@ export const useGameLoop = (
     let animationFrameId: number;
     
     const interpolate = () => {
-        if (statusRef.current === 'PLAYING' && lastSyncRef.current) {
-            const { resources, rates, serverTime } = lastSyncRef.current;
-            const now = Date.now();
-            const deltaSeconds = (now - serverTime) / 1000;
-
-            setGameState(prev => ({
-                ...prev,
-                resources: {
-                    [ResourceType.MONEY]: resources.MONEY + (rates.MONEY * deltaSeconds),
-                    [ResourceType.OIL]: resources.OIL + (rates.OIL * deltaSeconds),
-                    [ResourceType.AMMO]: resources.AMMO + (rates.AMMO * deltaSeconds),
-                    [ResourceType.GOLD]: resources.GOLD + (rates.GOLD * deltaSeconds),
-                    [ResourceType.DIAMOND]: resources.DIAMOND + (rates.DIAMOND * deltaSeconds),
-                }
-            }));
+        if (statusRef.current === 'PLAYING') {
+            resourceStore.interpolate();
         }
         animationFrameId = requestAnimationFrame(interpolate);
     };

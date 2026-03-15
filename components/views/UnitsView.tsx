@@ -9,6 +9,7 @@ import { GameTooltip } from '../GameTooltip';
 import { formatNumber, formatDuration } from '../../utils';
 import { calculateRecruitmentCost, calculateRecruitmentTime, calculateMaxAffordableUnits } from '../../utils/formulas';
 import { calculateProductionRates, calculateUpkeepCosts, calculateTechMultipliers } from '../../utils/engine/modifiers';
+import { UNIT_ASSETS } from '../../constants/unitAssets';
 
 interface ViewProps {
   gameState: GameState;
@@ -159,12 +160,23 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
           <div className="flex flex-col justify-between flex-1 gap-4 pt-2">
             <div className="relative">
                 {!isUnlocked && (
-                <div className="absolute right-0 top-0 text-red-500/50">
+                 <div className="absolute right-0 top-0 text-red-500/50">
                     <Icons.Lock />
                 </div>
                 )}
 
+                {/* UNIT IMAGE */}
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden mb-4 bg-slate-950/50 border border-white/5 group-hover:border-cyan-500/30 transition-colors">
+                    <img 
+                        src={UNIT_ASSETS[def.id]} 
+                        alt={info.name}
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60"></div>
+                </div>
+
                 <div className="text-xs space-y-3 md:space-y-4 text-slate-400 w-full relative z-10">
+
                     {/* VISIBLE STATS GRID */}
                     <div className="grid grid-cols-3 gap-1.5 md:gap-2 w-full">
                         

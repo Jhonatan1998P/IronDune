@@ -1,13 +1,37 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatNumber } from '../../utils';
 import { useLanguage } from '../../context/LanguageContext';
 import { SmartTooltip } from './SmartTooltip';
+import { resourceStore } from '../../store/ResourceStore';
+import { ResourceType } from '../../types';
 
-export const ResourceDisplay: React.FC<{ label: string; value: number; max: number; color: string; production?: number; upkeep?: number; icon?: React.ReactNode; resourceType?: string }> = React.memo(({ label, value, max, color, production = 0, upkeep = 0, icon, resourceType }) => {
+export const ResourceDisplay: React.FC<{ 
+  label: string; 
+  value: number; 
+  max: number; 
+  color: string; 
+  production?: number; 
+  upkeep?: number; 
+  icon?: React.ReactNode; 
+  resourceType?: string 
+}> = React.memo(({ label, value: initialValue, max, color, production = 0, upkeep = 0, icon, resourceType }) => {
   const { t } = useLanguage();
-  const isDiamond = resourceType === 'DIAMOND' || resourceType === 'diamond';
-  const percent = isDiamond && max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  const [liveValue, setLiveValue] = useState(initialValue);
+  
+  const rType = (resourceType?.toUpperCase() || label.toUpperCase()) as ResourceType;
+
+  useEffect(() => {
+    const unsubscribe = resourceStore.subscribe((resources) => {
+        if (resources[rType] !== undefined) {
+            setLiveValue(resources[rType]);
+        }
+    });
+    return () => { unsubscribe(); };
+  }, [rType]);
+
+  const isDiamond = rType === ResourceType.DIAMOND;
+  const percent = isDiamond && max > 0 ? Math.min(100, Math.max(0, (liveValue / max) * 100)) : 0;
   const net = production - upkeep;
   const fmt = (n: number) => formatNumber(Math.round(n));
   const suffix = isDiamond ? '/h' : '/10m';
@@ -23,7 +47,7 @@ export const ResourceDisplay: React.FC<{ label: string; value: number; max: numb
                 <div className="flex justify-between">
                     <span className="text-slate-400">{t.common.ui.inventory}:</span>
                     <span className="text-white">
-                        {formatNumber(value)}{isDiamond ? ` / ${formatNumber(max)}` : ''}
+                        {formatNumber(liveValue)}{isDiamond ? ` / ${formatNumber(max)}` : ''}
                     </span>
                 </div>
                 <div className="flex justify-between text-emerald-400"><span>{t.common.ui.income}:</span><span>+{fmt(production)}{suffix}</span></div>
@@ -50,7 +74,7 @@ export const ResourceDisplay: React.FC<{ label: string; value: number; max: numb
             <div>
                 {icon}
             </div>
-            <span className={`text-[10px] font-mono font-bold text-white leading-none`}>{formatNumber(value)}</span>
+            <span className={`text-[10px] font-mono font-bold text-white leading-none`}>{formatNumber(liveValue)}</span>
         </div>
 
         {/* Desktop / Command View (Expanded Row) */}
@@ -60,12 +84,12 @@ export const ResourceDisplay: React.FC<{ label: string; value: number; max: numb
                     {icon && <span>{icon}</span>}
                     <span className={`text-[10px] font-bold tracking-widest opacity-80 ${color} uppercase truncate`}>{label}</span>
                 </div>
-                <span className={`text-sm font-mono font-bold text-white leading-none mt-0.5 truncate`}>{formatNumber(value)}</span>
+                <span className={`text-sm font-mono font-bold text-white leading-none mt-0.5 truncate`}>{formatNumber(liveValue)}</span>
             </div>
             
              <div className="flex flex-col items-end shrink-0">
                  <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">{t.common.ui.rate}</span>
-<span className={`text-[10px] font-mono font-bold ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                 <span className={`text-[10px] font-mono font-bold ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                      {net > 0 ? '+' : ''}{fmt(net)}{suffix}
                   </span>
             </div>
