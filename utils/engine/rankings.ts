@@ -199,8 +199,8 @@ export const initializeRankingState = (): RankingData => ({
             country: COUNTRIES[i % COUNTRIES.length],
             stats: {
                 [RankingCategory.DOMINION]: dominionScore,
-                [RankingCategory.MILITARY]: Math.floor(dominionScore * 0.5),
-                [RankingCategory.ECONOMY]: dominionScore * 10,
+                [RankingCategory.MILITARY]: Math.floor(dominionScore * (0.4 + Math.random() * 0.4)),
+                [RankingCategory.ECONOMY]: Math.floor(dominionScore * (8 + Math.random() * 6)),
                 [RankingCategory.CAMPAIGN]: 1
             },
             ambition: 1.0,
