@@ -491,6 +491,8 @@ export const ui = {
         register: "Registrarse",
         email: "Correo Electrónico",
         password: "Contraseña",
+        username: "Nombre de Usuario",
+        flag: "Bandera de Alianza",
         login_btn: "ENTRAR AL SISTEMA",
         register_btn: "CREAR CUENTA",
         logout: "Cerrar Sesión",

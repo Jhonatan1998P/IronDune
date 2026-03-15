@@ -118,12 +118,21 @@ export const usePersistence = (
   }, [setGameState]);
 
   const startNewGame = useCallback(() => {
-    setGameState({ ...INITIAL_GAME_STATE, lastSaveTime: Date.now() });
+    const metadata = user?.user_metadata;
+    const playerName = metadata?.username || INITIAL_GAME_STATE.playerName;
+    const playerFlag = metadata?.flag || INITIAL_GAME_STATE.playerFlag;
+
+    setGameState({ 
+      ...INITIAL_GAME_STATE, 
+      playerName,
+      playerFlag,
+      lastSaveTime: Date.now() 
+    });
     setOfflineReport(null);
     setHasNewReports(false);
     lastTickRef.current = Date.now();
     setStatus('PLAYING');
-  }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
+  }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus, user]);
 
   const saveGame = useCallback(async () => {
       if (!user) return;

@@ -30,6 +30,7 @@ export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,
   gameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   playerName: 'Commander',
+  playerFlag: 'US',
   peerId: null,
   hasChangedName: false,
   resources: INITIAL_RESOURCES,

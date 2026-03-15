@@ -140,6 +140,16 @@ export const calculateHourlyInterest = (balance: number, rate: number): number =
 
 export const SAVE_VERSION = 7;
 
+// --- FLAGS ---
+export const AVAILABLE_FLAGS = [
+    'US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU',
+    'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO',
+    'IT', 'PT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ',
+    'AT', 'CH', 'GR', 'TR', 'UA', 'RO', 'HU', 'IE', 'CA', 'AU',
+    'NZ', 'IN', 'PK', 'PH', 'TH', 'VN', 'ID', 'MY', 'SG', 'IL',
+    'SA', 'AE', 'EG', 'ZA', 'NG', 'KE', 'MA', 'DO', 'PR', 'CU',
+];
+
 // REPUTATION SYSTEM
 export const REPUTATION_ALLY_THRESHOLD = 75; // Bots above this are allies (75+)
 export const REPUTATION_ENEMY_THRESHOLD = 30; // Bots below this are enemies

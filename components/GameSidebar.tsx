@@ -5,7 +5,7 @@ import { useGame } from '../context/GameContext';
 import { gameEventBus } from '../utils/eventBus';
 import { APP_VERSION } from '../constants';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'p2p' | 'chat' | 'salvage';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'chat' | 'salvage';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -94,7 +94,6 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
       {
           title: 'Multiplayer',
           items: [
-              { id: 'p2p' as TabType, label: 'PvP Arena', icon: Icons.Radar, color: 'text-cyan-400' },
               { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
@@ -270,7 +269,6 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'rankings' as TabType, icon: Icons.Crown, label: t.features.rankings.title.split(' ')[0] },
         { id: 'diplomacy' as TabType, icon: NavIcons.Diplomacy, label: t.common.ui.diplomacy || 'Diplomacy' },
         { id: 'simulator' as TabType, icon: NavIcons.Simulator, label: t.common.ui.nav_simulator },
-        { id: 'p2p' as TabType, icon: Icons.Radar, label: 'PvP Arena', color: 'text-cyan-400' },
         { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];

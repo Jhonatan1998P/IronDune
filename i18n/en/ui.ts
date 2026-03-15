@@ -491,6 +491,8 @@ export const ui = {
         register: "Register",
         email: "Email",
         password: "Password",
+        username: "Username",
+        flag: "Alliance Flag",
         login_btn: "ENTER SYSTEM",
         register_btn: "CREATE ACCOUNT",
         logout: "Logout",

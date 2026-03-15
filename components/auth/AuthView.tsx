@@ -4,8 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { GlassButton } from '../ui/GlassButton';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../ui/Toast';
-import { Shield, Mail, Lock, UserPlus, LogIn, AlertTriangle, WifiOff, Database } from 'lucide-react';
-import { APP_VERSION } from '../../constants';
+import { Shield, Mail, Lock, UserPlus, LogIn, AlertTriangle, WifiOff, Database, User, ChevronDown } from 'lucide-react';
+import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';
+import { getFlagEmoji } from '../../utils/engine/rankings';
 
 export const AuthView: React.FC = () => {
   const { t } = useLanguage();
@@ -13,6 +14,9 @@ export const AuthView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [selectedFlag, setSelectedFlag] = useState('US');
+  const [showFlagPicker, setShowFlagPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Validar conexión inicial
@@ -68,7 +72,24 @@ export const AuthView: React.FC = () => {
         }
         showSuccess("Conexión establecida. Bienvenido, Comandante.");
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        // Registro con metadatos
+        if (!username.trim() || username.length < 3) {
+          showWarning("El nombre de usuario debe tener al menos 3 caracteres");
+          setLoading(false);
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              username: username.trim(),
+              flag: selectedFlag
+            }
+          }
+        });
+        
         if (error) {
           showError(error.message);
           throw error;
@@ -131,6 +152,65 @@ export const AuthView: React.FC = () => {
 
         <form onSubmit={handleAuth} className="space-y-6">
           <div className="space-y-4">
+            {!isLogin && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest text-slate-500 ml-1 font-mono">
+                    {t.common.auth.username || 'Username'}
+                  </label>
+                  <div className="relative group">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
+                    <input
+                      type="text"
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full bg-slate-950/50 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all placeholder:text-slate-800 text-cyan-50"
+                      placeholder="Commander Name"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest text-slate-500 ml-1 font-mono">
+                    {t.common.auth.flag || 'Alliance Flag'}
+                  </label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowFlagPicker(!showFlagPicker)}
+                      className="w-full flex items-center justify-between bg-slate-950/50 border border-white/10 rounded-lg py-3 px-4 text-sm hover:border-cyan-500/30 transition-all text-cyan-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl leading-none">{getFlagEmoji(selectedFlag)}</span>
+                        <span className="font-mono tracking-widest">{selectedFlag}</span>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${showFlagPicker ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showFlagPicker && (
+                      <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-slate-900 border border-cyan-500/30 rounded-xl grid grid-cols-6 gap-2 z-50 max-h-48 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in slide-in-from-top-2">
+                        {AVAILABLE_FLAGS.map((flag) => (
+                          <button
+                            key={flag}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFlag(flag);
+                              setShowFlagPicker(false);
+                            }}
+                            className={`flex flex-col items-center p-2 rounded-lg hover:bg-cyan-500/10 transition-colors ${selectedFlag === flag ? 'bg-cyan-500/20 border border-cyan-500/40' : ''}`}
+                          >
+                            <span className="text-xl">{getFlagEmoji(flag)}</span>
+                            <span className="text-[8px] text-slate-500 mt-1">{flag}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-widest text-slate-500 ml-1 font-mono">
                 {t.common.auth.email}

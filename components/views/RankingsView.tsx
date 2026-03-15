@@ -10,7 +10,6 @@ import { formatNumber } from '../../utils';
 import { PvpAttackModal } from '../PvpAttackModal';
 import { executeDeclareWar } from '../../utils/engine/actions';
 import { CommanderProfileModal } from '../modals/CommanderProfileModal';
-import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { P2PAttackModal } from '../modals/P2PAttackModal';
 
  interface RankingsViewProps {
@@ -32,20 +31,51 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
     const [attackTarget, setAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
     const [p2pAttackTarget, setP2PAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
 
-    const { isConnected, remotePlayers } = useMultiplayer();
+    const [dbPlayers, setDbPlayers] = useState<any[]>([]);
+    const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+        const fetchPlayers = async () => {
+            setIsLoadingPlayers(true);
+            try {
+                const baseUrl = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
+                const response = await fetch(`${baseUrl}/api/rankings/players`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setDbPlayers(data);
+                }
+            } catch (e) {
+                console.error("Error fetching player rankings:", e);
+            } finally {
+                setIsLoadingPlayers(false);
+            }
+        };
+        fetchPlayers();
+    }, [gameState.playerName]);
 
     const fullRankings = useMemo(() => {
         const botRankings = getCurrentStandings(gameState, gameState.rankingData.bots, category);
         
-        if (!isConnected || remotePlayers.length === 0) {
-            return botRankings;
-        }
+        const peerEntries: RankingEntry[] = dbPlayers
+            .filter(p => p.name !== gameState.playerName)
+            .map(player => ({
+                id: player.id,
+                rank: 0,
+                name: player.name || 'Unknown',
+                score: player.score || 0,
+                isPlayer: false,
+                avatarId: 0,
+                country: player.flag || 'US',
+                tier: 'D',
+                trend: 0,
+                _rawLastRank: 0,
+                personality: BotPersonality.WARLORD,
+                canAttack: false,
+                isP2P: true
+            }));
+
+        const allEntries = [...botRankings, ...peerEntries];
+        allEntries.sort((a, b) => b.score - a.score);
 
         const getTier = (rank: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
             if (rank <= 3) return 'S';
@@ -55,33 +85,15 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
             return 'D';
         };
 
-        const peerEntries: RankingEntry[] = remotePlayers.map(player => ({
-            id: player.id,
-            rank: 0,
-            name: player.name || 'Unknown',
-            score: player.level || 0,
-            isPlayer: false,
-            avatarId: 0,
-            country: player.flag || 'XX',
-            tier: 'D',
-            trend: 0,
-            _rawLastRank: 0,
-            personality: BotPersonality.WARLORD,
-            canAttack: false,
-            isP2P: true
-        }));
-
-        const allEntries = [...botRankings, ...peerEntries];
-        allEntries.sort((a, b) => b.score - a.score);
-
         return allEntries.map((entry, index) => ({
             ...entry,
             rank: index + 1,
             tier: getTier(index + 1)
         }));
-    }, [gameState, category, isConnected, remotePlayers]);
+    }, [gameState, category, dbPlayers]);
 
     const playerEntry = fullRankings.find(e => e.isPlayer);
+
     
     const totalPages = useMemo(() => {
         const itemsPerPage = isMobile ? ITEMS_PER_PAGE_MOBILE : ITEMS_PER_PAGE_DESKTOP;
@@ -367,10 +379,12 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
 
                 <div className="hidden md:block space-y-3">
                     <div className="glass-panel p-4 rounded-xl border border-white/10">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="font-tech text-xl text-white uppercase tracking-widest flex items-center gap-2">
-                                <Icons.Crown className="text-yellow-400" /> {t.features.rankings.title}
-                            </h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="font-tech text-xl text-white uppercase tracking-widest flex items-center gap-2">
+                            <Icons.Crown className="text-yellow-400" /> {t.features.rankings.title}
+                            {isLoadingPlayers && <div className="w-4 h-4 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin ml-2" />}
+                        </h2>
+
                             {playerEntry && (
                                 <button 
                                     onClick={jumpToPlayer}

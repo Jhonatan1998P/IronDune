@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { supabase } from './lib/supabase.js';
+import { hardResetDatabase } from './dbReset.js';
 import { processAttackQueue } from './engine/attackQueue.js';
 import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
@@ -142,6 +143,28 @@ app.get('/api/bots/global', async (req, res) => {
     }
 });
 
+app.get('/api/rankings/players', async (req, res) => {
+    try {
+        const { data: players, error } = await supabase
+            .from('profiles')
+            .select('id, game_state');
+        
+        if (error) throw error;
+        
+        // Mapear para extraer campos del JSONB
+        const results = players.map(p => ({
+            id: p.id,
+            name: p.game_state.playerName || 'Commander',
+            flag: p.game_state.playerFlag || 'US',
+            score: p.game_state.empirePoints || 0
+        }));
+        
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- SOCKET.IO LOGIC ---
 
 const playerPresence = new Map();
@@ -204,6 +227,10 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 10000;
+
+// Run hard reset if requested via environment variable
+await hardResetDatabase();
+
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);

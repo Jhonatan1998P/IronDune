@@ -5,16 +5,7 @@ import { Card, GlassButton, Icons } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../ui/Toast';
-import { APP_VERSION } from '../../constants';
-
-const AVAILABLE_FLAGS = [
-    'US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU',
-    'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO',
-    'IT', 'PT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'CZ',
-    'AT', 'CH', 'GR', 'TR', 'UA', 'RO', 'HU', 'IE', 'CA', 'AU',
-    'NZ', 'IN', 'PK', 'PH', 'TH', 'VN', 'ID', 'MY', 'SG', 'IL',
-    'SA', 'AE', 'EG', 'ZA', 'NG', 'KE', 'MA', 'DO', 'PR', 'CU',
-];
+import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';
 
 interface SettingsViewProps {
     gameState: GameState;

@@ -24,7 +24,6 @@ const RankingsView = lazy(() => import('../views/RankingsView').then(m => ({ def
 const WarView = lazy(() => import('../views/WarView').then(m => ({ default: m.WarView })));
 const SettingsView = lazy(() => import('../views/SettingsView').then(m => ({ default: m.SettingsView })));
 const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ default: m.default })));
-const P2PRanking = lazy(() => import('../views/P2PRanking').then(m => ({ default: m.P2PRanking })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 const SalvageZoneView = lazy(() => import('../views/SalvageZoneView').then(m => ({ default: m.SalvageZoneView })));
 
@@ -58,7 +57,6 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     war: WarView,
     diplomacy: DiplomacyView,
     settings: SettingsView,
-    p2p: P2PRanking,
     chat: MultiplayerChatView,
     salvage: SalvageZoneView
 };
