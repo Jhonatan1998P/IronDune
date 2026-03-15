@@ -25,6 +25,8 @@ DROP FUNCTION IF EXISTS public.update_player_production_rates(uuid) CASCADE;
 DROP FUNCTION IF EXISTS public.sync_all_production_v2() CASCADE;
 DROP FUNCTION IF EXISTS public.add_resources(uuid, numeric, numeric, numeric) CASCADE;
 DROP FUNCTION IF EXISTS public.subtract_resources(uuid, numeric, numeric, numeric) CASCADE;
+DROP FUNCTION IF EXISTS public.sync_all_production_v3() CASCADE;
+DROP FUNCTION IF EXISTS public.check_queue_limits() CASCADE;
 
 DROP TABLE IF EXISTS public.inbox             CASCADE;
 DROP TABLE IF EXISTS public.reports           CASCADE;
@@ -35,6 +37,9 @@ DROP TABLE IF EXISTS public.global_market     CASCADE;
 DROP TABLE IF EXISTS public.player_units      CASCADE;
 DROP TABLE IF EXISTS public.player_research   CASCADE;
 DROP TABLE IF EXISTS public.player_buildings  CASCADE;
+DROP TABLE IF EXISTS public.unit_queue         CASCADE;
+DROP TABLE IF EXISTS public.research_queue     CASCADE;
+DROP TABLE IF EXISTS public.construction_queue CASCADE;
 DROP TABLE IF EXISTS public.player_economy    CASCADE;
 DROP TABLE IF EXISTS public.bots              CASCADE;
 DROP TABLE IF EXISTS public.profiles          CASCADE;
@@ -417,7 +422,11 @@ DECLARE
   v_oil_prod   numeric(20, 2) := 0;
   v_ammo_prod  numeric(20, 2) := 0;
   v_gold_prod  numeric(20, 2) := 0;
+  v_upkeep_money numeric(20, 2) := 0;
+  v_upkeep_oil   numeric(20, 2) := 0;
+  v_upkeep_ammo  numeric(20, 2) := 0;
 BEGIN
+  -- 1. Producción de Edificios
   SELECT
     COALESCE(SUM(CASE building_type
       WHEN 'HOUSE'      THEN quantity * 500.0   / 600.0
@@ -431,10 +440,39 @@ BEGIN
   FROM public.player_buildings
   WHERE player_id = p_id;
 
+  -- 2. Consumo de Unidades (Upkeep)
+  SELECT
+    COALESCE(SUM(CASE unit_type
+      WHEN 'CYBER_MARINE'    THEN count * 50.0  / 600.0
+      WHEN 'HEAVY_COMMANDO'  THEN count * 150.0 / 600.0
+      WHEN 'SCOUT_TANK'      THEN count * 300.0 / 600.0
+      WHEN 'TITAN_MBT'       THEN count * 800.0 / 600.0
+      WHEN 'WRAITH_GUNSHIP'  THEN count * 2000.0 / 600.0
+      WHEN 'ACE_FIGHTER'     THEN count * 5000.0 / 600.0
+      WHEN 'AEGIS_DESTROYER' THEN count * 15000.0 / 600.0
+      WHEN 'PHANTOM_SUB'     THEN count * 40000.0 / 600.0
+      ELSE 0 END), 0),
+    COALESCE(SUM(CASE unit_type
+      WHEN 'SCOUT_TANK'      THEN count * 25.0  / 600.0
+      WHEN 'TITAN_MBT'       THEN count * 100.0 / 600.0
+      WHEN 'WRAITH_GUNSHIP'  THEN count * 250.0 / 600.0
+      WHEN 'ACE_FIGHTER'     THEN count * 600.0 / 600.0
+      WHEN 'AEGIS_DESTROYER' THEN count * 2000.0 / 600.0
+      WHEN 'PHANTOM_SUB'     THEN count * 5000.0 / 600.0
+      ELSE 0 END), 0),
+    COALESCE(SUM(CASE unit_type
+      WHEN 'CYBER_MARINE'    THEN count * 5.0   / 600.0
+      WHEN 'HEAVY_COMMANDO'  THEN count * 20.0  / 600.0
+      ELSE 0 END), 0)
+  INTO v_upkeep_money, v_upkeep_oil, v_upkeep_ammo
+  FROM public.player_units
+  WHERE player_id = p_id;
+
+  -- 3. Actualizar Economía (Producción Neta)
   UPDATE public.player_economy
-  SET money_prod = v_money_prod,
-      oil_prod   = v_oil_prod,
-      ammo_prod  = v_ammo_prod,
+  SET money_prod = GREATEST(-1000000, v_money_prod - v_upkeep_money),
+      oil_prod   = GREATEST(-1000000, v_oil_prod - v_upkeep_oil),
+      ammo_prod  = GREATEST(-1000000, v_ammo_prod - v_upkeep_ammo),
       gold_prod  = v_gold_prod
   WHERE player_id = p_id;
 END;

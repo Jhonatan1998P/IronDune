@@ -153,6 +153,10 @@ async function resolveMovement(mov, now) {
             await executeP2PBattle(mov, now);
         } else if (mov.type === 'return') {
             await executeReturn(mov, now);
+        } else if (mov.type === 'SALVAGE') {
+            await executeSalvageResolution(mov, now);
+        } else if (mov.type === 'mission') {
+            await executeBotMissionResolution(mov, now);
         } else {
             await processSingleProfile(mov.sender_id, now);
         }
@@ -259,6 +263,72 @@ async function cancelMission(mov, reason) {
     });
     await supabase.from('reports').insert({
         user_id: mov.sender_id, title: 'Mission Cancelled', content: { reason, originalMovement: mov.id }, type: 'SYSTEM'
+    });
+}
+
+async function executeSalvageResolution(mov, now) {
+    const { resolveSalvageMission } = await import('./engine/salvage.js');
+    const { data: lootField } = await supabase.from('salvage_fields').select('*').eq('id', mov.target_id).single();
+    
+    // El motor de salvamento calcula cuánto se recoge
+    const outcome = await resolveSalvageMission(mov, lootField ? {
+        id: lootField.id,
+        resources: lootField.resources,
+        totalValue: lootField.total_value
+    } : null, [], {});
+
+    // Insertar movimiento de retorno con el botín
+    const travelTime = Number(mov.end_time) - Number(mov.start_time);
+    await supabase.from('movements').insert({
+        sender_id: mov.sender_id,
+        target_id: mov.sender_id,
+        type: 'return',
+        units: { SALVAGER_DRONE: outcome.dronesReturned },
+        resources: outcome.resources,
+        start_time: now,
+        end_time: now + travelTime,
+        status: 'active'
+    });
+
+    await supabase.from('reports').insert({
+        user_id: mov.sender_id,
+        title: 'Salvage Report',
+        content: { outcome, resources: outcome.resources },
+        type: 'SYSTEM'
+    });
+}
+
+async function executeBotMissionResolution(mov, now) {
+    // Misión genérica contra la IA o ambiente
+    const { simulateCombat } = await import('./engine/combat.js');
+    const { generateBotArmy } = await import('./engine/missions.js');
+    
+    const botPower = 5000; // O basado en el nivel del jugador
+    const botArmy = generateBotArmy(botPower, 1.0, 'WARLORD', {});
+    const result = simulateCombat({}, mov.units, 1.0, { bot: botArmy });
+
+    const travelTime = Number(mov.end_time) - Number(mov.start_time);
+    const success = result.winner === 'ATTACKER';
+    
+    // Botín si gana
+    const loot = success ? { MONEY: 50000, AMMO: 10000 } : {};
+
+    await supabase.from('movements').insert({
+        sender_id: mov.sender_id,
+        target_id: mov.sender_id,
+        type: 'return',
+        units: result.finalAttackerArmy,
+        resources: loot,
+        start_time: now,
+        end_time: now + travelTime,
+        status: 'active'
+    });
+
+    await supabase.from('reports').insert({
+        user_id: mov.sender_id,
+        title: success ? 'Mission Success' : 'Mission Failed',
+        content: { result, loot },
+        type: 'COMBAT'
     });
 }
 
