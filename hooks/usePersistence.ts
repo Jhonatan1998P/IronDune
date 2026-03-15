@@ -6,8 +6,9 @@ import { sanitizeAndMigrateSave } from '../utils/engine/migration';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-
-const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
+import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
+import { LOCAL_SAVE_INTERVAL_MS, CLOUD_SAVE_INTERVAL_MS } from '../constants';
+import { TimeSyncService } from '../lib/timeSync';
 
 export const usePersistence = (
   gameState: GameState,
@@ -16,9 +17,7 @@ export const usePersistence = (
   setStatus: React.Dispatch<React.SetStateAction<GameStatus>>,
   setOfflineReport: React.Dispatch<React.SetStateAction<OfflineReport | null>>,
   setHasNewReports: (has: boolean) => void,
-  lastTickRef: MutableRefObject<number>,
-  isLoopRunningRef?: MutableRefObject<boolean>,
-  animationFrameRef?: MutableRefObject<number | undefined>
+  lastTickRef: MutableRefObject<number>
 ) => {
   const { user } = useAuth();
   const [hasSave, setHasSave] = useState(false);
@@ -30,49 +29,21 @@ export const usePersistence = (
   gameStateRef.current = gameState;
   statusRef.current = status;
 
-  // Check for save on Supabase when user is available
+  // Sync peerId from P2P to gameState
   useEffect(() => {
-    if (!user || isInitialLoadDone) return;
-
-    const checkSave = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('game_state')
-          .eq('id', user.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching save from Supabase:', error);
-          return;
-        }
-
-        if (data?.game_state) {
-          console.log('[Persistence] Save found in Supabase');
-          setHasSave(true);
-          loadGameFromData(data.game_state);
-        } else {
-          console.log('[Persistence] No save found in Supabase for this user');
-          // Try to migrate from localStorage if exists
-          const localSave = localStorage.getItem('ironDuneSave');
-          if (localSave) {
-            console.log('[Persistence] Local save found, migrating to Supabase...');
-            const parsed = JSON.parse(localSave);
-            loadGameFromData(parsed);
-          } else {
-            console.log('[Persistence] No save found in Supabase for this user. Starting new game.');
-            startNewGame();
-          }
-        }
-      } catch (e) {
-        console.error('Persistence check failed:', e);
-      } finally {
-        setIsInitialLoadDone(true);
+    const handlePeerIdChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ peerId: string }>;
+      if (customEvent.detail?.peerId) {
+        setGameState(prev => ({
+          ...prev,
+          peerId: customEvent.detail.peerId
+        }));
       }
     };
 
-    checkSave();
-  }, [user, isInitialLoadDone]);
+    window.addEventListener('p2p-peer-id-changed', handlePeerIdChange);
+    return () => window.removeEventListener('p2p-peer-id-changed', handlePeerIdChange);
+  }, [setGameState]);
 
   const loadGameFromData = useCallback((saveData: any) => {
     try {
@@ -93,29 +64,13 @@ export const usePersistence = (
           setOfflineReport(report);
       }
 
-      lastTickRef.current = Date.now();
+      lastTickRef.current = TimeSyncService.getServerTime();
       setStatus('PLAYING');
     } catch (e) {
       console.error("Failed to load save:", e);
       setStatus('MENU');
     }
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
-
-  // Sync peerId from P2P to gameState
-  useEffect(() => {
-    const handlePeerIdChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ peerId: string }>;
-      if (customEvent.detail?.peerId) {
-        setGameState(prev => ({
-          ...prev,
-          peerId: customEvent.detail.peerId
-        }));
-      }
-    };
-
-    window.addEventListener('p2p-peer-id-changed', handlePeerIdChange);
-    return () => window.removeEventListener('p2p-peer-id-changed', handlePeerIdChange);
-  }, [setGameState]);
 
   const startNewGame = useCallback(() => {
     const metadata = user?.user_metadata;
@@ -126,89 +81,129 @@ export const usePersistence = (
       ...INITIAL_GAME_STATE, 
       playerName,
       playerFlag,
-      lastSaveTime: Date.now() 
+      lastSaveTime: TimeSyncService.getServerTime() 
     });
     setOfflineReport(null);
     setHasNewReports(false);
-    lastTickRef.current = Date.now();
+    lastTickRef.current = TimeSyncService.getServerTime();
     setStatus('PLAYING');
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus, user]);
 
-  const saveGame = useCallback(async () => {
-      if (!user) return;
+  // Check for save on Supabase when user is available
+  useEffect(() => {
+    if (!user || isInitialLoadDone) return;
 
-      console.log('[SaveGame] === INICIANDO GUARDADO EN SUPABASE ===');
-      
-      // 1. DETENER EXPLÍCITAMENTE EL GAME LOOP
-      if (isLoopRunningRef) {
-          isLoopRunningRef.current = false;
-      }
-      
-      if (animationFrameRef && animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = undefined;
-      }
-      
-      const now = Date.now();
-      const currentState = gameStateRef.current;
-      const stateToSave = { 
-          ...currentState, 
-          lastSaveTime: now 
-      };
-
+    const checkSave = async () => {
       try {
-          const { error } = await supabase
-            .from('profiles')
-            .upsert({
-              id: user.id,
-              game_state: stateToSave,
-              updated_at: new Date().toISOString()
-            });
+        // 1. Fetch from Cloud (Master Authority)
+        const { data: cloudData, error: cloudError } = await supabase
+          .from('profiles')
+          .select('game_state')
+          .eq('id', user.id)
+          .single();
 
-          if (error) throw error;
+        if (cloudError && cloudError.code !== 'PGRST116') {
+          console.error('Error fetching save from Supabase:', cloudError);
+          return;
+        }
+
+        // 2. Fetch from Local (Faster/Backup)
+        const localRaw = localStorage.getItem('ironDuneSave');
+        const localState = localRaw ? decodeSaveData(localRaw) : null;
+
+        let authoritativeState = null;
+
+        if (cloudData?.game_state) {
+          authoritativeState = cloudData.game_state;
+          console.log('[Persistence] Cloud save found (Authority).');
           
-          console.log('[SaveGame] ✓ Estado guardado en Supabase');
+          if (localState) {
+              const cloudTime = authoritativeState.lastSaveTime || 0;
+              const localTime = localState.lastSaveTime || 0;
+              
+              // If local is newer AND valid (already checked by decode), use it
+              if (localTime > cloudTime) {
+                  console.log('[Persistence] Local save is more recent and valid. Syncing...');
+                  authoritativeState = localState;
+              }
+          }
+        } else if (localState) {
+          console.log('[Persistence] No cloud save, using valid local state.');
+          authoritativeState = localState;
+        }
+
+        if (authoritativeState) {
           setHasSave(true);
-          
-          // Also clear local storage as we migrated
-          localStorage.removeItem('ironDuneSave');
+          loadGameFromData(authoritativeState);
+        } else {
+          console.log('[Persistence] No valid saves found. Starting new game.');
+          startNewGame();
+        }
       } catch (e) {
-          console.error('[SaveGame] ERROR al guardar en Supabase:', e);
+        console.error('Persistence check failed:', e);
+      } finally {
+        setIsInitialLoadDone(true);
       }
+    };
 
-      setStatus('MENU');
-  }, [user, setStatus, setHasSave, isLoopRunningRef, animationFrameRef]);
+    checkSave();
+  }, [user, isInitialLoadDone, loadGameFromData, startNewGame]);
 
-  const lastSaveTimeRef = React.useRef(Date.now());
+  const lastLocalSaveRef = useRef(TimeSyncService.getServerTime());
+  const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);
 
   const performAutoSave = useCallback(async (force: boolean = false) => {
       if (!user) return;
-      const now = Date.now();
-      
-      if (!force && now - lastSaveTimeRef.current < AUTO_SAVE_INTERVAL_MS) return;
-      if (pendingSaveRef.current) return;
-      
-      pendingSaveRef.current = true;
-      lastSaveTimeRef.current = now;
+      const now = TimeSyncService.getServerTime();
+      const currentState = gameStateRef.current;
+      const stateToSave = { ...currentState, lastSaveTime: now };
 
-      try {
-        const stateToSave = { ...gameStateRef.current, lastSaveTime: now };
-        await supabase
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            game_state: stateToSave,
-            updated_at: new Date().toISOString()
-          });
-        setHasSave(true);
-        console.log('[Persistence] Background save completed' + (force ? ' (FORCED)' : ''));
-      } catch (e) {
-        console.error('Auto-save failed:', e);
-      } finally {
-        pendingSaveRef.current = false;
+      // 1. QUICK LOCAL SAVE (Every 10s)
+      if (force || now - lastLocalSaveRef.current >= LOCAL_SAVE_INTERVAL_MS) {
+          try {
+              const signedData = encodeSaveData(stateToSave);
+              localStorage.setItem('ironDuneSave', signedData);
+              lastLocalSaveRef.current = now;
+              // console.log('[Persistence] Quick-save (local) secured.');
+          } catch (e) {
+              console.error('Local save failed:', e);
+          }
+      }
+
+      // 2. MASTER CLOUD SAVE (Every 2 min)
+      if (force || now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
+          if (pendingSaveRef.current) return;
+          pendingSaveRef.current = true;
+
+          try {
+              const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                  id: user.id,
+                  game_state: stateToSave,
+                  updated_at: new Date().toISOString()
+                });
+
+              if (error) throw error;
+              
+              setHasSave(true);
+              lastCloudSaveRef.current = now;
+              console.log('[Persistence] Master-save (cloud) verified.');
+          } catch (e) {
+              console.error('Cloud save failed:', e);
+          } finally {
+              pendingSaveRef.current = false;
+          }
       }
   }, [user]);
+
+  const saveGame = useCallback(async () => {
+      if (!user) return;
+      console.log('[SaveGame] Manual Forced Sync Initiated...');
+      await performAutoSave(true);
+      setStatus('MENU');
+  }, [performAutoSave, setStatus, user]);
 
   const resetGame = useCallback(async () => {
       if (!user) return;

@@ -1,10 +1,11 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, GameStatus, LogEntry, GameEventType, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { useEventSubscription } from './useEventSubscription';
 import { addGameLog } from '../utils';
 import { createDebugAllyAttackTest } from '../utils/debug';
+import { TimeSyncService } from '../lib/timeSync';
 
 // Modular Hooks
 import { useGameLoop } from './useGameLoop';
@@ -30,16 +31,40 @@ export const useGameEngine = () => {
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
   const [hasNewReports, setHasNewReports] = useState(false);
 
-  // --- 1. CORE LOOP ---
-  const { lastTickRef, isLoopRunningRef, animationFrameRef } = useGameLoop(status, setGameState, setHasNewReports);
+  // --- 1. SHARED REFS ---
+  const lastTickRef = useRef<number>(TimeSyncService.getServerTime());
+  const isLoopRunningRef = useRef<boolean>(false);
+  const animationFrameRef = useRef<number>();
 
-  // --- 2. LOGGING (Shared Dependency) ---
+  // --- 2. PERSISTENCE ---
+  const persistence = usePersistence(
+    gameState,
+    setGameState,
+    status,
+    setStatus,
+    setOfflineReport,
+    setHasNewReports,
+    lastTickRef
+  );
+
+  // --- 3. CORE LOOP ---
+  useGameLoop(
+    status,
+    setGameState,
+    setHasNewReports,
+    persistence.performAutoSave,
+    lastTickRef,
+    isLoopRunningRef,
+    animationFrameRef
+  );
+
+  // --- 4. LOGGING ---
   const addLog = useCallback((messageKey: string, type: LogEntry['type'] = 'info', params?: any) => {
     const newLog: LogEntry = {
-      id: Date.now().toString() + Math.random().toString().slice(2, 5),
+      id: TimeSyncService.getServerTime().toString() + Math.random().toString().slice(2, 5),
       messageKey,
       params,
-      timestamp: Date.now(),
+      timestamp: TimeSyncService.getServerTime(),
       type,
       archived: false
     };
@@ -61,18 +86,7 @@ export const useGameEngine = () => {
   // --- 3. ACTIONS ---
   const actions = useGameActions(gameState, setGameState, addLog);
 
-  // --- 4. PERSISTENCE ---
-  const persistence = usePersistence(
-      gameState,
-      setGameState,
-      status,
-      setStatus,
-      setOfflineReport,
-      setHasNewReports,
-      lastTickRef,
-      isLoopRunningRef,
-      animationFrameRef
-  );
+  // --- 4. PERSISTENCE (Moved Up) ---
 
   // --- 5. EVENT BUS ---
   useEventSubscription(GameEventType.ADD_LOG, (payload) => {
@@ -93,7 +107,7 @@ export const useGameEngine = () => {
         if (isSyncing) return;
         
         try {
-            const now = Date.now();
+            const now = TimeSyncService.getServerTime();
             
             // Check if any mission or attack is ending soon
             const hasEvents = gameState.activeMissions.some(m => m.endTime <= now) || 
@@ -127,7 +141,7 @@ export const useGameEngine = () => {
     // Periodic checks for Bot Attacks and Grudges (every 60s)
     const periodicCheck = setInterval(async () => {
         try {
-            const now = Date.now();
+            const now = TimeSyncService.getServerTime();
             
             const enemyAttackResult = await battleService.processEnemyAttackCheck(gameState, now);
             if (enemyAttackResult.logs.length > 0 || Object.keys(enemyAttackResult.stateUpdates).length > 0) {
@@ -173,14 +187,6 @@ export const useGameEngine = () => {
       window.debugTestAllyAttack = debugTestAllyAttack;
       return () => { delete window.debugTestAllyAttack; }
   }, [debugTestAllyAttack]);
-
-  // Auto-Save Effect (Orchestrated here)
-  useEffect(() => {
-    // Don't run auto-save if not actively playing
-    if (status !== 'PLAYING') return;
-    
-    persistence.performAutoSave();
-  }, [status, persistence.performAutoSave]);
 
   // --- 6. LOG MANAGEMENT UTILS ---
   const deleteLogs = useCallback((ids: string[]) => {

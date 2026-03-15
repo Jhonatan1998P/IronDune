@@ -1,8 +1,9 @@
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GameState, GameStatus } from '../types';
 import { calculateNextTick } from '../utils/engine/loop';
 import { TICK_RATE_MS } from '../constants';
+import { TimeSyncService } from '../lib/timeSync';
 
 // Optimización: FPS dinámicos según dispositivo
 const getTargetFPS = () => {
@@ -11,34 +12,29 @@ const getTargetFPS = () => {
   return isMobile ? 20 : 30; // Reducir FPS en móviles para mejor rendimiento
 };
 
-// Optimización: Throttle para evitar actualizaciones demasiado frecuentes
-const useThrottle = <T>(value: T, delay: number): T => {
-  const throttledValue = useRef<T>(value);
-  const lastUpdate = useRef<number>(0);
-
-  useEffect(() => {
-    const now = Date.now();
-    if (now - lastUpdate.current >= delay) {
-      throttledValue.current = value;
-      lastUpdate.current = now;
-    }
-  }, [value, delay]);
-
-  return throttledValue.current;
-};
-
 export const useGameLoop = (
   status: GameStatus,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
-  setHasNewReports: (has: boolean) => void
+  setHasNewReports: (has: boolean) => void,
+  performAutoSave?: (force?: boolean) => Promise<void>,
+  externalLastTickRef?: React.MutableRefObject<number>,
+  externalIsLoopRunningRef?: React.MutableRefObject<boolean>,
+  externalAnimationFrameRef?: React.MutableRefObject<number | undefined>
 ) => {
-  const lastTickRef = useRef<number>(Date.now());
+  const localLastTickRef = useRef<number>(TimeSyncService.getServerTime());
+  const lastTickRef = externalLastTickRef || localLastTickRef;
+  
+  const localAnimationFrameRef = useRef<number>();
+  const animationFrameRef = externalAnimationFrameRef || localAnimationFrameRef;
+
+  const localIsLoopRunningRef = useRef<boolean>(false);
+  const isLoopRunningRef = externalIsLoopRunningRef || localIsLoopRunningRef;
+
+  const lastAutoSaveRef = useRef<number>(TimeSyncService.getServerTime());
   const hasNewReportsRef = useRef<boolean>(false);
-  const animationFrameRef = useRef<number>();
   const targetFPS = useRef<number>(getTargetFPS());
   const frameInterval = useRef<number>(1000 / targetFPS.current);
   const lastFrameTime = useRef<number>(0);
-  const isLoopRunningRef = useRef<boolean>(false);
   const statusRef = useRef<GameStatus>(status);
   const setGameStateRef = useRef(setGameState);
   setGameStateRef.current = setGameState;
@@ -64,7 +60,7 @@ export const useGameLoop = (
     }
 
     console.log('[GameLoop] Starting game loop - status:', status);
-    lastTickRef.current = Date.now();
+    lastTickRef.current = TimeSyncService.getServerTime();
     lastFrameTime.current = performance.now();
     isLoopRunningRef.current = true;
     
@@ -82,12 +78,27 @@ export const useGameLoop = (
       if (deltaTime >= frameInterval.current) {
         lastFrameTime.current = currentTime - (deltaTime % frameInterval.current);
 
-        const now = Date.now();
-        const deltaTimeMs = now - lastTickRef.current + overlap;
+        const now = TimeSyncService.getServerTime();
+        let deltaTimeMs = now - lastTickRef.current + overlap;
+        
+        // Anti-cheat: Cap deltaTimeMs to prevent massive jumps
+        const MAX_DELTA_MS = 10000; // Cap at 10 seconds per frame
+        if (deltaTimeMs > MAX_DELTA_MS) {
+          console.warn(`[GameLoop] Delta time too high (\${deltaTimeMs}ms), capping to \${MAX_DELTA_MS}ms`);
+          deltaTimeMs = MAX_DELTA_MS;
+        }
+        
         lastTickRef.current = now;
 
         if (deltaTimeMs >= TICK_RATE_MS) {
           tickCount++;
+          
+          // Auto-save orchestration (Every 5s check)
+          if (now - lastAutoSaveRef.current >= 5000) {
+            lastAutoSaveRef.current = now;
+            if (performAutoSave) performAutoSave();
+          }
+
           if (tickCount % 10 === 0) {
             console.log('[GameLoop] Tick update - deltaTimeMs:', deltaTimeMs, 'tickCount:', tickCount);
           }

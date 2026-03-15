@@ -16,8 +16,7 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
     watch: {
-      usePolling: true,
-      interval: 1000,
+      usePolling: false,
       ignored: ['**/node_modules/**', '**/.cache/**', '**/dist/**'],
     }
   },

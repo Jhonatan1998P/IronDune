@@ -40,6 +40,10 @@ app.get('/health', (_req, res) => {
   }
 });
 
+app.get('/api/time', (_req, res) => {
+  res.json({ serverTime: Date.now() });
+});
+
 app.post('/api/battle/simulate-combat', (req, res) => {
     try {
         const { attackerUnits, defenderUnits, terrainModifier } = req.body;

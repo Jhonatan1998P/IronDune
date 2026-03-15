@@ -138,6 +138,10 @@ export const calculateHourlyInterest = (balance: number, rate: number): number =
     return (balance * rate) / 24;
 };
 
+// --- SAVE INTERVALS ---
+export const LOCAL_SAVE_INTERVAL_MS = 10000; // 10 seconds
+export const CLOUD_SAVE_INTERVAL_MS = 120000; // 2 minutes
+
 export const SAVE_VERSION = 7;
 
 // --- FLAGS ---

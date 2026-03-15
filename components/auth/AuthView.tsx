@@ -127,25 +127,25 @@ export const AuthView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-300 p-6 font-tech relative overflow-hidden">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-slate-950 text-slate-300 p-4 md:p-6 font-tech relative overflow-hidden">
       {/* Background Decor */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[128px]" />
+        <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-cyan-500/10 rounded-full blur-[80px] md:blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-64 md:w-96 h-64 md:h-96 bg-blue-600/10 rounded-full blur-[80px] md:blur-[128px]" />
         <div className="absolute inset-0 bg-grid-pattern opacity-10 animate-pulse-slow"></div>
-        <div className="scanlines opacity-40"></div>
+        <div className="scanlines opacity-20 md:opacity-40"></div>
       </div>
 
-      <div className="max-w-md w-full p-8 rounded-xl border border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl space-y-8 relative z-10 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
+      <div className="w-full max-w-md p-6 md:p-8 rounded-2xl md:rounded-xl border border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl space-y-6 md:space-y-8 relative z-10 shadow-[0_0_50px_rgba(6,182,212,0.1)] my-auto">
         <div className="text-center space-y-2">
-          <div className="relative inline-block p-4 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-4 group">
+          <div className="relative inline-block p-3 md:p-4 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-2 md:mb-4 group">
             <div className="absolute inset-0 bg-cyan-500/20 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Shield className="relative w-10 h-10 text-cyan-400" />
+            <Shield className="relative w-8 h-8 md:w-10 md:h-10 text-cyan-400" />
           </div>
-          <h1 className="text-3xl font-bold text-white uppercase tracking-[0.2em] drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
+          <h1 className="text-2xl md:text-3xl font-bold text-white uppercase tracking-[0.2em] drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
             IRON DUNE
           </h1>
-          <p className="text-cyan-400/60 text-[10px] tracking-[0.3em] uppercase">
+          <p className="text-cyan-400/60 text-[9px] md:text-[10px] tracking-[0.3em] uppercase">
             {t.common.ui.app_subtitle}
           </p>
         </div>

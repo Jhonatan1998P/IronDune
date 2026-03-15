@@ -103,10 +103,11 @@ export const decodeSaveData = (encodedString: string): GameState | null => {
             const [data, importedSignature] = parts;
             jsonString = data;
 
-            // Verificación de Integridad (Soft Check)
+            // Verificación de Integridad (Strict Check)
             const calculatedSignature = generateSignature(jsonString);
             if (importedSignature !== calculatedSignature) {
-                console.warn("ALERTA DE SEGURIDAD: La firma del archivo no coincide. Se intentará cargar de todos modos.");
+                console.error("ALERTA DE SEGURIDAD: Manipulación detectada. Carga abortada.");
+                return null;
             }
         } else {
             // Formato sin separador (quizás una versión muy antigua o corrupta pero con JSON válido)
