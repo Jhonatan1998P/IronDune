@@ -39,11 +39,11 @@ export const useGameLoop = (
         // Sincronizar store de recursos (Alta frecuencia)
         resourceStore.updateFromServer(data.resources, data.rates, data.serverTime);
         
-        // Sincronización inmediata de colas y estado pesado al recibir sync
+        // Sync heavy state (queues + movements) from server on each engine_sync_update
         setGameState(prev => {
             const newState = { ...prev };
             
-            // Actualizar colas desde el servidor (Fuente de Verdad)
+            // Construction, Research, Unit queues (Server is source of truth)
             if (data.queues) {
                 newState.activeConstructions = data.queues.constructions.map((c: any) => ({
                     id: c.id, 
@@ -68,6 +68,22 @@ export const useGameLoop = (
                     startTime: new Date(r.created_at).getTime(),
                     endTime: Number(r.end_time)
                 }));
+            }
+
+            // Active troop movements (outgoing missions)
+            if (data.movements) {
+                newState.activeMissions = data.movements
+                    .filter((m: any) => m.type !== 'return')
+                    .map((m: any) => ({
+                        id: m.id,
+                        type: m.type,
+                        targetId: m.target_id,
+                        units: m.units || {},
+                        resources: m.resources || {},
+                        startTime: Number(m.start_time),
+                        endTime: Number(m.end_time),
+                        status: m.status,
+                    }));
             }
 
             return newState;

@@ -11,15 +11,24 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { saveGlobalLoot } from './engine/logisticLoot.js';
 import { PLUNDERABLE_BUILDINGS } from './engine/constants.js';
 
-const SCHEDULER_INTERVAL_MS = 2 * 60 * 1000; // 2 Minutes (User requested auto-sync)
+const SCHEDULER_INTERVAL_MS = 2 * 60 * 1000; // 2 Minutes
 const MARKET_TICK_MS = 10 * 60 * 1000; // 10 Minutes
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 Minutes
 
-export const startScheduler = () => {
+// Shared references passed from index.js
+let _io = null;
+let _playerPresence = null;
+let _playerLiveStates = null;
+
+export const startScheduler = (io, playerPresence, playerLiveStates) => {
+    _io = io;
+    _playerPresence = playerPresence;
+    _playerLiveStates = playerLiveStates;
+
     console.log('[Scheduler] Starting global authority & persistence engine (2m sync)...');
     
-    // 1. Global Authority Production & Delta Calculation (All players)
-    setInterval(syncGlobalProduction, SCHEDULER_INTERVAL_MS);
+    // 1. Global Authority Production + Push to connected clients
+    setInterval(syncAndPushToClients, SCHEDULER_INTERVAL_MS);
     
     // 2. Movement & Offline Events Engine
     setInterval(processEngineTick, SCHEDULER_INTERVAL_MS);
@@ -87,20 +96,98 @@ async function cleanupWorldEvents() {
     }
 }
 
-async function syncGlobalProduction() {
+async function syncAndPushToClients() {
     try {
-        console.log('[Scheduler] Executing Server-Side Authority: Global Sync (V3 Delta)...');
+        console.log('[Scheduler] Authority Sync: Running global delta production...');
         const { data, error } = await supabase.rpc('sync_all_production_v3');
         if (error) throw error;
 
         if (data && data[0]) {
             const res = data[0];
             if (res.processed_constructions > 0 || res.processed_research > 0 || res.processed_units > 0) {
-                console.log(`[Authority] Queues processed retroactively: Buildings: ${res.processed_constructions}, Research: ${res.processed_research}, Units: ${res.processed_units}`);
+                console.log(`[Authority] Queues resolved: Buildings=${res.processed_constructions} Research=${res.processed_research} Units=${res.processed_units}`);
             }
+        }
+
+        // Push fresh state to all connected players
+        if (!_io || !_playerPresence || !_playerLiveStates) return;
+
+        const connectedIds = [..._playerLiveStates.keys()];
+        if (connectedIds.length === 0) return;
+
+        console.log(`[Scheduler] Pushing fresh state to ${connectedIds.length} connected player(s)...`);
+
+        for (const playerId of connectedIds) {
+            await pushFreshStateToPlayer(playerId);
         }
     } catch (error) {
         console.error('[Scheduler] Global Production Sync Error:', error);
+    }
+}
+
+// Export so index.js actions can also trigger a push after mutations
+export async function pushFreshStateToPlayer(playerId) {
+    if (!_io || !_playerPresence || !_playerLiveStates) return;
+    const presence = _playerPresence.get(playerId);
+    if (!presence?.socketId) return;
+
+    try {
+        const [ecoRes, cqRes, rqRes, uqRes, movRes] = await Promise.all([
+            supabase.from('player_economy')
+                .select('money, oil, ammo, gold, diamond, money_prod, oil_prod, ammo_prod, gold_prod, last_calc_time')
+                .eq('player_id', playerId).single(),
+            supabase.from('construction_queue').select('*').eq('player_id', playerId),
+            supabase.from('research_queue').select('*').eq('player_id', playerId),
+            supabase.from('unit_queue').select('*').eq('player_id', playerId),
+            supabase.from('movements').select('*').eq('sender_id', playerId).eq('status', 'active'),
+        ]);
+
+        if (!ecoRes.data) return;
+        const eco = ecoRes.data;
+        const now = Date.now();
+
+        const snapshot = {
+            MONEY: Number(eco.money),
+            OIL: Number(eco.oil),
+            AMMO: Number(eco.ammo),
+            GOLD: Number(eco.gold),
+            DIAMOND: Number(eco.diamond || 0),
+        };
+        const rates = {
+            MONEY: Number(eco.money_prod),
+            OIL: Number(eco.oil_prod),
+            AMMO: Number(eco.ammo_prod),
+            GOLD: Number(eco.gold_prod),
+            DIAMOND: 0,
+        };
+
+        // Update in-memory cache
+        if (_playerLiveStates.has(playerId)) {
+            const live = _playerLiveStates.get(playerId);
+            live.resources = snapshot;
+            live.rates = rates;
+            live.lastUpdate = Number(eco.last_calc_time) || now;
+            live.queues = {
+                constructions: cqRes.data || [],
+                units: uqRes.data || [],
+                research: rqRes.data || [],
+            };
+        }
+
+        // Push to client socket
+        _io.to(presence.socketId).emit('engine_sync_update', {
+            resources: snapshot,
+            rates,
+            queues: {
+                constructions: cqRes.data || [],
+                units: uqRes.data || [],
+                research: rqRes.data || [],
+            },
+            movements: movRes.data || [],
+            serverTime: now,
+        });
+    } catch (e) {
+        console.error(`[Scheduler] Push failed for player ${playerId}:`, e);
     }
 }
 

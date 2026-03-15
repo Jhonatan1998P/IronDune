@@ -9,7 +9,7 @@ import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
-import { startScheduler } from './scheduler.js';
+import { startScheduler, pushFreshStateToPlayer } from './scheduler.js';
 import { runSetupOnDeploy } from './scripts/runSetupOnDeploy.js';
 import { handleBuild, handleRecruit, handleResearch, handleBankTransaction, handleRepair, handleDiamondExchange, handleEspionage, handleSalvageMission } from './engine/actions.js';
 
@@ -203,8 +203,9 @@ app.post('/api/game/build', async (req, res) => {
         const { userId, buildingType, amount } = req.body;
         if (!userId || !buildingType) return res.status(400).json({ error: 'Missing params' });
         const result = await handleBuild(userId, buildingType, amount || 1);
-        await refreshPlayerCache(userId);
         res.json(result);
+        // Push updated state to client after mutation (non-blocking)
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Build error:', error);
         res.status(500).json({ error: error.message });
@@ -216,8 +217,8 @@ app.post('/api/game/recruit', async (req, res) => {
         const { userId, unitType, amount } = req.body;
         if (!userId || !unitType || !amount) return res.status(400).json({ error: 'Missing params' });
         const result = await handleRecruit(userId, unitType, amount);
-        await refreshPlayerCache(userId);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Recruit error:', error);
         res.status(500).json({ error: error.message });
@@ -229,8 +230,8 @@ app.post('/api/game/research', async (req, res) => {
         const { userId, techType } = req.body;
         if (!userId || !techType) return res.status(400).json({ error: 'Missing params' });
         const result = await handleResearch(userId, techType);
-        await refreshPlayerCache(userId);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Research error:', error);
         res.status(500).json({ error: error.message });
@@ -243,6 +244,7 @@ app.post('/api/game/bank-transaction', async (req, res) => {
         if (!userId || !amount || !type) return res.status(400).json({ error: 'Missing params' });
         const result = await handleBankTransaction(userId, amount, type);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Bank error:', error);
         res.status(500).json({ error: error.message });
@@ -255,6 +257,7 @@ app.post('/api/game/repair', async (req, res) => {
         if (!userId || !buildingType) return res.status(400).json({ error: 'Missing params' });
         const result = await handleRepair(userId, buildingType);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Repair error:', error);
         res.status(500).json({ error: error.message });
@@ -267,6 +270,7 @@ app.post('/api/game/diamond-exchange', async (req, res) => {
         if (!userId || !targetResource || !amount) return res.status(400).json({ error: 'Missing params' });
         const result = await handleDiamondExchange(userId, targetResource, amount);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Diamond exchange error:', error);
         res.status(500).json({ error: error.message });
@@ -279,6 +283,7 @@ app.post('/api/game/espionage', async (req, res) => {
         if (!userId || !targetId) return res.status(400).json({ error: 'Missing params' });
         const result = await handleEspionage(userId, targetId);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Espionage error:', error);
         res.status(500).json({ error: error.message });
@@ -291,6 +296,7 @@ app.post('/api/game/salvage-mission', async (req, res) => {
         if (!userId || !lootId || !drones) return res.status(400).json({ error: 'Missing params' });
         const result = await handleSalvageMission(userId, lootId, drones);
         res.json(result);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Salvage error:', error);
         res.status(500).json({ error: error.message });
@@ -325,6 +331,7 @@ app.post('/api/game/start-mission', async (req, res) => {
 
         if (error) throw error;
         res.json(mov);
+        pushFreshStateToPlayer(userId).catch(() => {});
     } catch (error) {
         console.error('[ActionServer] Mission error:', error);
         res.status(500).json({ error: error.message });
@@ -343,67 +350,91 @@ io.on('connection', (socket) => {
   socket.on('join_room', async ({ peerId }) => {
     playerId = peerId;
     socket.join(GLOBAL_ROOM);
-    
-    // Cargar estado inicial para la caché de autoridad
-    const { data: economy } = await supabase.from('player_economy').select('*').eq('player_id', peerId).single();
-    const { data: cQueue } = await supabase.from('construction_queue').select('*').eq('player_id', peerId);
-    const { data: uQueue } = await supabase.from('unit_queue').select('*').eq('player_id', peerId);
-    const { data: rQueue } = await supabase.from('research_queue').select('*').eq('player_id', peerId);
-
-    if (economy) {
-        playerLiveStates.set(peerId, {
-            resources: {
-                MONEY: Number(economy.money),
-                OIL: Number(economy.oil),
-                AMMO: Number(economy.ammo),
-                GOLD: Number(economy.gold),
-                DIAMOND: Number(economy.diamond || 0)
-            },
-            rates: {
-                MONEY: Number(economy.money_prod),
-                OIL: Number(economy.oil_prod),
-                AMMO: Number(economy.ammo_prod),
-                GOLD: Number(economy.gold_prod),
-                DIAMOND: 0 // Se calcula por edificios específicos si aplica
-            },
-            queues: {
-                constructions: cQueue || [],
-                units: uQueue || [],
-                research: rQueue || []
-            },
-            lastUpdate: Number(economy.last_calc_time)
-        });
-    }
 
     playerPresence.set(peerId, {
       id: peerId,
       socketId: socket.id,
       lastSeen: Date.now(),
     });
+
+    try {
+        // Apply offline delta for this player on connection
+        await supabase.rpc('sync_player_production_v3', { p_id: peerId });
+
+        // Load fresh state from DB
+        const [ecoRes, cqRes, uqRes, rqRes, movRes] = await Promise.all([
+            supabase.from('player_economy').select('*').eq('player_id', peerId).single(),
+            supabase.from('construction_queue').select('*').eq('player_id', peerId),
+            supabase.from('unit_queue').select('*').eq('player_id', peerId),
+            supabase.from('research_queue').select('*').eq('player_id', peerId),
+            supabase.from('movements').select('*').eq('sender_id', peerId).eq('status', 'active'),
+        ]);
+
+        const economy = ecoRes.data;
+        if (economy) {
+            const snapshot = {
+                MONEY: Number(economy.money),
+                OIL: Number(economy.oil),
+                AMMO: Number(economy.ammo),
+                GOLD: Number(economy.gold),
+                DIAMOND: Number(economy.diamond || 0),
+            };
+            const rates = {
+                MONEY: Number(economy.money_prod),
+                OIL: Number(economy.oil_prod),
+                AMMO: Number(economy.ammo_prod),
+                GOLD: Number(economy.gold_prod),
+                DIAMOND: 0,
+            };
+            const queues = {
+                constructions: cqRes.data || [],
+                units: uqRes.data || [],
+                research: rqRes.data || [],
+            };
+
+            playerLiveStates.set(peerId, {
+                resources: snapshot,
+                rates,
+                queues,
+                lastUpdate: Number(economy.last_calc_time) || Date.now(),
+            });
+
+            // Push initial engine sync immediately on connection
+            socket.emit('engine_sync_update', {
+                resources: snapshot,
+                rates,
+                queues,
+                movements: movRes.data || [],
+                serverTime: Date.now(),
+            });
+        }
+    } catch (err) {
+        console.error(`[Socket] join_room error for ${peerId}:`, err.message);
+    }
   });
 
-  // HEARTBEAT AUTORITATIVO: El cliente pide sincronización cada segundo
+  // HEARTBEAT: Client requests sync every 2s — server responds with delta-time resources
   socket.on('request_engine_sync', () => {
     if (!playerId || !playerLiveStates.has(playerId)) return;
 
     const live = playerLiveStates.get(playerId);
     const now = Date.now();
-    const delta = (now - live.lastUpdate) / 1000;
+    const delta = Math.max(0, (now - live.lastUpdate) / 1000);
 
-    // Cálculo autoritativo en memoria (Source of Truth temporal) para respuesta inmediata
+    // Fast in-memory delta calculation (authoritative interpolation)
     const currentResources = {
         MONEY: live.resources.MONEY + (live.rates.MONEY * delta),
         OIL: live.resources.OIL + (live.rates.OIL * delta),
         AMMO: live.resources.AMMO + (live.rates.AMMO * delta),
         GOLD: live.resources.GOLD + (live.rates.GOLD * delta),
-        DIAMOND: live.resources.DIAMOND + (live.rates.DIAMOND * delta),
+        DIAMOND: live.resources.DIAMOND,
     };
 
     socket.emit('engine_sync_update', {
         resources: currentResources,
         rates: live.rates,
         queues: live.queues,
-        serverTime: now
+        serverTime: now,
     });
   });
 
@@ -421,9 +452,10 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
   await runSetupOnDeploy(); // hard reset solo si DB_HARD_RESET=true
   
-  // Ejecutar primer sync inmediatamente para procesar tiempo offline (Render Sleep recovery)
-  console.log('[BattleServer] Performing initial offline sync...');
-  await supabase.rpc('sync_all_production_v3');
-  
-  startScheduler();
+  // Sync offline delta immediately on boot (Render sleep recovery)
+  console.log('[BattleServer] Performing initial offline delta sync...');
+  await supabase.rpc('sync_all_production_v3').catch(e => console.warn('[Boot] Sync error:', e.message));
+
+  // Start scheduler with access to io + presence maps for real-time push
+  startScheduler(io, playerPresence, playerLiveStates);
 });
