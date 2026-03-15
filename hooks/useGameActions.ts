@@ -41,12 +41,27 @@ export const useGameActions = (
         const result = await gameService.build(user.id, type, amount);
         if (result.success) {
             addLog('building_queued', 'info', { type, amount, endTime: result.endTime });
+            
+            // ACTUALIZACIÓN LOCAL INMEDIATA (Optimismo autoritativo)
+            setGameState(prev => ({
+                ...prev,
+                activeConstructions: [
+                    ...prev.activeConstructions,
+                    {
+                        id: Math.random().toString(36).substr(2, 9),
+                        buildingType: type,
+                        count: amount,
+                        startTime: Date.now(),
+                        endTime: result.endTime
+                    }
+                ]
+            }));
         }
     } catch (e: any) {
         console.error('[Authority] Build failed:', e);
         addLog(e.message || 'error_building', 'info');
     }
-  }, [addLog, user]);
+  }, [addLog, user, setGameState]);
 
   const recruit = useCallback(async (type: UnitType, amount: number = 1) => {
     if (!user) return;
@@ -54,11 +69,26 @@ export const useGameActions = (
         const result = await gameService.recruit(user.id, type, amount);
         if (result.success) {
             addLog('recruitment_queued', 'info', { type, amount, endTime: result.endTime });
+            
+            // ACTUALIZACIÓN LOCAL
+            setGameState(prev => ({
+                ...prev,
+                activeRecruitments: [
+                    ...prev.activeRecruitments,
+                    {
+                        id: Math.random().toString(36).substr(2, 9),
+                        unitType: type,
+                        count: amount,
+                        startTime: Date.now(),
+                        endTime: result.endTime
+                    }
+                ]
+            }));
         }
     } catch (e: any) {
         addLog(e.message || 'error_recruiting', 'info');
     }
-  }, [addLog, user]);
+  }, [addLog, user, setGameState]);
 
   const research = useCallback(async (techId: TechType) => {
     if (!user) return;
@@ -66,11 +96,26 @@ export const useGameActions = (
         const result = await gameService.research(user.id, techId);
         if (result.success) {
             addLog('research_queued', 'info', { type: techId, endTime: result.endTime });
+            
+            // ACTUALIZACIÓN LOCAL
+            setGameState(prev => ({
+                ...prev,
+                activeResearch: [
+                    ...prev.activeResearch,
+                    {
+                        id: Math.random().toString(36).substr(2, 9),
+                        techId: techId,
+                        targetLevel: 1, // El server sabe el nivel real, aquí ponemos placeholder
+                        startTime: Date.now(),
+                        endTime: result.endTime
+                    }
+                ]
+            }));
         }
     } catch (e: any) {
         addLog(e.message || 'error_researching', 'info');
     }
-  }, [addLog, user]);
+  }, [addLog, user, setGameState]);
 
   const handleBankTransaction = useCallback(async (amount: number, type: 'deposit' | 'withdraw') => {
       if (!user) return;

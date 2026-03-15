@@ -488,12 +488,21 @@ DECLARE
   last_t   bigint;
   delta_t  numeric;
 BEGIN
+  -- Verificar si el jugador existe en la economía, si no, inicializar
   SELECT player_id, last_calc_time, money_prod, oil_prod, ammo_prod, gold_prod 
   INTO rec_p 
   FROM public.player_economy 
   WHERE player_id = p_id;
 
-  IF NOT FOUND OR rec_p.last_calc_time >= now_ms THEN
+  IF NOT FOUND THEN
+    -- Intentar inicializar si el trigger no lo hizo
+    INSERT INTO public.player_economy (player_id, last_calc_time, money, oil, ammo)
+    VALUES (p_id, now_ms, 10000, 5000, 2000)
+    ON CONFLICT (player_id) DO NOTHING;
+    RETURN;
+  END IF;
+
+  IF rec_p.last_calc_time >= now_ms THEN
     RETURN;
   END IF;
 

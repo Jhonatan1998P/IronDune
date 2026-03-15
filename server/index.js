@@ -164,11 +164,46 @@ app.get('/api/bots/global', async (req, res) => {
 
 // --- AUTHORITATIVE ACTIONS ---
 
+async function refreshPlayerCache(userId) {
+    if (!playerLiveStates.has(userId)) return;
+    
+    const { data: economy } = await supabase.from('player_economy').select('*').eq('player_id', userId).single();
+    const { data: cQueue } = await supabase.from('construction_queue').select('*').eq('player_id', userId);
+    const { data: uQueue } = await supabase.from('unit_queue').select('*').eq('player_id', userId);
+    const { data: rQueue } = await supabase.from('research_queue').select('*').eq('player_id', userId);
+
+    if (economy) {
+        playerLiveStates.set(userId, {
+            resources: {
+                MONEY: Number(economy.money),
+                OIL: Number(economy.oil),
+                AMMO: Number(economy.ammo),
+                GOLD: Number(economy.gold),
+                DIAMOND: Number(economy.diamond || 0)
+            },
+            rates: {
+                MONEY: Number(economy.money_prod),
+                OIL: Number(economy.oil_prod),
+                AMMO: Number(economy.ammo_prod),
+                GOLD: Number(economy.gold_prod),
+                DIAMOND: 0
+            },
+            queues: {
+                constructions: cQueue || [],
+                units: uQueue || [],
+                research: rQueue || []
+            },
+            lastUpdate: Number(economy.last_calc_time)
+        });
+    }
+}
+
 app.post('/api/game/build', async (req, res) => {
     try {
         const { userId, buildingType, amount } = req.body;
         if (!userId || !buildingType) return res.status(400).json({ error: 'Missing params' });
         const result = await handleBuild(userId, buildingType, amount || 1);
+        await refreshPlayerCache(userId);
         res.json(result);
     } catch (error) {
         console.error('[ActionServer] Build error:', error);
@@ -181,6 +216,7 @@ app.post('/api/game/recruit', async (req, res) => {
         const { userId, unitType, amount } = req.body;
         if (!userId || !unitType || !amount) return res.status(400).json({ error: 'Missing params' });
         const result = await handleRecruit(userId, unitType, amount);
+        await refreshPlayerCache(userId);
         res.json(result);
     } catch (error) {
         console.error('[ActionServer] Recruit error:', error);
@@ -193,6 +229,7 @@ app.post('/api/game/research', async (req, res) => {
         const { userId, techType } = req.body;
         if (!userId || !techType) return res.status(400).json({ error: 'Missing params' });
         const result = await handleResearch(userId, techType);
+        await refreshPlayerCache(userId);
         res.json(result);
     } catch (error) {
         console.error('[ActionServer] Research error:', error);

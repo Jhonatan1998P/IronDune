@@ -1,4 +1,3 @@
-
 import { UnitType } from '../types';
 
 export const UNIT_ASSETS: Record<UnitType, string> = {
