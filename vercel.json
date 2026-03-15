@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build -w apps/frontend",
+  "outputDirectory": "apps/frontend/dist",
   "headers": [
     {
       "source": "/index.html",

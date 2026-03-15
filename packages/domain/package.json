@@ -1,0 +1,9 @@
+{
+  "name": "@iron-dune/domain",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "zod": "^3.22.4"
+  }
+}

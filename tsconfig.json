@@ -1,20 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
+    "moduleResolution": "Node",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-
-    /* Strictness & Linting */
     "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -23,8 +19,14 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@iron-dune/domain": ["./packages/domain/src/index.ts"],
+      "@iron-dune/contracts": ["./packages/contracts/src/index.ts"],
+      "@iron-dune/db": ["./packages/db/src/index.ts"]
+    }
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["./tests/**/*"]
+  "include": ["./**/*.ts", "./**/*.tsx", "apps/**/*", "packages/**/*"],
+  "exclude": ["node_modules"]
 }

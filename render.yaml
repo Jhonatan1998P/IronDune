@@ -1,12 +1,22 @@
 services:
+  # Web Service para API y Sockets
   - type: web
-    name: iron-dune-server
+    name: iron-dune-api
     runtime: node
-    rootDir: server
-    buildCommand: npm install
-    startCommand: node index.js
+    buildCommand: npm install && npm run build
+    startCommand: npm run api:start
     envVars:
       - key: PORT
-        value: "10000"
+        value: 10000
+      - key: NODE_ENV
+        value: production
+
+  # Background Worker
+  - type: worker
+    name: iron-dune-worker
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run worker:start
+    envVars:
       - key: NODE_ENV
         value: production
