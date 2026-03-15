@@ -277,7 +277,7 @@ async function executeReturn(mov, now) {
     console.log(`[BattleEngine] Return completed for ${mov.sender_id}`);
 }
 
-async function fetchFullState(userId) {
+export async function fetchFullState(userId) {
     const [profileRes, economyRes, buildingsRes, researchRes, unitsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
         supabase.from('player_economy').select('*').eq('player_id', userId).single(),
@@ -323,7 +323,7 @@ async function persistState(userId, state, now) {
     }
 }
 
-async function processSingleProfile(userId, now) {
+export async function processSingleProfile(userId, now) {
     try {
         let state = await fetchFullState(userId);
         let modified = false;

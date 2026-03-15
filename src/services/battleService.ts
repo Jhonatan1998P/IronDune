@@ -11,7 +11,7 @@ export const battleService = {
     /**
      * Process the entire military queue (Incoming & Outgoing) on the server
      */
-    async processQueue(state: GameState, now: number = Date.now()): Promise<{
+    async processQueue(userId: string, now: number = Date.now()): Promise<{
         newState: GameState;
         queuedResults: QueuedAttackResult[];
         newLogs: LogEntry[];
@@ -20,7 +20,7 @@ export const battleService = {
             const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/process-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
+                body: JSON.stringify({ userId, now })
             });
 
             if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
@@ -58,7 +58,7 @@ export const battleService = {
     /**
      * Check for enemy attacks on the server
      */
-    async processEnemyAttackCheck(state: GameState, now: number = Date.now()): Promise<{
+    async processEnemyAttackCheck(userId: string, now: number = Date.now()): Promise<{
         stateUpdates: Partial<GameState>;
         logs: LogEntry[];
     }> {
@@ -66,7 +66,7 @@ export const battleService = {
             const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/enemy-attack-check`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
+                body: JSON.stringify({ userId, now })
             });
 
             if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
@@ -80,7 +80,7 @@ export const battleService = {
     /**
      * Process nemesis/grudges on the server
      */
-    async processNemesisTick(state: GameState, now: number = Date.now()): Promise<{
+    async processNemesisTick(userId: string, now: number = Date.now()): Promise<{
         stateUpdates: Partial<GameState>;
         logs: LogEntry[];
     }> {
@@ -88,7 +88,7 @@ export const battleService = {
             const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/nemesis-tick`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
+                body: JSON.stringify({ userId, now })
             });
 
             if (!response.ok) throw new Error(`Server error: ${response.statusText}`);

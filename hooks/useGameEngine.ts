@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, GameStatus, LogEntry, GameEventType, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { useEventSubscription } from './useEventSubscription';
@@ -11,6 +11,7 @@ import { useGameLoop } from './useGameLoop';
 import { usePersistence } from './usePersistence';
 import { useGameActions } from './useGameActions';
 import { battleService } from '../src/services/battleService';
+import { useAuth } from '../context/AuthContext';
 
 declare global {
     interface Window {
@@ -25,13 +26,27 @@ if (typeof window !== 'undefined') {
 }
 
 export const useGameEngine = () => {
+  const { user } = useAuth();
   const [status, setStatus] = useState<GameStatus>('LOADING');
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
   const [hasNewReports, setHasNewReports] = useState(false);
 
+  const lastTickRef = useRef(Date.now());
+  
+  // --- 4. PERSISTENCE ---
+  const persistence = usePersistence(
+      gameState,
+      setGameState,
+      status,
+      setStatus,
+      setOfflineReport,
+      setHasNewReports,
+      lastTickRef
+  );
+
   // --- 1. CORE LOOP ---
-  const { lastTickRef, isLoopRunningRef, animationFrameRef } = useGameLoop(status, setGameState, setHasNewReports);
+  useGameLoop(status, setGameState, persistence.performAutoSave);
 
   // --- 2. LOGGING (Shared Dependency) ---
   const addLog = useCallback((messageKey: string, type: LogEntry['type'] = 'info', params?: any) => {
@@ -61,26 +76,13 @@ export const useGameEngine = () => {
   // --- 3. ACTIONS ---
   const actions = useGameActions(gameState, setGameState, addLog);
 
-  // --- 4. PERSISTENCE ---
-  const persistence = usePersistence(
-      gameState,
-      setGameState,
-      status,
-      setStatus,
-      setOfflineReport,
-      setHasNewReports,
-      lastTickRef,
-      isLoopRunningRef,
-      animationFrameRef
-  );
-
   // --- 5. EVENT BUS ---
   useEventSubscription(GameEventType.ADD_LOG, (payload) => {
       addLog(payload.messageKey, payload.type, payload.params);
   });
 
   useEventSubscription(GameEventType.TRIGGER_SAVE, (payload) => {
-      persistence.performAutoSave(payload.force);
+      persistence.performAutoSave(payload.force, payload.state);
   });
 
   // --- 5b. REMOTE BATTLE ENGINE SYNC ---
@@ -100,10 +102,10 @@ export const useGameEngine = () => {
                               gameState.incomingAttacks.some(a => a.endTime <= now) ||
                               (gameState.activeWar && gameState.activeWar.nextWaveTime <= now);
 
-            if (hasEvents) {
+            if (hasEvents && user) {
                 isSyncing = true;
                 console.log('[BattleSync] Processing events on server...');
-                const result = await battleService.processQueue(gameState, now);
+                const result = await battleService.processQueue(user.id, now);
                 
                 setGameState(prev => {
                     const newState = { ...result.newState };
@@ -129,7 +131,8 @@ export const useGameEngine = () => {
         try {
             const now = Date.now();
             
-            const enemyAttackResult = await battleService.processEnemyAttackCheck(gameState, now);
+            if (!user) return;
+            const enemyAttackResult = await battleService.processEnemyAttackCheck(user.id, now);
             if (enemyAttackResult.logs.length > 0 || Object.keys(enemyAttackResult.stateUpdates).length > 0) {
                 setGameState(prev => ({
                     ...prev,
@@ -139,7 +142,7 @@ export const useGameEngine = () => {
                 if (enemyAttackResult.logs.length > 0) setHasNewReports(true);
             }
 
-            const nemesisResult = await battleService.processNemesisTick(gameState, now);
+            const nemesisResult = await battleService.processNemesisTick(user.id, now);
             if (nemesisResult.logs.length > 0 || Object.keys(nemesisResult.stateUpdates).length > 0) {
                 setGameState(prev => ({
                     ...prev,
@@ -226,8 +229,8 @@ export const useGameEngine = () => {
     startNewGame: persistence.startNewGame, 
     loadGame: persistence.loadGame, 
     saveGame: persistence.saveGame, 
-    importSave: persistence.importSave, 
-    exportSave: persistence.exportSave,
+    importSave: () => false, 
+    exportSave: () => {},
     resetGame: persistence.resetGame,
 
     // Actions

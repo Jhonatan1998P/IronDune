@@ -7,6 +7,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAuth } from '../context/AuthContext';
 import type {
   PlayerPresence,
   MultiplayerAction,
@@ -52,6 +53,7 @@ export interface MultiplayerProviderProps {
 }
 
 export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ children }) => {
+  const { user } = useAuth();
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -290,7 +292,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     setRemotePlayers([]);
     playersRef.current.clear();
 
-    const playerId = generatePlayerId();
+    const playerId = user?.id || generatePlayerId();
     setLocalPlayerId(playerId);
     localPlayerIdRef.current = playerId;
 
@@ -474,7 +476,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
   return (
     <MultiplayerContext.Provider

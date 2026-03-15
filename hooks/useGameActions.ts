@@ -4,23 +4,16 @@ import { GameState, BuildingType, UnitType, TechType, MissionDuration, LogEntry,
 import { gameEventBus } from '../utils/eventBus';
 import { GameEventType } from '../types/events';
 import { 
-    executeBuild, 
-    executeRecruit, 
-    executeResearch, 
-    executeStartMission, 
     executeSalvageMission,
     executeCampaignAttack, 
     executeSpeedUp, 
     executeEspionage,
-    executeTrade as executeTradeAction,
-    executeDiamondExchange as executeDiamondAction,
-    executeRepair
+    executeTrade as executeTradeAction
 } from '../utils/engine/actions';
-import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { gameService } from '../src/services/gameService';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -43,124 +36,107 @@ export const useGameActions = (
 ) => {
   const { user } = useAuth();
 
-  const build = useCallback((type: BuildingType, amount: number = 1) => {
-    setGameState(prev => {
-        const result = executeBuild(prev, type, amount);
-        if (result.success && result.newState) {
-            const task = result.newState.activeConstructions[result.newState.activeConstructions.length - 1];
-            if (user) {
-                supabase.from('construction_queue').insert({
-                    player_id: user.id,
-                    building_type: task.buildingType,
-                    target_level: task.count, // Ahora 'count' en activeConstructions es el target level
-                    end_time: task.endTime
-                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
-            }
-            // Trigger immediate save for critical action
-            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-            return result.newState;
+  const build = useCallback(async (type: BuildingType, amount: number = 1) => {
+    if (!user) return;
+    try {
+        console.log(`[Authority] Requesting build ${type} (x${amount})...`);
+        const result = await gameService.build(user.id, type, amount);
+        if (result.success) {
+            addLog('building_queued', 'info', { type, amount, endTime: result.endTime });
         }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState, user]);
+    } catch (e: any) {
+        console.error('[Authority] Build failed:', e);
+        addLog(e.message || 'error_building', 'info');
+    }
+  }, [addLog, user]);
 
-  const repair = useCallback((type: BuildingType) => {
-      setGameState(prev => {
-          const result = executeRepair(prev, type);
-          if (result.success && result.newState) {
-              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-              return result.newState;
+  const recruit = useCallback(async (type: UnitType, amount: number = 1) => {
+    if (!user) return;
+    try {
+        const result = await gameService.recruit(user.id, type, amount);
+        if (result.success) {
+            addLog('recruitment_queued', 'info', { type, amount, endTime: result.endTime });
+        }
+    } catch (e: any) {
+        addLog(e.message || 'error_recruiting', 'info');
+    }
+  }, [addLog, user]);
+
+  const research = useCallback(async (techId: TechType) => {
+    if (!user) return;
+    try {
+        const result = await gameService.research(user.id, techId);
+        if (result.success) {
+            addLog('research_queued', 'info', { type: techId, endTime: result.endTime });
+        }
+    } catch (e: any) {
+        addLog(e.message || 'error_researching', 'info');
+    }
+  }, [addLog, user]);
+
+  const handleBankTransaction = useCallback(async (amount: number, type: 'deposit' | 'withdraw') => {
+      if (!user) return;
+      try {
+          const result = await gameService.handleBankTransaction(user.id, amount, type);
+          if (result.success) {
+              addLog(type === 'deposit' ? 'bank_deposit_success' : 'bank_withdraw_success', 'info', { amount });
           }
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      } catch (e: any) {
+          addLog(e.message || 'error_bank', 'info');
+      }
+  }, [addLog, user]);
 
-  const recruit = useCallback((type: UnitType, amount: number = 1) => {
-    setGameState(prev => {
-        const result = executeRecruit(prev, type, amount);
-        if (result.success && result.newState) {
-            const task = result.newState.activeRecruitments[result.newState.activeRecruitments.length - 1];
-            if (user) {
-                supabase.from('unit_queue').insert({
-                    player_id: user.id,
-                    unit_type: task.unitType,
-                    amount: task.count,
-                    end_time: task.endTime
-                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
-            }
-            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-            return result.newState;
-        }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState, user]);
-
-  const research = useCallback((techId: TechType) => {
-    setGameState(prev => {
-        const result = executeResearch(prev, techId);
-        if (result.success && result.newState) {
-            const task = result.newState.activeResearch[result.newState.activeResearch.length - 1];
-            if (user) {
-                supabase.from('research_queue').insert({
-                    player_id: user.id,
-                    tech_type: task.techId,
-                    target_level: task.targetLevel,
-                    end_time: task.endTime
-                }).then(({error}) => { if(error) console.error('[DB Queue] Error:', error); });
-            }
-            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-            return result.newState;
-        }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState, user]);
-
-  const handleBankTransaction = useCallback((amount: number, type: 'deposit' | 'withdraw') => {
-      setGameState(prev => {
-          const result = executeBankTransaction(prev, amount, type);
-          if (result.success && result.newState) {
-              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-              return result.newState;
+  const repair = useCallback(async (type: BuildingType) => {
+      if (!user) return;
+      try {
+          const result = await gameService.repair(user.id, type);
+          if (result.success) {
+              addLog('repair_success', 'info', { type });
           }
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      } catch (e: any) {
+          addLog(e.message || 'error_repair', 'info');
+      }
+  }, [addLog, user]);
+
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       setGameState(prev => {
           const result = executeSpeedUp(prev, targetId, type);
           if (result.success && result.newState) {
-              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-              return result.newState;
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: result.newState });
+          return result.newState;
           }
           if (result.errorKey) addLog(result.errorKey, 'info');
           return prev;
       });
   }, [addLog, setGameState]);
 
-  const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
-    setGameState(prev => {
-        const result = executeStartMission(prev, units, duration);
-        if (result.success && result.newState) {
-            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-            return result.newState;
+  const startMission = useCallback(async (units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
+    if (!user) return;
+    try {
+        // En un PBBG real, el destino suele ser otro jugador o un bot.
+        // Aquí simplificamos usando un bot aleatorio si es misión general.
+        const result = await gameService.startMission({
+            userId: user.id,
+            targetId: 'global_mission',
+            type: 'mission',
+            units,
+            travelTime: duration // En ms
+        });
+        if (result.id) {
+            addLog('mission_started', 'info', { duration });
         }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState]);
+    } catch (e: any) {
+        addLog(e.message || 'error_mission', 'info');
+    }
+  }, [addLog, user]);
 
   const startSalvageMission = useCallback((lootId: string, drones: number) => {
     setGameState(prev => {
         const result = executeSalvageMission(prev, lootId, drones);
         if (result.success && result.newState) {
-            setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-            return result.newState;
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: result.newState });
+          return result.newState;
         }
         if (result.errorKey) addLog(result.errorKey, 'info');
         return prev;
@@ -172,7 +148,7 @@ export const useGameActions = (
       
       if (result.success && result.newState) {
           setGameState(result.newState);
-          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: result.newState });
           return true;
       }
       if (result.errorKey) addLog(result.errorKey, 'info');
@@ -183,54 +159,31 @@ export const useGameActions = (
       setGameState(prev => {
           const result = executeTradeAction(prev, offerId, amount);
           if (result.success && result.newState) {
-              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-              return result.newState;
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: result.newState });
+          return result.newState;
           }
           if (result.errorKey) addLog(result.errorKey, 'info');
           return prev;
       });
   }, [addLog, setGameState]);
 
-  const executeDiamondExchange = useCallback((targetResource: ResourceType, amount: number) => {
-      setGameState(prev => {
-          // Utilizar 'prev' asegura que calculamos contra el estado más reciente, evitando race conditions
-          const result = executeDiamondAction(prev, targetResource, amount);
-
-          if (result.success && result.newState) {
-              let finalState = result.newState;
-              
-              // Inyectar el log manualmente aquí para mantener la actualización atómica
-              if (result.log) {
-                  finalState = {
-                      ...finalState,
-                      logs: limitLogs([result.log, ...finalState.logs], 100)
-                  };
-              }
-              setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-              return finalState;
-          } else if (result.errorKey) {
-              // Si falla, necesitamos registrar el error sin romper el flujo de estado
-              const errorLog: LogEntry = {
-                  id: `err-${Date.now()}-${Math.random()}`,
-                  messageKey: result.errorKey,
-                  type: 'info',
-                  timestamp: Date.now(),
-                  params: {}
-              };
-              return {
-                  ...prev,
-                  logs: limitLogs([errorLog, ...prev.logs], 100)
-              };
+  const executeDiamondExchange = useCallback(async (targetResource: ResourceType, amount: number) => {
+      if (!user) return;
+      try {
+          const result = await gameService.handleDiamondExchange(user.id, targetResource, amount);
+          if (result.success) {
+              addLog('diamond_exchange_success', 'info', { resource: targetResource, amount });
           }
-          
-          return prev;
-      });
-  }, [setGameState]);
+      } catch (e: any) {
+          addLog(e.message || 'error_diamond_exchange', 'info');
+      }
+  }, [addLog, user]);
 
   const acceptTutorialStep = useCallback(() => {
     setGameState(prev => {
-        setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-        return { ...prev, tutorialAccepted: true };
+        const newState = { ...prev, tutorialAccepted: true };
+        gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+        return newState;
     });
   }, [setGameState]);
 
@@ -273,9 +226,7 @@ export const useGameActions = (
               });
           }
 
-          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-
-          return {
+          const newState = {
               ...prev,
               completedTutorials: newCompleted,
               currentTutorialId: nextStep ? nextStep.id : null,
@@ -286,6 +237,8 @@ export const useGameActions = (
               units: newUnits,
               isTutorialMinimized: false
           };
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+          return newState;
       });
   }, [setGameState]);
 
@@ -337,22 +290,24 @@ export const useGameActions = (
           return { success: false, errorKey: 'not_enough_diamonds' };
       }
       
-      setGameState(prev => ({
-          ...prev,
-          playerName: trimmedName,
-          playerFlag: flag !== undefined ? flag : prev.playerFlag,
-          hasChangedName: nameChanged ? true : prev.hasChangedName,
-          resources: {
-              ...prev.resources,
-              [ResourceType.DIAMOND]: prev.resources[ResourceType.DIAMOND] - cost
-          }
-      }));
+      setGameState(prev => {
+          const newState = {
+              ...prev,
+              playerName: trimmedName,
+              playerFlag: flag !== undefined ? flag : prev.playerFlag,
+              hasChangedName: nameChanged ? true : prev.hasChangedName,
+              resources: {
+                  ...prev.resources,
+                  [ResourceType.DIAMOND]: prev.resources[ResourceType.DIAMOND] - cost
+              }
+          };
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+          return newState;
+      });
       
       if (nameChanged) {
         addLog('name_changed', 'info', { newName: trimmedName, wasFree: isFreeChange });
       }
-      
-      setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
 
       return { success: true };
   }, [gameState.playerName, gameState.hasChangedName, gameState.resources, gameState.rankingData.bots, addLog, setGameState]);
@@ -389,7 +344,7 @@ export const useGameActions = (
                   ? { ...prev.resources, ...result.newResources }
                   : prev.resources;
               
-              return {
+              const newState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -399,10 +354,10 @@ export const useGameActions = (
                   resources: newResources,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
+              
+              gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+              return newState;
           });
-
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -439,7 +394,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              return {
+              const newState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -448,10 +403,10 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
-          });
 
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+              gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+              return newState;
+          });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -488,7 +443,7 @@ export const useGameActions = (
                   params: result.params
               };
               
-              return {
+              const newState = {
                   ...prev,
                   rankingData: {
                       ...prev.rankingData,
@@ -497,10 +452,10 @@ export const useGameActions = (
                   diplomaticActions: newDiplomaticActions,
                   logs: limitLogs([newLog, ...prev.logs], 100)
               };
-          });
 
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+              gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+              return newState;
+          });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -588,15 +543,16 @@ export const useGameActions = (
               params: { code: normalizedCode, rewards: giftCode.rewards }
           };
           
-          setTimeout(() => gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true }), 0);
-
-          return {
+          const newState = {
               ...prev,
               resources: newResources,
               redeemedGiftCodes: newRedeemedCodes,
               giftCodeCooldowns: newCooldowns,
               logs: limitLogs([newLog, ...prev.logs], 100)
           };
+          
+          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
+          return newState;
       });
       
       return { success: true, messageKey: 'gift_code_success' };
@@ -703,11 +659,9 @@ export const useGameActions = (
                 };
             }
 
+            gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true, state: newState });
             return newState;
         });
-
-        // Trigger immediate save for critical battle result
-        gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
 
         // Emitir log via eventBus para que useGameEngine.addLog dispare setHasNewReports(true)
         const messageKey = isAttacker

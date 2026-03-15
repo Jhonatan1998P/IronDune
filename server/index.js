@@ -11,6 +11,7 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 import { runSetupOnDeploy } from './scripts/runSetupOnDeploy.js';
+import { handleBuild, handleRecruit, handleResearch, handleBankTransaction, handleRepair, handleDiamondExchange } from './engine/actions.js';
 
 dotenv.config();
 
@@ -51,22 +52,33 @@ app.post('/api/battle/simulate-combat', (req, res) => {
     }
 });
 
-app.post('/api/battle/process-queue', (req, res) => {
+app.post('/api/battle/process-queue', async (req, res) => {
     try {
-        const { state, now } = req.body;
-        if (!state) return res.status(400).json({ error: 'Missing state' });
-        const result = processAttackQueue(state, now || Date.now());
-        res.json(result);
+        const { userId, now } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+        
+        // Usar la lógica del scheduler para procesar un perfil específico a demanda
+        // Esto garantiza autoridad total ya que usa los datos de la DB
+        const { processSingleProfile, fetchFullState } = await import('./scheduler.js');
+        
+        await processSingleProfile(userId, now || Date.now());
+        const newState = await fetchFullState(userId);
+        
+        res.json({ newState, newLogs: newState.logs || [] });
     } catch (error) {
-        console.error('[BattleServer] Error processing queue:', error);
+        console.error('[BattleServer] Error processing authoritative queue:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/battle/war-tick', (req, res) => {
+app.post('/api/battle/war-tick', async (req, res) => {
     try {
-        const { state, now } = req.body;
-        if (!state) return res.status(400).json({ error: 'Missing state' });
+        const { userId, now } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+        
+        const { fetchFullState } = await import('./scheduler.js');
+        const state = await fetchFullState(userId);
+        
         const result = processWarTick(state, now || Date.now());
         res.json(result);
     } catch (error) {
@@ -75,10 +87,14 @@ app.post('/api/battle/war-tick', (req, res) => {
     }
 });
 
-app.post('/api/battle/enemy-attack-check', (req, res) => {
+app.post('/api/battle/enemy-attack-check', async (req, res) => {
     try {
-        const { state, now } = req.body;
-        if (!state) return res.status(400).json({ error: 'Missing state' });
+        const { userId, now } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+        const { fetchFullState } = await import('./scheduler.js');
+        const state = await fetchFullState(userId);
+
         const result = processEnemyAttackCheck(state, now || Date.now());
         res.json(result);
     } catch (error) {
@@ -87,11 +103,14 @@ app.post('/api/battle/enemy-attack-check', (req, res) => {
     }
 });
 
-app.post('/api/battle/nemesis-tick', (req, res) => {
+app.post('/api/battle/nemesis-tick', async (req, res) => {
     try {
-        const { state, now } = req.body;
-        if (!state) return res.status(400).json({ error: 'Missing state' });
+        const { userId, now } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
         
+        const { fetchFullState } = await import('./scheduler.js');
+        const state = await fetchFullState(userId);
+
         const result = processNemesisTick(state, now || Date.now());
         res.json(result);
     } catch (error) {
@@ -143,6 +162,114 @@ app.get('/api/bots/global', async (req, res) => {
     }
 });
 
+// --- AUTHORITATIVE ACTIONS ---
+
+app.post('/api/game/build', async (req, res) => {
+    try {
+        const { userId, buildingType, amount } = req.body;
+        if (!userId || !buildingType) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleBuild(userId, buildingType, amount || 1);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Build error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/recruit', async (req, res) => {
+    try {
+        const { userId, unitType, amount } = req.body;
+        if (!userId || !unitType || !amount) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleRecruit(userId, unitType, amount);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Recruit error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/research', async (req, res) => {
+    try {
+        const { userId, techType } = req.body;
+        if (!userId || !techType) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleResearch(userId, techType);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Research error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/bank-transaction', async (req, res) => {
+    try {
+        const { userId, amount, type } = req.body;
+        if (!userId || !amount || !type) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleBankTransaction(userId, amount, type);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Bank error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/repair', async (req, res) => {
+    try {
+        const { userId, buildingType } = req.body;
+        if (!userId || !buildingType) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleRepair(userId, buildingType);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Repair error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/diamond-exchange', async (req, res) => {
+    try {
+        const { userId, targetResource, amount } = req.body;
+        if (!userId || !targetResource || !amount) return res.status(400).json({ error: 'Missing params' });
+        const result = await handleDiamondExchange(userId, targetResource, amount);
+        res.json(result);
+    } catch (error) {
+        console.error('[ActionServer] Diamond exchange error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/game/start-mission', async (req, res) => {
+    try {
+        const { userId, targetId, type, units, resources, travelTime } = req.body;
+        if (!userId || !targetId || !type || !units) return res.status(400).json({ error: 'Missing params' });
+        
+        const now = Date.now();
+        const endTime = now + (travelTime || 900000); // Default 15m
+
+        // Validate and subtract units from player_units
+        for (const [uType, count] of Object.entries(units)) {
+            const { data: current } = await supabase.from('player_units').select('count').eq('player_id', userId).eq('unit_type', uType).single();
+            if (!current || current.count < count) throw new Error(`Not enough ${uType}`);
+            await supabase.from('player_units').update({ count: current.count - count }).eq('player_id', userId).eq('unit_type', uType);
+        }
+
+        const { data: mov, error } = await supabase.from('movements').insert({
+            sender_id: userId,
+            target_id: targetId,
+            type: type,
+            units: units,
+            resources: resources || {},
+            start_time: now,
+            end_time: endTime,
+            status: 'active'
+        }).select().single();
+
+        if (error) throw error;
+        res.json(mov);
+    } catch (error) {
+        console.error('[ActionServer] Mission error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- SOCKET.IO LOGIC ---
 
 const playerPresence = new Map();
@@ -158,19 +285,30 @@ io.on('connection', (socket) => {
     
     // Cargar estado inicial para la caché de autoridad
     const { data: economy } = await supabase.from('player_economy').select('*').eq('player_id', peerId).single();
+    const { data: cQueue } = await supabase.from('construction_queue').select('*').eq('player_id', peerId);
+    const { data: uQueue } = await supabase.from('unit_queue').select('*').eq('player_id', peerId);
+    const { data: rQueue } = await supabase.from('research_queue').select('*').eq('player_id', peerId);
+
     if (economy) {
         playerLiveStates.set(peerId, {
             resources: {
                 MONEY: Number(economy.money),
                 OIL: Number(economy.oil),
                 AMMO: Number(economy.ammo),
-                GOLD: Number(economy.gold)
+                GOLD: Number(economy.gold),
+                DIAMOND: Number(economy.diamond || 0)
             },
             rates: {
                 MONEY: Number(economy.money_prod),
                 OIL: Number(economy.oil_prod),
                 AMMO: Number(economy.ammo_prod),
-                GOLD: Number(economy.gold_prod)
+                GOLD: Number(economy.gold_prod),
+                DIAMOND: 0 // Se calcula por edificios específicos si aplica
+            },
+            queues: {
+                constructions: cQueue || [],
+                units: uQueue || [],
+                research: rQueue || []
             },
             lastUpdate: Number(economy.last_calc_time)
         });
@@ -191,16 +329,19 @@ io.on('connection', (socket) => {
     const now = Date.now();
     const delta = (now - live.lastUpdate) / 1000;
 
-    // Cálculo autoritativo en memoria (Source of Truth temporal)
+    // Cálculo autoritativo en memoria (Source of Truth temporal) para respuesta inmediata
     const currentResources = {
         MONEY: live.resources.MONEY + (live.rates.MONEY * delta),
         OIL: live.resources.OIL + (live.rates.OIL * delta),
         AMMO: live.resources.AMMO + (live.rates.AMMO * delta),
         GOLD: live.resources.GOLD + (live.rates.GOLD * delta),
+        DIAMOND: live.resources.DIAMOND + (live.rates.DIAMOND * delta),
     };
 
     socket.emit('engine_sync_update', {
         resources: currentResources,
+        rates: live.rates,
+        queues: live.queues,
         serverTime: now
     });
   });
@@ -218,5 +359,10 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
   await runSetupOnDeploy(); // hard reset solo si DB_HARD_RESET=true
+  
+  // Ejecutar primer sync inmediatamente para procesar tiempo offline (Render Sleep recovery)
+  console.log('[BattleServer] Performing initial offline sync...');
+  await supabase.rpc('sync_all_production_v3');
+  
   startScheduler();
 });

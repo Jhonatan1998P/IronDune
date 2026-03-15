@@ -8,6 +8,7 @@ import { UNIT_DEFS } from '../data/units';
 import { TECH_DEFS } from '../data/techs';
 import { BuildingType, TechType, UnitType } from '../types';
 import { TerminalLogs } from './ui/TerminalLogs';
+import { CountdownTimer } from './ui/CountdownTimer';
 
 interface RightStatusPanelProps {
     isOpen?: boolean;
@@ -129,7 +130,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                             <div className="flex justify-between items-center text-xs relative z-10">
                                                 <span className="text-slate-300 truncate max-w-[65%] text-[11px]">{name} <span className="text-emerald-500 font-mono text-[10px]">(+{c.count})</span></span>
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="font-mono text-emerald-400 text-[10px]">{formatDuration(left)}</span>
+                                                    <CountdownTimer endTime={c.endTime} className="text-[10px]" />
                                                     <SpeedUpButton onClick={() => speedUp(c.id, 'BUILD')} />
                                                 </div>
                                             </div>
@@ -163,7 +164,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                             <div className="flex justify-between items-center text-xs relative z-10">
                                                 <span className="text-slate-300 truncate max-w-[65%] text-[11px]">{name} <span className="text-cyan-500 font-mono text-[10px]">(x{r.count})</span></span>
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="font-mono text-cyan-400 text-[10px]">{formatDuration(left)}</span>
+                                                    <CountdownTimer endTime={r.endTime} className="text-[10px] text-cyan-400" />
                                                     <SpeedUpButton onClick={() => speedUp(r.id, 'RECRUIT')} />
                                                 </div>
                                             </div>
@@ -197,7 +198,7 @@ export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = fal
                                                 <div className="flex justify-between items-center text-xs relative z-10">
                                                     <span className="text-slate-300 truncate max-w-[65%] text-[11px]">{name} {res.targetLevel ? <span className="text-purple-400 font-mono text-[9px]">(Lvl {res.targetLevel})</span> : ''}</span>
                                                     <div className="flex items-center gap-2 shrink-0">
-                                                        <span className="font-mono text-purple-400 text-[10px]">{formatDuration(left)}</span>
+                                                        <CountdownTimer endTime={res.endTime} className="text-[10px] text-purple-400" />
                                                         <SpeedUpButton onClick={() => speedUp(res.techId, 'RESEARCH')} />
                                                     </div>
                                                 </div>

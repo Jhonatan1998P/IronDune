@@ -8,7 +8,6 @@ import { GameState, GameStatus, OfflineReport, BuildingType, ResourceType, TechT
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { BUILDING_DEFS } from '../data/buildings';
 import { sanitizeAndMigrateSave } from '../utils/engine/migration';
-import { calculateOfflineProgress } from '../utils/engine/offline';
 import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -59,19 +58,12 @@ export const usePersistence = (
   const pendingServerSyncRef = useRef(false);
   const prevUserIdRef        = useRef<string | null>(null);
 
-  const applyLoadedState = useCallback((rawState: GameState, fromBuffer: boolean) => {
+  const applyLoadedState = useCallback((rawState: GameState, _fromBuffer: boolean) => {
     try {
       const migrated = sanitizeAndMigrateSave(rawState, rawState);
       let finalState = migrated;
 
-      if (fromBuffer && migrated.lastSaveTime && Date.now() - migrated.lastSaveTime > 60000) {
-        const { newState, report } = calculateOfflineProgress(migrated);
-        finalState = newState;
-        if (report.timeElapsed > 60000) {
-          setOfflineReport(report);
-          setHasNewReports(true);
-        }
-      }
+      // REMOVED: calculateOfflineProgress (Server handles this now via sync_all_production_v3)
 
       setGameState(finalState);
       lastTickRef.current = Date.now();
@@ -85,7 +77,12 @@ export const usePersistence = (
   const loadFromServer = useCallback(async (userId: string): Promise<boolean> => {
     try {
       console.log('[Persistence] Cargando desde servidor (Autoridad)...');
-      await supabase.rpc('sync_all_production_v3'); // Forzar cálculo delta al entrar
+      
+      try {
+        await supabase.rpc('sync_all_production_v3'); // Forzar cálculo delta al entrar
+      } catch (rpcError) {
+        console.warn('[Persistence] sync_all_production_v3 falló (posiblemente falta en DB). Cargando sin cálculo delta.', rpcError);
+      }
 
       const [profileRes, economyRes, buildingsRes, researchRes, unitsRes, cQueueRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
@@ -155,10 +152,20 @@ export const usePersistence = (
     pendingServerSyncRef.current = true;
     try {
       await supabase.from('profiles').upsert({
-        id: user.id, username: state.playerName, empire_points: state.empirePoints,
+        id: user.id, 
+        username: state.playerName, 
+        empire_points: state.empirePoints,
         game_state: { 
             completedTutorials: state.completedTutorials,
             currentTutorialId: state.currentTutorialId,
+            tutorialClaimable: state.tutorialClaimable,
+            tutorialAccepted: state.tutorialAccepted,
+            isTutorialMinimized: state.isTutorialMinimized,
+            campaignProgress: state.campaignProgress,
+            hasChangedName: state.hasChangedName,
+            lastReputationDecayTime: state.lastReputationDecayTime,
+            nextAttackTime: state.nextAttackTime,
+            lifetimeStats: state.lifetimeStats,
             saveVersion: state.saveVersion 
         },
         updated_at: new Date().toISOString(),
@@ -188,7 +195,7 @@ export const usePersistence = (
     if (prevUserIdRef.current !== currentUserId) {
       prevUserIdRef.current = currentUserId;
       setIsInitialLoadDone(false);
-      return;
+      // Remove early return so that init() runs for the new user!
     }
     if (isInitialLoadDone) return;
     const init = async () => {
@@ -199,18 +206,21 @@ export const usePersistence = (
       const buffered = readBuffer();
       if (buffered) { setHasSave(true); applyLoadedState(buffered, true); setIsInitialLoadDone(true); return; }
       startNewGame(); 
+      setIsInitialLoadDone(true);
     };
     init();
   }, [user, isInitialLoadDone, loadFromServer, applyLoadedState, startNewGame]);
 
-  const performAutoSave = useCallback(async (force: boolean = false) => {
+  const performAutoSave = useCallback(async (force: boolean = false, stateOverride?: GameState) => {
     const now = Date.now();
+    const stateToSave = stateOverride || gameStateRef.current;
+
     if (force || now - lastBufferWriteRef.current >= BUFFER_WRITE_MS) {
-      writeBuffer(gameStateRef.current);
+      writeBuffer(stateToSave);
       lastBufferWriteRef.current = now;
     }
     if (user && (force || now - lastServerSyncRef.current >= BUFFER_TO_SERVER_MS)) {
-      await syncWithServer(gameStateRef.current);
+      await syncWithServer(stateToSave);
     }
   }, [user, syncWithServer]);
 

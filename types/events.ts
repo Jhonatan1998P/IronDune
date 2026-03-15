@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LogEntry } from './state';
+import { LogEntry, GameState } from './state';
 
 export enum GameEventType {
   // Sistema
@@ -57,7 +57,7 @@ export type GameEventPayloads = {
   [GameEventType.P2P_SPY_RESPONSE]: any;
 
   [GameEventType.DEBRIS_ANNOUNCE]: any;
-  [GameEventType.TRIGGER_SAVE]: { force?: boolean };
+  [GameEventType.TRIGGER_SAVE]: { force?: boolean, state?: GameState };
 }
 
 export type GameEventCallback<T extends GameEventType> = (payload: GameEventPayloads[T]) => void;
