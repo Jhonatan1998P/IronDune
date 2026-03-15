@@ -8,16 +8,23 @@ import { simulateCombat } from './combat.js';
 import { supabase } from '../lib/supabase.js';
 
 export const resolveSalvageMission = async (mission, lootField, allMissionsAtSameTime, playerTechs = {}) => {
-    // 1. Conflict Check: 50% chance of battle if multiple players arrive at the same second
-    if (allMissionsAtSameTime.length > 1 && Math.random() < 0.5) {
-        return await handleSalvageConflict(mission, lootField, allMissionsAtSameTime, playerTechs);
+    // 1. Conflict Check: Drone Battle if multiple players arrive at the EXACT SAME SECOND for the same field
+    const simultaneousEnemies = allMissionsAtSameTime.filter(m => 
+        m.id !== mission.id && 
+        m.playerId !== mission.playerId && 
+        m.endTime === mission.endTime &&
+        m.logisticLootId === mission.logisticLootId
+    );
+    
+    if (simultaneousEnemies.length > 0) {
+        return await handleSalvageConflict(mission, lootField, simultaneousEnemies, playerTechs);
     }
 
-    // 2. Regular Harvesting
+    // 2. Regular Harvesting (First-come, first-served handled by arrival loop in attackQueue)
     if (!lootField || lootField.expiresAt < Date.now() || lootField.totalValue <= 0) {
         return { 
             success: false, 
-            reason: 'EXPIRED', 
+            reason: 'EMPTY_OR_EXPIRED', 
             resources: {},
             dronesReturned: mission.units?.[UnitType.SALVAGER_DRONE] || 0
         };
@@ -67,29 +74,34 @@ export const resolveSalvageMission = async (mission, lootField, allMissionsAtSam
     };
 };
 
-async function handleSalvageConflict(currentMission, lootField, allMissions, playerTechs) {
-    // Filter out current player to find enemies
-    const enemies = allMissions.filter(m => m.playerId !== currentMission.playerId);
-    if (enemies.length === 0) return null; // Should not happen
-
-    const enemy = enemies[0]; // For simplicity, battle the first one arriving at same time
+async function handleSalvageConflict(currentMission, lootField, simultaneousEnemies, playerTechs) {
+    // For simplicity, we battle the strongest enemy arriving at the same time
+    const enemy = simultaneousEnemies.sort((a, b) => (b.units[UnitType.SALVAGER_DRONE] || 0) - (a.units[UnitType.SALVAGER_DRONE] || 0))[0];
     
     // Drone Battle Stats with Tech Bonus
     const droneTechLevel = playerTechs[TechType.DRONE_BATTLE_TECH] || 0;
     const techMultiplier = 1 + (droneTechLevel * 0.1);
 
-    const playerArmy = { [UnitType.SALVAGER_DRONE]: currentMission.units[UnitType.SALVAGER_DRONE] };
-    const enemyArmy = { [UnitType.SALVAGER_DRONE]: enemy.units[UnitType.SALVAGER_DRONE] };
+    const playerArmy = { [UnitType.SALVAGER_DRONE]: currentMission.units[UnitType.SALVAGER_DRONE] || 0 };
+    const enemyArmy = { [UnitType.SALVAGER_DRONE]: enemy.units[UnitType.SALVAGER_DRONE] || 0 };
 
     const result = simulateCombat(playerArmy, enemyArmy, techMultiplier);
     
     if (result.winner === 'PLAYER') {
-        // Player wins, continues to harvest (but might have lost some drones)
+        // Player wins, continues to harvest with survivors
         const survivors = result.finalPlayerArmy[UnitType.SALVAGER_DRONE] || 0;
-        if (survivors <= 0) return { success: false, reason: 'ALL_DRONES_LOST', resources: {}, dronesReturned: 0 };
+        if (survivors <= 0) return { 
+            success: false, 
+            reason: 'ALL_DRONES_LOST', 
+            resources: {}, 
+            dronesReturned: 0,
+            conflictOccurred: true,
+            battleResult: result,
+            enemyName: enemy.playerName || 'Enemy Salvager'
+        };
         
-        // Process harvest with surviving drones
-        const harvestResult = await resolveSalvageMission({ ...currentMission, units: result.finalPlayerArmy }, lootField, [], playerTechs);
+        // Final harvest logic for survivors
+        const harvestResult = await resolveSalvageMission({ ...currentMission, units: { [UnitType.SALVAGER_DRONE]: survivors } }, lootField, [], playerTechs);
         return {
             ...harvestResult,
             conflictOccurred: true,
@@ -98,11 +110,12 @@ async function handleSalvageConflict(currentMission, lootField, allMissions, pla
         };
     } else {
         // Player lost or draw, drones destroyed
+        const survivors = result.finalPlayerArmy[UnitType.SALVAGER_DRONE] || 0;
         return {
             success: false,
             reason: 'LOST_IN_CONFLICT',
             resources: {},
-            dronesReturned: result.finalPlayerArmy[UnitType.SALVAGER_DRONE] || 0,
+            dronesReturned: survivors,
             conflictOccurred: true,
             battleResult: result,
             enemyName: enemy.playerName || 'Enemy Salvager'

@@ -1,8 +1,8 @@
 
-import { BuildingType, GameState, ResourceType, TechType, UnitType, LogEntry, SpyReport, IncomingAttack, Grudge, WarState, ActiveMission, BuildingState, RankingData, LifetimeStats, DiplomaticActions } from '../../types';
+import { BuildingType, GameState, ResourceType, TechType, UnitType, LogEntry, SpyReport, IncomingAttack, Grudge, WarState, ActiveMission, BuildingState, RankingData, LifetimeStats, DiplomaticActions, RankingCategory } from '../../types';
 import { SAVE_VERSION, WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';
 import { INITIAL_GAME_STATE } from '../../data/initialState';
-import { initializeRankingState, RankingCategory, StaticBot, BotEvent } from './rankings';
+import { initializeRankingState, StaticBot, BotEvent } from './rankings';
 import { BotPersonality } from '../../types/enums';
 import { logMigrationError } from './errorLogger';
 

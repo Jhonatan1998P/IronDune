@@ -4,10 +4,9 @@ import {
     processRankingEvolution,
     getCurrentStandings,
     GROWTH_INTERVAL_MS,
-    RankingCategory,
     StaticBot
 } from '../utils/engine/rankings';
-import { BotPersonality } from '../types/enums';
+import { BotPersonality, RankingCategory } from '../types/enums';
 import { GameState } from '../types';
 
 describe('Ranking Cycle Integration', () => {
@@ -16,9 +15,11 @@ describe('Ranking Cycle Integration', () => {
     const createMockGameState = (bots: StaticBot[]): GameState => ({
         saveVersion: 6,
         playerName: 'TestPlayer',
+        gameId: 'test-game',
+        peerId: 'test-peer',
         hasChangedName: false,
         resources: { MONEY: 0, OIL: 0, AMMO: 0, GOLD: 0, DIAMOND: 0 },
-        maxResources: { MONEY: 0, OIL: 0, AMMO: 0, GOLD: 0, DIAMOND: 0 },
+        maxResources: { MONEY: 10000, OIL: 10000, AMMO: 10000, GOLD: 10000, DIAMOND: 10000 },
         buildings: {} as any,
         units: {} as any,
         researchedTechs: [],
@@ -28,10 +29,10 @@ describe('Ranking Cycle Integration', () => {
         activeRecruitments: [],
         activeConstructions: [],
         bankBalance: 0,
-        currentInterestRate: 0,
+        currentInterestRate: 0.05,
         nextRateChangeTime: 0,
         lastInterestPayoutTime: 0,
-        empirePoints: 5000,
+        empirePoints: 500,
         lastSaveTime: Date.now(),
         campaignProgress: 1,
         lastCampaignMissionFinishedTime: 0,
@@ -46,6 +47,9 @@ describe('Ranking Cycle Integration', () => {
         nextAttackTime: 0,
         incomingAttacks: [],
         activeWar: null,
+        attackQueue: [],
+        lastProcessedAttackTime: 0,
+        allyReinforcements: [],
         grudges: [],
         enemyAttackCounts: {},
         lastEnemyAttackCheckTime: 0,
@@ -56,15 +60,28 @@ describe('Ranking Cycle Integration', () => {
         rankingData: { bots, lastUpdateTime: Date.now(), lastPlayerRank: 100 },
         diplomaticActions: {},
         lastReputationDecayTime: 0,
+        reputationHistory: {},
+        interactionRecords: {},
         lifetimeStats: {
             enemiesKilled: 0,
             unitsLost: 0,
             resourcesMined: 0,
             missionsCompleted: 0,
-            highestRankAchieved: 0
+            highestRankAchieved: 0,
+            battlesWon: 0,
+            battlesLost: 0
         },
+        logisticLootFields: [],
+        visibleLogisticLootFields: [],
+        lifetimeLogisticStats: {
+            totalGenerated: 0, totalHarvested: 0, totalExpired: 0,
+            totalDisputed: 0, totalDisputeWins: 0, fieldsCreated: 0, fieldsHarvested: 0
+        },
+        redeemedGiftCodes: [],
+        giftCodeCooldowns: {},
         logs: []
     });
+
 
     describe('Complete Growth Cycle Flow', () => {
         it('should calculate trend correctly after growth cycle', () => {

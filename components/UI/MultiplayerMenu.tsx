@@ -8,11 +8,9 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
-import type { PlayerPresence } from '../../types/multiplayer';
 
 // Iconos de lucide-react
 import {
-  User,
   Users,
   X,
   Loader2,
@@ -98,69 +96,46 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
         </div>
 
         {/* Content */}
-        <div className="relative flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 z-10">
-
+        <div className="relative flex-1 flex flex-col items-center justify-center p-8 z-10">
           {/* Estado: Conectando */}
           {isConnecting && !isConnected && (
-            <div className="relative p-6 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-900/30 to-slate-900/30 text-center overflow-hidden">
-              <div className="absolute inset-0 bg-violet-500/5 animate-pulse" />
-              <div className="relative">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-500/20 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
-                </div>
-                <p className="text-violet-400 font-bold uppercase tracking-wider text-sm">
-                  Estableciendo conexión...
-                </p>
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
               </div>
+              <p className="text-violet-400 font-bold uppercase tracking-wider text-sm">
+                Conectando...
+              </p>
             </div>
           )}
 
-          {/* Lista de jugadores */}
+          {/* Contador Simplificado */}
           {isConnected && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-slate-900/50 overflow-hidden">
-                <div className="p-2 space-y-2">
-                  {/* Tú (Local Player) */}
-                  <div className="flex items-center justify-between bg-violet-900/20 p-3 rounded-lg border border-violet-500/30">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-violet-200 font-bold text-sm truncate flex items-center gap-2">
-                        <User className="w-4 h-4 text-violet-400" />
-                        Tú (Jugador)
-                      </div>
-                      <div className="text-violet-400/70 text-[10px] pl-6 uppercase tracking-widest font-tech">
-                        En línea
-                      </div>
-                    </div>
+            <div className="flex flex-col items-center gap-8 animate-[fadeIn_0.5s_ease-out]">
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  {/* Gran punto verde parpadeante */}
+                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center border-2 border-emerald-500/30">
+                    <div className="w-10 h-10 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_30px_rgba(16,185,129,0.6)]" />
                   </div>
-
-                  {/* Otros Jugadores */}
-                  {remotePlayers.length > 0 ? (
-                    remotePlayers.map((player: PlayerPresence) => (
-                      <div
-                        key={player.id}
-                        className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-white/5 hover:border-violet-500/20 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-white font-bold text-sm truncate flex items-center gap-2">
-                            <span className="w-2 h-2 bg-violet-400 rounded-full shrink-0" />
-                            {player.name}
-                          </div>
-                          <div className="text-slate-500 text-xs pl-4">
-                            Nivel {player.level.toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 text-slate-500 text-sm">
-                      <Users className="w-8 h-8 mx-auto mb-2 text-slate-700" />
-                      <p>No hay otros jugadores en línea</p>
-                      <p className="text-xs text-slate-600 mt-1">
-                        ¡Invita a tus amigos a unirse al universo!
-                      </p>
-                    </div>
-                  )}
+                  {/* Efecto de radar */}
+                  <div className="absolute inset-0 rounded-full border border-emerald-500/20 animate-[ping_3s_linear_infinite]" />
                 </div>
+
+                <div className="flex flex-col">
+                  <div className="text-6xl font-tech font-black text-white leading-none">
+                    {remotePlayers.length + 1}
+                  </div>
+                  <div className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
+                    Comandantes en línea
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 p-4 rounded-xl bg-slate-800/30 border border-white/5 max-w-xs text-center">
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Estás activo y conectado al canal global. Tu presencia es visible para otros sistemas de comando.
+                </p>
               </div>
             </div>
           )}

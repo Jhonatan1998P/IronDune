@@ -21,10 +21,10 @@ import {
     migrateWarState,
     migrateLifetimeStats
 } from '../utils/engine/migration';
-import { GameState, ResourceType, BuildingType, UnitType, BotPersonality } from '../types';
+import { GameState, ResourceType, BuildingType, UnitType, BotPersonality, RankingCategory } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { SAVE_VERSION } from '../constants';
-import { RankingCategory, BotEvent } from '../utils/engine/rankings';
+import { BotEvent } from '../utils/engine/rankings';
 
 // ============================================
 // UTILS VALIDATION TESTS
@@ -680,7 +680,7 @@ describe('Sanitize Ranking Data', () => {
 
         const result = sanitizeRankingData(rankingData, 5); // Version < 6
 
-        // Should initialize with fresh bots (199 bots from initializeRankingState)
+        // Should initialize with fresh bots (50 bots from initializeRankingState)
         expect(result.bots.length).toBeGreaterThan(0);
     });
 
@@ -948,7 +948,7 @@ describe('Migration Stress Tests', () => {
                 params: {}
             })),
             rankingData: {
-                bots: Array(200).fill(null).map((_, i) => ({
+                bots: Array(50).fill(null).map((_, i) => ({
                     id: `bot-${i}`,
                     name: `Bot ${i}`,
                     stats: { [RankingCategory.DOMINION]: 1000 + i },
@@ -961,7 +961,7 @@ describe('Migration Stress Tests', () => {
         const result = sanitizeAndMigrateSave(saved);
 
         expect(result.logs.length).toBeLessThanOrEqual(1000);
-        expect(result.rankingData.bots).toHaveLength(200);
+        expect(result.rankingData.bots).toHaveLength(50);
     });
 
     it('should handle deeply nested corrupted data', () => {

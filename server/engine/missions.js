@@ -461,7 +461,18 @@ export const resolveMission = (
             }
         }
         if (newGrudge) logParams.grudgeData = { attacker: newGrudge.botName, retaliationTime: newGrudge.retaliationTime };
-        generatedLogisticLoot = generateLogisticLootFromCombat(battleResult, 'RAID', mission.id, { attackerId: 'PLAYER', attackerName: playerName, defenderId: mission.targetId || 'BOT', defenderName: mission.targetName || 'Unknown' });
+        
+        // ONLY PvP (Player vs Player) battles generate global loot fields.
+        // Bots vs Player (RAID) fields are local to the player (not saved to global DB in this context)
+        const isBotBattle = !mission.targetId || mission.targetId.startsWith('bot-');
+        const lootOrigin = isBotBattle ? 'RAID' : 'P2P';
+        
+        generatedLogisticLoot = generateLogisticLootFromCombat(battleResult, lootOrigin, mission.id, { 
+            attackerId: 'PLAYER', 
+            attackerName: playerName, 
+            defenderId: mission.targetId || 'BOT', 
+            defenderName: mission.targetName || 'Unknown' 
+        });
     } else if (mission.type === 'CAMPAIGN_ATTACK' && mission.levelId) {
         const level = CAMPAIGN_LEVELS.find(l => l.id === mission.levelId);
         const initialEnemyForces = level ? level.enemyArmy : {};

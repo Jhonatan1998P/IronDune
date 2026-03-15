@@ -88,6 +88,8 @@ const processWarWave = (state, war, now) => {
     const stateUpdates = { units: battleResult.finalPlayerArmy };
     
     const debris = generateLogisticLootFromCombat(battleResult, 'WAR', `war-${war.id}-w${waveNum}`, { attackerId: war.enemyId, attackerName: war.enemyName, defenderId: 'PLAYER', defenderName: state.playerName }, war.id, waveNum);
+    
+    // War debris from bots is local to the player (not saved to global DB)
     if (debris) {
         if (!stateUpdates.logisticLootFields) stateUpdates.logisticLootFields = [...(state.logisticLootFields || [])];
         stateUpdates.logisticLootFields.push(debris);

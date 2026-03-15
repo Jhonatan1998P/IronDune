@@ -1,13 +1,6 @@
-
-import { BotPersonality } from '../../types/enums';
+import { BotPersonality, RankingCategory } from '../../types/enums';
+export { RankingCategory };
 import { GameState, RankingData } from '../../types';
-
-export enum RankingCategory {
-    DOMINION = 'DOMINION',
-    MILITARY = 'MILITARY',
-    ECONOMY = 'ECONOMY',
-    CAMPAIGN = 'CAMPAIGN'
-}
 
 const BOT_NAME_PREFIXES = [
     'Night', 'Dark', 'Iron', 'Steel', 'Shadow', 'Ghost', 'Cyber', 'Neo', 'Ultra', 'Mega',
@@ -152,7 +145,7 @@ export interface StaticBot {
 }
 
 const COUNTRIES = ['US', 'GB', 'DE', 'FR', 'ES', 'BR', 'CN', 'KR', 'JP', 'RU'];
-const TOTAL_BOTS = 199;
+const TOTAL_BOTS = 50;
 export const GROWTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const BASE_GROWTH_RATE = 0.05;
 
@@ -192,9 +185,12 @@ const PERSONALITIES = [BotPersonality.WARLORD, BotPersonality.TURTLE, BotPersona
 export const initializeRankingState = (): RankingData => ({
     bots: Array.from({ length: TOTAL_BOTS }, (_, i) => {
         const personality = PERSONALITIES[i % PERSONALITIES.length];
-        // Higher index = higher rank (more points)
-        const basePoints = 1000 * Math.pow(1.04, i);
-        const dominionScore = Math.round(basePoints / 50) * 50;
+        // Calculate scores from 1500 to 100,000 distributed among 50 bots
+        const minPoints = 1500;
+        const maxPoints = 100000;
+        // Linear or exponential distribution? Let's use a slight exponential curve for a better ranking feel
+        // basePoints = min * (max/min)^(i/(TOTAL_BOTS-1))
+        const dominionScore = Math.round(minPoints * Math.pow(maxPoints / minPoints, i / (TOTAL_BOTS - 1)));
 
         return {
             id: `bot-${i}`,
@@ -389,7 +385,7 @@ export const getCurrentStandings = (state: GameState, bots: StaticBot[], categor
         id: 'PLAYER',
         rank: 0,
         name: state.playerName || 'Commander',
-        score: state.empirePoints,
+        score: state.rankingStats?.[category] ?? (category === RankingCategory.DOMINION ? state.empirePoints : 0),
         isPlayer: true,
         avatarId: 0,
         country: state.playerFlag || 'US',

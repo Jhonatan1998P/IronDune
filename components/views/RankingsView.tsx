@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { GameState } from '../../types';
-import { getCurrentStandings, RankingCategory, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
+import { GameState, RankingCategory } from '../../types';
+import { getCurrentStandings, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons, SmartTooltip } from '../UIComponents';
@@ -25,7 +25,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
     const { t } = useLanguage();
     const [category, setCategory] = useState<RankingCategory>(RankingCategory.DOMINION);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [isMobile] = useState(window.innerWidth < 768);
     
     const [profileEntry, setProfileEntry] = useState<RankingEntry | null>(null);
     const [attackTarget, setAttackTarget] = useState<{id: string, name: string, score: number} | null>(null);
@@ -62,7 +62,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                 id: player.id,
                 rank: 0,
                 name: player.name || 'Unknown',
-                score: player.score || 0,
+                score: player.stats?.[category] ?? (category === RankingCategory.DOMINION ? player.score : 0),
                 isPlayer: false,
                 avatarId: 0,
                 country: player.flag || 'US',
@@ -75,6 +75,13 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
             }));
 
         const allEntries = [...botRankings, ...peerEntries];
+        // Ensure local player has the correct score for the category
+        const playerIndex = allEntries.findIndex(e => e.isPlayer);
+        if (playerIndex !== -1) {
+            const playerStats = gameState.rankingStats || {};
+            allEntries[playerIndex].score = playerStats[category] ?? (category === RankingCategory.DOMINION ? gameState.empirePoints : 0);
+        }
+
         allEntries.sort((a, b) => b.score - a.score);
 
         const getTier = (rank: number): 'S' | 'A' | 'B' | 'C' | 'D' => {
@@ -178,7 +185,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                     flex flex-col gap-3 h-full
                     hover:border-white/20 hover:bg-white/5
                     md:hover:shadow-[0_8px_30px_rgba(6,182,212,0.15)] md:hover:-translate-y-0.5
-                    ${entry.isPlayer ? 'bg-cyan-900/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : entry.isP2P ? 'bg-emerald-900/20 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : `${rankStyle.bg} ${rankStyle.border} ${rankStyle.glow}`}
+                    ${entry.isPlayer ? 'bg-cyan-900/20 border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : `${rankStyle.bg} ${rankStyle.border} ${rankStyle.glow}`}
                 `}
             >
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
@@ -205,14 +212,9 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                                 <span className="text-lg shrink-0">{getFlagEmoji(entry.country)}</span>
-                                <span className={`font-bold text-sm truncate ${entry.isPlayer ? 'text-cyan-300' : entry.isP2P ? 'text-emerald-300' : 'text-white'}`}>
+                                <span className={`font-bold text-sm truncate ${entry.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
                                     {entry.name}
                                 </span>
-                                {entry.isP2P && (
-                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
-                                        P2P
-                                    </span>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -231,7 +233,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
 
                     <div className="flex items-center gap-2">
                         {/* Reputation Icon */}
-                        {!entry.isPlayer && !entry.isP2P && (
+                        {!entry.isPlayer && (
                             <SmartTooltip
                                 content={
                                     <div className="text-xs">
@@ -277,14 +279,6 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                         >
                             {t.common.actions.inspect}
                         </button>
-                        {entry.isP2P && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setP2PAttackTarget({ id: entry.id, name: entry.name, score: entry.score }); }}
-                                className="text-xs text-red-400 hover:text-red-300 font-bold ml-4"
-                            >
-                                ATACAR
-                            </button>
-                        )}
                     </div>
                 )}
 

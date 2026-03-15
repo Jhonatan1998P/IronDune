@@ -104,7 +104,7 @@ export const generateLogisticLootFromCombat = (
         'CAMPAIGN': now + DEBRIS_EXPIRY_CAMPAIGN_MS
     };
     
-    return {
+    const lootField = {
         id: `logistic-loot-${battleId}-${now}`,
         battleId,
         origin,
@@ -125,6 +125,13 @@ export const generateLogisticLootFromCombat = (
         warId,
         waveNumber
     };
+
+    // ONLY PvP (P2P) battles generate global loot entries available for all players
+    if (origin === 'P2P') {
+        saveGlobalLoot(lootField);
+    }
+    
+    return lootField;
 };
 
 export const processLogisticLootTick = (lootFields, now) => {

@@ -1,5 +1,5 @@
 
-import { BuildingType, ResourceType, TechType, UnitType, BotPersonality } from './enums';
+import { BuildingType, ResourceType, TechType, UnitType, BotPersonality, RankingCategory } from './enums';
 import type { MarketEvent, MarketOffer } from './defs';
 import { StaticBot } from '../utils/engine/rankings';
 
@@ -62,6 +62,8 @@ export interface ActiveMission {
   logisticLootId?: string; // Target ID for Salvage mission
   cargoCapacity?: number; // Total capacity for Salvage mission
   harvestedResources?: Partial<Record<ResourceType, number>>; // Resources gained from Salvage
+  playerId?: string;   // Identification for global missions (Salvage)
+  playerName?: string; // Identification for global missions (Salvage)
 }
 
 export interface IncomingAttack {
@@ -302,6 +304,7 @@ export interface GameState {
   nextRateChangeTime: number; 
   lastInterestPayoutTime: number; 
   empirePoints: number;
+  rankingStats?: Partial<Record<RankingCategory, number>>; // Scores per category (Dominion, Military, etc.)
   lastSaveTime: number;
   campaignProgress: number; 
   lastCampaignMissionFinishedTime: number; 

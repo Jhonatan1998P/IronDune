@@ -86,7 +86,8 @@ async function processSingleProfile(profile, now) {
                 if (item.result?.defenderUpdates) {
                     await applyDefenderUpdates(item.result.defenderUpdates, now);
                 }
-                if (item.result?.generatedLogisticLoot) {
+                // ONLY PvP (P2P) battles generate global loot fields available for all players
+                if (item.result?.generatedLogisticLoot && item.result.generatedLogisticLoot.origin === 'P2P') {
                     await saveGlobalLoot(item.result.generatedLogisticLoot);
                 }
             }

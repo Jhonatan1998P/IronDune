@@ -4,11 +4,10 @@ import {
     processRankingEvolution,
     getCurrentStandings,
     GROWTH_INTERVAL_MS,
-    RankingCategory,
     BotEvent,
     StaticBot
 } from '../utils/engine/rankings';
-import { BotPersonality } from '../types/enums';
+import { BotPersonality, RankingCategory } from '../types/enums';
 import { GameState } from '../types';
 
 describe('Ranking Trend Calculation', () => {
@@ -17,9 +16,11 @@ describe('Ranking Trend Calculation', () => {
     const createMockGameState = (bots: StaticBot[]): GameState => ({
         saveVersion: 6,
         playerName: 'TestPlayer',
+        gameId: 'test-game',
+        peerId: 'test-peer-id',
         hasChangedName: false,
         resources: { MONEY: 0, OIL: 0, AMMO: 0, GOLD: 0, DIAMOND: 0 },
-        maxResources: { MONEY: 0, OIL: 0, AMMO: 0, GOLD: 0, DIAMOND: 0 },
+        maxResources: { MONEY: 10000, OIL: 10000, AMMO: 10000, GOLD: 10000, DIAMOND: 10000 },
         buildings: {} as any,
         units: {} as any,
         researchedTechs: [],
@@ -29,10 +30,10 @@ describe('Ranking Trend Calculation', () => {
         activeRecruitments: [],
         activeConstructions: [],
         bankBalance: 0,
-        currentInterestRate: 0,
+        currentInterestRate: 0.05,
         nextRateChangeTime: 0,
         lastInterestPayoutTime: 0,
-        empirePoints: 5000,
+        empirePoints: 500, // Fixed player score
         lastSaveTime: Date.now(),
         campaignProgress: 1,
         lastCampaignMissionFinishedTime: 0,
@@ -47,6 +48,9 @@ describe('Ranking Trend Calculation', () => {
         nextAttackTime: 0,
         incomingAttacks: [],
         activeWar: null,
+        attackQueue: [],
+        lastProcessedAttackTime: 0,
+        allyReinforcements: [],
         grudges: [],
         enemyAttackCounts: {},
         lastEnemyAttackCheckTime: 0,
@@ -54,50 +58,74 @@ describe('Ranking Trend Calculation', () => {
         spyReports: [],
         targetAttackCounts: {},
         lastAttackResetTime: 0,
-        rankingData: { bots, lastUpdateTime: Date.now(), lastPlayerRank: 100 },
+        rankingData: {
+            bots,
+            lastUpdateTime: Date.now(),
+            lastPlayerRank: 51 // Positioned at the bottom (50 bots + player)
+        },
         diplomaticActions: {},
         lastReputationDecayTime: 0,
+        reputationHistory: {},
+        interactionRecords: {},
         lifetimeStats: {
             enemiesKilled: 0,
             unitsLost: 0,
             resourcesMined: 0,
             missionsCompleted: 0,
-            highestRankAchieved: 0
+            highestRankAchieved: 51,
+            battlesWon: 0,
+            battlesLost: 0
         },
-        logs: []
+        logisticLootFields: [],
+        visibleLogisticLootFields: [],
+        lifetimeLogisticStats: {
+            totalGenerated: 0, totalHarvested: 0, totalExpired: 0,
+            totalDisputed: 0, totalDisputeWins: 0, fieldsCreated: 0, fieldsHarvested: 0
+        },
+        redeemedGiftCodes: [],
+        giftCodeCooldowns: {},
+        logs: [],
     });
 
-    describe('Trend Indicator Logic', () => {
-        it('should calculate trend correctly for initial state', () => {
+    describe('getCurrentStandings Trend', () => {
+        it('should correctly calculate trend from _rawLastRank', () => {
             const ranking = initializeRankingState();
             const bots = ranking.bots;
-            const state = createMockGameState(bots);
             
+            // Set explicit last ranks for bots
+            bots.forEach((bot, i) => {
+                bot.lastRank = i + 1;
+            });
+
+            const state = createMockGameState(bots);
             const standings = getCurrentStandings(state, bots, RankingCategory.DOMINION);
             
-            // Verify trend calculation formula: trend = lastRank - currentRank
-            standings.forEach(bot => {
-                const expectedTrend = (bot._rawLastRank || 0) - bot.rank;
-                expect(bot.trend).toBe(expectedTrend);
+            // In initial state, trend should be 0 because current rank matches last rank
+            standings.forEach(entry => {
+                expect(entry.trend).toBe(0);
             });
         });
 
-        it('should calculate trend correctly after one growth cycle', () => {
+        it('should reflect trend when ranks change', () => {
             const ranking = initializeRankingState();
-            let bots = ranking.bots;
-            let state = createMockGameState(bots);
+            const bots = ranking.bots;
             
-            // Get initial standings
-            const initialStandings = getCurrentStandings(state, bots, RankingCategory.DOMINION);
-            const playerInitialRank = initialStandings.find(e => e.isPlayer)!.rank;
+            // 50 bots total. Let's swap bot 0 and bot 49
+            const botA = bots[0];
+            const botB = bots[49];
             
-            // Simulate one growth cycle
-            const result = processRankingEvolution(bots, GROWTH_INTERVAL);
-            bots = result.bots;
-            state = createMockGameState(bots);
+            // Set last ranks as they were (A=1, B=50)
+            botA.lastRank = 1;
+            botB.lastRank = 50;
             
-            // Get new standings
+            // Swap their actual scores in bots array
+            const tempScore = botA.stats[RankingCategory.DOMINION];
+            botA.stats[RankingCategory.DOMINION] = botB.stats[RankingCategory.DOMINION];
+            botB.stats[RankingCategory.DOMINION] = tempScore;
+            
+            const state = createMockGameState(bots);
             const newStandings = getCurrentStandings(state, bots, RankingCategory.DOMINION);
+
             
             // The trend should reflect the change from previous rank to current rank
             newStandings.forEach(entry => {

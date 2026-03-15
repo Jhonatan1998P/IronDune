@@ -3,11 +3,10 @@ import {
     initializeRankingState, 
     processRankingEvolution, 
     GROWTH_INTERVAL_MS, 
-    RankingCategory,
     BotEvent,
     StaticBot
 } from '../utils/engine/rankings';
-import { BotPersonality } from '../types/enums';
+import { BotPersonality, RankingCategory } from '../types/enums';
 
 describe('Bot Growth System', () => {
     let bots: StaticBot[];

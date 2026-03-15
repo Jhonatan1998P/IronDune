@@ -1,5 +1,5 @@
 
-import { BuildingType, GameState, LogEntry, UnitType, WarState } from '../../types';
+import { BuildingType, GameState, LogEntry, UnitType, WarState, RankingCategory } from '../../types';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
@@ -64,22 +64,39 @@ export const processSystemTick = (state: GameState, now: number, _activeWar: War
  * Calculates total Empire Points and checks Tutorial/Objectives status.
  */
 export const recalculateProgression = (state: GameState): Partial<GameState> => {
-    // 1. Calculate Score
-    let points = 0;
-    Object.keys(state.buildings).forEach(b => points += state.buildings[b as BuildingType].level * (BUILDING_DEFS[b as BuildingType].score || 0));
+    // 1. Calculate Scores for Categories
+    let militaryPoints = 0;
+    let economyPoints = 0;
+    let techPoints = 0;
     
-    // Base units
-    Object.keys(state.units).forEach(u => points += state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0));
-    
-    // Units on active missions still count towards empire points
+    // Units (Military)
+    Object.keys(state.units).forEach(u => militaryPoints += state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0));
     state.activeMissions.forEach(mission => {
         Object.entries(mission.units).forEach(([uType, qty]) => {
-            points += (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
+            militaryPoints += (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
         });
     });
+
+    // Buildings (Economy/Military)
+    Object.keys(state.buildings).forEach(b => {
+        const bType = b as BuildingType;
+        const score = state.buildings[bType].level * (BUILDING_DEFS[bType].score || 0);
+        if (bType === BuildingType.BARRACKS || bType === BuildingType.TANK_FACTORY || bType === BuildingType.SHIPYARD || bType === BuildingType.AIRFIELD) {
+            militaryPoints += score;
+        } else {
+            economyPoints += score;
+        }
+    });
+
+    // Tech (Mixed, but mostly tech/military)
+    state.researchedTechs.forEach(t => techPoints += (TECH_DEFS[t]?.score || 0));
     
-    state.researchedTechs.forEach(t => points += (TECH_DEFS[t]?.score || 0));
-    points += Math.floor(state.bankBalance / 100000);
+    // Bank (Economy)
+    const bankPoints = Math.floor(state.bankBalance / 100000);
+    economyPoints += bankPoints;
+
+    // Dominion (Total)
+    const totalPoints = militaryPoints + economyPoints + techPoints;
 
     // 2. Check Tutorial
     let tutorialClaimable = state.tutorialClaimable;
@@ -89,7 +106,13 @@ export const recalculateProgression = (state: GameState): Partial<GameState> => 
     }
 
     return {
-        empirePoints: points,
+        empirePoints: totalPoints,
+        rankingStats: {
+            [RankingCategory.DOMINION]: totalPoints,
+            [RankingCategory.MILITARY]: militaryPoints,
+            [RankingCategory.ECONOMY]: economyPoints,
+            [RankingCategory.CAMPAIGN]: state.campaignProgress
+        },
         tutorialClaimable
     };
 };

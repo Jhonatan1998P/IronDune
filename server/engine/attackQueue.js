@@ -201,8 +201,19 @@ export const processIncomingAttackInQueue = (state, attack, initialPlayerUnits, 
     };
 
     logs.push({ id: `log-defense-${attack.id}-${now}`, messageKey: logKey, params: logParams, timestamp: now, type: 'combat' });
+    
+    // ONLY PvP (Player vs Player) battles generate global loot fields.
+    // Bots vs Player (RAID) fields are local to the player (not saved to global DB in this context)
+    const isBotAttacker = !attack.attackerId || attack.attackerId.startsWith('bot-');
+    const lootOrigin = isBotAttacker ? 'RAID' : 'P2P';
 
-    const generatedLogisticLoot = generateLogisticLootFromCombat(battleResult, 'RAID', attack.id, { attackerId: attack.attackerId || 'BOT', attackerName: attack.attackerName, defenderId: 'PLAYER', defenderName: newState.playerName || 'Player' }) || undefined;
+    const generatedLogisticLoot = generateLogisticLootFromCombat(battleResult, lootOrigin, attack.id, { 
+        attackerId: attack.attackerId || 'BOT', 
+        attackerName: attack.attackerName, 
+        defenderId: 'PLAYER', 
+        defenderName: newState.playerName || 'Player' 
+    }) || undefined;
+
     if (generatedLogisticLoot) {
         if (!newState.logisticLootFields) newState.logisticLootFields = [];
         newState.logisticLootFields.push(generatedLogisticLoot);
@@ -234,6 +245,7 @@ export const processAttackQueue = async (state, now) => {
                 .filter(q => q.type === 'OUTGOING' && q.mission?.type === 'SALVAGE' && 
                         q.mission?.logisticLootId === item.mission.logisticLootId &&
                         Math.floor(q.endTime / 1000) === Math.floor(item.endTime / 1000))
+                .sort((a, b) => a.endTime - b.endTime) // Strictly arrival order
                 .map(q => q.mission);
 
             const { newState, result, logs } = await processOutgoingAttackInQueue(currentState, item.mission, item.endTime, sameSecondMissions);

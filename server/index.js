@@ -156,12 +156,23 @@ app.get('/api/rankings/players', async (req, res) => {
         if (error) throw error;
         
         // Mapear para extraer campos del JSONB
-        const results = players.map(p => ({
-            id: p.id,
-            name: p.game_state.playerName || 'Commander',
-            flag: p.game_state.playerFlag || 'US',
-            score: p.game_state.empirePoints || 0
-        }));
+        const results = players.map(p => {
+            const state = p.game_state || {};
+            const stats = state.rankingStats || {
+                DOMINION: state.empirePoints || 0,
+                MILITARY: 0,
+                ECONOMY: 0,
+                CAMPAIGN: state.campaignProgress || 0
+            };
+            
+            return {
+                id: p.id,
+                name: state.playerName || 'Commander',
+                flag: state.playerFlag || 'US',
+                score: state.empirePoints || 0,
+                stats: stats
+            };
+        });
         
         res.json(results);
     } catch (error) {

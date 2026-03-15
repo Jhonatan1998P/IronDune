@@ -6,11 +6,11 @@
  */
 
 import React, { useEffect, useCallback } from 'react';
-import { X, Gift, Handshake, Heart, Target, Zap, Shield, History } from 'lucide-react';
+import { X, Gift, Handshake, Heart, Target, Zap, History } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { StaticBot, RankingCategory } from '../../utils/engine/rankings';
+import { RankingCategory } from '../../types';
+import { StaticBot, getFlagEmoji } from '../../utils/engine/rankings';
 import { formatNumber } from '../../utils';
-import { getFlagEmoji } from '../../utils/engine/rankings';
 import { ReputationBar } from '../reputation';
 
 interface BottomSheetProps {

@@ -1,6 +1,6 @@
 
-import { GameState, LogEntry, ResourceType } from '../../types';
-import { StaticBot, RankingCategory } from './rankings';
+import { GameState, LogEntry, ResourceType, RankingCategory } from '../../types';
+import { StaticBot } from './rankings';
 import {
     REPUTATION_MIN,
     REPUTATION_MAX,

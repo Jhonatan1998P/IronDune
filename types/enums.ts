@@ -100,3 +100,10 @@ export enum BotPersonality {
   TYCOON = 'TYCOON',
   ROGUE = 'ROGUE'
 }
+
+export enum RankingCategory {
+    DOMINION = 'DOMINION',
+    MILITARY = 'MILITARY',
+    ECONOMY = 'ECONOMY',
+    CAMPAIGN = 'CAMPAIGN'
+}

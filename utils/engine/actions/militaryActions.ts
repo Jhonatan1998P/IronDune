@@ -46,7 +46,10 @@ export const executeSalvageMission = (state: GameState, lootId: string, drones: 
                 endTime,
                 duration: Math.floor(SALVAGE_TRAVEL_TIME_MS / 60000),
                 units: { [UnitType.SALVAGER_DRONE]: drones },
-                logisticLootId: lootId
+                logisticLootId: lootId,
+                // Add player identification for first-come-first-served logic
+                playerId: state.peerId || state.gameId,
+                playerName: state.playerName
             }
         ]
     };
