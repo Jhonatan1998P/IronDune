@@ -284,6 +284,7 @@ export interface GiftCodeRedeemed {
 
 export interface GameState {
   saveVersion: number; 
+  lastResetId?: string; // ID for global server resets
   gameId: string; // Unique identifier for this save game
   playerName: string;
   playerFlag?: string; // Bandera seleccionada por el jugador

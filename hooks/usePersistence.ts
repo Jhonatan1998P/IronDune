@@ -72,15 +72,23 @@ export const usePersistence = (
     }
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus]);
 
-  const startNewGame = useCallback(() => {
+  const startNewGame = useCallback(async () => {
     const metadata = user?.user_metadata;
     const playerName = metadata?.username || INITIAL_GAME_STATE.playerName;
     const playerFlag = metadata?.flag || INITIAL_GAME_STATE.playerFlag;
+
+    // Obtener ResetID actual para la nueva partida
+    const { data: metaData } = await supabase
+      .from('server_metadata')
+      .select('value')
+      .eq('key', 'last_reset_id')
+      .single();
 
     setGameState({ 
       ...INITIAL_GAME_STATE, 
       playerName,
       playerFlag,
+      lastResetId: metaData?.value,
       lastSaveTime: TimeSyncService.getServerTime() 
     });
     setOfflineReport(null);
@@ -95,6 +103,15 @@ export const usePersistence = (
 
     const checkSave = async () => {
       try {
+        // 0. Check for Server Reset
+        const { data: metaData } = await supabase
+          .from('server_metadata')
+          .select('value')
+          .eq('key', 'last_reset_id')
+          .single();
+        
+        const serverResetId = metaData?.value;
+
         // 1. Fetch from Cloud (Master Authority)
         const { data: cloudData, error: cloudError } = await supabase
           .from('profiles')
@@ -109,21 +126,33 @@ export const usePersistence = (
 
         // 2. Fetch from Local (Faster/Backup)
         const localRaw = localStorage.getItem('ironDuneSave');
-        const localState = localRaw ? decodeSaveData(localRaw) : null;
+        let localState = localRaw ? decodeSaveData(localRaw) : null;
+
+        // --- ANTI-RACE CONDITION LOGIC (SERVER RESET) ---
+        // If the server has been reset, but the client has an old local save
+        if (serverResetId && localState && localState.lastResetId !== serverResetId) {
+            console.warn('[Persistence] Server Reset detected. Local save is obsolete.');
+            localStorage.removeItem('ironDuneSave');
+            localState = null;
+        }
 
         let authoritativeState = null;
 
         if (cloudData?.game_state) {
           authoritativeState = cloudData.game_state;
-          console.log('[Persistence] Cloud save found (Authority).');
           
-          if (localState) {
+          // Ensure cloud state is also in sync with reset (should be, but for safety)
+          if (serverResetId && authoritativeState.lastResetId !== serverResetId) {
+             console.warn('[Persistence] Cloud state is from a previous reset. Ignoring.');
+             authoritativeState = null;
+          }
+
+          if (authoritativeState && localState) {
               const cloudTime = authoritativeState.lastSaveTime || 0;
               const localTime = localState.lastSaveTime || 0;
               
-              // If local is newer AND valid (already checked by decode), use it
               if (localTime > cloudTime) {
-                  console.log('[Persistence] Local save is more recent and valid. Syncing...');
+                  console.log('[Persistence] Local save is more recent. Syncing...');
                   authoritativeState = localState;
               }
           }
@@ -133,11 +162,27 @@ export const usePersistence = (
         }
 
         if (authoritativeState) {
+          // Si el estado no tiene el ResetID, se lo ponemos (primera carga tras reset)
+          if (serverResetId && !authoritativeState.lastResetId) {
+              authoritativeState.lastResetId = serverResetId;
+          }
           setHasSave(true);
           loadGameFromData(authoritativeState);
         } else {
           console.log('[Persistence] No valid saves found. Starting new game.');
-          startNewGame();
+          // Iniciamos partida nueva con el ResetID actual
+          const metadata = user?.user_metadata;
+          const playerName = metadata?.username || INITIAL_GAME_STATE.playerName;
+          const playerFlag = metadata?.flag || INITIAL_GAME_STATE.playerFlag;
+
+          setGameState({ 
+            ...INITIAL_GAME_STATE, 
+            playerName,
+            playerFlag,
+            lastResetId: serverResetId,
+            lastSaveTime: TimeSyncService.getServerTime() 
+          });
+          setStatus('PLAYING');
         }
       } catch (e) {
         console.error('Persistence check failed:', e);

@@ -28,6 +28,7 @@ initBuildings[BuildingType.BANK] = { level: 1, isDamaged: false };
 
 export const INITIAL_GAME_STATE: GameState = {
   saveVersion: SAVE_VERSION,
+  lastResetId: undefined,
   gameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   playerName: 'Commander',
   playerFlag: 'US',

@@ -25,6 +25,17 @@ export async function hardResetDatabase() {
       DROP TABLE IF EXISTS public.logistic_loot CASCADE;
       DROP TABLE IF EXISTS public.game_bots CASCADE;
       DROP TABLE IF EXISTS public.profiles CASCADE;
+      DROP TABLE IF EXISTS public.server_metadata CASCADE;
+
+      -- 1.5 Tabla de metadatos (para control de resets)
+      CREATE TABLE public.server_metadata (
+        key text PRIMARY KEY,
+        value text,
+        updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+      );
+
+      -- Insertar el ID del nuevo reset
+      INSERT INTO public.server_metadata (key, value) VALUES ('last_reset_id', '${Date.now()}');
 
       -- 2. Recreación de tabla: profiles
       CREATE TABLE public.profiles (
@@ -32,6 +43,12 @@ export async function hardResetDatabase() {
         game_state jsonb NOT NULL,
         updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
       );
+
+      -- 2.5 Habilitar RLS en metadata
+      ALTER TABLE public.server_metadata ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY "Public read access for metadata" ON public.server_metadata FOR SELECT USING (true);
+      GRANT SELECT ON TABLE public.server_metadata TO anon, authenticated;
+      GRANT ALL ON TABLE public.server_metadata TO postgres, service_role;
 
       -- 3. Recreación de tabla: logistic_loot
       CREATE TABLE public.logistic_loot (
