@@ -97,24 +97,42 @@ app.get('/api/profile', requireAuthUser, async (req, res) => {
 app.post('/api/profile/save', requireAuthUser, async (req, res) => {
   try {
     const gameState = req.body?.game_state;
+    const expectedUpdatedAt = req.body?.expected_updated_at || null;
     if (!gameState) {
       return res.status(400).json({ error: 'Missing game_state' });
     }
 
+    if (expectedUpdatedAt) {
+      const { data: existing, error: existingError } = await supabase
+        .from('profiles')
+        .select('updated_at')
+        .eq('id', req.user.id)
+        .single();
+
+      if (existingError && existingError.code !== 'PGRST116') {
+        throw existingError;
+      }
+
+      if (existing?.updated_at && existing.updated_at !== expectedUpdatedAt) {
+        return res.status(409).json({ error: 'Profile out of date', updated_at: existing.updated_at });
+      }
+    }
+
     const serverTime = Date.now();
     const stateToSave = { ...gameState, lastSaveTime: serverTime };
+    const updatedAt = new Date().toISOString();
 
     const { error } = await supabase
       .from('profiles')
       .upsert({
         id: req.user.id,
         game_state: stateToSave,
-        updated_at: new Date().toISOString()
+        updated_at: updatedAt
       });
 
     if (error) throw error;
 
-    return res.json({ ok: true, serverTime });
+    return res.json({ ok: true, serverTime, updated_at: updatedAt });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to save profile' });
   }

@@ -28,6 +28,7 @@ export const usePersistence = (
   const statusRef = useRef(status);
   gameStateRef.current = gameState;
   statusRef.current = status;
+  const cloudUpdatedAtRef = useRef<string | null>(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = session?.access_token;
@@ -51,7 +52,10 @@ export const usePersistence = (
     }
 
     const payload = await response.json().catch(() => null);
-    return payload?.game_state || null;
+    return {
+      state: payload?.game_state || null,
+      updatedAt: payload?.updated_at || null
+    };
   }, [getAuthHeaders, signOut]);
 
   const saveCloudProfile = useCallback(async (state: GameState, keepalive: boolean = false) => {
@@ -65,16 +69,26 @@ export const usePersistence = (
         'Content-Type': 'application/json'
       },
       keepalive,
-      body: JSON.stringify({ game_state: state })
+      body: JSON.stringify({
+        game_state: state,
+        expected_updated_at: cloudUpdatedAtRef.current
+      })
     });
 
     if (response.status === 401) {
       await signOut();
       throw new Error('Unauthorized');
     }
+    if (response.status === 409) {
+      throw new Error('Conflict');
+    }
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
       throw new Error(payload?.error || 'Failed to save cloud profile');
+    }
+    const payload = await response.json().catch(() => null);
+    if (payload?.updated_at) {
+      cloudUpdatedAtRef.current = payload.updated_at;
     }
   }, [getAuthHeaders, signOut]);
 
@@ -89,7 +103,10 @@ export const usePersistence = (
         'Content-Type': 'application/json'
       },
       keepalive: true,
-      body: JSON.stringify({ game_state: state })
+      body: JSON.stringify({
+        game_state: state,
+        expected_updated_at: cloudUpdatedAtRef.current
+      })
     }).catch(() => {});
   }, [getAuthHeaders]);
 
@@ -209,7 +226,11 @@ export const usePersistence = (
         }
 
         // 1. Fetch from Cloud (Master Authority)
-        let cloudState = await fetchCloudProfile();
+        const cloudPayload = await fetchCloudProfile();
+        const cloudState = cloudPayload?.state || null;
+        if (cloudPayload?.updatedAt) {
+          cloudUpdatedAtRef.current = cloudPayload.updatedAt;
+        }
 
         // 2. Fetch from Local (migration only)
         const localRaw = localStorage.getItem('ironDuneSave');
@@ -233,16 +254,6 @@ export const usePersistence = (
           if (serverResetId && authoritativeState.lastResetId !== serverResetId) {
              console.warn('[Persistence] Cloud state is from a previous reset. Ignoring.');
              authoritativeState = null;
-          }
-
-          if (authoritativeState && localState) {
-              const cloudTime = authoritativeState.lastSaveTime || 0;
-              const localTime = localState.lastSaveTime || 0;
-              
-              if (localTime > cloudTime) {
-                  console.log('[Persistence] Local save is more recent. Syncing...');
-                  authoritativeState = localState;
-              }
           }
         } else if (localState) {
           console.log('[Persistence] No cloud save, using valid local state.');
@@ -316,12 +327,28 @@ export const usePersistence = (
               lastCloudSaveRef.current = now;
               console.log('[Persistence] Master-save (cloud) verified.');
           } catch (e) {
-              console.error('Cloud save failed:', e);
+              if (e instanceof Error && e.message === 'Conflict') {
+                try {
+                  const cloudPayload = await fetchCloudProfile();
+                  const cloudState = cloudPayload?.state || null;
+                  if (cloudPayload?.updatedAt) {
+                    cloudUpdatedAtRef.current = cloudPayload.updatedAt;
+                  }
+                  if (cloudState) {
+                    console.warn('[Persistence] Cloud state is newer. Reloading from cloud.');
+                    loadGameFromData(cloudState);
+                  }
+                } catch (syncError) {
+                  console.error('Conflict resolution failed:', syncError);
+                }
+              } else {
+                console.error('Cloud save failed:', e);
+              }
           } finally {
               pendingSaveRef.current = false;
           }
       }
-  }, [user, saveCloudProfile]);
+  }, [user, saveCloudProfile, fetchCloudProfile, loadGameFromData]);
 
   useEffect(() => {
     if (!user) return;
