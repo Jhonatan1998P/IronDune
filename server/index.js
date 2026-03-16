@@ -15,6 +15,7 @@ import { startScheduler } from './scheduler.js';
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
 const PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const SCHEMA_CACHE_ERROR = "schema cache";
 
 dotenv.config();
 
@@ -436,7 +437,11 @@ async function ensureProfilesForAuthUsers() {
         .from('profiles')
         .insert(inserts);
       if (insertError) {
-        console.error('[Profile Sync] Failed to insert profiles:', insertError.message);
+        if (insertError.message?.toLowerCase().includes(SCHEMA_CACHE_ERROR)) {
+          await insertProfilesViaSql(inserts);
+        } else {
+          console.error('[Profile Sync] Failed to insert profiles:', insertError.message);
+        }
       }
     }
 
@@ -445,10 +450,65 @@ async function ensureProfilesForAuthUsers() {
         .from('profiles')
         .upsert(roleUpdates, { onConflict: 'id' });
       if (updateError) {
-        console.error('[Profile Sync] Failed to update roles:', updateError.message);
+        if (updateError.message?.toLowerCase().includes(SCHEMA_CACHE_ERROR)) {
+          await updateRolesViaSql(roleUpdates);
+        } else {
+          console.error('[Profile Sync] Failed to update roles:', updateError.message);
+        }
       }
     }
 
     page += 1;
+  }
+}
+
+const escapeSql = (value) => String(value).replace(/'/g, "''");
+
+async function insertProfilesViaSql(profiles) {
+  try {
+    const values = profiles.map(profile => {
+      const gameStateJson = JSON.stringify(profile.game_state || {}).replace(/'/g, "''");
+      return `('${escapeSql(profile.id)}', '${escapeSql(profile.role || DEFAULT_ROLE)}', '${gameStateJson}'::jsonb, '${escapeSql(profile.updated_at)}')`;
+    });
+
+    if (values.length === 0) return;
+
+    const sql = `
+      INSERT INTO public.profiles (id, role, game_state, updated_at)
+      VALUES ${values.join(',')}
+      ON CONFLICT (id)
+      DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
+    `;
+
+    const { error } = await supabase.rpc('exec_sql', { sql });
+    if (error) {
+      console.error('[Profile Sync] Failed SQL insert:', error.message);
+    }
+  } catch (error) {
+    console.error('[Profile Sync] Failed SQL insert:', error.message);
+  }
+}
+
+async function updateRolesViaSql(roleUpdates) {
+  try {
+    if (roleUpdates.length === 0) return;
+
+    const ids = roleUpdates.map(row => `'${escapeSql(row.id)}'`).join(',');
+    const cases = roleUpdates
+      .map(row => `WHEN '${escapeSql(row.id)}' THEN '${escapeSql(row.role || DEFAULT_ROLE)}'`)
+      .join(' ');
+
+    const sql = `
+      UPDATE public.profiles
+      SET role = CASE id ${cases} ELSE role END
+      WHERE id IN (${ids});
+    `;
+
+    const { error } = await supabase.rpc('exec_sql', { sql });
+    if (error) {
+      console.error('[Profile Sync] Failed SQL role update:', error.message);
+    }
+  } catch (error) {
+    console.error('[Profile Sync] Failed SQL role update:', error.message);
   }
 }

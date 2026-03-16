@@ -31,12 +31,18 @@ export const useProfileRole = () => {
         .from('profiles')
         .select('role')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!isMounted) return;
 
       if (error) {
         console.warn('[Role] Failed to load profile role:', error.message);
+        setRole(DEFAULT_ROLE);
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
         setRole(DEFAULT_ROLE);
         setLoading(false);
         return;

@@ -5,6 +5,7 @@ const ADMIN_EMAIL = 'Admin@gmail.com';
 const ADMIN_PASSWORD = '26335828JP';
 const ADMIN_ROLE = 'Admin';
 const DEFAULT_ROLE = 'Usuario';
+const PGRST_RELOAD_SQL = "NOTIFY pgrst, 'reload';";
 
 /**
  * Realiza un reinicio total de la base de datos:
@@ -107,15 +108,18 @@ export async function hardResetDatabase() {
       CREATE POLICY "Public read access for game_bots" ON public.game_bots FOR SELECT USING (true);
       CREATE POLICY "Service role full access for game_bots" ON public.game_bots FOR ALL USING (true);
 
-      -- 9. Permisos adicionales
-      GRANT ALL ON TABLE public.profiles TO postgres, service_role;
-      GRANT ALL ON TABLE public.logistic_loot TO postgres, service_role;
-      GRANT ALL ON TABLE public.game_bots TO postgres, service_role;
+       -- 9. Permisos adicionales
+       GRANT ALL ON TABLE public.profiles TO postgres, service_role;
+       GRANT ALL ON TABLE public.logistic_loot TO postgres, service_role;
+       GRANT ALL ON TABLE public.game_bots TO postgres, service_role;
       
       GRANT SELECT ON TABLE public.profiles TO authenticated;
       GRANT SELECT ON TABLE public.logistic_loot TO anon, authenticated;
-      GRANT SELECT ON TABLE public.game_bots TO anon, authenticated;
-    `;
+       GRANT SELECT ON TABLE public.game_bots TO anon, authenticated;
+
+       -- 10. Refresh PostgREST schema cache
+       ${PGRST_RELOAD_SQL}
+     `;
 
     console.log('[DB Reset] Ejecutando script SQL de recreación...');
     const { error: sqlError } = await supabase.rpc('exec_sql', { sql: sqlScript });
@@ -229,17 +233,19 @@ async function createAdminUserAndProfile() {
       lastSaveTime: Date.now()
     };
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: adminUserId,
-        role: ADMIN_ROLE,
-        game_state: adminGameState,
-        updated_at: new Date().toISOString()
-      });
+    const adminGameStateJson = JSON.stringify(adminGameState).replace(/'/g, "''");
+    const adminUpdatedAt = new Date().toISOString();
+    const profileSql = `
+      INSERT INTO public.profiles (id, role, game_state, updated_at)
+      VALUES ('${adminUserId}', '${ADMIN_ROLE}', '${adminGameStateJson}'::jsonb, '${adminUpdatedAt}')
+      ON CONFLICT (id)
+      DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
+    `;
 
-    if (profileError) {
-      console.error('[DB Reset] Error creando perfil admin:', profileError.message);
+    const { error: profileSqlError } = await supabase.rpc('exec_sql', { sql: profileSql });
+
+    if (profileSqlError) {
+      console.error('[DB Reset] Error creando perfil admin:', profileSqlError.message);
       return;
     }
 
