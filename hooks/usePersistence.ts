@@ -54,7 +54,7 @@ export const usePersistence = (
     return payload?.game_state || null;
   }, [getAuthHeaders, signOut]);
 
-  const saveCloudProfile = useCallback(async (state: GameState) => {
+  const saveCloudProfile = useCallback(async (state: GameState, keepalive: boolean = false) => {
     const headers = getAuthHeaders();
     if (!headers) throw new Error('Missing auth token');
 
@@ -64,6 +64,7 @@ export const usePersistence = (
         ...headers,
         'Content-Type': 'application/json'
       },
+      keepalive,
       body: JSON.stringify({ game_state: state })
     });
 
@@ -76,6 +77,21 @@ export const usePersistence = (
       throw new Error(payload?.error || 'Failed to save cloud profile');
     }
   }, [getAuthHeaders, signOut]);
+
+  const saveCloudProfileOnExit = useCallback((state: GameState) => {
+    const headers = getAuthHeaders();
+    if (!headers) return;
+
+    fetch('/api/profile/save', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      keepalive: true,
+      body: JSON.stringify({ game_state: state })
+    }).catch(() => {});
+  }, [getAuthHeaders]);
 
   const resetCloudProfile = useCallback(async () => {
     const headers = getAuthHeaders();
@@ -280,6 +296,7 @@ export const usePersistence = (
 
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);
+  const lastExitSaveRef = useRef(0);
 
   const performAutoSave = useCallback(async (force: boolean = false) => {
       if (!user) return;
@@ -305,6 +322,35 @@ export const usePersistence = (
           }
       }
   }, [user, saveCloudProfile]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const handleExitSave = () => {
+      const now = TimeSyncService.getServerTime();
+      if (now - lastExitSaveRef.current < 2000) return;
+      lastExitSaveRef.current = now;
+      const currentState = gameStateRef.current;
+      const stateToSave = { ...currentState, lastSaveTime: now };
+      saveCloudProfileOnExit(stateToSave);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleExitSave();
+      }
+    };
+
+    window.addEventListener('pagehide', handleExitSave);
+    window.addEventListener('beforeunload', handleExitSave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handleExitSave);
+      window.removeEventListener('beforeunload', handleExitSave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, saveCloudProfileOnExit]);
 
   const saveGame = useCallback(async () => {
       if (!user) return;
