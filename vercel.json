@@ -1,22 +1,7 @@
 {
-  "headers": [
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://irondune.onrender.com/api/$1" },
+    { "source": "/health", "destination": "https://irondune.onrender.com/health" },
+    { "source": "/socket.io/(.*)", "destination": "https://irondune.onrender.com/socket.io/$1" }
   ]
 }
