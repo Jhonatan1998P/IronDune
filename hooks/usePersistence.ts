@@ -6,8 +6,8 @@ import { sanitizeAndMigrateSave } from '../utils/engine/migration';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { encodeSaveData, decodeSaveData } from '../utils/engine/security';
-import { LOCAL_SAVE_INTERVAL_MS, CLOUD_SAVE_INTERVAL_MS } from '../constants';
+import { decodeSaveData } from '../utils/engine/security';
+import { CLOUD_SAVE_INTERVAL_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 
 export const usePersistence = (
@@ -19,7 +19,7 @@ export const usePersistence = (
   setHasNewReports: (has: boolean) => void,
   lastTickRef: MutableRefObject<number>
 ) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [hasSave, setHasSave] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
@@ -28,6 +28,61 @@ export const usePersistence = (
   const statusRef = useRef(status);
   gameStateRef.current = gameState;
   statusRef.current = status;
+
+  const getAuthHeaders = useCallback(() => {
+    const token = session?.access_token;
+    if (!token) return null;
+    return { Authorization: `Bearer ${token}` };
+  }, [session]);
+
+  const fetchCloudProfile = useCallback(async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return null;
+
+    const response = await fetch('/api/profile', { headers });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to load cloud profile');
+    }
+
+    const payload = await response.json().catch(() => null);
+    return payload?.game_state || null;
+  }, [getAuthHeaders]);
+
+  const saveCloudProfile = useCallback(async (state: GameState) => {
+    const headers = getAuthHeaders();
+    if (!headers) throw new Error('Missing auth token');
+
+    const response = await fetch('/api/profile/save', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ game_state: state })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to save cloud profile');
+    }
+  }, [getAuthHeaders]);
+
+  const resetCloudProfile = useCallback(async () => {
+    const headers = getAuthHeaders();
+    if (!headers) throw new Error('Missing auth token');
+
+    const response = await fetch('/api/profile/reset', {
+      method: 'POST',
+      headers
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to reset cloud profile');
+    }
+  }, [getAuthHeaders]);
 
   // Sync peerId from P2P to gameState
   useEffect(() => {
@@ -99,7 +154,7 @@ export const usePersistence = (
 
   // Check for save on Supabase when user is available
   useEffect(() => {
-    if (!user || isInitialLoadDone) return;
+    if (!user || !session || isInitialLoadDone) return;
 
     const checkSave = async () => {
       try {
@@ -113,20 +168,12 @@ export const usePersistence = (
         const serverResetId = metaData?.value;
 
         // 1. Fetch from Cloud (Master Authority)
-        const { data: cloudData, error: cloudError } = await supabase
-          .from('profiles')
-          .select('game_state')
-          .eq('id', user.id)
-          .single();
+        let cloudState = await fetchCloudProfile();
 
-        if (cloudError && cloudError.code !== 'PGRST116') {
-          console.error('Error fetching save from Supabase:', cloudError);
-          return;
-        }
-
-        // 2. Fetch from Local (Faster/Backup)
+        // 2. Fetch from Local (migration only)
         const localRaw = localStorage.getItem('ironDuneSave');
         let localState = localRaw ? decodeSaveData(localRaw) : null;
+        const hadLocalSave = !!localRaw;
 
         // --- ANTI-RACE CONDITION LOGIC (SERVER RESET) ---
         // If the server has been reset, but the client has an old local save
@@ -138,8 +185,8 @@ export const usePersistence = (
 
         let authoritativeState = null;
 
-        if (cloudData?.game_state) {
-          authoritativeState = cloudData.game_state;
+        if (cloudState) {
+          authoritativeState = cloudState;
           
           // Ensure cloud state is also in sync with reset (should be, but for safety)
           if (serverResetId && authoritativeState.lastResetId !== serverResetId) {
@@ -168,6 +215,18 @@ export const usePersistence = (
           }
           setHasSave(true);
           loadGameFromData(authoritativeState);
+
+          if (localState) {
+            try {
+              await saveCloudProfile(authoritativeState);
+            } catch (error) {
+              console.error('Cloud save failed during migration:', error);
+            } finally {
+              localStorage.removeItem('ironDuneSave');
+            }
+          } else if (hadLocalSave) {
+            localStorage.removeItem('ironDuneSave');
+          }
         } else {
           console.log('[Persistence] No valid saves found. Starting new game.');
           // Iniciamos partida nueva con el ResetID actual
@@ -192,9 +251,8 @@ export const usePersistence = (
     };
 
     checkSave();
-  }, [user, isInitialLoadDone, loadGameFromData, startNewGame]);
+  }, [user, session, isInitialLoadDone, loadGameFromData, fetchCloudProfile, saveCloudProfile, startNewGame]);
 
-  const lastLocalSaveRef = useRef(TimeSyncService.getServerTime());
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);
 
@@ -204,33 +262,13 @@ export const usePersistence = (
       const currentState = gameStateRef.current;
       const stateToSave = { ...currentState, lastSaveTime: now };
 
-      // 1. QUICK LOCAL SAVE (Every 10s)
-      if (force || now - lastLocalSaveRef.current >= LOCAL_SAVE_INTERVAL_MS) {
-          try {
-              const signedData = encodeSaveData(stateToSave);
-              localStorage.setItem('ironDuneSave', signedData);
-              lastLocalSaveRef.current = now;
-              // console.log('[Persistence] Quick-save (local) secured.');
-          } catch (e) {
-              console.error('Local save failed:', e);
-          }
-      }
-
-      // 2. MASTER CLOUD SAVE (Every 2 min)
+      // MASTER CLOUD SAVE (Every 2 min)
       if (force || now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
           if (pendingSaveRef.current) return;
           pendingSaveRef.current = true;
 
           try {
-              const { error } = await supabase
-                .from('profiles')
-                .upsert({
-                  id: user.id,
-                  game_state: stateToSave,
-                  updated_at: new Date().toISOString()
-                });
-
-              if (error) throw error;
+              await saveCloudProfile(stateToSave);
               
               setHasSave(true);
               lastCloudSaveRef.current = now;
@@ -241,7 +279,7 @@ export const usePersistence = (
               pendingSaveRef.current = false;
           }
       }
-  }, [user]);
+  }, [user, saveCloudProfile]);
 
   const saveGame = useCallback(async () => {
       if (!user) return;
@@ -254,16 +292,17 @@ export const usePersistence = (
       if (!user) return;
       
       try {
-        await supabase.from('profiles').delete().eq('id', user.id);
+        await resetCloudProfile();
         setHasSave(false);
       } catch (e) {
         console.error('Reset failed:', e);
       }
 
       setTimeout(() => {
+          localStorage.removeItem('ironDuneSave');
           window.location.reload();
       }, 50);
-  }, [user]);
+  }, [user, resetCloudProfile]);
 
   return { hasSave, startNewGame, loadGame: () => {}, saveGame, exportSave: () => {}, importSave: () => false, resetGame, performAutoSave };
 };

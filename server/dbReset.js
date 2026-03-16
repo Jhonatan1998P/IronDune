@@ -87,11 +87,8 @@ export async function hardResetDatabase() {
       ALTER TABLE public.logistic_loot ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.game_bots ENABLE ROW LEVEL SECURITY;
 
-      -- 6. Políticas para 'profiles'
+      -- 6. Políticas para 'profiles' (solo lectura desde cliente)
       CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
-      CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-      CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-      CREATE POLICY "Users can delete own profile" ON public.profiles FOR DELETE USING (auth.uid() = id);
 
       -- 7. Políticas para 'logistic_loot' (Acceso público de lectura, escritura protegida si fuera necesario)
       CREATE POLICY "Public read access for logistic_loot" ON public.logistic_loot FOR SELECT USING (true);
@@ -108,7 +105,7 @@ export async function hardResetDatabase() {
       GRANT ALL ON TABLE public.logistic_loot TO postgres, service_role;
       GRANT ALL ON TABLE public.game_bots TO postgres, service_role;
       
-      GRANT SELECT ON TABLE public.profiles TO anon, authenticated;
+      GRANT SELECT ON TABLE public.profiles TO authenticated;
       GRANT SELECT ON TABLE public.logistic_loot TO anon, authenticated;
       GRANT SELECT ON TABLE public.game_bots TO anon, authenticated;
     `;

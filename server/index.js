@@ -18,6 +18,30 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+const requireAuthUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing auth token' });
+    }
+
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) {
+      return res.status(401).json({ error: 'Missing auth token' });
+    }
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
+      return res.status(401).json({ error: 'Invalid auth token' });
+    }
+
+    req.user = data.user;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: 'Auth validation failed' });
+  }
+};
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -42,6 +66,63 @@ app.get('/health', (_req, res) => {
 
 app.get('/api/time', (_req, res) => {
   res.json({ serverTime: Date.now() });
+});
+
+app.get('/api/profile', requireAuthUser, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('game_state, updated_at')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ game_state: null });
+      }
+      throw error;
+    }
+
+    return res.json({ game_state: data?.game_state || null, updated_at: data?.updated_at || null });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load profile' });
+  }
+});
+
+app.post('/api/profile/save', requireAuthUser, async (req, res) => {
+  try {
+    const gameState = req.body?.game_state;
+    if (!gameState) {
+      return res.status(400).json({ error: 'Missing game_state' });
+    }
+
+    const serverTime = Date.now();
+    const stateToSave = { ...gameState, lastSaveTime: serverTime };
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: req.user.id,
+        game_state: stateToSave,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) throw error;
+
+    return res.json({ ok: true, serverTime });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to save profile' });
+  }
+});
+
+app.post('/api/profile/reset', requireAuthUser, async (req, res) => {
+  try {
+    const { error } = await supabase.from('profiles').delete().eq('id', req.user.id);
+    if (error) throw error;
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to reset profile' });
+  }
 });
 
 app.post('/api/battle/simulate-combat', (req, res) => {
@@ -249,5 +330,9 @@ await hardResetDatabase();
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
-  startScheduler();
+  if (process.env.DISABLE_SCHEDULER !== 'true') {
+    startScheduler();
+  } else {
+    console.log('[BattleServer] Scheduler disabled via DISABLE_SCHEDULER=true');
+  }
 });

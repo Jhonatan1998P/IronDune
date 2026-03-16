@@ -23,11 +23,10 @@ export const AuthView: React.FC = () => {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const { error } = await supabase.from('profiles').select('id').limit(1);
-        if (error && error.code !== 'PGRST116') {
-          // Si hay error de base de datos pero no es "no encontrado"
-          console.error('DB Connection error:', error);
-          showError(t.common.auth.db_connection_error || 'Error de conexión con la base de datos');
+        const response = await fetch('/health');
+        if (!response.ok) {
+          console.error('Server health error:', response.status);
+          showError(t.common.auth.server_connection_error || 'Error de conexión con el servidor');
         }
       } catch (err) {
         showError(t.common.auth.server_connection_error || 'Error de conexión con el servidor');

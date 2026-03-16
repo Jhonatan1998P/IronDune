@@ -29,25 +29,13 @@ create table public.profiles (
 -- Habilitar Row Level Security (RLS)
 alter table public.profiles enable row level security;
 
--- Política: Los usuarios pueden ver solo su propio perfil
+-- Política: Los usuarios pueden ver solo su propio perfil (solo lectura desde cliente)
 create policy "Users can view own profile"
   on public.profiles for select
   using ( auth.uid() = id );
 
--- Política: Los usuarios pueden insertar su propio perfil
-create policy "Users can insert own profile"
-  on public.profiles for insert
-  with check ( auth.uid() = id );
-
--- Política: Los usuarios pueden actualizar su propio perfil
-create policy "Users can update own profile"
-  on public.profiles for update
-  using ( auth.uid() = id );
-
--- Política: Los usuarios pueden borrar su propio perfil
-create policy "Users can delete own profile"
-  on public.profiles for delete
-  using ( auth.uid() = id );
+-- Permisos de lectura para usuarios autenticados
+grant select on table public.profiles to authenticated;
 ```
 
 ## 4. Configurar Autenticación
@@ -57,6 +45,7 @@ create policy "Users can delete own profile"
 
 ## 5. Resumen de Cambios
 - **Autenticación**: Ahora es obligatoria para entrar al juego.
-- **Persistencia**: Todos los datos se guardan en la tabla `profiles` en la columna `game_state` (JSONB).
-- **Auto-guardado**: El juego se guarda automáticamente cada 30 segundos en la nube.
-- **Migración**: Al iniciar sesión por primera vez, el juego intentará migrar los datos guardados en `localStorage` a Supabase automáticamente.
+- **Persistencia**: Todos los datos se guardan en `profiles.game_state` (JSONB).
+- **Escritura segura**: El cliente no puede insertar/actualizar/borrar `profiles`; solo el servidor escribe con `service_role`.
+- **Auto-guardado**: El juego se guarda en la nube mediante el servidor.
+- **Migración**: Al iniciar sesión, se migra la partida local (si existe) al servidor y se borra de `localStorage`.

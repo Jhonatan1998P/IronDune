@@ -43,6 +43,10 @@ waitForPort = 5000
 outputType = "webview"
 
 [[ports]]
+localPort = 1455
+externalPort = 3003
+
+[[ports]]
 localPort = 3001
 externalPort = 3002
 
@@ -58,7 +62,10 @@ externalPort = 80
 localPort = 5001
 externalPort = 3000
 
+[[ports]]
+localPort = 10001
+externalPort = 4200
+
 [userenv]
 
 [userenv.shared]
-VITE_SOCKET_SERVER_URL = "https://irondune.onrender.com"
