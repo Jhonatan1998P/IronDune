@@ -19,7 +19,7 @@ export const usePersistence = (
   setHasNewReports: (has: boolean) => void,
   lastTickRef: MutableRefObject<number>
 ) => {
-  const { user, session } = useAuth();
+  const { user, session, signOut } = useAuth();
   const [hasSave, setHasSave] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
@@ -40,6 +40,10 @@ export const usePersistence = (
     if (!headers) return null;
 
     const response = await fetch('/api/profile', { headers });
+    if (response.status === 401) {
+      await signOut();
+      return null;
+    }
     if (response.status === 404) return null;
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
@@ -48,7 +52,7 @@ export const usePersistence = (
 
     const payload = await response.json().catch(() => null);
     return payload?.game_state || null;
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, signOut]);
 
   const saveCloudProfile = useCallback(async (state: GameState) => {
     const headers = getAuthHeaders();
@@ -63,11 +67,15 @@ export const usePersistence = (
       body: JSON.stringify({ game_state: state })
     });
 
+    if (response.status === 401) {
+      await signOut();
+      throw new Error('Unauthorized');
+    }
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
       throw new Error(payload?.error || 'Failed to save cloud profile');
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, signOut]);
 
   const resetCloudProfile = useCallback(async () => {
     const headers = getAuthHeaders();
@@ -78,11 +86,15 @@ export const usePersistence = (
       headers
     });
 
+    if (response.status === 401) {
+      await signOut();
+      throw new Error('Unauthorized');
+    }
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
       throw new Error(payload?.error || 'Failed to reset cloud profile');
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, signOut]);
 
   // Sync peerId from P2P to gameState
   useEffect(() => {
@@ -166,6 +178,19 @@ export const usePersistence = (
           .single();
         
         const serverResetId = metaData?.value;
+        const cachedResetId = localStorage.getItem('ironDuneResetId');
+
+        if (serverResetId && cachedResetId && cachedResetId !== serverResetId) {
+            console.warn('[Persistence] Server Reset detected. Signing out user.');
+            localStorage.removeItem('ironDuneSave');
+            localStorage.setItem('ironDuneResetId', serverResetId);
+            await signOut();
+            return;
+        }
+
+        if (serverResetId && (!cachedResetId || cachedResetId !== serverResetId)) {
+            localStorage.setItem('ironDuneResetId', serverResetId);
+        }
 
         // 1. Fetch from Cloud (Master Authority)
         let cloudState = await fetchCloudProfile();
