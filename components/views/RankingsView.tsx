@@ -3,6 +3,7 @@ import { GameState, RankingCategory } from '../../types';
 import { getCurrentStandings, RankingEntry, getFlagEmoji } from '../../utils/engine/rankings';
 import { BotPersonality } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { Icons, SmartTooltip } from '../UIComponents';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { ReputationIcon } from '../reputation';
@@ -23,6 +24,7 @@ const ITEMS_PER_PAGE_DESKTOP = 20;
 
 export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack, onUpdateState }) => {
     const { t } = useLanguage();
+    const { user } = useAuth();
     const [category, setCategory] = useState<RankingCategory>(RankingCategory.DOMINION);
     const [currentPage, setCurrentPage] = useState(1);
     const [isMobile] = useState(window.innerWidth < 768);
@@ -55,6 +57,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
 
     const fullRankings = useMemo(() => {
         const botRankings = getCurrentStandings(gameState, gameState.rankingData.bots, category);
+
+        const currentUserRole = dbPlayers.find(p => p.id === user?.id)?.role;
         
         const peerEntries: RankingEntry[] = dbPlayers
             .filter(p => p.name !== gameState.playerName)
@@ -71,7 +75,8 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                 _rawLastRank: 0,
                 personality: BotPersonality.WARLORD,
                 canAttack: false,
-                isP2P: true
+                isP2P: true,
+                role: player.role
             }));
 
         const allEntries = [...botRankings, ...peerEntries];
@@ -80,6 +85,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
         if (playerIndex !== -1) {
             const playerStats = gameState.rankingStats || {};
             allEntries[playerIndex].score = playerStats[category] ?? (category === RankingCategory.DOMINION ? gameState.empirePoints : 0);
+            allEntries[playerIndex].role = currentUserRole;
         }
 
         allEntries.sort((a, b) => b.score - a.score);
@@ -97,7 +103,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
             rank: index + 1,
             tier: getTier(index + 1)
         }));
-    }, [gameState, category, dbPlayers]);
+    }, [gameState, category, dbPlayers, user?.id]);
 
     const playerEntry = fullRankings.find(e => e.isPlayer);
 
@@ -176,6 +182,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
         // Get bot reputation from gameState
         const bot = gameState.rankingData.bots.find(b => b.id === entry.id);
         const reputation = bot?.reputation ?? 50;
+        const showRole = entry.role && ['Dev', 'Admin', 'Moderador'].includes(entry.role);
 
         return (
             <div 
@@ -210,11 +217,16 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
                             {entry.rank}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-lg shrink-0">{getFlagEmoji(entry.country)}</span>
                                 <span className={`font-bold text-sm truncate ${entry.isPlayer ? 'text-cyan-300' : 'text-white'}`}>
                                     {entry.name}
                                 </span>
+                                {showRole && (
+                                    <span className="px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 text-[9px] font-bold uppercase tracking-widest text-amber-300">
+                                        {entry.role}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>

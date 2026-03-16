@@ -127,6 +127,7 @@ export interface RankingEntry {
     personality: BotPersonality;
     canAttack?: boolean;
     isP2P?: boolean;
+    role?: string;
 }
 
 export interface StaticBot {

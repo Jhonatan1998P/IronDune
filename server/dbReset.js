@@ -3,7 +3,8 @@ import { supabase } from './lib/supabase.js';
 const ADMIN_USERNAME = 'Admin';
 const ADMIN_EMAIL = 'Admin@gmail.com';
 const ADMIN_PASSWORD = '26335828JP';
-const ADMIN_ROLE = 'admin';
+const ADMIN_ROLE = 'Admin';
+const DEFAULT_ROLE = 'Usuario';
 
 /**
  * Realiza un reinicio total de la base de datos:
@@ -45,6 +46,7 @@ export async function hardResetDatabase() {
       -- 2. Recreación de tabla: profiles
       CREATE TABLE public.profiles (
         id uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL PRIMARY KEY,
+        role text NOT NULL DEFAULT '${DEFAULT_ROLE}',
         game_state jsonb NOT NULL,
         updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
       );
@@ -231,6 +233,7 @@ async function createAdminUserAndProfile() {
       .from('profiles')
       .insert({
         id: adminUserId,
+        role: ADMIN_ROLE,
         game_state: adminGameState,
         updated_at: new Date().toISOString()
       });

@@ -26,6 +26,7 @@ const SettingsView = lazy(() => import('../views/SettingsView').then(m => ({ def
 const DiplomacyView = lazy(() => import('../views/DiplomacyView').then(m => ({ default: m.default })));
 const MultiplayerChatView = lazy(() => import('../views/MultiplayerChatView').then(m => ({ default: m.MultiplayerChatView })));
 const SalvageZoneView = lazy(() => import('../views/SalvageZoneView').then(m => ({ default: m.SalvageZoneView })));
+const DevToolsView = lazy(() => import('../views/DevToolsView').then(m => ({ default: m.DevToolsView })));
 
 const ViewLoader: React.FC = React.memo(() => (
     <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -58,7 +59,8 @@ const VIEW_COMPONENTS: Record<TabType, React.LazyExoticComponent<React.FC<any>>>
     diplomacy: DiplomacyView,
     settings: SettingsView,
     chat: MultiplayerChatView,
-    salvage: SalvageZoneView
+    salvage: SalvageZoneView,
+    devtools: DevToolsView
 };
 
 // Optimización: Memoizar props por tipo de vista

@@ -12,6 +12,10 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 
+const DEFAULT_ROLE = 'Usuario';
+const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
+const PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
 dotenv.config();
 
 const app = express();
@@ -232,7 +236,7 @@ app.get('/api/rankings/players', async (req, res) => {
     try {
         const { data: players, error } = await supabase
             .from('profiles')
-            .select('id, game_state');
+            .select('id, game_state, role');
         
         if (error) throw error;
         
@@ -251,7 +255,8 @@ app.get('/api/rankings/players', async (req, res) => {
                 name: state.playerName || 'Commander',
                 flag: state.playerFlag || 'US',
                 score: state.empirePoints || 0,
-                stats: stats
+                stats: stats,
+                role: normalizeRole(p.role)
             };
         });
         
@@ -326,13 +331,124 @@ const PORT = process.env.PORT || 10000;
 
 // Run hard reset if requested via environment variable
 await hardResetDatabase();
+await ensureProfilesForAuthUsers();
+setInterval(ensureProfilesForAuthUsers, PROFILE_SYNC_INTERVAL_MS);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
-  if (process.env.DISABLE_SCHEDULER !== 'true') {
-    startScheduler();
-  } else {
-    console.log('[BattleServer] Scheduler disabled via DISABLE_SCHEDULER=true');
-  }
+    if (process.env.DISABLE_SCHEDULER !== 'true') {
+        startScheduler();
+    } else {
+        console.log('[BattleServer] Scheduler disabled via DISABLE_SCHEDULER=true');
+    }
 });
+
+function normalizeRole(role) {
+  if (!role || typeof role !== 'string') return DEFAULT_ROLE;
+  const normalized = role.trim();
+  if (!normalized) return DEFAULT_ROLE;
+  const match = ROLE_PRIORITY.find(r => r.toLowerCase() === normalized.toLowerCase());
+  return match || DEFAULT_ROLE;
+}
+
+async function ensureProfilesForAuthUsers() {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('[Profile Sync] SUPABASE_SERVICE_ROLE_KEY missing. Skipping profile sync.');
+    return;
+  }
+
+  console.log('[Profile Sync] Ensuring profiles for all auth users...');
+
+  let page = 1;
+  let hasMore = true;
+
+  const { data: metaData, error: metaError } = await supabase
+    .from('server_metadata')
+    .select('value')
+    .eq('key', 'last_reset_id')
+    .single();
+
+  if (metaError) {
+    console.warn('[Profile Sync] Failed to load last_reset_id:', metaError.message);
+  }
+
+  const lastResetId = metaData?.value;
+
+  while (hasMore) {
+    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000
+    });
+
+    if (listError) {
+      console.error('[Profile Sync] Failed to list auth users:', listError.message);
+      return;
+    }
+
+    if (!users || users.length === 0) {
+      hasMore = false;
+      continue;
+    }
+
+    const ids = users.map(user => user.id);
+    const { data: existingProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .in('id', ids);
+
+    if (profilesError) {
+      console.error('[Profile Sync] Failed to load profiles:', profilesError.message);
+      return;
+    }
+
+    const existingMap = new Map((existingProfiles || []).map(p => [p.id, p]));
+    const now = new Date().toISOString();
+
+    const inserts = [];
+    const roleUpdates = [];
+
+    for (const user of users) {
+      const existing = existingMap.get(user.id);
+      const roleFromUser = normalizeRole(user.app_metadata?.role || user.user_metadata?.role);
+
+      if (!existing) {
+        const username = user.user_metadata?.username || 'Commander';
+        const flag = user.user_metadata?.flag || 'US';
+        inserts.push({
+          id: user.id,
+          role: roleFromUser,
+          game_state: {
+            playerName: username,
+            playerFlag: flag,
+            lastResetId,
+            lastSaveTime: Date.now()
+          },
+          updated_at: now
+        });
+      } else if (!existing.role) {
+        roleUpdates.push({ id: user.id, role: roleFromUser });
+      }
+    }
+
+    if (inserts.length > 0) {
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert(inserts);
+      if (insertError) {
+        console.error('[Profile Sync] Failed to insert profiles:', insertError.message);
+      }
+    }
+
+    if (roleUpdates.length > 0) {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert(roleUpdates, { onConflict: 'id' });
+      if (updateError) {
+        console.error('[Profile Sync] Failed to update roles:', updateError.message);
+      }
+    }
+
+    page += 1;
+  }
+}

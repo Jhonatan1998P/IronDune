@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { useGame } from '../context/GameContext';
+import { useProfileRole } from '../hooks/useProfileRole';
 import { gameEventBus } from '../utils/eventBus';
 import { APP_VERSION } from '../constants';
 
-export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'chat' | 'salvage';
+export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'chat' | 'salvage' | 'devtools';
 
 interface GameSidebarProps {
   activeTab: TabType;
@@ -46,6 +47,7 @@ const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, se
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
   const { hasNewReports, gameState } = useGame();
+  const { isPrivileged } = useProfileRole();
 
   const hasActiveWar = !!gameState.activeWar;
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
@@ -63,7 +65,8 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
   useThrottledChatEvent(activeTabRef, setHasUnreadChat);
 
   // Optimización: Memoizar configuración de navegación
-  const navGroups = useMemo(() => [
+  const navGroups = useMemo(() => {
+    const groups = [
       {
           title: t.common.ui.base_command,
           items: [
@@ -97,7 +100,19 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
               { id: 'chat' as TabType, label: 'Chat', icon: Icons.Chat, color: 'text-emerald-400' },
           ]
       }
-  ], [t]);
+    ];
+
+    if (isPrivileged) {
+      groups.push({
+        title: 'Control',
+        items: [
+          { id: 'devtools' as TabType, label: 'Dev Tools', icon: Icons.Terminal, color: 'text-amber-400' }
+        ]
+      });
+    }
+
+    return groups;
+  }, [t, isPrivileged]);
 
   const handleTabClick = useCallback((tab: TabType) => {
     setActiveTab(tab);
@@ -206,6 +221,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabType) => void }> = React.memo(({ activeTab, setActiveTab }) => {
     const { t } = useLanguage();
     const { hasNewReports, gameState } = useGame();
+    const { isPrivileged } = useProfileRole();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hasUnreadChat, setHasUnreadChat] = useState(false);
@@ -272,6 +288,10 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'chat' as TabType, icon: Icons.Chat, label: 'Chat', color: 'text-emerald-400' },
         { id: 'settings' as TabType, icon: Icons.Settings, label: t.common.ui.settings },
     ];
+
+    if (isPrivileged) {
+        secondaryItems.push({ id: 'devtools' as TabType, icon: Icons.Terminal, label: 'Dev Tools', color: 'text-amber-400' });
+    }
 
     const handleTabSelect = (tab: TabType) => {
         setActiveTab(tab);
