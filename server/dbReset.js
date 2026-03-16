@@ -1,5 +1,10 @@
 import { supabase } from './lib/supabase.js';
 
+const ADMIN_USERNAME = 'Admin';
+const ADMIN_EMAIL = 'Admin@gmail.com';
+const ADMIN_PASSWORD = '26335828JP';
+const ADMIN_ROLE = 'admin';
+
 /**
  * Realiza un reinicio total de la base de datos:
  * 1. Borra todos los usuarios de Auth
@@ -133,6 +138,8 @@ export async function hardResetDatabase() {
       throw sqlError;
     }
 
+    await createAdminUserAndProfile();
+
     console.log('✅ [DB Reset] Reinicio de base de datos completado con éxito.');
   } catch (error) {
     console.error('❌ [DB Reset] Error crítico durante el hard reset:', error.message);
@@ -174,5 +181,67 @@ async function deleteAllAuthUsers() {
   } catch (error) {
     console.error('[DB Reset] Error al listar/eliminar usuarios:', error.message);
     // No lanzamos error para intentar continuar con la recreación de tablas
+  }
+}
+
+async function createAdminUserAndProfile() {
+  console.log('[DB Reset] Creando cuenta admin...');
+
+  try {
+    const { data: adminData, error: adminError } = await supabase.auth.admin.createUser({
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      email_confirm: true,
+      user_metadata: {
+        username: ADMIN_USERNAME
+      },
+      app_metadata: {
+        role: ADMIN_ROLE
+      }
+    });
+
+    if (adminError) {
+      console.error('[DB Reset] Error creando usuario admin:', adminError.message);
+      return;
+    }
+
+    const adminUserId = adminData?.user?.id;
+    if (!adminUserId) {
+      console.error('[DB Reset] No se pudo obtener el ID del usuario admin.');
+      return;
+    }
+
+    const { data: metaData, error: metaError } = await supabase
+      .from('server_metadata')
+      .select('value')
+      .eq('key', 'last_reset_id')
+      .single();
+
+    if (metaError) {
+      console.warn('[DB Reset] No se pudo obtener last_reset_id:', metaError.message);
+    }
+
+    const adminGameState = {
+      playerName: ADMIN_USERNAME,
+      lastResetId: metaData?.value,
+      lastSaveTime: Date.now()
+    };
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: adminUserId,
+        game_state: adminGameState,
+        updated_at: new Date().toISOString()
+      });
+
+    if (profileError) {
+      console.error('[DB Reset] Error creando perfil admin:', profileError.message);
+      return;
+    }
+
+    console.log('[DB Reset] Cuenta admin creada con perfil de juego.');
+  } catch (error) {
+    console.error('[DB Reset] Error inesperado creando cuenta admin:', error.message);
   }
 }
