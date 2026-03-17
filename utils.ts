@@ -1,5 +1,5 @@
 
-import { SpyReport, ResourceType, BuildingType, UnitType, LogEntry } from './types';
+import { SpyReport, LogEntry } from './types';
 
 export const formatNumber = (value: number): string => {
   // Aseguramos que visualmente siempre sea un entero, eliminando decimales de la lógica interna inicial.
@@ -51,54 +51,23 @@ export const formatDuration = (ms: number): string => {
 // ============================================
 // SPY REPORTS PERSISTENCE & LIMITS
 // ============================================
-const SPY_REPORTS_STORAGE_KEY = 'ironDuneSpyReports';
 const MAX_ARCHIVED_REPORTS = 20;
 const MAX_INBOX_REPORTS = 10;
 
 /**
- * Guarda los informes de espionaje en localStorage con límite de 20
+ * Conserva los informes de espionaje en memoria con límite de 20
  * Los informes más viejos se eliminan automáticamente
  */
 export const saveSpyReportsToStorage = (reports: SpyReport[]): void => {
-    try {
-        // Ordenar por createdAt (más reciente primero) y limitar a 20
-        const sortedReports = [...reports]
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, MAX_ARCHIVED_REPORTS);
-        
-        localStorage.setItem(SPY_REPORTS_STORAGE_KEY, JSON.stringify(sortedReports));
-    } catch (e) {
-        console.error('Failed to save spy reports to localStorage:', e);
-    }
+    void reports;
 };
 
 /**
- * Carga los informes de espionaje desde localStorage
+ * Carga los informes de espionaje
  * Filtra automáticamente los informes expirados
  */
 export const loadSpyReportsFromStorage = (): SpyReport[] => {
-    try {
-        const saved = localStorage.getItem(SPY_REPORTS_STORAGE_KEY);
-        if (!saved) return [];
-        
-        const reports: SpyReport[] = JSON.parse(saved);
-        const now = Date.now();
-        
-        // Filtrar solo informes no expirados
-        const validReports = reports.filter(r => r.expiresAt > now);
-        
-        // Si hay más de 20 (por si hubo corrupción), limitar
-        if (validReports.length > MAX_ARCHIVED_REPORTS) {
-            const limited = validReports.slice(0, MAX_ARCHIVED_REPORTS);
-            saveSpyReportsToStorage(limited);
-            return limited;
-        }
-        
-        return validReports;
-    } catch (e) {
-        console.error('Failed to load spy reports from localStorage:', e);
-        return [];
-    }
+    return [];
 };
 
 /**
@@ -120,18 +89,13 @@ export const addSpyReport = (reports: SpyReport[], newReport: SpyReport): SpyRep
 };
 
 /**
- * Limpia los informes expirados y guarda en localStorage
+ * Limpia los informes expirados
  * Retorna la lista limpia
  */
 export const cleanupExpiredSpyReports = (reports: SpyReport[]): SpyReport[] => {
     const now = Date.now();
     const validReports = reports.filter(r => r.expiresAt > now);
-    
-    // Guardar solo si hubo cambios
-    if (validReports.length !== reports.length) {
-        saveSpyReportsToStorage(validReports);
-    }
-    
+
     return validReports;
 };
 
@@ -150,54 +114,22 @@ export const getInboxSpyReports = (reports: SpyReport[]): SpyReport[] => {
 // ============================================
 // ALL LOGS PERSISTENCE & LIMITS
 // ============================================
-const LOGS_STORAGE_KEY = 'ironDuneLogs';
 const MAX_ARCHIVED_LOGS = 20;
 const MAX_INBOX_LOGS = 10;
 
 /**
- * Guarda todos los logs/informes en localStorage con límite de 20
+ * Conserva todos los logs/informes en memoria con límite de 20
  * Los más viejos se eliminan automáticamente
  */
 export const saveLogsToStorage = (logs: LogEntry[]): void => {
-    try {
-        // Filtrar solo logs que son informes (combat, mission, intel, war)
-        const reportLogs = logs.filter(log => 
-            log.type === 'combat' || log.type === 'mission' || log.type === 'intel' || log.type === 'war'
-        );
-        
-        // Ordenar por timestamp (más reciente primero) y limitar a 20
-        const sortedLogs = [...reportLogs]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, MAX_ARCHIVED_LOGS);
-        
-        localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(sortedLogs));
-    } catch (e) {
-        console.error('Failed to save logs to localStorage:', e);
-    }
+    void logs;
 };
 
 /**
- * Carga los logs/informes desde localStorage
+ * Carga los logs/informes
  */
 export const loadLogsFromStorage = (): LogEntry[] => {
-    try {
-        const saved = localStorage.getItem(LOGS_STORAGE_KEY);
-        if (!saved) return [];
-        
-        const logs: LogEntry[] = JSON.parse(saved);
-        
-        // Si hay más de 20, limitar
-        if (logs.length > MAX_ARCHIVED_LOGS) {
-            const limited = logs.slice(0, MAX_ARCHIVED_LOGS);
-            saveLogsToStorage(limited);
-            return limited;
-        }
-        
-        return logs;
-    } catch (e) {
-        console.error('Failed to load logs from localStorage:', e);
-        return [];
-    }
+    return [];
 };
 
 /**

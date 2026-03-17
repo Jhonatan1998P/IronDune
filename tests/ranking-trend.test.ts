@@ -203,7 +203,7 @@ describe('Ranking Trend Calculation', () => {
             }
         });
 
-        it('should persist lastRank in bots for localStorage', () => {
+        it('should preserve lastRank in bots across state serialization', () => {
             const ranking = initializeRankingState();
             let bots = ranking.bots;
             
@@ -220,7 +220,7 @@ describe('Ranking Trend Calculation', () => {
                 expect(bot.lastRank).toBeLessThanOrEqual(updatedBots.length);
             });
             
-            // This ensures when saved to localStorage, the trend data persists
+            // This ensures trend data persists across state serialization
         });
 
         it('should maintain trend data across multiple growth cycles', () => {

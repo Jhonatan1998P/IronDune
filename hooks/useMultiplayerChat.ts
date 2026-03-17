@@ -12,34 +12,11 @@ export interface ChatMessage {
   isLocal: boolean;
 }
 
-const P2P_CHAT_STORAGE_KEY = 'ironDuneP2PChatMessages';
 const MAX_CHAT_MESSAGES = 20;
-
-const loadChatFromStorage = (): ChatMessage[] => {
-  try {
-    const saved = localStorage.getItem(P2P_CHAT_STORAGE_KEY);
-    if (!saved) return [];
-    const parsed = JSON.parse(saved);
-    if (Array.isArray(parsed)) {
-      return parsed.slice(-MAX_CHAT_MESSAGES);
-    }
-    return [];
-  } catch (e) {
-    return [];
-  }
-};
-
-const saveChatToStorage = (messages: ChatMessage[]) => {
-  try {
-    const limited = messages.slice(-MAX_CHAT_MESSAGES);
-    localStorage.setItem(P2P_CHAT_STORAGE_KEY, JSON.stringify(limited));
-  } catch (e) {
-  }
-};
 
 export const useMultiplayerChat = () => {
   const { isConnected, localPlayerId, broadcastAction } = useMultiplayer();
-  const [messages, setMessages] = useState<ChatMessage[]>(loadChatFromStorage);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const sendMessage = useCallback((text: string, playerName: string) => {
     if (!isConnected || !localPlayerId || !text.trim()) return;
@@ -67,9 +44,7 @@ export const useMultiplayerChat = () => {
     };
 
     setMessages(prev => {
-      const newMessages = [...prev, newMessage].slice(-MAX_CHAT_MESSAGES);
-      saveChatToStorage(newMessages);
-      return newMessages;
+      return [...prev, newMessage].slice(-MAX_CHAT_MESSAGES);
     });
   }, [isConnected, localPlayerId, broadcastAction]);
 
@@ -86,7 +61,6 @@ export const useMultiplayerChat = () => {
 
   const clearMessages = useCallback(() => {
     setMessages([]);
-    localStorage.removeItem(P2P_CHAT_STORAGE_KEY);
   }, []);
 
   return {

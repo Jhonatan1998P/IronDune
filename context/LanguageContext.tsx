@@ -12,21 +12,10 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializar estado desde localStorage o por defecto 'es' (Español)
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const saved = localStorage.getItem('ironDune_language_pref');
-      if (saved === 'en' || saved === 'es') {
-        return saved;
-      }
-    }
-    return 'es';
-  });
+  const [language, setLanguageState] = useState<Language>('es');
 
-  // Wrapper para actualizar estado y guardar en localStorage
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('ironDune_language_pref', lang);
   };
 
   const t = language === 'es' ? es : en;

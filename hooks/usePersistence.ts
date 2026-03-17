@@ -2,13 +2,12 @@
 import React, { useState, useEffect, useCallback, MutableRefObject, useRef } from 'react';
 import { GameState, GameStatus, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
-import { sanitizeAndMigrateSave } from '../utils/engine/migration';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { decodeSaveData } from '../utils/engine/security';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
+import { buildBackendUrl } from '../lib/backend';
 
 export const usePersistence = (
   gameState: GameState,
@@ -40,7 +39,7 @@ export const usePersistence = (
     const headers = getAuthHeaders();
     if (!headers) return null;
 
-    const response = await fetch('/api/profile', { headers });
+    const response = await fetch(buildBackendUrl('/api/profile'), { headers });
     if (response.status === 401) {
       await signOut();
       return null;
@@ -62,7 +61,7 @@ export const usePersistence = (
     const headers = getAuthHeaders();
     if (!headers) throw new Error('Missing auth token');
 
-    const response = await fetch('/api/profile/save', {
+    const response = await fetch(buildBackendUrl('/api/profile/save'), {
       method: 'POST',
       headers: {
         ...headers,
@@ -92,29 +91,11 @@ export const usePersistence = (
     }
   }, [getAuthHeaders, signOut]);
 
-  const saveCloudProfileOnExit = useCallback((state: GameState) => {
-    const headers = getAuthHeaders();
-    if (!headers) return;
-
-    fetch('/api/profile/save', {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json'
-      },
-      keepalive: true,
-      body: JSON.stringify({
-        game_state: state,
-        expected_updated_at: cloudUpdatedAtRef.current
-      })
-    }).catch(() => {});
-  }, [getAuthHeaders]);
-
   const resetCloudProfile = useCallback(async () => {
     const headers = getAuthHeaders();
     if (!headers) throw new Error('Missing auth token');
 
-    const response = await fetch('/api/profile/reset', {
+    const response = await fetch(buildBackendUrl('/api/profile/reset'), {
       method: 'POST',
       headers
     });
@@ -148,10 +129,8 @@ export const usePersistence = (
   const loadGameFromData = useCallback((saveData: any) => {
     try {
       console.log('[LoadGame] Processing save data...');
-      
-      const migratedState = sanitizeAndMigrateSave(saveData, saveData);
-      
-      const { newState, report, newLogs } = calculateOfflineProgress(migratedState);
+
+      const { newState, report, newLogs } = calculateOfflineProgress(saveData as GameState);
 
       if (newLogs.length > 0) {
           newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -211,38 +190,11 @@ export const usePersistence = (
           .single();
         
         const serverResetId = metaData?.value;
-        const cachedResetId = localStorage.getItem('ironDuneResetId');
-
-        if (serverResetId && cachedResetId && cachedResetId !== serverResetId) {
-            console.warn('[Persistence] Server Reset detected. Signing out user.');
-            localStorage.removeItem('ironDuneSave');
-            localStorage.setItem('ironDuneResetId', serverResetId);
-            await signOut();
-            return;
-        }
-
-        if (serverResetId && (!cachedResetId || cachedResetId !== serverResetId)) {
-            localStorage.setItem('ironDuneResetId', serverResetId);
-        }
-
         // 1. Fetch from Cloud (Master Authority)
         const cloudPayload = await fetchCloudProfile();
         const cloudState = cloudPayload?.state || null;
         if (cloudPayload?.updatedAt) {
           cloudUpdatedAtRef.current = cloudPayload.updatedAt;
-        }
-
-        // 2. Fetch from Local (migration only)
-        const localRaw = localStorage.getItem('ironDuneSave');
-        let localState = localRaw ? decodeSaveData(localRaw) : null;
-        const hadLocalSave = !!localRaw;
-
-        // --- ANTI-RACE CONDITION LOGIC (SERVER RESET) ---
-        // If the server has been reset, but the client has an old local save
-        if (serverResetId && localState && localState.lastResetId !== serverResetId) {
-            console.warn('[Persistence] Server Reset detected. Local save is obsolete.');
-            localStorage.removeItem('ironDuneSave');
-            localState = null;
         }
 
         let authoritativeState = null;
@@ -254,10 +206,7 @@ export const usePersistence = (
           if (serverResetId && authoritativeState.lastResetId !== serverResetId) {
              console.warn('[Persistence] Cloud state is from a previous reset. Ignoring.');
              authoritativeState = null;
-          }
-        } else if (localState) {
-          console.log('[Persistence] No cloud save, using valid local state.');
-          authoritativeState = localState;
+           }
         }
 
         if (authoritativeState) {
@@ -265,7 +214,6 @@ export const usePersistence = (
           const lastSaveTime = authoritativeState.lastSaveTime || 0;
           if (lastSaveTime && now - lastSaveTime > OFFLINE_SIGNOUT_THRESHOLD_MS) {
             console.warn('[Persistence] Offline threshold exceeded. Signing out user.');
-            localStorage.removeItem('ironDuneSave');
             await signOut();
             return;
           }
@@ -276,18 +224,6 @@ export const usePersistence = (
           }
           setHasSave(true);
           loadGameFromData(authoritativeState);
-
-          if (localState) {
-            try {
-              await saveCloudProfile(authoritativeState);
-            } catch (error) {
-              console.error('Cloud save failed during migration:', error);
-            } finally {
-              localStorage.removeItem('ironDuneSave');
-            }
-          } else if (hadLocalSave) {
-            localStorage.removeItem('ironDuneSave');
-          }
         } else {
           console.log('[Persistence] No valid saves found. Starting new game.');
           // Iniciamos partida nueva con el ResetID actual
@@ -312,20 +248,18 @@ export const usePersistence = (
     };
 
     checkSave();
-  }, [user, session, isInitialLoadDone, loadGameFromData, fetchCloudProfile, saveCloudProfile, startNewGame]);
+  }, [user, session, isInitialLoadDone, loadGameFromData, fetchCloudProfile, startNewGame, signOut, setGameState, setStatus]);
 
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);
-  const lastExitSaveRef = useRef(0);
 
-  const performAutoSave = useCallback(async (force: boolean = false) => {
+  const performAutoSave = useCallback(async (_force: boolean = false) => {
       if (!user) return;
       const now = TimeSyncService.getServerTime();
       const currentState = gameStateRef.current;
       const stateToSave = { ...currentState, lastSaveTime: now };
 
-      // MASTER CLOUD SAVE (Every 2 min)
-      if (force || now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
+      if (now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
           if (pendingSaveRef.current) return;
           pendingSaveRef.current = true;
 
@@ -359,41 +293,9 @@ export const usePersistence = (
       }
   }, [user, saveCloudProfile, fetchCloudProfile, loadGameFromData]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const handleExitSave = () => {
-      const now = TimeSyncService.getServerTime();
-      if (now - lastExitSaveRef.current < 2000) return;
-      lastExitSaveRef.current = now;
-      const currentState = gameStateRef.current;
-      const stateToSave = { ...currentState, lastSaveTime: now };
-      saveCloudProfileOnExit(stateToSave);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleExitSave();
-      }
-    };
-
-    window.addEventListener('pagehide', handleExitSave);
-    window.addEventListener('beforeunload', handleExitSave);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('pagehide', handleExitSave);
-      window.removeEventListener('beforeunload', handleExitSave);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [user, saveCloudProfileOnExit]);
-
   const saveGame = useCallback(async () => {
-      if (!user) return;
-      console.log('[SaveGame] Manual Forced Sync Initiated...');
-      await performAutoSave(true);
       setStatus('MENU');
-  }, [performAutoSave, setStatus, user]);
+  }, [setStatus]);
 
   const resetGame = useCallback(async () => {
       if (!user) return;
@@ -406,7 +308,6 @@ export const usePersistence = (
       }
 
       setTimeout(() => {
-          localStorage.removeItem('ironDuneSave');
           window.location.reload();
       }, 50);
   }, [user, resetCloudProfile]);

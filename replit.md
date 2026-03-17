@@ -9,7 +9,7 @@ A browser-based military strategy game built with React 18, TypeScript, and Vite
 - **Build Tool**: Vite 5
 - **Styling**: Tailwind CSS (via CDN) + Glassmorphism design
 - **State Management**: React Context (GameContext, LanguageContext)
-- **Persistence**: localStorage with encoding/migration system
+- **Persistence**: Supabase autosave via backend every 10 seconds
 - **Multiplayer**: Socket.io client (connects to Express relay server)
 
 ### Backend Architecture (Post-Merge: Socket.io)
@@ -126,8 +126,7 @@ cd server && npm start
 - Toggle in Settings view
 
 ## Important Notes
-1. **No Backend DB**: All data stored in localStorage
-2. **Migration System**: Auto-runs on load to handle schema changes
-3. **Offline Mode**: Time warp calculation when player returns
-4. **P2P Relay**: Socket.io server relays messages, doesn't store game state
-5. **Persistence**: Encoded save string prevents casual tampering
+1. **Backend DB**: Game state stored in Supabase profiles
+2. **Offline Mode**: Time warp calculation when player returns
+3. **P2P Relay**: Socket.io server relays messages, doesn't store game state
+4. **Persistence**: Automatic cloud save cadence handles durability

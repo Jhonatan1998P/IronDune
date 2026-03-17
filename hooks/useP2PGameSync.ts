@@ -60,6 +60,7 @@ export const useP2PGameSync = () => {
   const sendToPeerRef = useRef(sendToPeer);
   const applyP2PBattleResultRef = useRef(applyP2PBattleResult);
   const addP2PIncomingAttackRef = useRef(addP2PIncomingAttack);
+  const chatMessagesRef = useRef<any[]>([]);
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { localPlayerIdRef.current = localPlayerId; }, [localPlayerId]);
@@ -232,8 +233,7 @@ export const useP2PGameSync = () => {
 
     const handleChatMessage = (payload: any) => {
       try {
-        const saved = localStorage.getItem('ironDuneP2PChatMessages');
-        let messages = saved ? JSON.parse(saved) : [];
+        let messages = chatMessagesRef.current;
         
         const newMessage = {
           id: `${payload.playerId}-${payload.timestamp}`,
@@ -247,7 +247,7 @@ export const useP2PGameSync = () => {
         if (!messages.some((m: any) => m.id === newMessage.id)) {
           messages.push(newMessage);
           messages = messages.slice(-20);
-          localStorage.setItem('ironDuneP2PChatMessages', JSON.stringify(messages));
+          chatMessagesRef.current = messages;
           // Emitir un evento secundario para que la UI se actualice si está abierta
           gameEventBus.emit('LOCAL_CHAT_UPDATED' as any, messages);
 

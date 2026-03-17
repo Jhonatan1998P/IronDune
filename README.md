@@ -96,7 +96,7 @@ Manage 5 resources: **Money**, **Oil**, **Ammo**, **Gold**, and **Diamonds**. Ea
 - **Frontend**: React 18 + TypeScript + Vite
 - **Styling**: Tailwind CSS (CDN) with glassmorphism design
 - **State**: React Context with immutable updates
-- **Persistence**: localStorage with hash-based integrity verification
+- **Persistence**: cloud autosave to Supabase every 10 seconds
 - **i18n**: English and Spanish support
 
 ## Project Structure

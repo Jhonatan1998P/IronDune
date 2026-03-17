@@ -23,7 +23,6 @@ export const MAX_ATTACKS_PER_TARGET = 3; // Limite de ataques por objetivo por d
 // REGLAS DE COMBATE P2P
 export const P2P_MAX_ATTACKS_PER_TARGET_PER_DAY = 6; // Maximo de ataques P2P normales por objetivo por dia
 export const P2P_ATTACK_RESET_INTERVAL_MS = ONE_DAY_MS; // Reinicio cada 24 horas
-export const P2P_ATTACK_COUNTS_STORAGE_KEY = 'ironDuneP2PAttackCounts'; // Clave de localStorage
 
 // Tasas de saqueo de edificios en P2P (por numero de ataque: 1ro=33%, 2do=25%, 3ro-6to=15%)
 export const P2P_PLUNDER_RATES = [0.33, 0.25, 0.15, 0.15, 0.15, 0.15];
@@ -139,7 +138,6 @@ export const calculateHourlyInterest = (balance: number, rate: number): number =
 };
 
 // --- INTERVALOS DE GUARDADO ---
-export const LOCAL_SAVE_INTERVAL_MS = 10000; // 10 segundos
 export const CLOUD_SAVE_INTERVAL_MS = 10000; // 10 segundos
 export const OFFLINE_SIGNOUT_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutos
 

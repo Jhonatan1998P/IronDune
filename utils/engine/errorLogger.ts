@@ -4,32 +4,23 @@
  * Provides debugging, analytics, and error tracking
  */
 
-import { GameState, WarState, LogEntry, IncomingAttack } from '../types';
+import { WarState, IncomingAttack } from '../../types';
 
-// Configuración del log en localStorage
-const WAR_LOG_KEY = 'war_log';
-const MAX_LOG_SIZE = 100000; // 100KB max en localStorage
+const MAX_LOG_SIZE = 100000;
+let warLogBuffer = '';
 
 /**
- * Clears the war log from localStorage
+ * Clears the in-memory war log buffer
  */
 export const clearWarLog = async (): Promise<void> => {
-    try {
-        localStorage.removeItem(WAR_LOG_KEY);
-    } catch (e) {
-        // Silently ignore
-    }
+    warLogBuffer = '';
 };
 
 /**
  * Get current war log content
  */
 export const getWarLog = (): string => {
-    try {
-        return localStorage.getItem(WAR_LOG_KEY) || '';
-    } catch (e) {
-        return '';
-    }
+    return warLogBuffer;
 };
 
 // ============================================
@@ -157,22 +148,14 @@ const log = async (
         telemetryBuffer.push(event);
     }
 
-    // Write to localStorage for browser compatibility
-    try {
+    {
         const timestampISO = new Date().toISOString();
         const logMessage = `[${timestampISO}] [${category.toUpperCase()}] [${level.toUpperCase()}] ${message} ${data ? JSON.stringify(data) : ''}\n`;
-        
-        let currentLog = getWarLog();
-        currentLog += logMessage;
-        
-        // Trim if too large
-        if (currentLog.length > MAX_LOG_SIZE) {
-            currentLog = currentLog.slice(-MAX_LOG_SIZE);
+
+        warLogBuffer += logMessage;
+        if (warLogBuffer.length > MAX_LOG_SIZE) {
+            warLogBuffer = warLogBuffer.slice(-MAX_LOG_SIZE);
         }
-        
-        localStorage.setItem(WAR_LOG_KEY, currentLog);
-    } catch (e) {
-        // Silently ignore localStorage errors
     }
 };
 
@@ -212,10 +195,10 @@ export const logCritical = async (category: LogCategory, message: string, data?:
 };
 
 /**
- * Logs migration error (legacy compatibility)
+ * Logs system compatibility errors
  */
-export const logMigrationError = async (message: string, data?: Record<string, any>): Promise<void> => {
-    await logError('system', `Migration error: ${message}`, data);
+export const logSystemCompatibilityError = async (message: string, data?: Record<string, any>): Promise<void> => {
+    await logError('system', `Compatibility error: ${message}`, data);
 };
 
 // ============================================
@@ -424,7 +407,7 @@ const trackWarAnalytics = (telemetry: WarTelemetryData): void => {
         ((warAnalytics.averageCasualtiesPerWar * (total - 1)) + telemetry.playerUnitLosses) / total;
     
     warAnalytics.totalResourcesLost += 
-        Object.values(telemetry.playerResourceLosses).reduce((a, b) => a + b, 0);
+        Object.values(telemetry.playerResourceLosses).reduce((a, b) => a + Number(b), 0);
 };
 
 /**

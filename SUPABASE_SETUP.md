@@ -48,4 +48,4 @@ grant select on table public.profiles to authenticated;
 - **Persistencia**: Todos los datos se guardan en `profiles.game_state` (JSONB).
 - **Escritura segura**: El cliente no puede insertar/actualizar/borrar `profiles`; solo el servidor escribe con `service_role`.
 - **Auto-guardado**: El juego se guarda en la nube mediante el servidor.
-- **Migración**: Al iniciar sesión, se migra la partida local (si existe) al servidor y se borra de `localStorage`.
+- **Guardado**: El estado se persiste únicamente con auto-guardado en Supabase cada 10 segundos.

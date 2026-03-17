@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LogEntry, BuildingType, TechType, UnitType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icons } from '../UIComponents';
@@ -6,56 +6,12 @@ import { BUILDING_DEFS } from '../../data/buildings';
 import { TECH_DEFS } from '../../data/techs';
 import { UNIT_DEFS } from '../../data/units';
 
-const TERMINAL_LOGS_STORAGE_KEY = 'ironDuneTerminalLogs';
 const MAX_TERMINAL_LOGS = 100;
-
-// Función para guardar logs en localStorage
-const saveTerminalLogsToStorage = (logs: LogEntry[]): void => {
-    try {
-        const sortedLogs = [...logs]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, MAX_TERMINAL_LOGS);
-        localStorage.setItem(TERMINAL_LOGS_STORAGE_KEY, JSON.stringify(sortedLogs));
-    } catch (e) {
-        console.error('Failed to save terminal logs to localStorage:', e);
-    }
-};
-
-// Función para cargar logs desde localStorage
-const loadTerminalLogsFromStorage = (): LogEntry[] => {
-    try {
-        const saved = localStorage.getItem(TERMINAL_LOGS_STORAGE_KEY);
-        if (!saved) return [];
-        const logs: LogEntry[] = JSON.parse(saved);
-        return logs.slice(0, MAX_TERMINAL_LOGS);
-    } catch (e) {
-        console.error('Failed to load terminal logs from localStorage:', e);
-        return [];
-    }
-};
 
 export const TerminalLogs: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
     const { t } = useLanguage();
     const [isExpanded, setIsExpanded] = useState(false);
-    const [persistedLogs, setPersistedLogs] = useState<LogEntry[]>([]);
-
-    // Cargar logs desde localStorage al montar
-    useEffect(() => {
-        const savedLogs = loadTerminalLogsFromStorage();
-        if (savedLogs.length > 0) {
-            setPersistedLogs(savedLogs);
-        }
-    }, []);
-
-    // Guardar logs en localStorage cuando cambian (solo los últimos 100)
-    useEffect(() => {
-        const recentLogs = logs.slice(0, MAX_TERMINAL_LOGS);
-        saveTerminalLogsToStorage(recentLogs);
-        setPersistedLogs(recentLogs);
-    }, [logs]);
-
-    // Usar logs persistidos o los del estado
-    const historyLogs = persistedLogs.length > 0 ? persistedLogs : logs.slice(0, MAX_TERMINAL_LOGS);
+    const historyLogs = logs.slice(0, MAX_TERMINAL_LOGS);
 
     const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 

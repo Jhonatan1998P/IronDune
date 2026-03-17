@@ -12,7 +12,6 @@ import { calculateTechMultipliers, calculateProductionRates } from '../utils/eng
 // Constantes
 // ============================================================================
 
-const GIFT_LIMIT_KEY = 'ironDuneP2PGiftLimits';
 const HOURS_OF_PRODUCTION = 4;     // límite = 4h de producción
 const RESET_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas en ms
 
@@ -25,31 +24,21 @@ interface GiftLimitState {
   AMMO: number;
 }
 
+let inMemoryGiftLimits: GiftLimitState = { resetAt: Date.now() + RESET_INTERVAL_MS, OIL: 0, GOLD: 0, AMMO: 0 };
+
 // ============================================================================
 // Helpers de persistencia
 // ============================================================================
 
 const loadGiftLimits = (): GiftLimitState => {
-  try {
-    const raw = localStorage.getItem(GIFT_LIMIT_KEY);
-    if (!raw) return { resetAt: Date.now() + RESET_INTERVAL_MS, OIL: 0, GOLD: 0, AMMO: 0 };
-    const parsed: GiftLimitState = JSON.parse(raw);
-    // Si el período de 24 h ha pasado, resetear
-    if (Date.now() >= parsed.resetAt) {
-      return { resetAt: Date.now() + RESET_INTERVAL_MS, OIL: 0, GOLD: 0, AMMO: 0 };
-    }
-    return parsed;
-  } catch {
-    return { resetAt: Date.now() + RESET_INTERVAL_MS, OIL: 0, GOLD: 0, AMMO: 0 };
+  if (Date.now() >= inMemoryGiftLimits.resetAt) {
+    inMemoryGiftLimits = { resetAt: Date.now() + RESET_INTERVAL_MS, OIL: 0, GOLD: 0, AMMO: 0 };
   }
+  return inMemoryGiftLimits;
 };
 
 const saveGiftLimits = (state: GiftLimitState) => {
-  try {
-    localStorage.setItem(GIFT_LIMIT_KEY, JSON.stringify(state));
-  } catch {
-    // ignore
-  }
+  inMemoryGiftLimits = state;
 };
 
 // ============================================================================

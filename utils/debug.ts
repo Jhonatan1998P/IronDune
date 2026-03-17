@@ -9,7 +9,7 @@ declare global {
 
 /**
  * Debugging utilities for the frontend.
- * Redundant bot generation logic removed due to server migration.
+ * Redundant bot generation logic removed after server-side consolidation.
  */
 export const createDebugAllyAttackTest = (
     _setGameState: React.Dispatch<React.SetStateAction<GameState>>

@@ -3,7 +3,7 @@
  *
  * Gestiona las reglas de combate P2P:
  *  1. Límite de 6 ataques normales por día contra el mismo jugador (reset 24h).
- *     Persistencia en localStorage para sobrevivir recargas.
+ *     Persistencia en memoria durante la sesión activa.
  *     No aplica en guerras totales (isWarAttack = true).
  *  2. Validación de rango de puntos: solo se puede atacar a jugadores entre
  *     50% y 150% de los puntos propios.
@@ -13,7 +13,6 @@ import { useCallback } from 'react';
 import {
   P2P_MAX_ATTACKS_PER_TARGET_PER_DAY,
   P2P_ATTACK_RESET_INTERVAL_MS,
-  P2P_ATTACK_COUNTS_STORAGE_KEY,
   PVP_RANGE_MIN,
   PVP_RANGE_MAX,
 } from '../constants';
@@ -28,26 +27,18 @@ export interface P2PAttackRecord {
 }
 
 export type P2PAttackCountsStore = Record<string, P2PAttackRecord>;
+let inMemoryAttackCountsStore: P2PAttackCountsStore = {};
 
 // ============================================================================
-// Helpers — localStorage persistence
+// Helpers — in-memory persistence
 // ============================================================================
 
 const loadAttackCounts = (): P2PAttackCountsStore => {
-  try {
-    const raw = localStorage.getItem(P2P_ATTACK_COUNTS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as P2PAttackCountsStore) : {};
-  } catch {
-    return {};
-  }
+  return inMemoryAttackCountsStore;
 };
 
 const saveAttackCounts = (store: P2PAttackCountsStore): void => {
-  try {
-    localStorage.setItem(P2P_ATTACK_COUNTS_STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // localStorage not available — continue silently
-  }
+  inMemoryAttackCountsStore = store;
 };
 
 /** Returns the record for a target, resetting the count if 24h have elapsed. */
