@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useGame } from '../../context/GameContext';
 import { useMultiplayerSync } from '../../hooks/useMultiplayer';
 import { useP2PGameSync } from '../../hooks/useP2PGameSync';
 import { OfflineWelcome } from '../OfflineWelcome';
 import { UnitType } from '../../types';
+import { useGameStoreSelector } from '../../stores/gameStore';
+import { selectGameState, selectOfflineReport, selectStatus } from '../../stores/selectors/gameSelectors';
 
 import { GameHeader } from '../GameHeader';
 import { GameSidebar, TabType, MobileNavBar } from '../GameSidebar';
@@ -15,7 +16,10 @@ import { ViewRouter } from './ViewRouter';
 import { WarHUD } from '../WarHUD';
 
 export const GameLayout: React.FC = () => {
-  const { status, gameState, offlineReport, clearOfflineReport } = useGame();
+  const status = useGameStoreSelector(selectStatus);
+  const gameState = useGameStoreSelector(selectGameState);
+  const offlineReport = useGameStoreSelector(selectOfflineReport);
+  const clearOfflineReport = useGameStoreSelector((state) => state.clearOfflineReport);
 
   const [activeTab, setActiveTab] = useState<TabType>('buildings');
   const [simEnemyArmy, setSimEnemyArmy] = useState<Partial<Record<UnitType, number>> | null>(null);

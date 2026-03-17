@@ -3,7 +3,7 @@ import React from 'react';
 import { GameState, ResourceType, UnitType } from '../../types';
 import { UNIT_DEFS } from '../../data/units';
 import { useLanguage } from '../../context/LanguageContext';
-import { GlassButton, Icons, SpeedUpButton } from '../UIComponents';
+import { GlassButton, Icons } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { WAR_DURATION_MS, WAR_PLAYER_ATTACKS, WAR_TOTAL_WAVES } from '../../constants';
 import { PvpAttackModal } from '../PvpAttackModal';
@@ -67,17 +67,6 @@ export const WarView: React.FC<WarViewProps> = ({ gameState, onSpy, onSimulate }
             (window as any)._updateGameState(newState);
         }
     };
-
-    // Calculate payout (50% of the pool)
-    const payout = {
-        [ResourceType.MONEY]: Math.floor(war.lootPool[ResourceType.MONEY] * 0.5),
-        [ResourceType.OIL]: Math.floor(war.lootPool[ResourceType.OIL] * 0.5),
-        [ResourceType.AMMO]: Math.floor(war.lootPool[ResourceType.AMMO] * 0.5),
-        [ResourceType.GOLD]: Math.floor(war.lootPool[ResourceType.GOLD] * 0.5),
-        [ResourceType.DIAMOND]: Math.floor(war.lootPool[ResourceType.DIAMOND] * 0.5)
-    };
-
-    const hasLoot = Object.values(payout).some(v => v > 0);
 
     return (
         <div className="flex flex-col min-h-full animate-[fadeIn_0.3s_ease-out] gap-4 relative">

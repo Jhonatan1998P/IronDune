@@ -2,41 +2,48 @@ import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-export interface AuthStoreState {
+interface AuthStoreState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  initialized: boolean;
   signOut: () => Promise<void>;
-  _setSession: (session: Session | null) => void;
-  _setLoading: (loading: boolean) => void;
+  bootstrap: () => void;
 }
 
-export const useAuthStore = create<AuthStoreState>()((set) => ({
+let isBootstrapping = false;
+
+export const useAuthStore = create<AuthStoreState>((set, get) => ({
   session: null,
   user: null,
   loading: true,
-
+  initialized: false,
   signOut: async () => {
     await supabase.auth.signOut();
   },
+  bootstrap: () => {
+    if (get().initialized || isBootstrapping) return;
+    isBootstrapping = true;
+    set({ loading: true });
 
-  _setSession: (session) =>
-    set({ session, user: session?.user ?? null, loading: false }),
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      set({
+        session,
+        user: session?.user ?? null,
+        loading: false,
+        initialized: true,
+      });
+      isBootstrapping = false;
+    });
 
-  _setLoading: (loading) => set({ loading }),
+    supabase.auth.onAuthStateChange((_event, session) => {
+      set({
+        session,
+        user: session?.user ?? null,
+        loading: false,
+        initialized: true,
+      });
+      isBootstrapping = false;
+    });
+  },
 }));
-
-let initialized = false;
-
-export function initAuthStore() {
-  if (initialized) return;
-  initialized = true;
-
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    useAuthStore.getState()._setSession(session);
-  });
-
-  supabase.auth.onAuthStateChange((_event, session) => {
-    useAuthStore.getState()._setSession(session);
-  });
-}

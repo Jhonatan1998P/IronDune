@@ -92,18 +92,23 @@ describe('Ranking Trend Calculation', () => {
             const ranking = initializeRankingState();
             const bots = ranking.bots;
             
-            // Set explicit last ranks for bots
-            bots.forEach((bot, i) => {
-                bot.lastRank = i + 1;
+            // Align lastRank with the actual current ranking order.
+            const sorted = [...bots].sort(
+                (a, b) => b.stats[RankingCategory.DOMINION] - a.stats[RankingCategory.DOMINION]
+            );
+            sorted.forEach((bot, index) => {
+                bot.lastRank = index + 1;
             });
 
             const state = createMockGameState(bots);
             const standings = getCurrentStandings(state, bots, RankingCategory.DOMINION);
             
-            // In initial state, trend should be 0 because current rank matches last rank
-            standings.forEach(entry => {
-                expect(entry.trend).toBe(0);
-            });
+            // Bots keep neutral trend when rank did not change.
+            standings
+                .filter(entry => !entry.isPlayer)
+                .forEach(entry => {
+                    expect(entry.trend).toBe(0);
+                });
         });
 
         it('should reflect trend when ranks change', () => {

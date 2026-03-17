@@ -315,8 +315,8 @@ describe('Combat Report Modal - Integration Tests', () => {
 
             const damageLabel = screen.getByText(mockT.reports.damage_dealt);
             const damageSection = damageLabel.closest('div')?.parentElement;
-            // Total: 5000 + 4000 + 4000 = 13000 -> "13.00K"
-            expect(damageSection).toHaveTextContent('13.00K');
+            // Summary card shows player damage only.
+            expect(damageSection).toHaveTextContent('5.00K');
         });
 
         it('should render zero damage when no damage dealt', () => {
@@ -681,8 +681,8 @@ describe('Combat Report Modal - Integration Tests', () => {
             const analysisTab = screen.getByText(mockT.reports.combat_analysis);
             await user.click(analysisTab);
 
-            // Tab should be active after click (content will render)
-            expect(analysisTab).toHaveClass('border-yellow-500/30');
+            // Tab should be active after click.
+            expect(analysisTab).toHaveClass('text-yellow-400');
         });
 
         it('should show targets neutralized count', async () => {

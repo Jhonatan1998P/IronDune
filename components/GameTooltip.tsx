@@ -35,7 +35,7 @@ const getResourceValue = (resources: Record<string, number> | undefined, key: st
 export const GameTooltip: React.FC<GameTooltipProps> = ({
     title, description, cost, resources, production, stats, requirements, rapidFire, footer, resourceType
 }) => {
-    const { t, language } = useLanguage();
+    const { t } = useLanguage();
 
     return (
         <div className="flex flex-col gap-2.5 min-w-[200px] xs:min-w-[220px]">

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Icons } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
-import { useGame } from '../context/GameContext';
 import { useProfileRole } from '../hooks/useProfileRole';
 import { gameEventBus } from '../utils/eventBus';
 import { APP_VERSION } from '../constants';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectActiveWar, selectHasNewReports } from '../stores/selectors/gameSelectors';
 
 export type TabType = 'buildings' | 'units' | 'missions' | 'research' | 'finance' | 'settings' | 'reports' | 'simulator' | 'campaign' | 'market' | 'rankings' | 'war' | 'diplomacy' | 'chat' | 'salvage' | 'devtools';
 
@@ -46,10 +47,11 @@ const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, se
 
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
   const { t } = useLanguage();
-  const { hasNewReports, gameState } = useGame();
+  const hasNewReports = useGameStoreSelector(selectHasNewReports);
+  const activeWar = useGameStoreSelector(selectActiveWar);
   const { isPrivileged } = useProfileRole();
 
-  const hasActiveWar = !!gameState.activeWar;
+  const hasActiveWar = !!activeWar;
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
   const activeTabRef = useRef(activeTab);
   
@@ -220,7 +222,8 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 
 export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabType) => void }> = React.memo(({ activeTab, setActiveTab }) => {
     const { t } = useLanguage();
-    const { hasNewReports, gameState } = useGame();
+    const hasNewReports = useGameStoreSelector(selectHasNewReports);
+    const activeWar = useGameStoreSelector(selectActiveWar);
     const { isPrivileged } = useProfileRole();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -278,7 +281,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
         { id: 'missions' as TabType, icon: Icons.Radar, label: t.missions.patrol.title.split(' ')[0] },
         { id: 'salvage' as TabType, icon: Icons.Radar, label: t.common.ui.nav_salvage || 'Salvamento', color: 'text-yellow-400' },
         { id: 'campaign' as TabType, icon: NavIcons.Map, label: t.common.ui.nav_map },
-        { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!gameState.activeWar, color: 'text-red-500' },
+        { id: 'war' as TabType, icon: Icons.Army, label: t.common.war.title, activeOnly: !!activeWar, color: 'text-red-500' },
         { id: 'market' as TabType, icon: NavIcons.Market, label: t.common.ui.nav_market },
         { id: 'finance' as TabType, icon: NavIcons.Finance, label: t.common.ui.nav_economy },
         { id: 'research' as TabType, icon: Icons.Science, label: t.common.ui.nav_research },

@@ -10,11 +10,6 @@ import { formatNumber, formatDuration } from '../../utils';
 import { calculateRecruitmentCost, calculateRecruitmentTime, calculateMaxAffordableUnits } from '../../utils/formulas';
 import { calculateProductionRates, calculateUpkeepCosts, calculateTechMultipliers } from '../../utils/engine/modifiers';
 
-interface ViewProps {
-  gameState: GameState;
-  onAction: (id: UnitType, amount: number) => void;
-}
-
 const DEFENSE_THRESHOLD_PCT = 0.2;
 
 const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: UnitType, amount: number) => void, t: TranslationDictionary }> = React.memo(({ def, gameState, onAction, t }) => {
@@ -253,7 +248,7 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
     );
 });
 
-export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType, amount: number) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = React.memo(({ gameState, onAction, onSpeedUp }) => {
+export const UnitsView: React.FC<{ gameState: GameState; onAction: (id: UnitType, amount: number) => void; onSpeedUp: (targetId: string, type: "BUILD" | "RECRUIT" | "RESEARCH" | "MISSION") => void }> = React.memo(({ gameState, onAction, onSpeedUp: _onSpeedUp }) => {
   const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<UnitCategory | 'ALL'>('ALL');
 

@@ -7,8 +7,9 @@
 
 import React, { useEffect, Suspense, lazy, useMemo, useCallback, useRef } from 'react';
 import { TabType } from '../GameSidebar';
-import { useGame } from '../../context/GameContext';
 import { UnitType, GameState } from '../../types';
+import { useGameStoreSelector } from '../../stores/gameStore';
+import { selectGameState, selectLogs } from '../../stores/selectors/gameSelectors';
 
 // Lazy load all views for better code splitting
 const BuildingsView = lazy(() => import('../views/BuildingsView').then(m => ({ default: m.BuildingsView })));
@@ -129,14 +130,28 @@ const useViewProps = (
 };
 
 export const ViewRouter: React.FC<ViewRouterProps> = React.memo(({ activeTab, simEnemyArmy, simPlayerArmy, onSimulateRequest }) => {
-    const {
-        gameState, logs,
-        build, recruit, research, handleBankTransaction,
-        startMission, startSalvageMission, executeCampaignBattle, executeTrade, executeDiamondExchange,
-        speedUp, spyOnAttacker, repair,
-        deleteLogs, archiveLogs, markReportsRead,
-        resetGame, saveGame, exportSave, changePlayerName, redeemGiftCode
-    } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
+    const logs = useGameStoreSelector(selectLogs);
+    const build = useGameStoreSelector((state) => state.build);
+    const recruit = useGameStoreSelector((state) => state.recruit);
+    const research = useGameStoreSelector((state) => state.research);
+    const handleBankTransaction = useGameStoreSelector((state) => state.handleBankTransaction);
+    const startMission = useGameStoreSelector((state) => state.startMission);
+    const startSalvageMission = useGameStoreSelector((state) => state.startSalvageMission);
+    const executeCampaignBattle = useGameStoreSelector((state) => state.executeCampaignBattle);
+    const executeTrade = useGameStoreSelector((state) => state.executeTrade);
+    const executeDiamondExchange = useGameStoreSelector((state) => state.executeDiamondExchange);
+    const speedUp = useGameStoreSelector((state) => state.speedUp);
+    const spyOnAttacker = useGameStoreSelector((state) => state.spyOnAttacker);
+    const repair = useGameStoreSelector((state) => state.repair);
+    const deleteLogs = useGameStoreSelector((state) => state.deleteLogs);
+    const archiveLogs = useGameStoreSelector((state) => state.archiveLogs);
+    const markReportsRead = useGameStoreSelector((state) => state.markReportsRead);
+    const resetGame = useGameStoreSelector((state) => state.resetGame);
+    const saveGame = useGameStoreSelector((state) => state.saveGame);
+    const exportSave = useGameStoreSelector((state) => state.exportSave);
+    const changePlayerName = useGameStoreSelector((state) => state.changePlayerName);
+    const redeemGiftCode = useGameStoreSelector((state) => state.redeemGiftCode);
 
     const handleSimulate = useCallback((enemy: Partial<Record<UnitType, number>>, player: Partial<Record<UnitType, number>>) => {
         onSimulateRequest(enemy, player);

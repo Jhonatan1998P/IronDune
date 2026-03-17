@@ -1,6 +1,5 @@
 
 import React, { useMemo } from 'react';
-import { useGame } from '../context/GameContext';
 import { ResourceType } from '../types';
 import { ResourceDisplay, SmartTooltip, Icons, ResourceIcon } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
@@ -8,13 +7,15 @@ import { useLanguage } from '../context/LanguageContext';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
 import { getIncomeStats } from '../utils/engine/selectors';
 import { MultiplayerButton } from './MultiplayerButton';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 interface GameHeaderProps {
     onToggleStatus?: () => void;
 }
 
 export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatus }) => {
-  const { gameState } = useGame();
+  const gameState = useGameStoreSelector(selectGameState);
   const { t } = useLanguage();
   
   const isProtected = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;

@@ -1,29 +1,33 @@
 import React, { useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 
+interface AuthContextType {
+  session: ReturnType<typeof useAuthStore.getState>['session'];
+  user: ReturnType<typeof useAuthStore.getState>['user'];
+  loading: boolean;
+  signOut: () => Promise<void>;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const _setSession = useAuthStore((s) => s._setSession);
+  const bootstrap = useAuthStore((state) => state.bootstrap);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      _setSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      _setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    bootstrap();
+  }, [bootstrap]);
 
   return <>{children}</>;
 };
 
-export const useAuth = () => {
-  const session = useAuthStore((s) => s.session);
-  const user = useAuthStore((s) => s.user);
-  const loading = useAuthStore((s) => s.loading);
-  const signOut = useAuthStore((s) => s.signOut);
+export const useAuth = (): AuthContextType => {
+  const bootstrap = useAuthStore((state) => state.bootstrap);
+  const session = useAuthStore((state) => state.session);
+  const user = useAuthStore((state) => state.user);
+  const loading = useAuthStore((state) => state.loading);
+  const signOut = useAuthStore((state) => state.signOut);
+
+  useEffect(() => {
+    bootstrap();
+  }, [bootstrap]);
+
   return { session, user, loading, signOut };
 };

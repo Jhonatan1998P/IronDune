@@ -136,15 +136,14 @@ describe('Bot Growth System', () => {
             
             const result = processRankingEvolution([warlord], GROWTH_INTERVAL + 3600000);
             
-            // Full cycle: 500 * 1.09 = 545
-            // Partial (1h = 1/6): 545 * 0.09 * (1/6) = 8
-            // Total: 545 + 8 = 553
-            const expected = 553;
+            const fullCycle = Math.floor(initialMilitary * 1.09);
+            const partialRate = 1 / 6;
+            const expected = Math.floor(fullCycle * (1 + (0.09 * partialRate)));
             
             console.log(`7 hours (6h + 1h partial):`);
             console.log(`  Initial: ${initialMilitary}`);
-            console.log(`  Full cycle (9%): 545`);
-            console.log(`  Partial: 8`);
+            console.log(`  Full cycle (9%): ${fullCycle}`);
+            console.log(`  Partial rate: ${(0.09 * partialRate).toFixed(4)}`);
             console.log(`  Expected: ${expected}`);
             console.log(`  Actual: ${result.bots[0].stats[RankingCategory.MILITARY]}`);
             
@@ -161,13 +160,15 @@ describe('Bot Growth System', () => {
             
             const result = processRankingEvolution([warlord], GROWTH_INTERVAL * 2 + 1800000);
             
-            console.log(`12.5 hours (2 cycles + 0.5 partial):`);
-            console.log(`  Expected: ~597`);
+            const afterTwoCycles = Math.floor(Math.floor(initialMilitary * 1.09) * 1.09);
+            const expected = Math.floor(afterTwoCycles * (1 + (0.09 * (0.5 / 6))));
+
+            console.log(`12.5 hours (2 cycles + 0.5h partial):`);
+            console.log(`  Expected: ${expected}`);
             console.log(`  Actual: ${result.bots[0].stats[RankingCategory.MILITARY]}`);
             
             expect(result.cycles).toBe(3);
-            expect(result.bots[0].stats[RankingCategory.MILITARY]).toBeGreaterThanOrEqual(596);
-            expect(result.bots[0].stats[RankingCategory.MILITARY]).toBeLessThanOrEqual(599);
+            expect(result.bots[0].stats[RankingCategory.MILITARY]).toBe(expected);
         });
     });
 

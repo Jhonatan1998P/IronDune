@@ -1,11 +1,10 @@
 
 import React, { useEffect } from 'react';
-import { LanguageProvider } from './context/LanguageContext';
 import { GameProvider } from './context/GameContext';
 import { ToastProvider } from './components/ui/Toast';
 import { MultiplayerProvider } from './hooks/useMultiplayer';
 import { GameLayout } from './components/layout/GameLayout';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { useAuth } from './context/AuthContext';
 import { AuthView } from './components/auth/AuthView';
 import { TimeSyncService } from './lib/timeSync';
 
@@ -48,17 +47,13 @@ const AppContent: React.FC = () => {
  * App - Árbol de Providers
  */
 const App: React.FC = () => (
-    <LanguageProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <MultiplayerProvider>
-            <GameProvider>
-              <AppContent />
-            </GameProvider>
-          </MultiplayerProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </LanguageProvider>
+  <ToastProvider>
+    <MultiplayerProvider>
+      <GameProvider>
+        <AppContent />
+      </GameProvider>
+    </MultiplayerProvider>
+  </ToastProvider>
 );
 
 export default App;

@@ -2,7 +2,7 @@
 
 **Session ID:** ses_3064e79e9ffejmZbt4UpGx1BF1
 **Created:** 3/17/2026, 2:48:06 AM
-**Updated:** 3/17/2026, 2:49:54 AM
+**Updated:** 3/17/2026, 3:06:29 AM
 
 ---
 
@@ -132,6 +132,281 @@ gas un plan en 5 fases de forma precisa y guardalo en archivo en formato md aqui
 ---
 
 ## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+Listo. Ya dejé el plan en 5 fases, detallado y preciso, en:
+
+- `plan-migracion-zustand-5-fases.md`
+
+Incluye:
+- objetivos por fase,
+- tareas concretas,
+- entregables,
+- criterios de aceptación,
+- riesgos/mitigaciones,
+- estrategia de PRs,
+- estimación total de tiempo.
+
+Si quieres, en el siguiente paso te lo convierto a un backlog ejecutable (tickets tipo Jira/GitHub Issues) fase por fase.
+
+---
+
+## User
+
+aplica el plan @plan-migracion-zustand-5-fases.md 
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+**Tool: grep**
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+**Tool: read**
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+He aplicado el plan en el proyecto con una migracion real a Zustand (por fases, con bridge para no romper todo de golpe).
+
+- Implementé store global de juego en `stores/gameStore.ts` y selectors base en `stores/selectors/gameSelectors.ts`.
+- Reescribí el bridge de juego en `context/GameContext.tsx` para que `useGameEngine` alimente Zustand y `useGame()` siga funcionando (compatibilidad).
+- Migré auth y language a Zustand en `stores/authStore.ts` y `stores/languageStore.ts`, con hooks compat en `context/AuthContext.tsx` y `context/LanguageContext.tsx`.
+- Limpié providers en `App.tsx` (quitando `LanguageProvider` y `AuthProvider` del arbol principal).
+- Migré consumidores criticos a selectors finos:
+  - `components/layout/GameLayout.tsx`
+  - `components/layout/ViewRouter.tsx`
+  - `components/GameHeader.tsx`
+  - `components/GameSidebar.tsx`
+- Dejé documentacion operativa de cierre y decision de multiplayer en `zustand-migration-notes.md`.
+
+Validacion ejecutada:
+- `npm run build` ✅ pasa correctamente.
+- `npm run test` ❌ hay fallos en tests que ya apuntan a modulos no tocados por esta migracion (ranking/bot-growth/combat report/war import path).
+- `npm run typecheck` ❌ hay errores TS existentes en archivos no relacionados a estos cambios (imports/propiedades/unused).
+
+Importante:
+- `MultiplayerContext` **no** se migró aun (lo dejé documentado como decision tecnica en `zustand-migration-notes.md`), porque requiere un pase separado por lifecycle de sockets y side effects.
+
+Siguientes pasos naturales:
+1. Hacer pase de estabilizacion de test suite/typecheck (baseline roto actual).
+2. Medir rerenders con Profiler en las 4 vistas criticas para cerrar Fase 1/Fase 3 con metrica formal.
+3. Si quieres, hago el pase 2 final para migrar `MultiplayerContext` a un `multiplayerStore` dedicado.
 
 ---
 

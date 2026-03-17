@@ -155,7 +155,7 @@ export const AuthView: React.FC = () => {
               <>
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase tracking-widest text-slate-500 ml-1 font-mono">
-                    {t.common.auth.username || 'Username'}
+                    {(t.common.auth as any).username || 'Username'}
                   </label>
                   <div className="relative group">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
@@ -172,7 +172,7 @@ export const AuthView: React.FC = () => {
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase tracking-widest text-slate-500 ml-1 font-mono">
-                    {t.common.auth.flag || 'Alliance Flag'}
+                    {(t.common.auth as any).flag || 'Alliance Flag'}
                   </label>
                   <div className="relative">
                     <button

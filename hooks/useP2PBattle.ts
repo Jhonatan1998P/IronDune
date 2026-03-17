@@ -10,14 +10,9 @@ import { battleService } from '../src/services/battleService';
 import type { UnitType } from '../types/enums';
 import type {
   P2PBattleState,
-  P2PBattleStatus,
   P2PBattleRecord,
   BattleChallengePayload,
-  BattleAcceptPayload,
-  BattleDeclinePayload,
-  BattleArmyLockPayload,
   BattleResultSyncPayload,
-  BattleCancelPayload,
   MultiplayerAction,
   PlayerPresence,
 } from '../types/multiplayer';
