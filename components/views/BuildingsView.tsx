@@ -75,10 +75,18 @@ interface ViewProps {
         totalTime = calculateConstructionTime(def, effectiveLevel, effectiveAmount);
     }
 
+    const resources = gameState.resources || {
+      [ResourceType.MONEY]: 0,
+      [ResourceType.OIL]: 0,
+      [ResourceType.AMMO]: 0,
+      [ResourceType.GOLD]: 0,
+      [ResourceType.DIAMOND]: 0,
+    };
+
     canAfford = 
-      totalCost.money <= gameState.resources[ResourceType.MONEY] && 
-      totalCost.oil <= gameState.resources[ResourceType.OIL] &&
-      totalCost.ammo <= gameState.resources[ResourceType.AMMO];
+      totalCost.money <= resources[ResourceType.MONEY] && 
+      totalCost.oil <= resources[ResourceType.OIL] &&
+      totalCost.ammo <= resources[ResourceType.AMMO];
 
     const nextLevelProduction: Partial<Record<ResourceType, number>> = {};
     if (def.productionRate && !isDamaged) {
@@ -101,7 +109,7 @@ interface ViewProps {
             title={info.name}
             description={info.description}
             cost={def.baseCost as unknown as Record<string, number>} 
-            resources={gameState.resources}
+            resources={resources}
             production={nextLevelProduction}
             resourceType={isDiamondMine ? 'DIAMOND' : undefined}
             stats={[
@@ -136,7 +144,7 @@ interface ViewProps {
                     <span>{isDamaged ? t.common.actions.repair + ' Cost' : t.common.ui.next_cost + (isQuantityMode && effectiveAmount > 1 ? ` (x${effectiveAmount})` : '')}</span>
                     {!isDamaged && <span className="text-blue-400 flex items-center gap-1"><Icons.Clock className="w-3 h-3" />{formatDuration(totalTime)}</span>}
                 </div>
-                <CostDisplay cost={totalCost} currentResources={gameState.resources} t={t} />
+                <CostDisplay cost={totalCost} currentResources={resources} t={t} />
               </div>
 
               <div className="space-y-3">
@@ -144,7 +152,7 @@ interface ViewProps {
                         <QuantitySelector 
                             value={buildAmount}
                             onChange={setBuildAmount}
-                            maxAffordable={calculateMaxAffordableBuildings(def, effectiveLevel, gameState.resources)}
+                            maxAffordable={calculateMaxAffordableBuildings(def, effectiveLevel, resources)}
                             t={t}
                             presets={[1, 5]}
                         />

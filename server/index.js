@@ -12,7 +12,7 @@ import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 import { startProductionLoop } from './engine/productionLoop.js';
-import { addResources, validateResourceDeduction } from './engine/resourceValidator.js';
+import { addResources, getOrCreatePlayerResources, validateResourceDeduction } from './engine/resourceValidator.js';
 import { ResourceType } from './engine/enums.js';
 
 const DEFAULT_ROLE = 'Usuario';
@@ -207,11 +207,7 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
       }
     }
 
-    const { data: authoritativeResources } = await supabase
-      .from('player_resources')
-      .select('money, oil, ammo, gold, diamond, money_max, oil_max, ammo_max, gold_max, diamond_max, bank_balance, interest_rate, next_rate_change')
-      .eq('player_id', req.user.id)
-      .single();
+    const authoritativeResources = await getOrCreatePlayerResources(req.user.id);
 
     if (authoritativeResources) {
       stateToSave.resources = {

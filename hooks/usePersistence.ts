@@ -21,6 +21,35 @@ const stripServerManagedFields = (state: GameState): GameState => {
   return sanitized as GameState;
 };
 
+const hydrateGameState = (input: Partial<GameState> | null | undefined): GameState => {
+  const merged = {
+    ...INITIAL_GAME_STATE,
+    ...(input || {}),
+  } as GameState;
+
+  merged.resources = {
+    ...INITIAL_GAME_STATE.resources,
+    ...(input?.resources || {}),
+  };
+
+  merged.maxResources = {
+    ...INITIAL_GAME_STATE.maxResources,
+    ...(input?.maxResources || {}),
+  };
+
+  merged.buildings = {
+    ...INITIAL_GAME_STATE.buildings,
+    ...(input?.buildings || {}),
+  };
+
+  merged.units = {
+    ...INITIAL_GAME_STATE.units,
+    ...(input?.units || {}),
+  };
+
+  return merged;
+};
+
 export const usePersistence = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
@@ -200,7 +229,8 @@ export const usePersistence = (
     try {
       console.log('[LoadGame] Processing save data...');
 
-      const { newState, report, newLogs } = calculateOfflineProgress(saveData as GameState);
+      const hydratedState = hydrateGameState(saveData as Partial<GameState>);
+      const { newState, report, newLogs } = calculateOfflineProgress(hydratedState);
 
       if (newLogs.length > 0) {
           newState.logs = [...newLogs, ...newState.logs].slice(0, 100);
@@ -400,8 +430,21 @@ export const usePersistence = (
                     cloudUpdatedAtRef.current = cloudPayload.updatedAt;
                   }
                   if (cloudState) {
-                    console.warn('[Persistence] Cloud state is newer. Reloading from cloud.');
-                    loadGameFromData(cloudState);
+                    const hydratedCloud = hydrateGameState(cloudState as Partial<GameState>);
+                    const retryState: GameState = {
+                      ...stateToSave,
+                      resources: hydratedCloud.resources,
+                      maxResources: hydratedCloud.maxResources,
+                      bankBalance: hydratedCloud.bankBalance,
+                      currentInterestRate: hydratedCloud.currentInterestRate,
+                      nextRateChangeTime: hydratedCloud.nextRateChangeTime,
+                      lastInterestPayoutTime: hydratedCloud.lastInterestPayoutTime,
+                    };
+
+                    await saveCloudProfile(retryState);
+                    setHasSave(true);
+                    lastCloudSaveRef.current = now;
+                    console.warn('[Persistence] Conflict resolved by retrying save with fresh server revision.');
                   }
                 } catch (syncError) {
                   console.error('[Persistence] Conflict resolution failed', {
