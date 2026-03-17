@@ -55,6 +55,89 @@ const getResourceDiff = (before: Record<ResourceType, number>, after: Record<Res
 
 const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
 
+type CommandType =
+  | 'BUILD_START'
+  | 'BUILD_REPAIR'
+  | 'RECRUIT_START'
+  | 'RESEARCH_START'
+  | 'SPEEDUP'
+  | 'TRADE_EXECUTE'
+  | 'DIAMOND_EXCHANGE'
+  | 'ESPIONAGE_START'
+  | 'BANK_DEPOSIT'
+  | 'BANK_WITHDRAW'
+  | 'TUTORIAL_CLAIM_REWARD'
+  | 'GIFT_CODE_REDEEM'
+  | 'DIPLOMACY_GIFT'
+  | 'DIPLOMACY_PROPOSE_ALLIANCE'
+  | 'DIPLOMACY_PROPOSE_PEACE';
+
+const SERVER_STATE_PATCH_KEYS: Array<keyof GameState> = [
+  'buildings',
+  'units',
+  'activeConstructions',
+  'activeRecruitments',
+  'activeResearch',
+  'techLevels',
+  'researchedTechs',
+  'marketOffers',
+  'marketNextRefreshTime',
+  'activeMarketEvent',
+  'spyReports',
+  'empirePoints',
+  'logs',
+  'rankingData',
+  'diplomaticActions',
+  'redeemedGiftCodes',
+  'giftCodeCooldowns',
+  'completedTutorials',
+  'currentTutorialId',
+  'tutorialClaimable',
+  'tutorialAccepted',
+  'isTutorialMinimized',
+];
+
+interface LocalActionResult {
+  success: boolean;
+  newState?: GameState;
+  errorKey?: string;
+}
+
+const stripServerManagedFields = (state: GameState): Partial<GameState> => {
+  const sanitized = { ...state } as Partial<GameState>;
+  delete sanitized.resources;
+  delete sanitized.maxResources;
+  delete sanitized.bankBalance;
+  delete sanitized.currentInterestRate;
+  delete sanitized.nextRateChangeTime;
+  delete sanitized.lastInterestPayoutTime;
+  return sanitized;
+};
+
+const createCommandId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  const randomHex = () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+  const a = randomHex();
+  const b = randomHex();
+  return `${a.slice(0, 8)}-${a.slice(0, 4)}-4${a.slice(5, 8)}-a${b.slice(1, 4)}-${a.slice(0, 4)}${b}`;
+};
+
+const buildStatePatch = (before: GameState, after: GameState) => {
+  const patch: Partial<GameState> = {};
+  const sanitizedBefore = stripServerManagedFields(before);
+  const sanitizedAfter = stripServerManagedFields(after);
+
+  SERVER_STATE_PATCH_KEYS.forEach((key) => {
+    if (JSON.stringify(sanitizedBefore[key]) === JSON.stringify(sanitizedAfter[key])) return;
+    patch[key] = sanitizedAfter[key] as any;
+  });
+
+  return patch;
+};
+
 export const useGameActions = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
@@ -62,91 +145,157 @@ export const useGameActions = (
 ) => {
   const { session } = useAuth();
 
-  const sendResourceRequest = useCallback(async (path: string, payload: Record<string, unknown>) => {
+  const dispatchCommand = useCallback(async (
+    commandType: CommandType,
+    expectedRevision: number,
+    payload: Record<string, unknown>
+  ) => {
     const token = session?.access_token;
-    if (!token) return false;
+    if (!token) {
+      return { ok: false, errorCode: 'MISSING_AUTH', diagnostics: [] as string[] };
+    }
 
-    const response = await fetch(buildBackendUrl(path), {
+    const response = await fetch(buildBackendUrl('/api/command'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        commandId: createCommandId(),
+        type: commandType,
+        payload,
+        expectedRevision,
+      }),
     });
 
-    return response.ok;
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        errorCode: body?.errorCode || 'COMMAND_FAILED',
+        diagnostics: body?.diagnostics || [],
+      };
+    }
+
+    return {
+      ok: Boolean(body?.ok),
+      newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
+      diagnostics: body?.diagnostics || [],
+    };
   }, [session?.access_token]);
 
-  const applyActionWithServerValidation = useCallback((preview: ReturnType<typeof executeBuild>, executor: (state: GameState) => ReturnType<typeof executeBuild>) => {
+  const applyActionWithServerValidation = useCallback((
+    commandType: CommandType,
+    preview: LocalActionResult,
+    executor: (state: GameState) => LocalActionResult
+  ) => {
     if (!preview.success || !preview.newState) {
       if (preview.errorKey) addLog(preview.errorKey, 'info');
       return;
     }
 
     const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
+    const statePatch = buildStatePatch(gameState, preview.newState);
+    const expectedRevision = Number(gameState.revision || 0);
 
     const run = async () => {
-      if (hasAmounts(costs)) {
-        const deducted = await sendResourceRequest('/api/resources/deduct', { costs });
-        if (!deducted) {
+      const commandResult = await dispatchCommand(commandType, expectedRevision, {
+        costs: hasAmounts(costs) ? costs : {},
+        gains: hasAmounts(gains) ? gains : {},
+        statePatch,
+      });
+
+      if (!commandResult.ok) {
+        if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
           addLog('insufficient_funds', 'info');
           return;
         }
-      }
-
-      if (hasAmounts(gains)) {
-        const added = await sendResourceRequest('/api/resources/add', { gains });
-        if (!added) {
+        if (commandResult.errorCode === 'REVISION_MISMATCH') {
           addLog('server_sync_error', 'info');
           return;
         }
+        addLog('server_sync_error', 'info');
+        return;
       }
-
       setGameState((prev) => {
         const result = executor(prev);
-        if (result.success && result.newState) return result.newState;
+        if (result.success && result.newState) {
+          return {
+            ...result.newState,
+            revision: commandResult.newRevision ?? prev.revision,
+          };
+        }
         return prev;
       });
     };
 
     run();
-  }, [addLog, gameState.resources, sendResourceRequest, setGameState]);
+  }, [addLog, dispatchCommand, gameState, setGameState]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);
-    applyActionWithServerValidation(preview, (state) => executeBuild(state, type, amount));
-  }, [applyActionWithServerValidation, gameState, setGameState]);
+    applyActionWithServerValidation('BUILD_START', preview, (state: GameState) => executeBuild(state, type, amount));
+  }, [applyActionWithServerValidation, gameState]);
 
   const repair = useCallback((type: BuildingType) => {
       const preview = executeRepair(gameState, type);
-      applyActionWithServerValidation(preview, (state) => executeRepair(state, type));
+      applyActionWithServerValidation('BUILD_REPAIR', preview, (state: GameState) => executeRepair(state, type));
   }, [applyActionWithServerValidation, gameState]);
 
   const recruit = useCallback((type: UnitType, amount: number = 1) => {
     const preview = executeRecruit(gameState, type, amount);
-    applyActionWithServerValidation(preview, (state) => executeRecruit(state, type, amount));
+    applyActionWithServerValidation('RECRUIT_START', preview, (state: GameState) => executeRecruit(state, type, amount));
   }, [applyActionWithServerValidation, gameState]);
 
   const research = useCallback((techId: TechType) => {
     const preview = executeResearch(gameState, techId);
-    applyActionWithServerValidation(preview, (state) => executeResearch(state, techId));
+    applyActionWithServerValidation('RESEARCH_START', preview, (state: GameState) => executeResearch(state, techId));
   }, [applyActionWithServerValidation, gameState]);
 
   const handleBankTransaction = useCallback((amount: number, type: 'deposit' | 'withdraw') => {
-      setGameState(prev => {
-          const result = executeBankTransaction(prev, amount, type);
-          if (result.success && result.newState) {
-              return result.newState;
+      const preview = executeBankTransaction(gameState, amount, type);
+      if (!preview.success || !preview.newState) {
+        if (preview.errorKey) addLog(preview.errorKey, 'info');
+        return;
+      }
+
+      const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
+      const statePatch = buildStatePatch(gameState, preview.newState);
+      const expectedRevision = Number(gameState.revision || 0);
+
+      const run = async () => {
+        const commandResult = await dispatchCommand(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
+          costs: hasAmounts(costs) ? costs : {},
+          gains: hasAmounts(gains) ? gains : {},
+          statePatch,
+        });
+
+        if (!commandResult.ok) {
+          if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
+            addLog('insufficient_funds', 'info');
+            return;
           }
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+          addLog('server_sync_error', 'info');
+          return;
+        }
+
+        setGameState((prev) => {
+          const result = executeBankTransaction(prev, amount, type);
+          if (!result.success || !result.newState) return prev;
+          return {
+            ...result.newState,
+            revision: commandResult.newRevision ?? prev.revision,
+          };
+        });
+      };
+
+      run();
+  }, [addLog, dispatchCommand, gameState, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);
-      applyActionWithServerValidation(preview, (state) => executeSpeedUp(state, targetId, type));
+      applyActionWithServerValidation('SPEEDUP', preview, (state: GameState) => executeSpeedUp(state, targetId, type));
   }, [applyActionWithServerValidation, gameState]);
 
   const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
@@ -180,7 +329,7 @@ export const useGameActions = (
 
   const executeTrade = useCallback((offerId: string, amount: number) => {
       const preview = executeTradeAction(gameState, offerId, amount);
-      applyActionWithServerValidation(preview, (state) => executeTradeAction(state, offerId, amount));
+      applyActionWithServerValidation('TRADE_EXECUTE', preview, (state: GameState) => executeTradeAction(state, offerId, amount));
   }, [applyActionWithServerValidation, gameState]);
 
   const executeDiamondExchange = useCallback((targetResource: ResourceType, amount: number) => {
@@ -199,84 +348,65 @@ export const useGameActions = (
         return;
       }
 
-      const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
-      const run = async () => {
-        if (hasAmounts(costs)) {
-          const deducted = await sendResourceRequest('/api/resources/deduct', { costs });
-          if (!deducted) {
-            addLog('insufficient_funds', 'info');
-            return;
-          }
-        }
-        if (hasAmounts(gains)) {
-          const added = await sendResourceRequest('/api/resources/add', { gains });
-          if (!added) {
-            addLog('server_sync_error', 'info');
-            return;
-          }
-        }
-
-        setGameState((prev) => {
-          const result = executeDiamondAction(prev, targetResource, amount);
-          if (!result.success || !result.newState) return prev;
-          if (result.log) {
-            return {
+      applyActionWithServerValidation('DIAMOND_EXCHANGE', preview, (state: GameState) => {
+        const result = executeDiamondAction(state, targetResource, amount);
+        if (!result.success || !result.newState) return { success: false };
+        if (result.log) {
+          return {
+            success: true,
+            newState: {
               ...result.newState,
               logs: limitLogs([result.log, ...result.newState.logs], 100),
-            };
-          }
-          return result.newState;
-        });
-      };
-
-      run();
-  }, [addLog, gameState, sendResourceRequest, setGameState]);
+            },
+          };
+        }
+        return result;
+      });
+  }, [applyActionWithServerValidation, gameState, setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
     setGameState(prev => ({ ...prev, tutorialAccepted: true }));
   }, [setGameState]);
 
-  const claimTutorialReward = useCallback(() => {
-      setGameState(prev => {
-          if (!prev.currentTutorialId || !prev.tutorialClaimable) return prev;
-          const step = TUTORIAL_STEPS.find(s => s.id === prev.currentTutorialId);
-          if (!step) return prev;
+  const applyTutorialRewardLocal = useCallback((state: GameState): LocalActionResult => {
+      if (!state.currentTutorialId || !state.tutorialClaimable) return { success: false };
+      const step = TUTORIAL_STEPS.find(s => s.id === state.currentTutorialId);
+      if (!step) return { success: false };
 
-          const newCompleted = [...prev.completedTutorials, step.id];
-          const nextStep = TUTORIAL_STEPS.find(s => !newCompleted.includes(s.id));
-          const newResources = { ...prev.resources };
-          const newBuildings = { ...prev.buildings };
-          const newUnits = { ...prev.units };
-          
-          // Apply Resource Rewards
-          Object.entries(step.reward).forEach(([r, val]) => {
-              const res = r as ResourceType;
-              newResources[res] = Math.min(prev.maxResources[res], newResources[res] + (val as number));
+      const newCompleted = [...state.completedTutorials, step.id];
+      const nextStep = TUTORIAL_STEPS.find(s => !newCompleted.includes(s.id));
+      const newResources = { ...state.resources };
+      const newBuildings = { ...state.buildings };
+      const newUnits = { ...state.units };
+
+      Object.entries(step.reward).forEach(([r, val]) => {
+          const res = r as ResourceType;
+          newResources[res] = Math.min(state.maxResources[res], newResources[res] + (val as number));
+      });
+
+      if (step.buildingReward) {
+          Object.entries(step.buildingReward).forEach(([bId, amount]) => {
+              const bType = bId as BuildingType;
+              if (newBuildings[bType]) {
+                  newBuildings[bType] = {
+                      ...newBuildings[bType],
+                      level: newBuildings[bType].level + (amount as number)
+                  };
+              }
           });
+      }
 
-          // Apply Building Rewards (Levels/Quantity)
-          if (step.buildingReward) {
-              Object.entries(step.buildingReward).forEach(([bId, amount]) => {
-                  const bType = bId as BuildingType;
-                  if (newBuildings[bType]) {
-                      newBuildings[bType] = { 
-                          ...newBuildings[bType], 
-                          level: newBuildings[bType].level + (amount as number) 
-                      };
-                  }
-              });
-          }
+      if (step.unitReward) {
+          Object.entries(step.unitReward).forEach(([uId, amount]) => {
+              const uType = uId as UnitType;
+              newUnits[uType] = (newUnits[uType] || 0) + (amount as number);
+          });
+      }
 
-          // Apply Unit Rewards
-          if (step.unitReward) {
-              Object.entries(step.unitReward).forEach(([uId, amount]) => {
-                  const uType = uId as UnitType;
-                  newUnits[uType] = (newUnits[uType] || 0) + (amount as number);
-              });
-          }
-
-          return {
-              ...prev,
+      return {
+          success: true,
+          newState: {
+              ...state,
               completedTutorials: newCompleted,
               currentTutorialId: nextStep ? nextStep.id : null,
               tutorialClaimable: false,
@@ -285,9 +415,15 @@ export const useGameActions = (
               buildings: newBuildings,
               units: newUnits,
               isTutorialMinimized: false
-          };
-      });
-  }, [setGameState]);
+          }
+      };
+  }, []);
+
+  const claimTutorialReward = useCallback(() => {
+      const preview = applyTutorialRewardLocal(gameState);
+      if (!preview.success || !preview.newState) return;
+      applyActionWithServerValidation('TUTORIAL_CLAIM_REWARD', preview, (state: GameState) => applyTutorialRewardLocal(state));
+  }, [applyActionWithServerValidation, applyTutorialRewardLocal, gameState]);
 
   const toggleTutorialMinimize = useCallback(() => {
     setGameState(prev => ({ ...prev, isTutorialMinimized: !prev.isTutorialMinimized }));
@@ -295,7 +431,7 @@ export const useGameActions = (
 
   const spyOnAttacker = useCallback((attackId: string) => {
       const preview = executeEspionage(gameState, attackId);
-      applyActionWithServerValidation(preview, (state) => executeEspionage(state, attackId));
+      applyActionWithServerValidation('ESPIONAGE_START', preview, (state: GameState) => executeEspionage(state, attackId));
   }, [applyActionWithServerValidation, gameState]);
 
   const changePlayerName = useCallback((newName: string, flag?: string): { success: boolean; errorKey?: string } => {
@@ -355,47 +491,67 @@ export const useGameActions = (
       const result = sendGift(gameState, botId, now);
       
       if (result.success && result.newReputation !== undefined) {
-          setGameState(prev => {
-              const newBots = prev.rankingData.bots.map(bot => 
-                  bot.id === botId 
-                      ? { ...bot, reputation: result.newReputation! }
-                      : bot
-              );
-              
-              const newDiplomaticActions = {
-                  ...prev.diplomaticActions,
-                  [botId]: {
-                      ...(prev.diplomaticActions[botId] || {}),
-                      lastGiftTime: now
-                  }
-              };
-              
-              const newLog: LogEntry = {
+          const preview: LocalActionResult = {
+            success: true,
+            newState: {
+              ...gameState,
+              rankingData: {
+                ...gameState.rankingData,
+                bots: gameState.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: result.newReputation! } : bot)
+              },
+              diplomaticActions: {
+                ...gameState.diplomaticActions,
+                [botId]: {
+                  ...(gameState.diplomaticActions[botId] || {}),
+                  lastGiftTime: now,
+                },
+              },
+              resources: result.newResources ? { ...gameState.resources, ...result.newResources } : gameState.resources,
+              logs: limitLogs([
+                {
                   id: `dip-gift-${now}`,
                   messageKey: result.messageKey,
                   type: 'info',
                   timestamp: now,
-                  params: result.params
-              };
-              
-              const newResources = result.newResources 
-                  ? { ...prev.resources, ...result.newResources }
-                  : prev.resources;
-              
-              return {
-                  ...prev,
-                  rankingData: {
-                      ...prev.rankingData,
-                      bots: newBots
-                  },
-                  diplomaticActions: newDiplomaticActions,
-                  resources: newResources,
-                  logs: limitLogs([newLog, ...prev.logs], 100)
-              };
-          });
+                  params: result.params,
+                },
+                ...gameState.logs,
+              ], 100),
+            },
+          };
 
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+          applyActionWithServerValidation('DIPLOMACY_GIFT', preview, (state: GameState) => {
+            const live = sendGift(state, botId, now);
+            if (!live.success || live.newReputation === undefined) return { success: false };
+            return {
+              success: true,
+              newState: {
+                ...state,
+                rankingData: {
+                  ...state.rankingData,
+                  bots: state.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: live.newReputation! } : bot),
+                },
+                diplomaticActions: {
+                  ...state.diplomaticActions,
+                  [botId]: {
+                    ...(state.diplomaticActions[botId] || {}),
+                    lastGiftTime: now,
+                  },
+                },
+                resources: live.newResources ? { ...state.resources, ...live.newResources } : state.resources,
+                logs: limitLogs([
+                  {
+                    id: `dip-gift-${now}`,
+                    messageKey: live.messageKey,
+                    type: 'info',
+                    timestamp: now,
+                    params: live.params,
+                  },
+                  ...state.logs,
+                ], 100),
+              },
+            };
+          });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -409,42 +565,65 @@ export const useGameActions = (
       const result = proposeAlliance(gameState, botId, now);
       
       if (result.success && result.newReputation !== undefined) {
-          setGameState(prev => {
-              const newBots = prev.rankingData.bots.map(bot => 
-                  bot.id === botId 
-                      ? { ...bot, reputation: result.newReputation! }
-                      : bot
-              );
-              
-              const newDiplomaticActions = {
-                  ...prev.diplomaticActions,
-                  [botId]: {
-                      ...(prev.diplomaticActions[botId] || {}),
-                      lastAllianceTime: now
-                  }
-              };
-              
-              const newLog: LogEntry = {
+          const preview: LocalActionResult = {
+            success: true,
+            newState: {
+              ...gameState,
+              rankingData: {
+                ...gameState.rankingData,
+                bots: gameState.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: result.newReputation! } : bot),
+              },
+              diplomaticActions: {
+                ...gameState.diplomaticActions,
+                [botId]: {
+                  ...(gameState.diplomaticActions[botId] || {}),
+                  lastAllianceTime: now,
+                },
+              },
+              logs: limitLogs([
+                {
                   id: `dip-alliance-${now}`,
                   messageKey: result.messageKey,
                   type: 'info',
                   timestamp: now,
-                  params: result.params
-              };
-              
-              return {
-                  ...prev,
-                  rankingData: {
-                      ...prev.rankingData,
-                      bots: newBots
-                  },
-                  diplomaticActions: newDiplomaticActions,
-                  logs: limitLogs([newLog, ...prev.logs], 100)
-              };
-          });
+                  params: result.params,
+                },
+                ...gameState.logs,
+              ], 100),
+            },
+          };
 
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+          applyActionWithServerValidation('DIPLOMACY_PROPOSE_ALLIANCE', preview, (state: GameState) => {
+            const live = proposeAlliance(state, botId, now);
+            if (!live.success || live.newReputation === undefined) return { success: false };
+            return {
+              success: true,
+              newState: {
+                ...state,
+                rankingData: {
+                  ...state.rankingData,
+                  bots: state.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: live.newReputation! } : bot),
+                },
+                diplomaticActions: {
+                  ...state.diplomaticActions,
+                  [botId]: {
+                    ...(state.diplomaticActions[botId] || {}),
+                    lastAllianceTime: now,
+                  },
+                },
+                logs: limitLogs([
+                  {
+                    id: `dip-alliance-${now}`,
+                    messageKey: live.messageKey,
+                    type: 'info',
+                    timestamp: now,
+                    params: live.params,
+                  },
+                  ...state.logs,
+                ], 100),
+              },
+            };
+          });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -458,42 +637,65 @@ export const useGameActions = (
       const result = proposePeace(gameState, botId, now);
       
       if (result.success && result.newReputation !== undefined) {
-          setGameState(prev => {
-              const newBots = prev.rankingData.bots.map(bot => 
-                  bot.id === botId 
-                      ? { ...bot, reputation: result.newReputation! }
-                      : bot
-              );
-              
-              const newDiplomaticActions = {
-                  ...prev.diplomaticActions,
-                  [botId]: {
-                      ...(prev.diplomaticActions[botId] || {}),
-                      lastPeaceTime: now
-                  }
-              };
-              
-              const newLog: LogEntry = {
+          const preview: LocalActionResult = {
+            success: true,
+            newState: {
+              ...gameState,
+              rankingData: {
+                ...gameState.rankingData,
+                bots: gameState.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: result.newReputation! } : bot),
+              },
+              diplomaticActions: {
+                ...gameState.diplomaticActions,
+                [botId]: {
+                  ...(gameState.diplomaticActions[botId] || {}),
+                  lastPeaceTime: now,
+                },
+              },
+              logs: limitLogs([
+                {
                   id: `dip-peace-${now}`,
                   messageKey: result.messageKey,
                   type: 'info',
                   timestamp: now,
-                  params: result.params
-              };
-              
-              return {
-                  ...prev,
-                  rankingData: {
-                      ...prev.rankingData,
-                      bots: newBots
-                  },
-                  diplomaticActions: newDiplomaticActions,
-                  logs: limitLogs([newLog, ...prev.logs], 100)
-              };
-          });
+                  params: result.params,
+                },
+                ...gameState.logs,
+              ], 100),
+            },
+          };
 
-          // Trigger immediate save for critical diplomatic action
-          gameEventBus.emit(GameEventType.TRIGGER_SAVE, { force: true });
+          applyActionWithServerValidation('DIPLOMACY_PROPOSE_PEACE', preview, (state: GameState) => {
+            const live = proposePeace(state, botId, now);
+            if (!live.success || live.newReputation === undefined) return { success: false };
+            return {
+              success: true,
+              newState: {
+                ...state,
+                rankingData: {
+                  ...state.rankingData,
+                  bots: state.rankingData.bots.map(bot => bot.id === botId ? { ...bot, reputation: live.newReputation! } : bot),
+                },
+                diplomaticActions: {
+                  ...state.diplomaticActions,
+                  [botId]: {
+                    ...(state.diplomaticActions[botId] || {}),
+                    lastPeaceTime: now,
+                  },
+                },
+                logs: limitLogs([
+                  {
+                    id: `dip-peace-${now}`,
+                    messageKey: live.messageKey,
+                    type: 'info',
+                    timestamp: now,
+                    params: live.params,
+                  },
+                  ...state.logs,
+                ], 100),
+              },
+            };
+          });
 
           return { success: true, messageKey: result.messageKey, params: result.params };
       }
@@ -554,44 +756,98 @@ export const useGameActions = (
           }
       }
       
-      setGameState(prev => {
-          const newResources = { ...prev.resources };
-          
+      const preview: LocalActionResult = {
+        success: true,
+        newState: (() => {
+          const newResources = { ...gameState.resources };
           Object.entries(giftCode.rewards).forEach(([resource, amount]) => {
-              const resType = resource as ResourceType;
-              const currentAmount = newResources[resType] || 0;
-              const maxAmount = prev.maxResources[resType] || currentAmount;
-              newResources[resType] = Math.min(maxAmount, currentAmount + (amount || 0));
+            const resType = resource as ResourceType;
+            const currentAmount = newResources[resType] || 0;
+            const maxAmount = gameState.maxResources[resType] || currentAmount;
+            newResources[resType] = Math.min(maxAmount, currentAmount + (amount || 0));
           });
-          
-          let newRedeemedCodes = [...prev.redeemedGiftCodes];
-          let newCooldowns = { ...prev.giftCodeCooldowns };
-          
-          if (giftCode.cooldownHours === 0) {
-              newRedeemedCodes.push({ code: normalizedCode, redeemedAt: now });
-          } else {
-              newCooldowns[normalizedCode] = now;
-          }
-          
-          const newLog: LogEntry = {
-              id: `gift-${now}`,
-              messageKey: 'gift_code_success',
-              type: 'info',
-              timestamp: now,
-              params: { code: normalizedCode, rewards: giftCode.rewards }
-          };
-          
+
+          const newRedeemedCodes = giftCode.cooldownHours === 0
+            ? [...gameState.redeemedGiftCodes, { code: normalizedCode, redeemedAt: now }]
+            : [...gameState.redeemedGiftCodes];
+
+          const newCooldowns = giftCode.cooldownHours === 0
+            ? { ...gameState.giftCodeCooldowns }
+            : { ...gameState.giftCodeCooldowns, [normalizedCode]: now };
+
           return {
-              ...prev,
-              resources: newResources,
-              redeemedGiftCodes: newRedeemedCodes,
-              giftCodeCooldowns: newCooldowns,
-              logs: limitLogs([newLog, ...prev.logs], 100)
+            ...gameState,
+            resources: newResources,
+            redeemedGiftCodes: newRedeemedCodes,
+            giftCodeCooldowns: newCooldowns,
+            logs: limitLogs([
+              {
+                id: `gift-${now}`,
+                messageKey: 'gift_code_success',
+                type: 'info',
+                timestamp: now,
+                params: { code: normalizedCode, rewards: giftCode.rewards },
+              },
+              ...gameState.logs,
+            ], 100),
           };
+        })(),
+      };
+
+      applyActionWithServerValidation('GIFT_CODE_REDEEM', preview, (state: GameState) => {
+        const liveGiftCode = GIFT_CODES.find(gc => gc.code === normalizedCode);
+        if (!liveGiftCode) return { success: false };
+
+        if (liveGiftCode.cooldownHours === 0) {
+          const alreadyRedeemed = state.redeemedGiftCodes.some(rc => rc.code === normalizedCode);
+          if (alreadyRedeemed) return { success: false };
+        } else {
+          const lastRedeemed = state.giftCodeCooldowns[normalizedCode];
+          if (lastRedeemed) {
+            const cooldownMs = liveGiftCode.cooldownHours * 60 * 60 * 1000;
+            if (now - lastRedeemed < cooldownMs) return { success: false };
+          }
+        }
+
+        const newResources = { ...state.resources };
+        Object.entries(liveGiftCode.rewards).forEach(([resource, amount]) => {
+          const resType = resource as ResourceType;
+          const currentAmount = newResources[resType] || 0;
+          const maxAmount = state.maxResources[resType] || currentAmount;
+          newResources[resType] = Math.min(maxAmount, currentAmount + (amount || 0));
+        });
+
+        const newRedeemedCodes = liveGiftCode.cooldownHours === 0
+          ? [...state.redeemedGiftCodes, { code: normalizedCode, redeemedAt: now }]
+          : [...state.redeemedGiftCodes];
+
+        const newCooldowns = liveGiftCode.cooldownHours === 0
+          ? { ...state.giftCodeCooldowns }
+          : { ...state.giftCodeCooldowns, [normalizedCode]: now };
+
+        return {
+          success: true,
+          newState: {
+            ...state,
+            resources: newResources,
+            redeemedGiftCodes: newRedeemedCodes,
+            giftCodeCooldowns: newCooldowns,
+            logs: limitLogs([
+              {
+                id: `gift-${now}`,
+                messageKey: 'gift_code_success',
+                type: 'info',
+                timestamp: now,
+                params: { code: normalizedCode, rewards: liveGiftCode.rewards },
+              },
+              ...state.logs,
+            ], 100),
+          },
+        };
       });
       
       return { success: true, messageKey: 'gift_code_success' };
-  }, [gameState, setGameState]);
+  }, [GIFT_CODES, applyActionWithServerValidation, gameState]);
 
     const applyP2PBattleResult = useCallback((result: any, isAttacker: boolean) => {
         setGameState(prev => {

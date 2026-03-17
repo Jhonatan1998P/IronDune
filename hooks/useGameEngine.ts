@@ -218,6 +218,7 @@ export const useGameEngine = () => {
 
   return {
     status, 
+    bootstrapLoadStatus: persistence.bootstrapLoadStatus,
     gameState, 
     logs: gameState.logs, 
     hasSave: persistence.hasSave, 

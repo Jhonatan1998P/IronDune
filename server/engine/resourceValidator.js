@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase.js';
 import { ResourceType } from './enums.js';
 
+const ATOMIC_RESOURCE_MODE = process.env.SAFE_MODE_ATOMIC_RESOURCES !== 'false';
+
 const RESOURCE_COLUMN_MAP = {
   [ResourceType.MONEY]: 'money',
   [ResourceType.OIL]: 'oil',
@@ -75,6 +77,38 @@ export async function validateResourceDeduction(playerId, costs = {}) {
     return { ok: true, reason: 'no_cost', resources: await getOrCreatePlayerResources(playerId) };
   }
 
+  if (ATOMIC_RESOURCE_MODE) {
+    const { data, error } = await supabase.rpc('resource_deduct_atomic', {
+      p_player_id: playerId,
+      p_money: normalizedCosts[ResourceType.MONEY] || 0,
+      p_oil: normalizedCosts[ResourceType.OIL] || 0,
+      p_ammo: normalizedCosts[ResourceType.AMMO] || 0,
+      p_gold: normalizedCosts[ResourceType.GOLD] || 0,
+      p_diamond: normalizedCosts[ResourceType.DIAMOND] || 0,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) {
+      throw new Error('Atomic resource deduction returned empty response');
+    }
+
+    const resources = await getOrCreatePlayerResources(playerId);
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: result.reason || 'insufficient_funds',
+        resource: result.failed_resource || undefined,
+        resources,
+      };
+    }
+
+    return { ok: true, resources };
+  }
+
   const row = await getOrCreatePlayerResources(playerId);
   const updatePayload = {};
 
@@ -104,6 +138,35 @@ export async function addResources(playerId, gains = {}) {
   const normalizedGains = normalizeAmountMap(gains);
   if (Object.keys(normalizedGains).length === 0) {
     return { ok: true, reason: 'no_gain', resources: await getOrCreatePlayerResources(playerId) };
+  }
+
+  if (ATOMIC_RESOURCE_MODE) {
+    const { data, error } = await supabase.rpc('resource_add_atomic', {
+      p_player_id: playerId,
+      p_money: normalizedGains[ResourceType.MONEY] || 0,
+      p_oil: normalizedGains[ResourceType.OIL] || 0,
+      p_ammo: normalizedGains[ResourceType.AMMO] || 0,
+      p_gold: normalizedGains[ResourceType.GOLD] || 0,
+      p_diamond: normalizedGains[ResourceType.DIAMOND] || 0,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) {
+      throw new Error('Atomic resource add returned empty response');
+    }
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: result.reason || 'add_failed',
+      };
+    }
+
+    return { ok: true, resources: await getOrCreatePlayerResources(playerId) };
   }
 
   const row = await getOrCreatePlayerResources(playerId);

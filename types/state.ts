@@ -42,7 +42,14 @@ export interface BuildingState {
   isDamaged?: boolean; // New: Diamond Mine damage state
 }
 
-export type GameStatus = 'MENU' | 'PLAYING' | 'LOADING';
+export type GameStatus =
+  | 'MENU'
+  | 'PLAYING'
+  | 'LOADING'
+  | 'AUTHENTICATING'
+  | 'SYNCING_TIME'
+  | 'LOADING_BOOTSTRAP'
+  | 'HYDRATED';
 
 export type MissionDuration = 5 | 15 | 30 | 60; 
 
@@ -283,6 +290,7 @@ export interface GiftCodeRedeemed {
 }
 
 export interface GameState {
+  revision?: number;
   saveVersion: number; 
   lastResetId?: string; // ID for global server resets
   gameId: string; // Unique identifier for this save game

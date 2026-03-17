@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "server": "cd server && node index.js",
-    "server:dev": "cd server && node --watch index.js"
+    "server:dev": "cd server && node --watch index.js",
+    "normalized:check": "node server/scripts/normalized-backfill-check.js"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

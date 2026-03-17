@@ -47,7 +47,79 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
     ...(input?.units || {}),
   };
 
+  merged.logs = Array.isArray(input?.logs) ? input.logs : INITIAL_GAME_STATE.logs;
+  merged.activeMissions = Array.isArray(input?.activeMissions) ? input.activeMissions : INITIAL_GAME_STATE.activeMissions;
+  merged.activeRecruitments = Array.isArray(input?.activeRecruitments) ? input.activeRecruitments : INITIAL_GAME_STATE.activeRecruitments;
+  merged.activeConstructions = Array.isArray(input?.activeConstructions) ? input.activeConstructions : INITIAL_GAME_STATE.activeConstructions;
+  merged.incomingAttacks = Array.isArray(input?.incomingAttacks) ? input.incomingAttacks : INITIAL_GAME_STATE.incomingAttacks;
+  merged.spyReports = Array.isArray(input?.spyReports) ? input.spyReports : INITIAL_GAME_STATE.spyReports;
+  merged.redeemedGiftCodes = Array.isArray(input?.redeemedGiftCodes) ? input.redeemedGiftCodes : INITIAL_GAME_STATE.redeemedGiftCodes;
+  merged.researchedTechs = Array.isArray(input?.researchedTechs) ? input.researchedTechs : INITIAL_GAME_STATE.researchedTechs;
+
+  merged.giftCodeCooldowns = {
+    ...INITIAL_GAME_STATE.giftCodeCooldowns,
+    ...(input?.giftCodeCooldowns || {}),
+  };
+
+  merged.diplomaticActions = {
+    ...INITIAL_GAME_STATE.diplomaticActions,
+    ...(input?.diplomaticActions || {}),
+  };
+
   return merged;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
+
+type BootstrapLoadStatus = {
+  attempt: number;
+  maxAttempts: number;
+  nextRetryAt: number | null;
+  retryable: boolean;
+  blocked: boolean;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+};
+
+const INITIAL_BOOTSTRAP_LOAD_STATUS: BootstrapLoadStatus = {
+  attempt: 0,
+  maxAttempts: BOOTSTRAP_RETRY_DELAYS_MS.length,
+  nextRetryAt: null,
+  retryable: false,
+  blocked: false,
+  lastErrorCode: null,
+  lastErrorMessage: null,
+};
+
+type BootstrapLoadError = Error & {
+  errorCode?: string;
+  retryable?: boolean;
+  status?: number;
+};
+
+const makeBootstrapError = (message: string, options?: { errorCode?: string; retryable?: boolean; status?: number }): BootstrapLoadError => {
+  const error = new Error(message) as BootstrapLoadError;
+  if (options?.errorCode) error.errorCode = options.errorCode;
+  if (options?.retryable !== undefined) error.retryable = options.retryable;
+  if (options?.status !== undefined) error.status = options.status;
+  return error;
+};
+
+const isTransientBootstrapError = (error: unknown): boolean => {
+  const typed = error as BootstrapLoadError;
+  if (typed?.retryable === true) return true;
+
+  const message = error instanceof Error ? error.message : String(error || '');
+  if (!message) return false;
+  return (
+    message.includes('Failed to fetch')
+    || message.includes('NetworkError')
+    || message.includes('timeout')
+    || message.includes('503')
+    || message.includes('502')
+    || message.includes('500')
+  );
 };
 
 export const usePersistence = (
@@ -62,6 +134,7 @@ export const usePersistence = (
   const { user, session, signOut } = useAuth();
   const [hasSave, setHasSave] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
+  const [bootstrapLoadStatus, setBootstrapLoadStatus] = useState<BootstrapLoadStatus>(INITIAL_BOOTSTRAP_LOAD_STATUS);
   const initialCheckStartedRef = useRef(false);
   
   // Refs para evitar dependencias cambiantes
@@ -74,6 +147,7 @@ export const usePersistence = (
   useEffect(() => {
     setIsInitialLoadDone(false);
     setHasSave(false);
+    setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
     initialCheckStartedRef.current = false;
     cloudUpdatedAtRef.current = null;
   }, [user?.id]);
@@ -129,6 +203,47 @@ export const usePersistence = (
     return {
       state: payload?.game_state || null,
       updatedAt: payload?.updated_at || null
+    };
+  }, [getAuthHeaders, signOut, user?.id]);
+
+  const fetchBootstrapSnapshot = useCallback(async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return null;
+
+    const traceId = createTraceId('persist-bootstrap-v2');
+    const response = await fetch(buildBackendUrl('/api/bootstrap'), { headers });
+
+    if (response.status === 401) {
+      await signOut();
+      throw makeBootstrapError('Unauthorized', {
+        errorCode: 'BOOTSTRAP_UNAUTHORIZED',
+        retryable: false,
+        status: 401,
+      });
+    }
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw makeBootstrapError(payload?.error || 'Failed to load bootstrap', {
+        errorCode: payload?.errorCode,
+        retryable: Boolean(payload?.retryable),
+        status: response.status,
+      });
+    }
+
+    const payload = await response.json().catch(() => null);
+    console.log('[Persistence] Bootstrap payload loaded', {
+      traceId,
+      userId: shortId(user?.id),
+      revision: payload?.metadata?.revision ?? null,
+      resetId: payload?.metadata?.resetId ?? null,
+      updatedAt: payload?.updated_at ?? null,
+    });
+
+    return {
+      state: payload?.game_state || null,
+      updatedAt: payload?.updated_at || null,
+      resetId: payload?.metadata?.resetId || null,
     };
   }, [getAuthHeaders, signOut, user?.id]);
 
@@ -244,6 +359,7 @@ export const usePersistence = (
       }
 
       lastTickRef.current = TimeSyncService.getServerTime();
+      setStatus('HYDRATED');
       setStatus('PLAYING');
     } catch (e) {
       console.error("Failed to load save:", e);
@@ -273,6 +389,7 @@ export const usePersistence = (
     setOfflineReport(null);
     setHasNewReports(false);
     lastTickRef.current = TimeSyncService.getServerTime();
+    setStatus('HYDRATED');
     setStatus('PLAYING');
   }, [setGameState, setOfflineReport, setHasNewReports, lastTickRef, setStatus, user]);
 
@@ -284,29 +401,78 @@ export const usePersistence = (
       initialCheckStartedRef.current = true;
       const traceId = createTraceId('persist-bootstrap');
       try {
+        setStatus('AUTHENTICATING');
         console.log('[Persistence] Initial check started', {
           traceId,
           userId: shortId(user?.id),
           hasSession: Boolean(session),
         });
 
-        // 0. Check for Server Reset
-        const { data: metaData } = await supabase
-          .from('server_metadata')
-          .select('value')
-          .eq('key', 'last_reset_id')
-          .single();
-        
-        const serverResetId = metaData?.value;
+        setStatus('SYNCING_TIME');
+        await TimeSyncService.sync();
+
+        setStatus('LOADING_BOOTSTRAP');
+        setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
+        let bootstrapPayload = null;
+        let bootstrapError: unknown = null;
+
+        for (let attempt = 1; attempt <= BOOTSTRAP_RETRY_DELAYS_MS.length; attempt += 1) {
+          try {
+            bootstrapPayload = await fetchBootstrapSnapshot();
+            bootstrapError = null;
+            setBootstrapLoadStatus((prev) => ({
+              ...prev,
+              attempt,
+              nextRetryAt: null,
+              retryable: false,
+              blocked: false,
+              lastErrorCode: null,
+              lastErrorMessage: null,
+            }));
+            break;
+          } catch (error) {
+            bootstrapError = error;
+            const typedError = error as BootstrapLoadError;
+            const retryable = isTransientBootstrapError(error);
+            const nextRetryDelay = BOOTSTRAP_RETRY_DELAYS_MS[attempt] || null;
+            const exhaustedAttempts = attempt === BOOTSTRAP_RETRY_DELAYS_MS.length;
+
+            setBootstrapLoadStatus((prev) => ({
+              ...prev,
+              attempt,
+              retryable,
+              nextRetryAt: retryable && !exhaustedAttempts && nextRetryDelay ? Date.now() + nextRetryDelay : null,
+              blocked: !retryable || exhaustedAttempts,
+              lastErrorCode: typedError?.errorCode || null,
+              lastErrorMessage: error instanceof Error ? error.message : String(error || 'unknown'),
+            }));
+
+            if (!retryable || exhaustedAttempts) {
+              throw error;
+            }
+
+            console.warn('[Persistence] Transient bootstrap failure, retrying', {
+              traceId,
+              attempt,
+              userId: shortId(user?.id),
+              error: normalizeError(error),
+            });
+            await sleep(nextRetryDelay);
+          }
+        }
+
+        if (!bootstrapPayload && bootstrapError) {
+          throw bootstrapError;
+        }
+
+        const cloudState = bootstrapPayload?.state || null;
+        const serverResetId = bootstrapPayload?.resetId || null;
         console.log('[Persistence] Initial check reset metadata', {
           traceId,
           serverResetId,
         });
-        // 1. Fetch from Cloud (Master Authority)
-        const cloudPayload = await fetchCloudProfile();
-        const cloudState = cloudPayload?.state || null;
-        if (cloudPayload?.updatedAt) {
-          cloudUpdatedAtRef.current = cloudPayload.updatedAt;
+        if (bootstrapPayload?.updatedAt) {
+          cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
         }
 
         let authoritativeState = null;
@@ -343,6 +509,7 @@ export const usePersistence = (
           }
           setHasSave(true);
           loadGameFromData(authoritativeState);
+          setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
         } else {
           console.log('[Persistence] No valid saves found. Starting new game.');
           // Iniciamos partida nueva con el ResetID actual
@@ -357,7 +524,9 @@ export const usePersistence = (
             lastResetId: serverResetId,
             lastSaveTime: TimeSyncService.getServerTime() 
           });
+          setStatus('HYDRATED');
           setStatus('PLAYING');
+          setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
         }
       } catch (e) {
         console.error('[Persistence] Initial check failed', {
@@ -366,21 +535,27 @@ export const usePersistence = (
           error: normalizeError(e),
         });
 
-        const metadata = user?.user_metadata;
-        const playerName = metadata?.username || INITIAL_GAME_STATE.playerName;
-        const playerFlag = metadata?.flag || INITIAL_GAME_STATE.playerFlag;
-        setGameState({
-          ...INITIAL_GAME_STATE,
-          playerName,
-          playerFlag,
-          lastSaveTime: TimeSyncService.getServerTime(),
-        });
-        setStatus('PLAYING');
+        const typedError = e as BootstrapLoadError;
+        const message = e instanceof Error ? e.message : String(e || 'unknown');
+        const isUnauthorized = message.includes('Unauthorized');
+        const retryable = typedError?.retryable === true || isTransientBootstrapError(e);
+        setBootstrapLoadStatus((prev) => ({
+          ...prev,
+          retryable,
+          blocked: true,
+          nextRetryAt: null,
+          lastErrorCode: typedError?.errorCode || null,
+          lastErrorMessage: message,
+        }));
+        setStatus('MENU');
         setOfflineReport(null);
         setHasNewReports(false);
-        console.warn('[Persistence] Falling back to local new game after bootstrap failure', {
+        console.warn('[Persistence] Bootstrap failed; gameplay blocked until next successful bootstrap', {
           traceId,
           userId: shortId(user?.id),
+          blockedBy: isUnauthorized ? 'unauthorized' : 'transient_or_terminal_error',
+          retryable: typedError?.retryable === true,
+          errorCode: typedError?.errorCode || null,
         });
       } finally {
         setIsInitialLoadDone(true);
@@ -395,6 +570,7 @@ export const usePersistence = (
     isInitialLoadDone,
     loadGameFromData,
     fetchCloudProfile,
+    fetchBootstrapSnapshot,
     signOut,
     setGameState,
     setStatus,
@@ -483,5 +659,15 @@ export const usePersistence = (
       }, 50);
   }, [user, resetCloudProfile]);
 
-  return { hasSave, startNewGame, loadGame: () => {}, saveGame, exportSave: () => {}, importSave: () => false, resetGame, performAutoSave };
+  return {
+    hasSave,
+    bootstrapLoadStatus,
+    startNewGame,
+    loadGame: () => {},
+    saveGame,
+    exportSave: () => {},
+    importSave: () => false,
+    resetGame,
+    performAutoSave,
+  };
 };

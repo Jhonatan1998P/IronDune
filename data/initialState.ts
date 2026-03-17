@@ -27,6 +27,7 @@ initBuildings[BuildingType.DIAMOND_MINE] = { level: 1, isDamaged: false };
 initBuildings[BuildingType.BANK] = { level: 1, isDamaged: false };
 
 export const INITIAL_GAME_STATE: GameState = {
+  revision: 0,
   saveVersion: SAVE_VERSION,
   lastResetId: undefined,
   gameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

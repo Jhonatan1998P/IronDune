@@ -5,6 +5,34 @@
 
 import { GameState, QueuedAttackResult, LogEntry } from '../../types';
 import { buildBackendUrl } from '../../lib/backend';
+import { supabase } from '../../lib/supabase';
+
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+        throw new Error('Missing auth token for battle endpoint');
+    }
+
+    return {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+    };
+};
+
+const postBattle = async <T>(path: string, payload: unknown): Promise<T> => {
+    const response = await fetch(buildBackendUrl(path), {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json() as Promise<T>;
+};
 
 export const battleService = {
     /**
@@ -16,14 +44,7 @@ export const battleService = {
         newLogs: LogEntry[];
     }> {
         try {
-            const response = await fetch(buildBackendUrl('/api/battle/process-queue'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
-            });
-
-            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-            return await response.json();
+            return await postBattle('/api/battle/process-queue', { state, now });
         } catch (error) {
             console.error('[BattleService] Error processing queue:', error);
             // Fallback to local processing if server is down (optional, depending on security requirements)
@@ -40,14 +61,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(buildBackendUrl('/api/battle/war-tick'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
-            });
-
-            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-            return await response.json();
+            return await postBattle('/api/battle/war-tick', { state, now });
         } catch (error) {
             console.error('[BattleService] Error processing war tick:', error);
             throw error;
@@ -62,14 +76,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(buildBackendUrl('/api/battle/enemy-attack-check'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
-            });
-
-            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-            return await response.json();
+            return await postBattle('/api/battle/enemy-attack-check', { state, now });
         } catch (error) {
             console.error('[BattleService] Error checking enemy attacks:', error);
             throw error;
@@ -84,14 +91,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(buildBackendUrl('/api/battle/nemesis-tick'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ state, now })
-            });
-
-            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-            return await response.json();
+            return await postBattle('/api/battle/nemesis-tick', { state, now });
         } catch (error) {
             console.error('[BattleService] Error processing nemesis:', error);
             throw error;
@@ -103,14 +103,7 @@ export const battleService = {
      */
     async simulateCombat(attackerUnits: any, defenderUnits: any, terrainModifier: number = 1.0): Promise<any> {
         try {
-            const response = await fetch(buildBackendUrl('/api/battle/simulate-combat'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ attackerUnits, defenderUnits, terrainModifier })
-            });
-
-            if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-            return await response.json();
+            return await postBattle('/api/battle/simulate-combat', { attackerUnits, defenderUnits, terrainModifier });
         } catch (error) {
             console.error('[BattleService] Combat simulation failed:', error);
             throw error;

@@ -1,6 +1,7 @@
 import type { GameEngineSnapshot } from '../gameStore';
 
 export const selectStatus = (state: GameEngineSnapshot) => state.status;
+export const selectBootstrapLoadStatus = (state: GameEngineSnapshot) => state.bootstrapLoadStatus;
 export const selectGameState = (state: GameEngineSnapshot) => state.gameState;
 export const selectLogs = (state: GameEngineSnapshot) => state.logs;
 export const selectOfflineReport = (state: GameEngineSnapshot) => state.offlineReport;

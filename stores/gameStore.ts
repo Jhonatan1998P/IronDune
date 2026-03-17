@@ -9,6 +9,15 @@ const noopAsync = (async () => {}) as any;
 
 const initialSnapshot: GameEngineSnapshot = {
   status: 'LOADING',
+  bootstrapLoadStatus: {
+    attempt: 0,
+    maxAttempts: 3,
+    nextRetryAt: null,
+    retryable: false,
+    blocked: false,
+    lastErrorCode: null,
+    lastErrorMessage: null,
+  },
   gameState: INITIAL_GAME_STATE,
   logs: INITIAL_GAME_STATE.logs,
   hasSave: false,

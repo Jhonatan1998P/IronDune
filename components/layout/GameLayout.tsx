@@ -4,7 +4,7 @@ import { useP2PGameSync } from '../../hooks/useP2PGameSync';
 import { OfflineWelcome } from '../OfflineWelcome';
 import { UnitType } from '../../types';
 import { useGameStoreSelector } from '../../stores/gameStore';
-import { selectGameState, selectOfflineReport, selectStatus } from '../../stores/selectors/gameSelectors';
+import { selectBootstrapLoadStatus, selectGameState, selectOfflineReport, selectStatus } from '../../stores/selectors/gameSelectors';
 
 import { GameHeader } from '../GameHeader';
 import { GameSidebar, TabType, MobileNavBar } from '../GameSidebar';
@@ -17,6 +17,7 @@ import { WarHUD } from '../WarHUD';
 
 export const GameLayout: React.FC = () => {
   const status = useGameStoreSelector(selectStatus);
+  const bootstrapLoadStatus = useGameStoreSelector(selectBootstrapLoadStatus);
   const gameState = useGameStoreSelector(selectGameState);
   const offlineReport = useGameStoreSelector(selectOfflineReport);
   const clearOfflineReport = useGameStoreSelector((state) => state.clearOfflineReport);
@@ -57,7 +58,25 @@ export const GameLayout: React.FC = () => {
       if (!gameState.activeWar && activeTab === 'war') setActiveTab('buildings');
   }, [gameState.activeWar, activeTab]);
 
-  if (status === 'LOADING') {
+  if (status !== 'PLAYING' && status !== 'MENU') {
+    const phaseLabel = status === 'AUTHENTICATING'
+      ? 'Autenticando Comando'
+      : status === 'SYNCING_TIME'
+        ? 'Sincronizando Tiempo'
+        : status === 'LOADING_BOOTSTRAP'
+          ? 'Cargando Bootstrap'
+          : status === 'HYDRATED'
+            ? 'Validando Hidratacion'
+            : 'Sincronizando Comandos';
+
+    const retryMessage = bootstrapLoadStatus.attempt > 0
+      ? `Intento ${bootstrapLoadStatus.attempt}/${bootstrapLoadStatus.maxAttempts}`
+      : null;
+
+    const nextRetryMessage = bootstrapLoadStatus.nextRetryAt
+      ? `Reintento en ${Math.max(1, Math.ceil((bootstrapLoadStatus.nextRetryAt - Date.now()) / 1000))}s`
+      : null;
+
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center font-tech p-4 text-center">
         <div className="relative w-24 h-24 mb-8">
@@ -68,9 +87,9 @@ export const GameLayout: React.FC = () => {
           </div>
         </div>
         <div className="space-y-3">
-          <h2 className="text-cyan-400 text-xl font-bold tracking-[0.2em] uppercase animate-pulse">
-            Sincronizando Comandos
-          </h2>
+          <h2 className="text-cyan-400 text-xl font-bold tracking-[0.2em] uppercase animate-pulse">{phaseLabel}</h2>
+          {retryMessage ? <p className="text-cyan-200 text-xs tracking-[0.12em] uppercase">{retryMessage}</p> : null}
+          {nextRetryMessage ? <p className="text-slate-400 text-[11px]">{nextRetryMessage}</p> : null}
           <div className="flex items-center gap-2 justify-center">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.3s]"></div>
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.15s]"></div>
@@ -85,10 +104,23 @@ export const GameLayout: React.FC = () => {
   }
 
   if (status === 'MENU') {
+      const blockedByBootstrap = bootstrapLoadStatus.blocked;
       return (
           <div className="h-screen w-full bg-slate-950 flex items-center justify-center font-tech">
-             <div className="text-cyan-500 animate-pulse tracking-[0.3em] uppercase">
-                Synchronizing Command Center...
+             <div className="text-center px-6">
+               <div className="text-cyan-500 animate-pulse tracking-[0.3em] uppercase">
+                  {blockedByBootstrap ? 'Bootstrap bloqueado' : 'Synchronizing Command Center...'}
+               </div>
+               {blockedByBootstrap ? (
+                 <p className="mt-4 text-slate-400 text-xs tracking-[0.08em]">
+                   {bootstrapLoadStatus.retryable
+                     ? 'Error transitorio agotado. Recarga para reintentar bootstrap.'
+                     : 'Error terminal de bootstrap. Revisa backend/auth y vuelve a cargar.'}
+                 </p>
+               ) : null}
+               {blockedByBootstrap && bootstrapLoadStatus.lastErrorCode ? (
+                 <p className="mt-2 text-[10px] text-slate-500 font-mono">{bootstrapLoadStatus.lastErrorCode}</p>
+               ) : null}
              </div>
           </div>
       );
