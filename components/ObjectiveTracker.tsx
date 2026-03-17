@@ -1,17 +1,21 @@
 
 import React, { useState, useRef } from 'react';
 import { TUTORIAL_STEPS } from '../data/tutorial';
-import { useLanguage } from '../context/LanguageContext';
-import { useGame } from '../context/GameContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { GlassButton, Icons } from './UIComponents';
 import { formatNumber } from '../utils';
 import { BUILDING_DEFS } from '../data/buildings';
 import { UNIT_DEFS } from '../data/units';
 import { BuildingType, UnitType } from '../types';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 export const ObjectiveTracker: React.FC = () => {
     const { t } = useLanguage();
-    const { gameState, claimTutorialReward, toggleTutorialMinimize, acceptTutorialStep } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
+    const claimTutorialReward = useGameStoreSelector((state) => state.claimTutorialReward);
+    const toggleTutorialMinimize = useGameStoreSelector((state) => state.toggleTutorialMinimize);
+    const acceptTutorialStep = useGameStoreSelector((state) => state.acceptTutorialStep);
     
     // Dragging State
     const [dragPosition, setDragPosition] = useState<{x: number, y: number} | null>(null);

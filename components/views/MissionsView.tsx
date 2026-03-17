@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UNIT_DEFS } from '../../data/units';
 import { GameState, MissionDuration, UnitType, TechType } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { calculateTotalUnitCost } from '../../utils/engine/market';

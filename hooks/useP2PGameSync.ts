@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from './useLanguage';
 import { P2PAttackRequest, P2PAttackResult, P2PBattleRequestTroops, P2PBattleDefenderTroops, P2PSpyRequest, P2PSpyResponse } from '../types/multiplayer';
 import { IncomingAttack } from '../types/state';
 import { gameEventBus } from '../utils/eventBus';
 import type { UnitType, BuildingType, ResourceType } from '../types/enums';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 // ============================================================================
 // Verificación de Integridad del resultado de batalla
@@ -50,7 +51,9 @@ const verifyBattleResult = (
 };
 
 export const useP2PGameSync = () => {
-  const { addP2PIncomingAttack, applyP2PBattleResult, gameState } = useGame();
+  const addP2PIncomingAttack = useGameStoreSelector((state) => state.addP2PIncomingAttack);
+  const applyP2PBattleResult = useGameStoreSelector((state) => state.applyP2PBattleResult);
+  const gameState = useGameStoreSelector(selectGameState);
   const { sendToPeer, localPlayerId } = useMultiplayer();
   const { t } = useLanguage();
 

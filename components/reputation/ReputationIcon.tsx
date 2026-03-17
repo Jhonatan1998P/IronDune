@@ -6,7 +6,7 @@
 import React from 'react';
 import { Heart, Handshake, Shield, Target, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { SmartTooltip } from '../UIComponents';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 
 enum ReputationCategory {
     LOYAL_ALLY = 'LOYAL_ALLY',

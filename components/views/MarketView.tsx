@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { BuildingType, GameState, ResourceType, MarketOffer } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { Card, GlassButton, Icons, ResourceIcon } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { calculateDiamondExchangeRate } from '../../utils/engine/market';

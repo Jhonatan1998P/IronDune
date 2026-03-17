@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { useGame } from '../context/GameContext';
 import { formatDuration } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { TacticalInterceptModal } from './modals/TacticalInterceptModal';
 import { Icons } from './UIComponents';
 import { ActiveMission, IncomingAttack, UnitType } from '../types';
 import { UNIT_DEFS } from '../data/units';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 interface AlertConfig {
     id: string;
@@ -283,7 +284,8 @@ const filterMissions = (missions: ActiveMission[], type: ActiveMission['type']) 
     missions.filter(m => m.type === type);
 
 export const ActiveAttacksIndicator: React.FC = () => {
-    const { gameState, spyOnAttacker } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
+    const spyOnAttacker = useGameStoreSelector((state) => state.spyOnAttacker);
     
     const [selectedAttackId, setSelectedAttackId] = useState<string | null>(null);
     const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);

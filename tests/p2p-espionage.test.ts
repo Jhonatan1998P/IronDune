@@ -1,16 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useP2PGameSync } from '../hooks/useP2PGameSync';
-import { useGame } from '../context/GameContext';
 import { useMultiplayer } from '../hooks/useMultiplayer';
 import { gameEventBus } from '../utils/eventBus';
 import { P2PSpyRequest } from '../types/multiplayer';
 import { ResourceType, UnitType, BuildingType } from '../types/enums';
-
-// Mock dependencias
-vi.mock('../context/GameContext', () => ({
-  useGame: vi.fn(),
-}));
+import { useGameStore } from '../stores/gameStore';
 
 vi.mock('../hooks/useMultiplayer', () => ({
   useMultiplayer: vi.fn(),
@@ -39,11 +34,16 @@ describe('P2P Espionage System', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    (useGame as any).mockReturnValue({
+
+    const currentSnapshot = useGameStore.getState().snapshot;
+    useGameStore.getState().setSnapshot({
+      ...currentSnapshot,
+      gameState: {
+        ...currentSnapshot.gameState,
+        ...mockGameState,
+      } as any,
       addP2PIncomingAttack: vi.fn(),
       applyP2PBattleResult: vi.fn(),
-      gameState: mockGameState,
     });
 
     (useMultiplayer as any).mockReturnValue({

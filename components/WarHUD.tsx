@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
-import { useGame } from '../context/GameContext';
 import { WAR_DURATION_MS, WAR_PLAYER_ATTACKS } from '../constants';
 import { formatDuration, formatNumber } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { PvpAttackModal } from './PvpAttackModal';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 export const WarHUD: React.FC = () => {
-    const { gameState } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
     const { t } = useLanguage();
     const war = gameState.activeWar;
     const [isExpanded, setIsExpanded] = useState(false);

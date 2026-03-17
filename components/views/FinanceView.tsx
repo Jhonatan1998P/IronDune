@@ -17,7 +17,7 @@ import React, { useState, useMemo } from 'react';
 import { BuildingType, GameState, ResourceType, UnitType } from '../../types';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { calculateMaxBankCapacity, calculateHourlyInterest } from '../../constants';

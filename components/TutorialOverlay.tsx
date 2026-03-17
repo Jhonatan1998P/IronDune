@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useGame } from '../context/GameContext';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { TabType } from './GameSidebar';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { GameState } from '../types';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 interface TutorialOverlayProps {
     gameState: GameState; 
@@ -11,7 +12,7 @@ interface TutorialOverlayProps {
 }
 
 export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ activeTab }) => {
-    const { gameState } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
     const { t } = useLanguage();
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
     const [isVisible, setIsVisible] = useState(false);

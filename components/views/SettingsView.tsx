@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { GameState } from '../../types';
 import { ResourceType } from '../../types/enums';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { Card, GlassButton, Icons, ResourceIcon } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../ui/Toast';
 import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';
 

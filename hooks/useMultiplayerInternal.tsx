@@ -1,5 +1,4 @@
 import React, {
-  createContext,
   useState,
   useCallback,
   useRef,
@@ -16,6 +15,7 @@ import type {
 } from '../types/multiplayer';
 import { gameEventBus } from '../utils/eventBus';
 import { BACKEND_ORIGIN, SOCKET_IO_PATH } from '../lib/backend';
+import { useMultiplayerStore } from '../stores/multiplayerStore';
 
 const SOCKET_SERVER_URL = BACKEND_ORIGIN;
 
@@ -45,13 +45,12 @@ export interface MultiplayerContextType {
   onRemoteAction: (callback: (action: MultiplayerAction) => void) => void;
 }
 
-export const MultiplayerContext = createContext<MultiplayerContextType | null>(null);
-
 export interface MultiplayerProviderProps {
   children: ReactNode;
 }
 
 export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ children }) => {
+  const setSnapshot = useMultiplayerStore((state) => state.setSnapshot);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -478,24 +477,36 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <MultiplayerContext.Provider
-      value={{
-        isInitialized,
-        isConnected,
-        isConnecting,
-        connectionError,
-        peers,
-        localPlayerId,
-        remotePlayers,
-        syncPlayer,
-        syncPlayerWithData,
-        broadcastAction,
-        sendToPeer,
-        onRemoteAction,
-      }}
-    >
-      {children}
-    </MultiplayerContext.Provider>
-  );
+  useEffect(() => {
+    setSnapshot({
+      isInitialized,
+      isConnected,
+      isConnecting,
+      connectionError,
+      peers,
+      localPlayerId,
+      remotePlayers,
+      syncPlayer,
+      syncPlayerWithData,
+      broadcastAction,
+      sendToPeer,
+      onRemoteAction,
+    });
+  }, [
+    isInitialized,
+    isConnected,
+    isConnecting,
+    connectionError,
+    peers,
+    localPlayerId,
+    remotePlayers,
+    syncPlayer,
+    syncPlayerWithData,
+    broadcastAction,
+    sendToPeer,
+    onRemoteAction,
+    setSnapshot,
+  ]);
+
+  return <>{children}</>;
 };

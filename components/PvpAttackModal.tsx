@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GameState, ResourceType, UnitType } from '../types';
 import { UNIT_DEFS } from '../data/units';
 import { Icons, ResourceIcon } from './UIComponents';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { formatNumber, formatDuration } from '../utils';
 import { executePvpAttack } from '../utils/engine/actions';
 import { GLOBAL_ATTACK_TRAVEL_TIME_MS, MAX_ATTACKS_PER_TARGET } from '../constants';

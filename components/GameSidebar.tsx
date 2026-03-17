@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Icons } from './UIComponents';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { useProfileRole } from '../hooks/useProfileRole';
 import { gameEventBus } from '../utils/eventBus';
 import { APP_VERSION } from '../constants';

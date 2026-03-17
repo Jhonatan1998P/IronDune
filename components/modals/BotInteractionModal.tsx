@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { X, Minus, Gift, Handshake, Sword, Shield, Clock } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { StaticBot } from '../../utils/engine/rankings';
 import { GameState, ReputationChangeType } from '../../types';
 

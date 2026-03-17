@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { ResourceType } from '../types';
 import { ResourceDisplay, SmartTooltip, Icons, ResourceIcon } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
 import { getIncomeStats } from '../utils/engine/selectors';
 import { MultiplayerButton } from './MultiplayerButton';

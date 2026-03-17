@@ -9,7 +9,6 @@ export { useMultiplayer } from './useMultiplayerHook';
 export { useMultiplayerSync } from './useMultiplayerSync';
 export {
   MultiplayerProvider,
-  MultiplayerContext,
 } from './useMultiplayerInternal';
 export type {
   MultiplayerContextType,

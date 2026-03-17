@@ -1,6 +1,5 @@
 import React from 'react';
-import { useGame } from '../context/GameContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { formatDuration } from '../utils';
 import { Icons, SpeedUpButton } from './UIComponents';
 import { BUILDING_DEFS } from '../data/buildings';
@@ -8,6 +7,8 @@ import { UNIT_DEFS } from '../data/units';
 import { TECH_DEFS } from '../data/techs';
 import { BuildingType, TechType, UnitType } from '../types';
 import { TerminalLogs } from './ui/TerminalLogs';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 interface RightStatusPanelProps {
     isOpen?: boolean;
@@ -15,7 +16,8 @@ interface RightStatusPanelProps {
 }
 
 export const RightStatusPanel: React.FC<RightStatusPanelProps> = ({ isOpen = false, onClose }) => {
-    const { gameState, speedUp } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
+    const speedUp = useGameStoreSelector((state) => state.speedUp);
     const { t } = useLanguage();
 
     const incomingAttacks = gameState.incomingAttacks || [];

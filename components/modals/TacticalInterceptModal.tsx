@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, IncomingAttack, ResourceType, UnitType } from '../../types';
 import { UNIT_DEFS } from '../../data/units';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
 

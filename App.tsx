@@ -1,12 +1,12 @@
 
 import React, { useEffect } from 'react';
-import { GameProvider } from './context/GameContext';
 import { ToastProvider } from './components/ui/Toast';
 import { MultiplayerProvider } from './hooks/useMultiplayer';
 import { GameLayout } from './components/layout/GameLayout';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import { AuthView } from './components/auth/AuthView';
 import { TimeSyncService } from './lib/timeSync';
+import { GameBootstrap } from './stores/gameBootstrap';
 
 /**
  * AppContent - Componente principal del juego
@@ -49,9 +49,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => (
   <ToastProvider>
     <MultiplayerProvider>
-      <GameProvider>
+      <GameBootstrap>
         <AppContent />
-      </GameProvider>
+      </GameBootstrap>
     </MultiplayerProvider>
   </ToastProvider>
 );

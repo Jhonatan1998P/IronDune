@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { GlassButton } from '../ui/GlassButton';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { useToast } from '../ui/Toast';
 import { Shield, Mail, Lock, UserPlus, LogIn, AlertTriangle, WifiOff, Database, User, ChevronDown } from 'lucide-react';
 import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';

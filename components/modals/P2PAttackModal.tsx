@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { GameState, UnitType } from '../../types';
 import { UNIT_DEFS } from '../../data/units';
 import { Icons } from '../UIComponents';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { formatNumber, formatDuration } from '../../utils';
 import { useP2PAttack } from '../../hooks/useP2PAttack';
 import { useP2PAttackLimits } from '../../hooks/useP2PAttackLimits';
 import { P2P_ATTACK_TRAVEL_TIME_MS, P2P_MAX_ATTACKS_PER_TARGET_PER_DAY, NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 
-import { useGame } from '../../context/GameContext';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { useGameStoreSelector } from '../../stores/gameStore';
 
 interface P2PAttackModalProps {
     target: { id: string; name: string; score: number };
@@ -20,7 +20,7 @@ interface P2PAttackModalProps {
 
 export const P2PAttackModal: React.FC<P2PAttackModalProps> = ({ target, gameState, onClose }) => {
     const { t } = useLanguage();
-    const { addP2PMission } = useGame();
+    const addP2PMission = useGameStoreSelector((state) => state.addP2PMission);
     const { localPlayerId } = useMultiplayer();
     const [selectedUnits, setSelectedUnits] = useState<Partial<Record<UnitType, number>>>({});
     const { sendAttack } = useP2PAttack();

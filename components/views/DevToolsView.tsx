@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { useGame } from '../../context/GameContext';
 import { useProfileRole } from '../../hooks/useProfileRole';
 import { useToast } from '../ui/Toast';
 import { BuildingType, ResourceType, UnitType } from '../../types/enums';
 import { GameState } from '../../types';
 import { Icons, ResourceIcon } from '../UIComponents';
+import { useGameStoreSelector } from '../../stores/gameStore';
+import { selectGameState } from '../../stores/selectors/gameSelectors';
 
 const formatKey = (value: string) =>
   value
@@ -29,7 +30,7 @@ const applyStateUpdate = (nextState: GameState, onError: (msg: string) => void) 
 };
 
 export const DevToolsView: React.FC = () => {
-  const { gameState } = useGame();
+  const gameState = useGameStoreSelector(selectGameState);
   const { role, isPrivileged } = useProfileRole();
   const { showSuccess, showWarning, showError } = useToast();
 

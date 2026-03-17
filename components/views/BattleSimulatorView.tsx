@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 
 import { UNIT_DEFS } from '../../data/units';
 import { UnitType, BattleResult, UnitDef, TranslationDictionary, LogEntry } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { Icons } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { CombatReportContent } from '../reports/CombatReportModal';

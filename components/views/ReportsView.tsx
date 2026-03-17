@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LogEntry, UnitType } from '../../types';
-import { useLanguage } from '../../context/LanguageContext';
-import { useGame } from '../../context/GameContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { Icons } from '../UIComponents';
 import { FilterType, FilterTab } from '../reports/FilterTab';
 import { ReportItem } from '../reports/ReportItem';
 import { CombatReportModal, CombatReportContent } from '../reports/CombatReportModal';
+import { useGameStoreSelector } from '../../stores/gameStore';
+import { selectGameState } from '../../stores/selectors/gameSelectors';
 
 // ============================================
 // TYPES & CONFIG
@@ -24,7 +25,7 @@ const ITEMS_PER_PAGE = 15;
 // ============================================
 export const ReportsView: React.FC<ReportsViewProps> = ({ logs, onDelete, onArchive, onSimulate }) => {
     const { t } = useLanguage();
-    const { gameState } = useGame();
+    const gameState = useGameStoreSelector(selectGameState);
 
     // -- State: Filtros y navegación --
     const [activeTab, setActiveTab] = useState<FilterType>('all');

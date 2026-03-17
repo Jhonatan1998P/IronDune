@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatNumber } from '../utils';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../hooks/useLanguage';
 import { UNIT_DEFS } from '../data/units';
 import { UnitType, ResourceType } from '../types';
 

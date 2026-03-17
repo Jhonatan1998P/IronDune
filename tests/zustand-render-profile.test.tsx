@@ -1,7 +1,7 @@
 import React, { Profiler } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, act } from '@testing-library/react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../hooks/useGame';
 import { useGameStore, useGameStoreSelector } from '../stores/gameStore';
 import {
   selectActiveWar,

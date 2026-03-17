@@ -1,7 +1,7 @@
 # Zustand migration notes
 
 ## What was migrated
-- Game state bridge to Zustand through `stores/gameStore.ts`.
+- Game state to Zustand through `stores/gameStore.ts` and bootstrap in `stores/gameBootstrap.tsx`.
 - Auth state to Zustand in `stores/authStore.ts`.
 - Language state to Zustand in `stores/languageStore.ts`.
 - Critical consumers moved to selectors:
@@ -15,8 +15,14 @@
 - Kept `GameProvider` as bootstrap bridge because `useGameEngine` remains hook-driven.
 
 ## Decision on Multiplayer
-- `MultiplayerContext` remains as-is for now.
-- Reason: socket lifecycle and event side effects are coupled and require a dedicated migration pass.
+- Multiplayer was migrated to Zustand snapshot store in `stores/multiplayerStore.ts` with bootstrap sync in `hooks/useMultiplayerInternal.tsx`.
+
+## Final status
+- Legacy Context wrappers were removed:
+  - `context/GameContext.tsx`
+  - `context/AuthContext.tsx`
+  - `context/LanguageContext.tsx`
+- Runtime state access is now fully Zustand-based through hooks and selectors.
 
 ## Selector patterns
 - Prefer narrow selectors:

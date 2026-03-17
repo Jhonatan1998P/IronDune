@@ -4,7 +4,7 @@ import { GameState, GameStatus, OfflineReport } from '../types';
 import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from './useAuth';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 import { buildBackendUrl } from '../lib/backend';

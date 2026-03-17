@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useGame } from '../context/GameContext';
 import { useMultiplayer } from './useMultiplayer';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from './useLanguage';
 import { gameEventBus } from '../utils/eventBus';
 import { MultiplayerActionType, GiftResourcePayload } from '../types/multiplayer';
 import { ResourceType } from '../types/enums';
 import { GameEventType } from '../types/events';
 import { calculateTechMultipliers, calculateProductionRates } from '../utils/engine/modifiers';
+import { useGameStoreSelector } from '../stores/gameStore';
+import { selectGameState } from '../stores/selectors/gameSelectors';
 
 // ============================================================================
 // Constantes
@@ -46,7 +47,9 @@ const saveGiftLimits = (state: GiftLimitState) => {
 // ============================================================================
 
 export const useP2PGiftResource = () => {
-  const { gameState, receiveP2PResource, deductLocalResource } = useGame();
+  const gameState = useGameStoreSelector(selectGameState);
+  const receiveP2PResource = useGameStoreSelector((state) => state.receiveP2PResource);
+  const deductLocalResource = useGameStoreSelector((state) => state.deductLocalResource);
   const { sendToPeer, localPlayerId, isConnected, remotePlayers } = useMultiplayer();
   const { t } = useLanguage();
 

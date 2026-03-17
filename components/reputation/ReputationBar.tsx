@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { SmartTooltip } from '../UIComponents';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 
 enum ReputationCategory {
     LOYAL_ALLY = 'LOYAL_ALLY',

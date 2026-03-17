@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useGame } from '../../context/GameContext';
 import { RankingCategory } from '../../types';
 import { getFlagEmoji, BotEvent, StaticBot } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
 import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info, History } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../hooks/useLanguage';
 import { Icons, SmartTooltip, ResourceIcon } from '../UIComponents';
 import { BotInteractionModal } from '../modals/BotInteractionModal';
 import { BottomSheet } from '../modals/BottomSheet';
@@ -22,9 +21,14 @@ import {
     DIPLOMACY_ALLIANCE_REP_REQUIREMENT,
     DIPLOMACY_PEACE_PROPOSAL_REP_REQUIREMENT
 } from '../../constants';
+import { useGameStoreSelector } from '../../stores/gameStore';
+import { selectGameState } from '../../stores/selectors/gameSelectors';
 
 const DiplomacyView: React.FC = () => {
-    const { gameState: state, sendDiplomaticGift, proposeDiplomaticAlliance, proposeDiplomaticPeace } = useGame();
+    const state = useGameStoreSelector(selectGameState);
+    const sendDiplomaticGift = useGameStoreSelector((game) => game.sendDiplomaticGift);
+    const proposeDiplomaticAlliance = useGameStoreSelector((game) => game.proposeDiplomaticAlliance);
+    const proposeDiplomaticPeace = useGameStoreSelector((game) => game.proposeDiplomaticPeace);
     const { t } = useLanguage();
     const [search, setSearch] = useState('');
     const [personalityFilter, setPersonalityFilter] = useState<string>('ALL');
