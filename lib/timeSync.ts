@@ -1,5 +1,6 @@
 
 import { buildBackendUrl } from './backend';
+import { normalizeError } from './diagnosticLogger';
 
 let timeOffset = 0;
 let isSynced = false;
@@ -29,7 +30,9 @@ export const TimeSyncService = {
             
             console.log(`[TimeSync] Synced. Offset: \${timeOffset}ms, Latency: \${latency}ms`);
         } catch (error) {
-            console.warn('[TimeSync] Sync failed, using local time:', error);
+            console.warn('[TimeSync] Sync failed, using local time', {
+                error: normalizeError(error),
+            });
             timeOffset = 0;
             isSynced = false;
         }

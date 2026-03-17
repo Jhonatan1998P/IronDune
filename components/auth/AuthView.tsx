@@ -7,6 +7,7 @@ import { useToast } from '../ui/Toast';
 import { Shield, Mail, Lock, UserPlus, LogIn, AlertTriangle, WifiOff, Database, User, ChevronDown } from 'lucide-react';
 import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';
 import { getFlagEmoji } from '../../utils/engine/rankings';
+import { createTraceId, maskEmail, normalizeError } from '../../lib/diagnosticLogger';
 
 export const AuthView: React.FC = () => {
   const { t } = useLanguage();
@@ -48,6 +49,16 @@ export const AuthView: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const traceId = createTraceId(isLogin ? 'auth-login' : 'auth-signup');
+    const startedAt = performance.now();
+
+    console.log('[Auth] Request started', {
+      traceId,
+      flow: isLogin ? 'login' : 'register',
+      email: maskEmail(email),
+      usernameLength: username.trim().length,
+      selectedFlag,
+    });
 
     const passwordError = validatePassword(password);
     if (!isLogin && passwordError) {
@@ -69,6 +80,12 @@ export const AuthView: React.FC = () => {
           }
           throw error;
         }
+        console.log('[Auth] Login succeeded', {
+          traceId,
+          flow: 'login',
+          email: maskEmail(email),
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
         showSuccess("Conexión establecida. Bienvenido, Comandante.");
       } else {
         // Registro con metadatos
@@ -93,10 +110,24 @@ export const AuthView: React.FC = () => {
           showError(error.message);
           throw error;
         }
+        console.log('[Auth] Register succeeded', {
+          traceId,
+          flow: 'register',
+          email: maskEmail(email),
+          username: username.trim(),
+          selectedFlag,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
         showSuccess("Registro completado. Revisa tu correo para confirmar la cuenta.");
       }
     } catch (err: any) {
-      console.error('Auth error:', err);
+      console.error('[Auth] Request failed', {
+        traceId,
+        flow: isLogin ? 'login' : 'register',
+        email: maskEmail(email),
+        elapsedMs: Math.round(performance.now() - startedAt),
+        error: normalizeError(err),
+      });
     } finally {
       setLoading(false);
     }

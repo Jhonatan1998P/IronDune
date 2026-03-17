@@ -27,26 +27,64 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+const makeTraceId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const shortId = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+};
+const normalizeServerError = (error) => {
+  if (!error) return { message: 'Unknown error' };
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      status: error.status,
+    };
+  }
+  if (typeof error === 'object') return error;
+  return { message: String(error) };
+};
+
 const requireAuthUser = async (req, res, next) => {
+  const traceId = makeTraceId('auth-mw');
   try {
     const authHeader = req.headers.authorization || '';
     if (!authHeader.startsWith('Bearer ')) {
+      console.warn('[AuthMiddleware] Missing bearer token', { traceId });
       return res.status(401).json({ error: 'Missing auth token' });
     }
 
     const token = authHeader.slice('Bearer '.length).trim();
     if (!token) {
+      console.warn('[AuthMiddleware] Empty bearer token', { traceId });
       return res.status(401).json({ error: 'Missing auth token' });
     }
 
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data?.user) {
+      console.warn('[AuthMiddleware] Invalid auth token', {
+        traceId,
+        error: normalizeServerError(error),
+      });
       return res.status(401).json({ error: 'Invalid auth token' });
     }
 
+    console.log('[AuthMiddleware] Authenticated request', {
+      traceId,
+      userId: shortId(data.user.id),
+      email: data.user.email || null,
+      path: req.path,
+    });
     req.user = data.user;
     return next();
   } catch (error) {
+    console.error('[AuthMiddleware] Auth validation exception', {
+      traceId,
+      error: normalizeServerError(error),
+    });
     return res.status(500).json({ error: 'Auth validation failed' });
   }
 };
@@ -78,7 +116,13 @@ app.get('/api/time', (_req, res) => {
 });
 
 app.get('/api/profile', requireAuthUser, async (req, res) => {
+  const traceId = makeTraceId('profile-load');
   try {
+    console.log('[ProfileAPI] Load started', {
+      traceId,
+      userId: shortId(req.user.id),
+    });
+
     const { data, error } = await supabase
       .from('profiles')
       .select('game_state, updated_at')
@@ -87,21 +131,47 @@ app.get('/api/profile', requireAuthUser, async (req, res) => {
 
     if (error) {
       if (error.code === 'PGRST116') {
+        console.log('[ProfileAPI] Load no profile found', {
+          traceId,
+          userId: shortId(req.user.id),
+        });
         return res.status(404).json({ game_state: null });
       }
       throw error;
     }
 
+    console.log('[ProfileAPI] Load succeeded', {
+      traceId,
+      userId: shortId(req.user.id),
+      hasState: Boolean(data?.game_state),
+      updatedAt: data?.updated_at || null,
+      stateKeys: data?.game_state ? Object.keys(data.game_state).length : 0,
+    });
     return res.json({ game_state: data?.game_state || null, updated_at: data?.updated_at || null });
   } catch (error) {
+    console.error('[ProfileAPI] Load failed', {
+      traceId,
+      userId: shortId(req.user?.id),
+      error: normalizeServerError(error),
+    });
     return res.status(500).json({ error: error.message || 'Failed to load profile' });
   }
 });
 
 app.post('/api/profile/save', requireAuthUser, async (req, res) => {
+  const traceId = makeTraceId('profile-save');
   try {
     const gameState = req.body?.game_state;
     const expectedUpdatedAt = req.body?.expected_updated_at || null;
+
+    console.log('[ProfileAPI] Save started', {
+      traceId,
+      userId: shortId(req.user.id),
+      expectedUpdatedAt,
+      hasGameState: Boolean(gameState),
+      stateKeys: gameState ? Object.keys(gameState).length : 0,
+    });
+
     if (!gameState) {
       return res.status(400).json({ error: 'Missing game_state' });
     }
@@ -118,6 +188,12 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
       }
 
       if (existing?.updated_at && existing.updated_at !== expectedUpdatedAt) {
+        console.warn('[ProfileAPI] Save conflict', {
+          traceId,
+          userId: shortId(req.user.id),
+          expectedUpdatedAt,
+          existingUpdatedAt: existing.updated_at,
+        });
         return res.status(409).json({ error: 'Profile out of date', updated_at: existing.updated_at });
       }
     }
@@ -168,8 +244,21 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
 
     if (error) throw error;
 
+    console.log('[ProfileAPI] Save succeeded', {
+      traceId,
+      userId: shortId(req.user.id),
+      updatedAt,
+      serverTime,
+      savedStateKeys: Object.keys(stateToSave).length,
+    });
+
     return res.json({ ok: true, serverTime, updated_at: updatedAt });
   } catch (error) {
+    console.error('[ProfileAPI] Save failed', {
+      traceId,
+      userId: shortId(req.user?.id),
+      error: normalizeServerError(error),
+    });
     return res.status(500).json({ error: error.message || 'Failed to save profile' });
   }
 });

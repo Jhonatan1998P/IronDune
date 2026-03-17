@@ -1,7 +1,5 @@
 const ENV = (import.meta as any).env || {};
 
-const DEFAULT_REMOTE_BACKEND_ORIGIN = 'https://irondune.onrender.com';
-
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
 const getConfiguredOrigin = (): string => {
@@ -17,7 +15,7 @@ const getConfiguredOrigin = (): string => {
     return 'http://localhost:10000';
   }
 
-  return DEFAULT_REMOTE_BACKEND_ORIGIN;
+  return '';
 };
 
 export const BACKEND_ORIGIN = getConfiguredOrigin();
