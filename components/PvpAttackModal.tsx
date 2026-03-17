@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GameState, ResourceType, UnitType } from '../types';
 import { UNIT_DEFS } from '../data/units';
-import { Icons } from './UIComponents';
+import { Icons, ResourceIcon } from './UIComponents';
 import { useLanguage } from '../context/LanguageContext';
 import { formatNumber, formatDuration } from '../utils';
 import { executePvpAttack } from '../utils/engine/actions';
@@ -135,7 +135,7 @@ export const PvpAttackModal: React.FC<PvpAttackModalProps> = ({ target, gameStat
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 bg-cyan-950/50 px-1.5 sm:px-2 py-1 rounded-md sm:rounded-lg border border-cyan-500/30 shrink-0">
-                                <Icons.Resources.Diamond className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
+                                <ResourceIcon resource={ResourceType.DIAMOND} className="w-3 h-3 sm:w-3.5 sm:h-3.5" alt="Diamond" />
                                 <span className="text-xs font-bold text-cyan-300">1</span>
                             </div>
                         </div>

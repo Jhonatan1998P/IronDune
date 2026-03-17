@@ -4,7 +4,7 @@ import { UNIT_DEFS } from '../../data/units';
 import { TECH_DEFS } from '../../data/techs';
 import { GameState, ResourceType, UnitCategory, UnitType, UnitDef, TranslationDictionary } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
-import { Card, GlassButton, Icons, QuantitySelector, CostDisplay } from '../UIComponents';
+import { Card, GlassButton, Icons, QuantitySelector, CostDisplay, ResourceIcon } from '../UIComponents';
 import { GameTooltip } from '../GameTooltip';
 import { formatNumber, formatDuration } from '../../utils';
 import { calculateRecruitmentCost, calculateRecruitmentTime, calculateMaxAffordableUnits } from '../../utils/formulas';
@@ -64,15 +64,15 @@ const UnitCard: React.FC<{ def: UnitDef, gameState: GameState, onAction: (id: Un
                     const perTenMinutes = (val as number) * 600;
                     if (perTenMinutes === 0) return null;
                     
-                    let Icon = Icons.Resources.Money;
+                    let resourceType = ResourceType.MONEY;
                     let color = 'text-emerald-400';
-                    if (res === ResourceType.OIL) { Icon = Icons.Resources.Oil; color = 'text-purple-400'; }
-                    if (res === ResourceType.AMMO) { Icon = Icons.Resources.Ammo; color = 'text-orange-400'; }
-                    if (res === ResourceType.GOLD) { Icon = Icons.Resources.Gold; color = 'text-yellow-400'; }
+                    if (res === ResourceType.OIL) { resourceType = ResourceType.OIL; color = 'text-purple-400'; }
+                    if (res === ResourceType.AMMO) { resourceType = ResourceType.AMMO; color = 'text-orange-400'; }
+                    if (res === ResourceType.GOLD) { resourceType = ResourceType.GOLD; color = 'text-yellow-400'; }
 
                     return (
                         <div key={res} className={`flex items-center gap-1 text-[9px] ${color}`}>
-                            <Icon className="w-3.5 h-3.5" />
+                            <ResourceIcon resource={resourceType} className="w-3.5 h-3.5" alt={resourceType} />
                             <span className="font-mono font-bold">-{formatNumber(perTenMinutes)}</span>
                         </div>
                     );

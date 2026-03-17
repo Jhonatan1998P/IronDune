@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { BUILDING_DEFS } from '../../data/buildings';
 import { UNIT_DEFS } from '../../data/units';
-import { BattleResult, LogEntry, UnitType, TranslationDictionary, ResourceType, WarState, UnitCategory, BuildingType, LogisticLootField } from '../../types';
+import { BattleResult, LogEntry, UnitType, TranslationDictionary, ResourceType, WarState, BuildingType, LogisticLootField } from '../../types';
 import { Icons } from '../UIComponents';
+import { ResourceIcon } from '../ui/ResourceIcon';
 import { formatNumber } from '../../utils';
 
 const UNIT_PRIORITY: UnitType[] = [
@@ -28,11 +29,11 @@ type TabType = 'summary' | 'player' | 'allies' | 'enemy' | 'analysis';
 
 const getResourceIcon = (res: string) => {
     switch(res) {
-        case ResourceType.MONEY: return <Icons.Resources.Money className="w-3 h-3" />;
-        case ResourceType.OIL: return <Icons.Resources.Oil className="w-3 h-3" />;
-        case ResourceType.AMMO: return <Icons.Resources.Ammo className="w-3 h-3" />;
-        case ResourceType.GOLD: return <Icons.Resources.Gold className="w-3 h-3" />;
-        case ResourceType.DIAMOND: return <Icons.Resources.Diamond className="w-3 h-3" />;
+        case ResourceType.MONEY: return <ResourceIcon resource={ResourceType.MONEY} className="w-3 h-3" alt="Money" />;
+        case ResourceType.OIL: return <ResourceIcon resource={ResourceType.OIL} className="w-3 h-3" alt="Oil" />;
+        case ResourceType.AMMO: return <ResourceIcon resource={ResourceType.AMMO} className="w-3 h-3" alt="Ammunition" />;
+        case ResourceType.GOLD: return <ResourceIcon resource={ResourceType.GOLD} className="w-3 h-3" alt="Gold" />;
+        case ResourceType.DIAMOND: return <ResourceIcon resource={ResourceType.DIAMOND} className="w-3 h-3" alt="Diamond" />;
         default: return null;
     }
 };
@@ -82,7 +83,7 @@ export const CombatReportContent: React.FC<CombatReportProps> = ({ log, t, onClo
                     {/* Recursos Obtenidos */}
                     <div className="bg-emerald-950/20 p-4 sm:p-6 rounded-xl border border-emerald-500/30 shadow-lg">
                         <h3 className="text-[10px] sm:text-sm text-emerald-400 uppercase tracking-widest font-bold mb-4 flex items-center gap-2 border-b border-emerald-500/20 pb-2">
-                            <Icons.Resources.Money className="w-4 h-4" /> {t.reports.details_loot}
+                            <ResourceIcon resource={ResourceType.MONEY} className="w-4 h-4" alt="Money" /> {t.reports.details_loot}
                         </h3>
                         <div className="grid grid-cols-3 gap-2 sm:gap-4">
                             {Object.entries(log.params.loot || {}).map(([k, v]) => (

@@ -5,7 +5,7 @@ import { getFlagEmoji, BotEvent, StaticBot } from '../../utils/engine/rankings';
 import { BotPersonality, ResourceType } from '../../types/enums';
 import { Search, Shield, Zap, Target, Gift, Handshake, Heart, Loader2, TrendingUp, TrendingDown, Clock, Info, History } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { Icons, SmartTooltip } from '../UIComponents';
+import { Icons, SmartTooltip, ResourceIcon } from '../UIComponents';
 import { BotInteractionModal } from '../modals/BotInteractionModal';
 import { BottomSheet } from '../modals/BottomSheet';
 import { BotCard } from '../diplomacy/BotCard';
@@ -524,7 +524,7 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="font-bold text-blue-400">{t.common.ui.diplomacy_send_gift || 'Regalo'}</div>
                                                 <div className="text-slate-400">{t.common.ui.tooltip_cost || 'Costo'}:</div>
                                                 <div className="text-red-400">{t.common.ui.tooltip_insufficient_resources || 'Recursos insuficientes'}</div>
-                                                <div className="text-slate-500 flex items-center gap-1">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> {giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> {giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> {giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </div>
+                                                <div className="text-slate-500 flex items-center gap-1">{giftCost.MONEY?.toLocaleString()}<ResourceIcon resource={ResourceType.MONEY} className="w-3 h-3" alt="Money" /> {giftCost.OIL?.toLocaleString()}<ResourceIcon resource={ResourceType.OIL} className="w-3 h-3" alt="Oil" /> {giftCost.AMMO?.toLocaleString()}<ResourceIcon resource={ResourceType.AMMO} className="w-3 h-3" alt="Ammunition" /> {giftCost.GOLD?.toLocaleString()}<ResourceIcon resource={ResourceType.GOLD} className="w-3 h-3" alt="Gold" /> </div>
                                             </div>
                                         ) : (
                                             <div className="space-y-1 text-xs min-w-[180px]">
@@ -532,10 +532,10 @@ const DiplomacyView: React.FC = () => {
                                                 <div className="text-green-400">+8 {t.common.ui.reputation || 'reputación'}</div>
                                                 <div className="text-slate-400 border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_cost || 'Costo'}:</div>
                                                 <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                                                    {giftCost?.MONEY && giftCost.MONEY > 0 && <span className="flex items-center gap-0.5">{giftCost.MONEY?.toLocaleString()}<Icons.Resources.Money className="w-3 h-3 text-emerald-400" /> </span>}
-                                                    {giftCost?.OIL && giftCost.OIL > 0 && <span className="flex items-center gap-0.5">{giftCost.OIL?.toLocaleString()}<Icons.Resources.Oil className="w-3 h-3 text-purple-400" /> </span>}
-                                                    {giftCost?.AMMO && giftCost.AMMO > 0 && <span className="flex items-center gap-0.5">{giftCost.AMMO?.toLocaleString()}<Icons.Resources.Ammo className="w-3 h-3 text-orange-400" /> </span>}
-                                                    {giftCost?.GOLD && giftCost.GOLD > 0 && <span className="flex items-center gap-0.5">{giftCost.GOLD?.toLocaleString()}<Icons.Resources.Gold className="w-3 h-3 text-yellow-400" /> </span>}
+                                                    {giftCost?.MONEY && giftCost.MONEY > 0 && <span className="flex items-center gap-0.5">{giftCost.MONEY?.toLocaleString()}<ResourceIcon resource={ResourceType.MONEY} className="w-3 h-3" alt="Money" /> </span>}
+                                                    {giftCost?.OIL && giftCost.OIL > 0 && <span className="flex items-center gap-0.5">{giftCost.OIL?.toLocaleString()}<ResourceIcon resource={ResourceType.OIL} className="w-3 h-3" alt="Oil" /> </span>}
+                                                    {giftCost?.AMMO && giftCost.AMMO > 0 && <span className="flex items-center gap-0.5">{giftCost.AMMO?.toLocaleString()}<ResourceIcon resource={ResourceType.AMMO} className="w-3 h-3" alt="Ammunition" /> </span>}
+                                                    {giftCost?.GOLD && giftCost.GOLD > 0 && <span className="flex items-center gap-0.5">{giftCost.GOLD?.toLocaleString()}<ResourceIcon resource={ResourceType.GOLD} className="w-3 h-3" alt="Gold" /> </span>}
                                                 </div>
                                                 <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1 mt-1">{t.common.ui.tooltip_gift_cooldown || 'Cooldown: 1 hora'}</div>
                                             </div>

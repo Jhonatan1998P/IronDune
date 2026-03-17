@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { BuildingType, GameState, ResourceType, MarketOffer } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
-import { Card, GlassButton, Icons } from '../UIComponents';
+import { Card, GlassButton, Icons, ResourceIcon } from '../UIComponents';
 import { formatDuration, formatNumber } from '../../utils';
 import { calculateDiamondExchangeRate } from '../../utils/engine/market';
 
@@ -25,7 +25,7 @@ const DiamondLiquidationCard: React.FC<{
                 <div className="flex flex-col items-center justify-center p-4 bg-black/20 rounded border border-cyan-500/20 md:w-1/4 shrink-0 w-full">
                     <div className="text-[10px] text-cyan-400 uppercase tracking-widest mb-2 font-bold">{t.market.your_diamonds}</div>
                     <div className="text-3xl font-mono text-white flex items-center gap-2">
-                        <Icons.Resources.Diamond className="w-6 h-6 text-cyan-400" />
+                        <ResourceIcon resource={ResourceType.DIAMOND} className="w-6 h-6" alt="Diamond" />
                         {Math.floor(gameState.resources[ResourceType.DIAMOND])}
                     </div>
                     <div className="text-[9px] text-slate-500 mt-2 text-center">
@@ -55,7 +55,7 @@ const DiamondLiquidationCard: React.FC<{
                                     +{formatNumber(rate)}
                                 </div>
                                 <div className="flex items-center gap-1 text-[9px] text-cyan-500 border border-cyan-500/20 px-2 py-0.5 rounded bg-cyan-900/20">
-                                    {t.market.exchange_btn} <Icons.Resources.Diamond className="w-2 h-2" />
+                                    {t.market.exchange_btn} <ResourceIcon resource={ResourceType.DIAMOND} className="w-2 h-2" alt="Diamond" />
                                 </div>
                             </button>
                         );

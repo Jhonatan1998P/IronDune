@@ -4,7 +4,8 @@ import { useMultiplayerChat } from '../../hooks/useMultiplayerChat';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { useP2PGiftResource } from '../../hooks/useP2PGiftResource';
 import { GameState } from '../../types';
-import { GlassButton, Icons } from '../UIComponents';
+import { GlassButton, Icons, ResourceIcon } from '../UIComponents';
+import { ResourceType } from '../../types/enums';
 import { MultiplayerMenu } from '../UI/MultiplayerMenu';
 import { Send, Users, MessageSquare, Shield, AtSign } from 'lucide-react';
 
@@ -15,9 +16,9 @@ interface MultiplayerChatViewProps {
 type GiftableResource = 'OIL' | 'GOLD' | 'AMMO';
 
 const RESOURCE_META: Record<GiftableResource, { label: string; color: string; bg: string; border: string; Icon: React.FC<{ className?: string }> }> = {
-    OIL:  { label: 'Petróleo', color: 'text-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30',  Icon: ({ className }) => <Icons.Resources.Oil className={className} /> },
-    GOLD: { label: 'Oro',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   Icon: ({ className }) => <Icons.Resources.Gold className={className} /> },
-    AMMO: { label: 'Munición', color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',     Icon: ({ className }) => <Icons.Resources.Ammo className={className} /> },
+    OIL:  { label: 'Petróleo', color: 'text-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/30',  Icon: ({ className }) => <ResourceIcon resource={ResourceType.OIL} className={className} alt="Oil" /> },
+    GOLD: { label: 'Oro',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   Icon: ({ className }) => <ResourceIcon resource={ResourceType.GOLD} className={className} alt="Gold" /> },
+    AMMO: { label: 'Munición', color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',     Icon: ({ className }) => <ResourceIcon resource={ResourceType.AMMO} className={className} alt="Ammunition" /> },
 };
 
 const fmt = (n: number) => Math.floor(n).toLocaleString();

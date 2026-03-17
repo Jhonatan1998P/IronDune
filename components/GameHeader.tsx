@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { useGame } from '../context/GameContext';
 import { ResourceType } from '../types';
-import { ResourceDisplay, SmartTooltip, Icons } from './UIComponents';
+import { ResourceDisplay, SmartTooltip, Icons, ResourceIcon } from './UIComponents';
 import { formatNumber, formatDuration } from '../utils';
 import { useLanguage } from '../context/LanguageContext';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
@@ -99,7 +99,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     color="text-cyan-300"
                     production={production[ResourceType.DIAMOND] * 600} 
                     upkeep={0}
-                    icon={<Icons.Resources.Diamond className="w-4 h-4 text-cyan-400" />}
+                    icon={<ResourceIcon resource={ResourceType.DIAMOND} className="w-6 h-6 lg:w-5 lg:h-5 object-contain" alt="Diamond" />}
                     resourceType="DIAMOND"
                 />
 
@@ -110,7 +110,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     color="text-emerald-400"
                     production={production[ResourceType.MONEY] * 600}
                     upkeep={upkeep[ResourceType.MONEY] * 600}
-                    icon={<Icons.Resources.Money className="w-4 h-4 text-emerald-500" />}
+                    icon={<ResourceIcon resource={ResourceType.MONEY} className="w-6 h-6 lg:w-5 lg:h-5 object-contain" alt="Money" />}
                 />
 
                 <ResourceDisplay 
@@ -120,7 +120,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     color="text-orange-400"
                     production={production[ResourceType.AMMO] * 600}
                     upkeep={upkeep[ResourceType.AMMO] * 600}
-                    icon={<Icons.Resources.Ammo className="w-4 h-4 text-orange-500" />}
+                    icon={<ResourceIcon resource={ResourceType.AMMO} className="w-6 h-6 lg:w-5 lg:h-5 object-contain" alt="Ammunition" />}
                 />
 
                 <ResourceDisplay 
@@ -130,7 +130,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     color="text-purple-400"
                     production={production[ResourceType.OIL] * 600}
                     upkeep={upkeep[ResourceType.OIL] * 600}
-                    icon={<Icons.Resources.Oil className="w-4 h-4 text-purple-500" />}
+                    icon={<ResourceIcon resource={ResourceType.OIL} className="w-6 h-6 lg:w-5 lg:h-5 object-contain" alt="Oil" />}
                 />
 
                 <ResourceDisplay 
@@ -140,7 +140,7 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
                     color="text-yellow-400" 
                     production={production[ResourceType.GOLD] * 600}
                     upkeep={upkeep[ResourceType.GOLD] * 600}
-                    icon={<Icons.Resources.Gold className="w-4 h-4 text-yellow-500" />}
+                    icon={<ResourceIcon resource={ResourceType.GOLD} className="w-6 h-6 lg:w-5 lg:h-5 object-contain" alt="Gold" />}
                 />
 
                 {/* ATTACK STATUS */}

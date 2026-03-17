@@ -4,7 +4,7 @@ import { useProfileRole } from '../../hooks/useProfileRole';
 import { useToast } from '../ui/Toast';
 import { BuildingType, ResourceType, UnitType } from '../../types/enums';
 import { GameState } from '../../types';
-import { Icons } from '../UIComponents';
+import { Icons, ResourceIcon } from '../UIComponents';
 
 const formatKey = (value: string) =>
   value
@@ -143,7 +143,7 @@ export const DevToolsView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="glass-panel p-5 rounded-2xl border border-cyan-500/20 bg-slate-900/50">
           <div className="flex items-center gap-2 mb-4">
-            <Icons.Resources.Money className="w-5 h-5 text-cyan-300" />
+            <ResourceIcon resource={ResourceType.MONEY} className="w-5 h-5" alt="Money" />
             <h3 className="text-sm font-bold uppercase tracking-widest text-cyan-200">Recursos</h3>
           </div>
 

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GameState, TranslationDictionary, ResourceType, UnitType, LogEntry, SpyReport } from '../../types';
 import { RankingEntry, getFlagEmoji, StaticBot } from '../../utils/engine/rankings';
-import { Icons, GlassButton } from '../UIComponents';
+import { Icons, GlassButton, ResourceIcon } from '../UIComponents';
 import { formatNumber } from '../../utils';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../../constants';
 import { BotPersonality } from '../../types/enums';
@@ -238,7 +238,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
         switch(type) {
             case BotPersonality.WARLORD: return { color: 'text-red-400', bg: 'bg-red-950/30', border: 'border-red-500/30', icon: Icons.Skull, title: t.features.rankings.types.WARLORD, desc: t.features.rankings.types.WARLORD_DESC };
             case BotPersonality.TURTLE: return { color: 'text-emerald-400', bg: 'bg-emerald-950/30', border: 'border-emerald-500/30', icon: Icons.Shield, title: t.features.rankings.types.TURTLE, desc: t.features.rankings.types.TURTLE_DESC };
-            case BotPersonality.TYCOON: return { color: 'text-yellow-400', bg: 'bg-yellow-950/30', border: 'border-yellow-500/30', icon: Icons.Resources.Money, title: t.features.rankings.types.TYCOON, desc: t.features.rankings.types.TYCOON_DESC };
+            case BotPersonality.TYCOON: return { color: 'text-yellow-400', bg: 'bg-yellow-950/30', border: 'border-yellow-500/30', icon: ({ className }: { className?: string }) => <ResourceIcon resource={ResourceType.MONEY} className={className} alt="Money" />, title: t.features.rankings.types.TYCOON, desc: t.features.rankings.types.TYCOON_DESC };
             case BotPersonality.ROGUE: return { color: 'text-purple-400', bg: 'bg-purple-950/30', border: 'border-purple-500/30', icon: Icons.Crosshair, title: t.features.rankings.types.ROGUE, desc: t.features.rankings.types.ROGUE_DESC };
             default: return { color: 'text-slate-400', bg: 'bg-slate-950/30', border: 'border-slate-500/30', icon: Icons.Info, title: t.common.ui.profile_unknown || 'Unknown', desc: '' };
         }
@@ -309,7 +309,7 @@ export const CommanderProfileModal: React.FC<ProfileModalProps> = ({ entry, game
                             <div className="border-t border-white/10 pt-4 space-y-2 sm:space-y-3">
                                 {!activeSpyReport && (
                                     <GlassButton onClick={handleSpy} disabled={!canAffordSpy || isSpying} variant="neutral" className="w-full py-2.5 text-xs font-bold tracking-widest uppercase border-yellow-900/50 text-yellow-400 hover:bg-yellow-900/20">
-                                        {isSpying ? '...' : <span className="flex items-center justify-center gap-1.5">{t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}<Icons.Resources.Money className="w-3.5 h-3.5" /></span>}
+                                        {isSpying ? '...' : <span className="flex items-center justify-center gap-1.5">{t.common.ui.spy_button.replace('{cost}', formatNumber(spyCost))}<ResourceIcon resource={ResourceType.MONEY} className="w-3.5 h-3.5" alt="Money" /></span>}
                                     </GlassButton>
                                 )}
 

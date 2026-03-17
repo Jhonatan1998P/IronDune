@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { GameState } from '../../types';
+import { ResourceType } from '../../types/enums';
 import { useLanguage } from '../../context/LanguageContext';
-import { Card, GlassButton, Icons } from '../UIComponents';
+import { Card, GlassButton, Icons, ResourceIcon } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../ui/Toast';
@@ -94,7 +95,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const isFreeChange = !gameState.hasChangedName;
     const nameChangeCost = isFreeChange ? 'FREE' : (
         <span className="flex items-center gap-1">
-            <Icons.Resources.Diamond className="w-2.5 h-2.5" />
+            <ResourceIcon resource={ResourceType.DIAMOND} className="w-2.5 h-2.5" alt="Diamond" />
             20
         </span>
     );

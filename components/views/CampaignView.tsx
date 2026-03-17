@@ -4,7 +4,7 @@ import { CAMPAIGN_LEVELS } from '../../data/campaigns';
 import { UNIT_DEFS } from '../../data/units';
 import { GameState, ResourceType, TechType, UnitType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
-import { GlassButton, Icons, SpeedUpButton } from '../UIComponents';
+import { GlassButton, Icons, SpeedUpButton, ResourceIcon } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
 
 interface CampaignProps {
@@ -87,11 +87,11 @@ export const CampaignView: React.FC<CampaignProps> = ({ gameState, onExecuteBatt
 
     const getResIcon = (res: string) => {
         switch(res) {
-            case ResourceType.MONEY: return <Icons.Resources.Money className="w-3.5 h-3.5 text-emerald-400" />;
-            case ResourceType.OIL: return <Icons.Resources.Oil className="w-3.5 h-3.5 text-purple-400" />;
-            case ResourceType.AMMO: return <Icons.Resources.Ammo className="w-3.5 h-3.5 text-orange-400" />;
-            case ResourceType.GOLD: return <Icons.Resources.Gold className="w-3.5 h-3.5 text-yellow-400" />;
-            case ResourceType.DIAMOND: return <Icons.Resources.Diamond className="w-3.5 h-3.5 text-cyan-400" />;
+            case ResourceType.MONEY: return <ResourceIcon resource={ResourceType.MONEY} className="w-3.5 h-3.5" alt="Money" />;
+            case ResourceType.OIL: return <ResourceIcon resource={ResourceType.OIL} className="w-3.5 h-3.5" alt="Oil" />;
+            case ResourceType.AMMO: return <ResourceIcon resource={ResourceType.AMMO} className="w-3.5 h-3.5" alt="Ammunition" />;
+            case ResourceType.GOLD: return <ResourceIcon resource={ResourceType.GOLD} className="w-3.5 h-3.5" alt="Gold" />;
+            case ResourceType.DIAMOND: return <ResourceIcon resource={ResourceType.DIAMOND} className="w-3.5 h-3.5" alt="Diamond" />;
             default: return null;
         }
     };

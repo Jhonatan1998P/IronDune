@@ -7,7 +7,7 @@ import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { decodeSaveData } from '../utils/engine/security';
-import { CLOUD_SAVE_INTERVAL_MS } from '../constants';
+import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 
 export const usePersistence = (
@@ -261,6 +261,15 @@ export const usePersistence = (
         }
 
         if (authoritativeState) {
+          const now = TimeSyncService.getServerTime();
+          const lastSaveTime = authoritativeState.lastSaveTime || 0;
+          if (lastSaveTime && now - lastSaveTime > OFFLINE_SIGNOUT_THRESHOLD_MS) {
+            console.warn('[Persistence] Offline threshold exceeded. Signing out user.');
+            localStorage.removeItem('ironDuneSave');
+            await signOut();
+            return;
+          }
+
           // Si el estado no tiene el ResetID, se lo ponemos (primera carga tras reset)
           if (serverResetId && !authoritativeState.lastResetId) {
               authoritativeState.lastResetId = serverResetId;

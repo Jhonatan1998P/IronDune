@@ -3,6 +3,7 @@ import { LogEntry, TechType, TranslationDictionary, UnitType, ResourceType } fro
 import { TECH_DEFS } from '../../data/techs';
 import { UNIT_DEFS } from '../../data/units';
 import { Icons } from '../UIComponents';
+import { ResourceIcon } from '../ui/ResourceIcon';
 import { formatNumber } from '../../utils';
 
 interface ReportItemProps {
@@ -19,11 +20,11 @@ interface ReportItemProps {
 
 const getResourceIcon = (res: string) => {
     switch(res) {
-        case ResourceType.MONEY: return <Icons.Resources.Money className="w-3 h-3" />;
-        case ResourceType.OIL: return <Icons.Resources.Oil className="w-3 h-3" />;
-        case ResourceType.AMMO: return <Icons.Resources.Ammo className="w-3 h-3" />;
-        case ResourceType.GOLD: return <Icons.Resources.Gold className="w-3 h-3" />;
-        case ResourceType.DIAMOND: return <Icons.Resources.Diamond className="w-3 h-3" />;
+        case ResourceType.MONEY: return <ResourceIcon resource={ResourceType.MONEY} className="w-3 h-3" alt="Money" />;
+        case ResourceType.OIL: return <ResourceIcon resource={ResourceType.OIL} className="w-3 h-3" alt="Oil" />;
+        case ResourceType.AMMO: return <ResourceIcon resource={ResourceType.AMMO} className="w-3 h-3" alt="Ammunition" />;
+        case ResourceType.GOLD: return <ResourceIcon resource={ResourceType.GOLD} className="w-3 h-3" alt="Gold" />;
+        case ResourceType.DIAMOND: return <ResourceIcon resource={ResourceType.DIAMOND} className="w-3 h-3" alt="Diamond" />;
         default: return null;
     }
 };
@@ -145,12 +146,12 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         typeLabel = t.common.ui.nav_economy;
         styleClass = 'bg-gradient-to-r from-emerald-950/20 to-slate-900/80 border-emerald-500/20 border-l-emerald-500';
         iconColor = 'text-emerald-400 bg-emerald-950/50 border-emerald-500/30';
-        iconSymbol = <Icons.Resources.Money />;
+        iconSymbol = <ResourceIcon resource={ResourceType.MONEY} className="w-4 h-4" alt="Money" />;
     } else if (log.type === 'market') {
         typeLabel = t.common.ui.nav_market;
         styleClass = 'bg-gradient-to-r from-yellow-950/20 to-slate-900/80 border-yellow-500/20 border-l-yellow-500';
         iconColor = 'text-yellow-400 bg-yellow-950/50 border-yellow-500/30';
-        iconSymbol = <Icons.Resources.Gold />;
+        iconSymbol = <ResourceIcon resource={ResourceType.GOLD} className="w-4 h-4" alt="Gold" />;
     } else if (log.type === 'intel') {
         typeLabel = t.common.ui.nav_intel;
         styleClass = 'bg-gradient-to-r from-indigo-950/40 to-slate-900/80 border-indigo-500/40 border-l-indigo-500';
@@ -167,7 +168,7 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         typeLabel = t.common.ui.mission_salvage || 'Salvage Operation';
         styleClass = 'bg-gradient-to-r from-yellow-950/30 to-slate-900/80 border-yellow-500/30 border-l-yellow-500';
         iconColor = 'text-yellow-400 bg-yellow-950/50 border-yellow-500/30';
-        iconSymbol = <Icons.Resources.Money />;
+        iconSymbol = <ResourceIcon resource={ResourceType.MONEY} className="w-4 h-4" alt="Money" />;
     } else if (log.messageKey === 'log_salvage_failed') {
         typeLabel = t.common.ui.mission_salvage || 'Salvage Operation';
         styleClass = 'bg-gradient-to-r from-slate-800/40 to-slate-900/80 border-slate-500/30 border-l-slate-500';
@@ -182,7 +183,7 @@ export const ReportItem: React.FC<ReportItemProps> = React.memo(({ log, isSelect
         typeLabel = t.common.ui.nav_economy;
         styleClass = 'bg-gradient-to-r from-emerald-950/10 to-slate-900/80 border-emerald-500/10 border-l-emerald-700';
         iconColor = 'text-emerald-500 bg-emerald-950/50 border-emerald-500/20';
-        iconSymbol = <Icons.Resources.Money />;
+        iconSymbol = <ResourceIcon resource={ResourceType.MONEY} className="w-4 h-4" alt="Money" />;
     }
 
     return (
