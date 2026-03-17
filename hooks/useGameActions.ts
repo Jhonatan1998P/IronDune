@@ -171,9 +171,20 @@ export const useGameActions = (
 
     const body = await response.json().catch(() => null);
     if (!response.ok) {
+      console.error('[CommandGateway] Command failed', {
+        status: response.status,
+        commandType,
+        errorCode: body?.errorCode || 'COMMAND_FAILED',
+        error: body?.error || null,
+        traceId: body?.traceId || null,
+        diagnostics: body?.diagnostics || [],
+      });
       return {
         ok: false,
+        status: response.status,
         errorCode: body?.errorCode || 'COMMAND_FAILED',
+        error: body?.error || 'Command failed',
+        traceId: body?.traceId || null,
         diagnostics: body?.diagnostics || [],
       };
     }
@@ -213,6 +224,19 @@ export const useGameActions = (
         }
         if (commandResult.errorCode === 'REVISION_MISMATCH') {
           addLog('server_sync_error', 'info');
+          return;
+        }
+        if (commandResult.errorCode === 'INVALID_COMMAND_SEMANTICS' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_KEY' ||
+            commandResult.errorCode === 'INVALID_STATE_PATCH' ||
+            commandResult.errorCode === 'INVALID_STATE_PATCH_KEY' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_COSTS' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_GAINS') {
+          addLog('server_sync_error', 'info', {
+            errorCode: commandResult.errorCode,
+            traceId: (commandResult as any).traceId || null,
+          });
           return;
         }
         addLog('server_sync_error', 'info');
