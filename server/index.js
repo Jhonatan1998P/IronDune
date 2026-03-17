@@ -165,7 +165,7 @@ const validateNumericMap = (value) => {
   for (const [key, amount] of entries) {
     if (!RESOURCE_KEYS.has(key)) return false;
     const numeric = Number(amount);
-    if (!Number.isFinite(numeric) || numeric < 0 || !Number.isInteger(numeric)) return false;
+    if (!Number.isFinite(numeric) || numeric < 0) return false;
   }
   return true;
 };
