@@ -161,7 +161,7 @@ const sanitizeStatePatch = (patch) => {
 const validateNumericMap = (value) => {
   if (!isNonNullObject(value)) return false;
   const entries = Object.entries(value);
-  if (entries.length === 0 || entries.length > RESOURCE_KEYS.size) return false;
+  if (entries.length > RESOURCE_KEYS.size) return false;
   for (const [key, amount] of entries) {
     if (!RESOURCE_KEYS.has(key)) return false;
     const numeric = Number(amount);

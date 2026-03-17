@@ -55,6 +55,17 @@ const getResourceDiff = (before: Record<ResourceType, number>, after: Record<Res
 
 const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
 
+const buildCommandPayload = (
+  costs: Partial<Record<ResourceType, number>>,
+  gains: Partial<Record<ResourceType, number>>,
+  statePatch: Partial<GameState>
+) => {
+  const payload: Record<string, unknown> = { statePatch };
+  if (hasAmounts(costs)) payload.costs = costs;
+  if (hasAmounts(gains)) payload.gains = gains;
+  return payload;
+};
+
 type CommandType =
   | 'BUILD_START'
   | 'BUILD_REPAIR'
@@ -212,9 +223,7 @@ export const useGameActions = (
 
     const run = async () => {
       const commandResult = await dispatchCommand(commandType, expectedRevision, {
-        costs: hasAmounts(costs) ? costs : {},
-        gains: hasAmounts(gains) ? gains : {},
-        statePatch,
+        ...buildCommandPayload(costs, gains, statePatch),
       });
 
       if (!commandResult.ok) {
@@ -290,9 +299,7 @@ export const useGameActions = (
 
       const run = async () => {
         const commandResult = await dispatchCommand(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
-          costs: hasAmounts(costs) ? costs : {},
-          gains: hasAmounts(gains) ? gains : {},
-          statePatch,
+          ...buildCommandPayload(costs, gains, statePatch),
         });
 
         if (!commandResult.ok) {
