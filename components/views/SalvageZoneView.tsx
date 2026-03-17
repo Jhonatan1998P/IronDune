@@ -3,8 +3,7 @@ import { GameState, LogisticLootField, UnitType, ResourceType } from '../../type
 import { SALVAGER_CARGO_CAPACITY } from '../../constants';
 import { GlassButton, Icons } from '../UIComponents';
 import { formatNumber, formatDuration } from '../../utils';
-
-const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_BATTLE_SERVER_URL || 'http://localhost:3001';
+import { buildBackendUrl } from '../../lib/backend';
 
 interface SalvageZoneViewProps {
     gameState: GameState;
@@ -22,7 +21,7 @@ export const SalvageZoneView: React.FC<SalvageZoneViewProps> = ({ gameState, onS
     useEffect(() => {
         const fetchGlobalLoot = async () => {
             try {
-                const response = await fetch(`${BATTLE_SERVER_URL}/api/salvage/global`);
+                const response = await fetch(buildBackendUrl('/api/salvage/global'));
                 if (response.ok) {
                     const data = await response.json();
                     setGlobalLoot(data);

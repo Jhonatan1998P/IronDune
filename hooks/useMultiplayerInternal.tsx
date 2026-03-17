@@ -15,9 +15,9 @@ import type {
   ChatMessagePayload,
 } from '../types/multiplayer';
 import { gameEventBus } from '../utils/eventBus';
+import { BACKEND_ORIGIN, SOCKET_IO_PATH } from '../lib/backend';
 
-const SOCKET_SERVER_URL =
-  (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
+const SOCKET_SERVER_URL = BACKEND_ORIGIN;
 
 const PRESENCE_BROADCAST_INTERVAL = 60000;
 
@@ -298,14 +298,16 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     if (!socket || socket.disconnected) {
       try {
-        socket = io(SOCKET_SERVER_URL, {
+        const socketOptions = {
+          path: SOCKET_IO_PATH,
           transports: ['websocket', 'polling'],
           reconnection: true,
           reconnectionAttempts: 10,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           timeout: 10000,
-        });
+        };
+        socket = SOCKET_SERVER_URL ? io(SOCKET_SERVER_URL, socketOptions) : io(socketOptions);
         socketRef.current = socket;
       } catch (error) {
         setIsConnecting(false);

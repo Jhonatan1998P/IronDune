@@ -1,5 +1,5 @@
 
-const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
+import { buildBackendUrl } from './backend';
 
 let timeOffset = 0;
 let isSynced = false;
@@ -12,7 +12,7 @@ export const TimeSyncService = {
     async sync() {
         try {
             const startFetch = performance.now();
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/time`);
+            const response = await fetch(buildBackendUrl('/api/time'));
             if (!response.ok) throw new Error('Failed to fetch server time');
             const { serverTime } = await response.json();
             const endFetch = performance.now();

@@ -12,6 +12,7 @@ import { PvpAttackModal } from '../PvpAttackModal';
 import { executeDeclareWar } from '../../utils/engine/actions';
 import { CommanderProfileModal } from '../modals/CommanderProfileModal';
 import { P2PAttackModal } from '../modals/P2PAttackModal';
+import { buildBackendUrl } from '../../lib/backend';
 
  interface RankingsViewProps {
     gameState: GameState;
@@ -40,8 +41,7 @@ export const RankingsView: React.FC<RankingsViewProps> = ({ gameState, onAttack,
         const fetchPlayers = async () => {
             setIsLoadingPlayers(true);
             try {
-                const baseUrl = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
-                const response = await fetch(`${baseUrl}/api/rankings/players`);
+                const response = await fetch(buildBackendUrl('/api/rankings/players'));
                 if (response.ok) {
                     const data = await response.json();
                     setDbPlayers(data);

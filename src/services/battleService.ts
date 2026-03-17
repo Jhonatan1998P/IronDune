@@ -4,8 +4,7 @@
  */
 
 import { GameState, QueuedAttackResult, LogEntry } from '../../types';
-
-const BATTLE_SERVER_URL = (import.meta as any).env?.VITE_SOCKET_SERVER_URL || 'http://localhost:10000';
+import { buildBackendUrl } from '../../lib/backend';
 
 export const battleService = {
     /**
@@ -17,7 +16,7 @@ export const battleService = {
         newLogs: LogEntry[];
     }> {
         try {
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/process-queue`, {
+            const response = await fetch(buildBackendUrl('/api/battle/process-queue'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state, now })
@@ -41,7 +40,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/war-tick`, {
+            const response = await fetch(buildBackendUrl('/api/battle/war-tick'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state, now })
@@ -63,7 +62,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/enemy-attack-check`, {
+            const response = await fetch(buildBackendUrl('/api/battle/enemy-attack-check'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state, now })
@@ -85,7 +84,7 @@ export const battleService = {
         logs: LogEntry[];
     }> {
         try {
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/nemesis-tick`, {
+            const response = await fetch(buildBackendUrl('/api/battle/nemesis-tick'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state, now })
@@ -104,7 +103,7 @@ export const battleService = {
      */
     async simulateCombat(attackerUnits: any, defenderUnits: any, terrainModifier: number = 1.0): Promise<any> {
         try {
-            const response = await fetch(`${BATTLE_SERVER_URL}/api/battle/simulate-combat`, {
+            const response = await fetch(buildBackendUrl('/api/battle/simulate-combat'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ attackerUnits, defenderUnits, terrainModifier })
