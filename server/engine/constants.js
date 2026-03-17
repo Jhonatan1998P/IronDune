@@ -74,6 +74,10 @@ export const BANK_LEVEL_CAPACITIES = [
   8000000000, 20000000000, 50000000000,
 ];
 
+export const BANK_RATE_CHANGE_INTERVAL_MS = ONE_DAY_MS;
+export const BANK_INTEREST_RATE_MIN = 0.10;
+export const BANK_INTEREST_RATE_MAX = 0.20;
+
 export const calculateMaxBankCapacity = (_empirePoints, bankLevel) => {
   if (bankLevel <= 0) return 0;
   if (bankLevel < BANK_LEVEL_CAPACITIES.length) return BANK_LEVEL_CAPACITIES[bankLevel];
@@ -140,4 +144,3 @@ export const REPUTATION_DECAY_MAX_MULTIPLIER = 2.0;
 export const DIPLOMACY_GIFT_REPUTATION_GAIN = 8;
 export const DIPLOMACY_ALLIANCE_REP_GAIN = 5;
 export const DIPLOMACY_PEACE_REP_GAIN = 10;
-

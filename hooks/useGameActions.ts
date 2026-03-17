@@ -19,6 +19,8 @@ import {
 import { executeBankTransaction } from '../utils/engine/finance';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { sendGift, proposeAlliance, proposePeace } from '../utils/engine/diplomacy';
+import { useAuth } from './useAuth';
+import { buildBackendUrl } from '../lib/backend';
 
 const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
     const importantLogs = logs.filter(log => 
@@ -34,49 +36,102 @@ const limitLogs = (logs: LogEntry[], maxTotal: number = 100): LogEntry[] => {
         .slice(0, maxTotal);
 };
 
+const getResourceDiff = (before: Record<ResourceType, number>, after: Record<ResourceType, number>) => {
+  const costs: Partial<Record<ResourceType, number>> = {};
+  const gains: Partial<Record<ResourceType, number>> = {};
+
+  (Object.values(ResourceType) as ResourceType[]).forEach((resource) => {
+    const prev = before[resource] || 0;
+    const next = after[resource] || 0;
+    if (next < prev) {
+      costs[resource] = prev - next;
+    } else if (next > prev) {
+      gains[resource] = next - prev;
+    }
+  });
+
+  return { costs, gains };
+};
+
+const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
+
 export const useGameActions = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
   addLog: (messageKey: string, type?: LogEntry['type'], params?: any) => void
 ) => {
+  const { session } = useAuth();
+
+  const sendResourceRequest = useCallback(async (path: string, payload: Record<string, unknown>) => {
+    const token = session?.access_token;
+    if (!token) return false;
+
+    const response = await fetch(buildBackendUrl(path), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    return response.ok;
+  }, [session?.access_token]);
+
+  const applyActionWithServerValidation = useCallback((preview: ReturnType<typeof executeBuild>, executor: (state: GameState) => ReturnType<typeof executeBuild>) => {
+    if (!preview.success || !preview.newState) {
+      if (preview.errorKey) addLog(preview.errorKey, 'info');
+      return;
+    }
+
+    const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
+
+    const run = async () => {
+      if (hasAmounts(costs)) {
+        const deducted = await sendResourceRequest('/api/resources/deduct', { costs });
+        if (!deducted) {
+          addLog('insufficient_funds', 'info');
+          return;
+        }
+      }
+
+      if (hasAmounts(gains)) {
+        const added = await sendResourceRequest('/api/resources/add', { gains });
+        if (!added) {
+          addLog('server_sync_error', 'info');
+          return;
+        }
+      }
+
+      setGameState((prev) => {
+        const result = executor(prev);
+        if (result.success && result.newState) return result.newState;
+        return prev;
+      });
+    };
+
+    run();
+  }, [addLog, gameState.resources, sendResourceRequest, setGameState]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
-    setGameState(prev => {
-        const result = executeBuild(prev, type, amount);
-        if (result.success && result.newState) return result.newState;
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState]);
+    const preview = executeBuild(gameState, type, amount);
+    applyActionWithServerValidation(preview, (state) => executeBuild(state, type, amount));
+  }, [applyActionWithServerValidation, gameState, setGameState]);
 
   const repair = useCallback((type: BuildingType) => {
-      setGameState(prev => {
-          const result = executeRepair(prev, type);
-          if (result.success && result.newState) return result.newState;
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      const preview = executeRepair(gameState, type);
+      applyActionWithServerValidation(preview, (state) => executeRepair(state, type));
+  }, [applyActionWithServerValidation, gameState]);
 
   const recruit = useCallback((type: UnitType, amount: number = 1) => {
-    setGameState(prev => {
-        const result = executeRecruit(prev, type, amount);
-        if (result.success && result.newState) return result.newState;
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState]);
+    const preview = executeRecruit(gameState, type, amount);
+    applyActionWithServerValidation(preview, (state) => executeRecruit(state, type, amount));
+  }, [applyActionWithServerValidation, gameState]);
 
   const research = useCallback((techId: TechType) => {
-    setGameState(prev => {
-        const result = executeResearch(prev, techId);
-        if (result.success && result.newState) {
-            return result.newState;
-        }
-        if (result.errorKey) addLog(result.errorKey, 'info');
-        return prev;
-    });
-  }, [addLog, setGameState]);
+    const preview = executeResearch(gameState, techId);
+    applyActionWithServerValidation(preview, (state) => executeResearch(state, techId));
+  }, [applyActionWithServerValidation, gameState]);
 
   const handleBankTransaction = useCallback((amount: number, type: 'deposit' | 'withdraw') => {
       setGameState(prev => {
@@ -90,13 +145,9 @@ export const useGameActions = (
   }, [addLog, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
-      setGameState(prev => {
-          const result = executeSpeedUp(prev, targetId, type);
-          if (result.success && result.newState) return result.newState;
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      const preview = executeSpeedUp(gameState, targetId, type);
+      applyActionWithServerValidation(preview, (state) => executeSpeedUp(state, targetId, type));
+  }, [applyActionWithServerValidation, gameState]);
 
   const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {
     setGameState(prev => {
@@ -128,50 +179,58 @@ export const useGameActions = (
   }, [gameState, addLog, setGameState]);
 
   const executeTrade = useCallback((offerId: string, amount: number) => {
-      setGameState(prev => {
-          const result = executeTradeAction(prev, offerId, amount);
-          if (result.success && result.newState) {
-              return result.newState;
-          }
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      const preview = executeTradeAction(gameState, offerId, amount);
+      applyActionWithServerValidation(preview, (state) => executeTradeAction(state, offerId, amount));
+  }, [applyActionWithServerValidation, gameState]);
 
   const executeDiamondExchange = useCallback((targetResource: ResourceType, amount: number) => {
-      setGameState(prev => {
-          // Utilizar 'prev' asegura que calculamos contra el estado más reciente, evitando race conditions
-          const result = executeDiamondAction(prev, targetResource, amount);
+      const preview = executeDiamondAction(gameState, targetResource, amount);
+      if (!preview.success || !preview.newState) {
+        if (preview.errorKey) {
+          const errorLog: LogEntry = {
+            id: `err-${Date.now()}-${Math.random()}`,
+            messageKey: preview.errorKey,
+            type: 'info',
+            timestamp: Date.now(),
+            params: {},
+          };
+          setGameState((prev) => ({ ...prev, logs: limitLogs([errorLog, ...prev.logs], 100) }));
+        }
+        return;
+      }
 
-          if (result.success && result.newState) {
-              let finalState = result.newState;
-              
-              // Inyectar el log manualmente aquí para mantener la actualización atómica
-              if (result.log) {
-                  finalState = {
-                      ...finalState,
-                      logs: limitLogs([result.log, ...finalState.logs], 100)
-                  };
-              }
-              return finalState;
-          } else if (result.errorKey) {
-              // Si falla, necesitamos registrar el error sin romper el flujo de estado
-              const errorLog: LogEntry = {
-                  id: `err-${Date.now()}-${Math.random()}`,
-                  messageKey: result.errorKey,
-                  type: 'info',
-                  timestamp: Date.now(),
-                  params: {}
-              };
-              return {
-                  ...prev,
-                  logs: limitLogs([errorLog, ...prev.logs], 100)
-              };
+      const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
+      const run = async () => {
+        if (hasAmounts(costs)) {
+          const deducted = await sendResourceRequest('/api/resources/deduct', { costs });
+          if (!deducted) {
+            addLog('insufficient_funds', 'info');
+            return;
           }
-          
-          return prev;
-      });
-  }, [setGameState]);
+        }
+        if (hasAmounts(gains)) {
+          const added = await sendResourceRequest('/api/resources/add', { gains });
+          if (!added) {
+            addLog('server_sync_error', 'info');
+            return;
+          }
+        }
+
+        setGameState((prev) => {
+          const result = executeDiamondAction(prev, targetResource, amount);
+          if (!result.success || !result.newState) return prev;
+          if (result.log) {
+            return {
+              ...result.newState,
+              logs: limitLogs([result.log, ...result.newState.logs], 100),
+            };
+          }
+          return result.newState;
+        });
+      };
+
+      run();
+  }, [addLog, gameState, sendResourceRequest, setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
     setGameState(prev => ({ ...prev, tutorialAccepted: true }));
@@ -235,13 +294,9 @@ export const useGameActions = (
   }, [setGameState]);
 
   const spyOnAttacker = useCallback((attackId: string) => {
-      setGameState(prev => {
-          const result = executeEspionage(prev, attackId);
-          if (result.success && result.newState) return result.newState;
-          if (result.errorKey) addLog(result.errorKey, 'info');
-          return prev;
-      });
-  }, [addLog, setGameState]);
+      const preview = executeEspionage(gameState, attackId);
+      applyActionWithServerValidation(preview, (state) => executeEspionage(state, attackId));
+  }, [applyActionWithServerValidation, gameState]);
 
   const changePlayerName = useCallback((newName: string, flag?: string): { success: boolean; errorKey?: string } => {
       const trimmedName = newName.trim();

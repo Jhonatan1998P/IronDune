@@ -53,12 +53,16 @@ const initialSnapshot: GameEngineSnapshot = {
 
 interface GameStoreState {
   snapshot: GameEngineSnapshot;
-  setSnapshot: (snapshot: GameEngineSnapshot) => void;
+  setSnapshot: (snapshotOrUpdater: GameEngineSnapshot | ((prev: GameEngineSnapshot) => GameEngineSnapshot)) => void;
 }
 
 export const useGameStore = create<GameStoreState>((set) => ({
   snapshot: initialSnapshot,
-  setSnapshot: (snapshot) => set({ snapshot }),
+  setSnapshot: (snapshotOrUpdater) => set((state) => ({
+    snapshot: typeof snapshotOrUpdater === 'function'
+      ? (snapshotOrUpdater as (prev: GameEngineSnapshot) => GameEngineSnapshot)(state.snapshot)
+      : snapshotOrUpdater,
+  })),
 }));
 
 export const useGameStoreSelector = <T,>(selector: (state: GameEngineSnapshot) => T): T => {

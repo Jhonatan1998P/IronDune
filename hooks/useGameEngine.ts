@@ -12,6 +12,8 @@ import { useGameLoop } from './useGameLoop';
 import { usePersistence } from './usePersistence';
 import { useGameActions } from './useGameActions';
 import { battleService } from '../src/services/battleService';
+import { useResourceRealtime } from './useResourceRealtime';
+import { useResourceInterpolation } from './useResourceInterpolation';
 
 declare global {
     interface Window {
@@ -30,6 +32,9 @@ export const useGameEngine = () => {
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
   const [hasNewReports, setHasNewReports] = useState(false);
+
+  useResourceRealtime();
+  useResourceInterpolation();
 
   // --- 1. SHARED REFS ---
   const lastTickRef = useRef<number>(TimeSyncService.getServerTime());

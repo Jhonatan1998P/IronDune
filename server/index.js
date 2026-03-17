@@ -11,11 +11,15 @@ import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
+import { startProductionLoop } from './engine/productionLoop.js';
+import { addResources, validateResourceDeduction } from './engine/resourceValidator.js';
+import { ResourceType } from './engine/enums.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
 const PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SCHEMA_CACHE_ERROR = "schema cache";
+const SERVER_MANAGED_FIELDS = ['resources', 'maxResources', 'bankBalance', 'currentInterestRate', 'nextRateChangeTime', 'lastInterestPayoutTime'];
 
 dotenv.config();
 
@@ -120,6 +124,38 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
 
     const serverTime = Date.now();
     const stateToSave = { ...gameState, lastSaveTime: serverTime };
+
+    for (const field of SERVER_MANAGED_FIELDS) {
+      if (field in stateToSave) {
+        delete stateToSave[field];
+      }
+    }
+
+    const { data: authoritativeResources } = await supabase
+      .from('player_resources')
+      .select('money, oil, ammo, gold, diamond, money_max, oil_max, ammo_max, gold_max, diamond_max, bank_balance, interest_rate, next_rate_change')
+      .eq('player_id', req.user.id)
+      .single();
+
+    if (authoritativeResources) {
+      stateToSave.resources = {
+        [ResourceType.MONEY]: authoritativeResources.money,
+        [ResourceType.OIL]: authoritativeResources.oil,
+        [ResourceType.AMMO]: authoritativeResources.ammo,
+        [ResourceType.GOLD]: authoritativeResources.gold,
+        [ResourceType.DIAMOND]: authoritativeResources.diamond,
+      };
+      stateToSave.maxResources = {
+        [ResourceType.MONEY]: authoritativeResources.money_max,
+        [ResourceType.OIL]: authoritativeResources.oil_max,
+        [ResourceType.AMMO]: authoritativeResources.ammo_max,
+        [ResourceType.GOLD]: authoritativeResources.gold_max,
+        [ResourceType.DIAMOND]: authoritativeResources.diamond_max,
+      };
+      stateToSave.bankBalance = authoritativeResources.bank_balance;
+      stateToSave.currentInterestRate = authoritativeResources.interest_rate;
+      stateToSave.nextRateChangeTime = authoritativeResources.next_rate_change;
+    }
     const updatedAt = new Date().toISOString();
 
     const { error } = await supabase
@@ -138,10 +174,37 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
   }
 });
 
+app.post('/api/resources/deduct', requireAuthUser, async (req, res) => {
+  try {
+    const costs = req.body?.costs || {};
+    const result = await validateResourceDeduction(req.user.id, costs);
+    if (!result.ok) {
+      return res.status(400).json({ ok: false, error: result.reason || 'insufficient_funds', resource: result.resource });
+    }
+    return res.json({ ok: true, resources: result.resources });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Failed to deduct resources' });
+  }
+});
+
+app.post('/api/resources/add', requireAuthUser, async (req, res) => {
+  try {
+    const gains = req.body?.gains || {};
+    const result = await addResources(req.user.id, gains);
+    if (!result.ok) {
+      return res.status(400).json({ ok: false, error: result.reason || 'add_failed' });
+    }
+    return res.json({ ok: true, resources: result.resources });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Failed to add resources' });
+  }
+});
+
 app.post('/api/profile/reset', requireAuthUser, async (req, res) => {
   try {
     const { error } = await supabase.from('profiles').delete().eq('id', req.user.id);
     if (error) throw error;
+    await supabase.from('player_resources').delete().eq('player_id', req.user.id);
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to reset profile' });
@@ -358,6 +421,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
     if (process.env.DISABLE_SCHEDULER !== 'true') {
         startScheduler();
+        startProductionLoop();
     } else {
         console.log('[BattleServer] Scheduler disabled via DISABLE_SCHEDULER=true');
     }
@@ -425,6 +489,7 @@ async function ensureProfilesForAuthUsers() {
     const now = new Date().toISOString();
 
     const inserts = [];
+    const resourceInserts = [];
     const roleUpdates = [];
 
     for (const user of users) {
@@ -445,6 +510,19 @@ async function ensureProfilesForAuthUsers() {
           },
           updated_at: now
         });
+        resourceInserts.push({
+          player_id: user.id,
+          money: 5000,
+          oil: 2500,
+          ammo: 1500,
+          gold: 500,
+          diamond: 5,
+          bank_balance: 0,
+          interest_rate: 0.15,
+          next_rate_change: Date.now() + (24 * 60 * 60 * 1000),
+          last_tick_at: now,
+          updated_at: now,
+        });
       } else if (!existing.role) {
         roleUpdates.push({ id: user.id, role: roleFromUser });
       }
@@ -460,6 +538,16 @@ async function ensureProfilesForAuthUsers() {
         } else {
           console.error('[Profile Sync] Failed to insert profiles:', insertError.message);
         }
+      }
+    }
+
+    if (resourceInserts.length > 0) {
+      const { error: resourceInsertError } = await supabase
+        .from('player_resources')
+        .upsert(resourceInserts, { onConflict: 'player_id' });
+
+      if (resourceInsertError) {
+        console.error('[Profile Sync] Failed to create player resources:', resourceInsertError.message);
       }
     }
 

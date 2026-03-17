@@ -10,3 +10,6 @@ export const selectPlayerName = (state: GameEngineSnapshot) => state.gameState.p
 export const selectPlayerFlag = (state: GameEngineSnapshot) => state.gameState.playerFlag;
 export const selectEmpirePoints = (state: GameEngineSnapshot) => state.gameState.empirePoints;
 export const selectActiveWar = (state: GameEngineSnapshot) => state.gameState.activeWar;
+export const selectGameResources = (state: GameEngineSnapshot) => state.gameState.resources;
+export const selectGameMaxResources = (state: GameEngineSnapshot) => state.gameState.maxResources;
+export const selectGameBankBalance = (state: GameEngineSnapshot) => state.gameState.bankBalance;

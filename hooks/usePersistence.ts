@@ -9,6 +9,17 @@ import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constan
 import { TimeSyncService } from '../lib/timeSync';
 import { buildBackendUrl } from '../lib/backend';
 
+const stripServerManagedFields = (state: GameState): GameState => {
+  const sanitized = { ...state } as Partial<GameState>;
+  delete sanitized.resources;
+  delete sanitized.maxResources;
+  delete sanitized.bankBalance;
+  delete sanitized.currentInterestRate;
+  delete sanitized.nextRateChangeTime;
+  delete sanitized.lastInterestPayoutTime;
+  return sanitized as GameState;
+};
+
 export const usePersistence = (
   gameState: GameState,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
@@ -69,7 +80,7 @@ export const usePersistence = (
       },
       keepalive,
       body: JSON.stringify({
-        game_state: state,
+        game_state: stripServerManagedFields(state),
         expected_updated_at: cloudUpdatedAtRef.current
       })
     });

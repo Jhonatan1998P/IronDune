@@ -31,6 +31,7 @@ export async function hardResetDatabase() {
       -- 1. Limpieza de tablas existentes
       DROP TABLE IF EXISTS public.logistic_loot CASCADE;
       DROP TABLE IF EXISTS public.game_bots CASCADE;
+      DROP TABLE IF EXISTS public.player_resources CASCADE;
       DROP TABLE IF EXISTS public.profiles CASCADE;
       DROP TABLE IF EXISTS public.server_metadata CASCADE;
 
@@ -50,6 +51,31 @@ export async function hardResetDatabase() {
         role text NOT NULL DEFAULT '${DEFAULT_ROLE}',
         game_state jsonb NOT NULL,
         updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+      );
+
+      -- 2.2 Recursos autoritativos por jugador
+      CREATE TABLE public.player_resources (
+        player_id uuid REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+        money double precision NOT NULL DEFAULT 5000,
+        oil double precision NOT NULL DEFAULT 2500,
+        ammo double precision NOT NULL DEFAULT 1500,
+        gold double precision NOT NULL DEFAULT 500,
+        diamond double precision NOT NULL DEFAULT 5,
+        money_rate double precision NOT NULL DEFAULT 0,
+        oil_rate double precision NOT NULL DEFAULT 0,
+        ammo_rate double precision NOT NULL DEFAULT 0,
+        gold_rate double precision NOT NULL DEFAULT 0,
+        diamond_rate double precision NOT NULL DEFAULT 0,
+        money_max double precision NOT NULL DEFAULT 999999999999999,
+        oil_max double precision NOT NULL DEFAULT 999999999999999,
+        ammo_max double precision NOT NULL DEFAULT 999999999999999,
+        gold_max double precision NOT NULL DEFAULT 999999999999999,
+        diamond_max double precision NOT NULL DEFAULT 10,
+        bank_balance double precision NOT NULL DEFAULT 0,
+        interest_rate double precision NOT NULL DEFAULT 0.15,
+        next_rate_change bigint NOT NULL DEFAULT 0,
+        last_tick_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
       );
 
       -- 2.5 Habilitar RLS en metadata
@@ -92,11 +118,13 @@ export async function hardResetDatabase() {
 
       -- 5. Configuración de RLS (Row Level Security)
       ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.player_resources ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.logistic_loot ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.game_bots ENABLE ROW LEVEL SECURITY;
 
       -- 6. Políticas para 'profiles' (solo lectura desde cliente)
       CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+      CREATE POLICY "Users read own resources" ON public.player_resources FOR SELECT USING (auth.uid() = player_id);
 
       -- 7. Políticas para 'logistic_loot' (Acceso público de lectura, escritura protegida si fuera necesario)
       CREATE POLICY "Public read access for logistic_loot" ON public.logistic_loot FOR SELECT USING (true);
@@ -110,12 +138,16 @@ export async function hardResetDatabase() {
 
        -- 9. Permisos adicionales
        GRANT ALL ON TABLE public.profiles TO postgres, service_role;
+       GRANT ALL ON TABLE public.player_resources TO postgres, service_role;
        GRANT ALL ON TABLE public.logistic_loot TO postgres, service_role;
        GRANT ALL ON TABLE public.game_bots TO postgres, service_role;
       
       GRANT SELECT ON TABLE public.profiles TO authenticated;
+      GRANT SELECT ON TABLE public.player_resources TO authenticated;
       GRANT SELECT ON TABLE public.logistic_loot TO anon, authenticated;
        GRANT SELECT ON TABLE public.game_bots TO anon, authenticated;
+
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.player_resources;
 
        -- 10. Refresh PostgREST schema cache
        ${PGRST_RELOAD_SQL}
@@ -242,10 +274,28 @@ async function createAdminUserAndProfile() {
       DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
     `;
 
+    const resourcesSql = `
+      INSERT INTO public.player_resources (
+        player_id, money, oil, ammo, gold, diamond,
+        bank_balance, interest_rate, next_rate_change, last_tick_at, updated_at
+      )
+      VALUES (
+        '${adminUserId}', 5000, 2500, 1500, 500, 5,
+        0, 0.15, ${Date.now() + (24 * 60 * 60 * 1000)}, now(), now()
+      )
+      ON CONFLICT (player_id) DO NOTHING;
+    `;
+
     const { error: profileSqlError } = await supabase.rpc('exec_sql', { sql: profileSql });
 
     if (profileSqlError) {
       console.error('[DB Reset] Error creando perfil admin:', profileSqlError.message);
+      return;
+    }
+
+    const { error: resourcesSqlError } = await supabase.rpc('exec_sql', { sql: resourcesSql });
+    if (resourcesSqlError) {
+      console.error('[DB Reset] Error creando recursos admin:', resourcesSqlError.message);
       return;
     }
 

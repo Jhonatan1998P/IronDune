@@ -5,10 +5,11 @@ import { ResourceDisplay, SmartTooltip, Icons, ResourceIcon } from './UIComponen
 import { formatNumber, formatDuration } from '../utils';
 import { useLanguage } from '../hooks/useLanguage';
 import { NEWBIE_PROTECTION_THRESHOLD } from '../constants';
-import { getIncomeStats } from '../utils/engine/selectors';
 import { MultiplayerButton } from './MultiplayerButton';
 import { useGameStoreSelector } from '../stores/gameStore';
 import { selectGameState } from '../stores/selectors/gameSelectors';
+import { useResourceStore } from '../stores/resourceStore';
+import { selectInterpolatedResources, selectMaxResources, selectResourceRates } from '../stores/selectors/resourceSelectors';
 
 interface GameHeaderProps {
     onToggleStatus?: () => void;
@@ -16,6 +17,9 @@ interface GameHeaderProps {
 
 export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatus }) => {
   const gameState = useGameStoreSelector(selectGameState);
+  const resources = useResourceStore(selectInterpolatedResources);
+  const rates = useResourceStore(selectResourceRates);
+  const maxResources = useResourceStore(selectMaxResources);
   const { t } = useLanguage();
   
   const isProtected = gameState.empirePoints < NEWBIE_PROTECTION_THRESHOLD;
@@ -33,14 +37,21 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
   
   if (isProtected) statusColor = 'bg-cyan-500';
 
-  const { production, upkeep } = useMemo(() => getIncomeStats(gameState), [
-      gameState.buildings, 
-      gameState.units, 
-      gameState.researchedTechs, 
-      gameState.techLevels, 
-      gameState.bankBalance, 
-      gameState.currentInterestRate
-  ]);
+  const upkeep = useMemo(() => ({
+      [ResourceType.MONEY]: Math.max(0, -rates[ResourceType.MONEY]),
+      [ResourceType.OIL]: Math.max(0, -rates[ResourceType.OIL]),
+      [ResourceType.AMMO]: Math.max(0, -rates[ResourceType.AMMO]),
+      [ResourceType.GOLD]: Math.max(0, -rates[ResourceType.GOLD]),
+      [ResourceType.DIAMOND]: Math.max(0, -rates[ResourceType.DIAMOND]),
+  }), [rates]);
+
+  const production = useMemo(() => ({
+      [ResourceType.MONEY]: Math.max(0, rates[ResourceType.MONEY]),
+      [ResourceType.OIL]: Math.max(0, rates[ResourceType.OIL]),
+      [ResourceType.AMMO]: Math.max(0, rates[ResourceType.AMMO]),
+      [ResourceType.GOLD]: Math.max(0, rates[ResourceType.GOLD]),
+      [ResourceType.DIAMOND]: Math.max(0, rates[ResourceType.DIAMOND]),
+  }), [rates]);
 
   const tooltipContent = (
       <div className="w-64 space-y-3">
@@ -95,8 +106,8 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
 
                 <ResourceDisplay 
                     label={t.common.resources.DIAMOND} 
-                    value={gameState.resources[ResourceType.DIAMOND]} 
-                    max={gameState.maxResources[ResourceType.DIAMOND]}
+                    value={resources[ResourceType.DIAMOND]} 
+                    max={maxResources[ResourceType.DIAMOND]}
                     color="text-cyan-300"
                     production={production[ResourceType.DIAMOND] * 600} 
                     upkeep={0}
@@ -106,8 +117,8 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
 
                 <ResourceDisplay 
                     label={t.common.resources.MONEY} 
-                    value={gameState.resources[ResourceType.MONEY]} 
-                    max={gameState.maxResources[ResourceType.MONEY]}
+                    value={resources[ResourceType.MONEY]} 
+                    max={maxResources[ResourceType.MONEY]}
                     color="text-emerald-400"
                     production={production[ResourceType.MONEY] * 600}
                     upkeep={upkeep[ResourceType.MONEY] * 600}
@@ -116,8 +127,8 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
 
                 <ResourceDisplay 
                     label={t.common.resources.AMMO} 
-                    value={gameState.resources[ResourceType.AMMO]} 
-                    max={gameState.maxResources[ResourceType.AMMO]}
+                    value={resources[ResourceType.AMMO]} 
+                    max={maxResources[ResourceType.AMMO]}
                     color="text-orange-400"
                     production={production[ResourceType.AMMO] * 600}
                     upkeep={upkeep[ResourceType.AMMO] * 600}
@@ -126,8 +137,8 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
 
                 <ResourceDisplay 
                     label={t.common.resources.OIL} 
-                    value={gameState.resources[ResourceType.OIL]} 
-                    max={gameState.maxResources[ResourceType.OIL]}
+                    value={resources[ResourceType.OIL]} 
+                    max={maxResources[ResourceType.OIL]}
                     color="text-purple-400"
                     production={production[ResourceType.OIL] * 600}
                     upkeep={upkeep[ResourceType.OIL] * 600}
@@ -136,8 +147,8 @@ export const GameHeader: React.FC<GameHeaderProps> = React.memo(({ onToggleStatu
 
                 <ResourceDisplay 
                     label={t.common.resources.GOLD} 
-                    value={gameState.resources[ResourceType.GOLD]} 
-                    max={gameState.maxResources[ResourceType.GOLD]}
+                    value={resources[ResourceType.GOLD]} 
+                    max={maxResources[ResourceType.GOLD]}
                     color="text-yellow-400" 
                     production={production[ResourceType.GOLD] * 600}
                     upkeep={upkeep[ResourceType.GOLD] * 600}

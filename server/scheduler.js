@@ -9,6 +9,9 @@ import { processWarTick } from './engine/war.js';
 import { processEnemyAttackCheck } from './engine/enemyAttack.js';
 import { processNemesisTick } from './engine/nemesis.js';
 import { saveGlobalLoot } from './engine/logisticLoot.js';
+import { OFFLINE_PRODUCTION_LIMIT_MS } from './engine/constants.js';
+import { processServerEconomyTick } from './engine/economyTick.js';
+import { getOrCreatePlayerResources } from './engine/resourceValidator.js';
 
 const SCHEDULER_INTERVAL_MS = 60 * 1000; // Check every minute
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // Players offline for more than 5 minutes
@@ -49,6 +52,61 @@ async function processSingleProfile(profile, now) {
     let allLogs = [];
 
     try {
+        const resourcesRow = await getOrCreatePlayerResources(profile.id);
+        const deltaSinceSave = Math.max(0, now - (state.lastSaveTime || now));
+        const deltaTimeMs = Math.min(deltaSinceSave, OFFLINE_PRODUCTION_LIMIT_MS);
+
+        if (deltaTimeMs > 0) {
+            const economyResult = processServerEconomyTick(state, resourcesRow, deltaTimeMs, now, { capOffline: true });
+            const playerResourceUpdate = {
+                money: economyResult.resources.MONEY,
+                oil: economyResult.resources.OIL,
+                ammo: economyResult.resources.AMMO,
+                gold: economyResult.resources.GOLD,
+                diamond: economyResult.resources.DIAMOND,
+                money_rate: economyResult.rates.money_rate,
+                oil_rate: economyResult.rates.oil_rate,
+                ammo_rate: economyResult.rates.ammo_rate,
+                gold_rate: economyResult.rates.gold_rate,
+                diamond_rate: economyResult.rates.diamond_rate,
+                money_max: economyResult.maxStorage.money_max,
+                oil_max: economyResult.maxStorage.oil_max,
+                ammo_max: economyResult.maxStorage.ammo_max,
+                gold_max: economyResult.maxStorage.gold_max,
+                diamond_max: economyResult.maxStorage.diamond_max,
+                bank_balance: economyResult.bankBalance,
+                interest_rate: economyResult.interestRate,
+                next_rate_change: economyResult.nextRateChange,
+                last_tick_at: new Date(now).toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+
+            await supabase
+                .from('player_resources')
+                .update(playerResourceUpdate)
+                .eq('player_id', profile.id);
+
+            state.resources = economyResult.resources;
+            state.maxResources = {
+                MONEY: economyResult.maxStorage.money_max,
+                OIL: economyResult.maxStorage.oil_max,
+                AMMO: economyResult.maxStorage.ammo_max,
+                GOLD: economyResult.maxStorage.gold_max,
+                DIAMOND: economyResult.maxStorage.diamond_max,
+            };
+            state.bankBalance = economyResult.bankBalance;
+            state.currentInterestRate = economyResult.interestRate;
+            state.nextRateChangeTime = economyResult.nextRateChange;
+            state.marketOffers = economyResult.marketOffers;
+            state.activeMarketEvent = economyResult.activeMarketEvent;
+            state.marketNextRefreshTime = economyResult.marketNextRefreshTime;
+            state.lifetimeStats = {
+                ...(state.lifetimeStats || {}),
+                resourcesMined: economyResult.lifetimeResourcesMined,
+            };
+            modified = true;
+        }
+
         // 1. Process Nemesis/Grudges
         const nemesisResult = processNemesisTick(state, now);
         if (Object.keys(nemesisResult.stateUpdates).length > 0) {
