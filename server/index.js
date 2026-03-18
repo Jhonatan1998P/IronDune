@@ -450,7 +450,12 @@ const userStateRealtime = createUserStateRealtime({
   makeTraceId,
   normalizeServerError,
 });
-const globalPresence = createGlobalPresence({ io });
+const globalPresence = createGlobalPresence({
+  io,
+  supabase,
+  makeTraceId,
+  normalizeServerError,
+});
 const { emitUserStateChanged } = userStateRealtime;
 
 // --- API ENDPOINTS ---

@@ -16,10 +16,12 @@ import type {
 import { gameEventBus } from '../utils/eventBus';
 import { BACKEND_ORIGIN, SOCKET_IO_PATH } from '../lib/backend';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
+import { useAuthStore } from '../stores/authStore';
 
 const SOCKET_SERVER_URL = BACKEND_ORIGIN;
 
 const PRESENCE_BROADCAST_INTERVAL = 60000;
+const ACTIVE_PRESENCE_WINDOW_MS = 2 * 60 * 1000;
 
 export const GLOBAL_ROOM_ID = 'iron-dune-global-v1';
 
@@ -51,6 +53,8 @@ export interface MultiplayerProviderProps {
 
 export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ children }) => {
   const setSnapshot = useMultiplayerStore((state) => state.setSnapshot);
+  const session = useAuthStore((state) => state.session);
+  const user = useAuthStore((state) => state.user);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -90,9 +94,25 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   const updateRemotePlayers = useCallback(() => {
     const currentId = localPlayerIdRef.current;
+    const now = Date.now();
     const allPlayers = Array.from(playersRef.current.values());
-    const filtered = currentId ? allPlayers.filter(p => p.id !== currentId) : allPlayers;
-    setRemotePlayers(filtered);
+    const filtered = currentId ? allPlayers.filter((p) => p.id !== currentId) : allPlayers;
+    const activeAndAuthenticated = filtered.filter((p) =>
+      Boolean(p.userId)
+      && Number.isFinite(p.lastSeen)
+      && now - p.lastSeen <= ACTIVE_PRESENCE_WINDOW_MS
+    );
+
+    const dedupedByUser = new Map<string, PlayerPresence>();
+    for (const player of activeAndAuthenticated) {
+      const uid = player.userId as string;
+      const existing = dedupedByUser.get(uid);
+      if (!existing || player.lastSeen > existing.lastSeen) {
+        dedupedByUser.set(uid, player);
+      }
+    }
+
+    setRemotePlayers(Array.from(dedupedByUser.values()));
   }, []);
 
   const broadcastPresence = useCallback((usePlayerId?: string) => {
@@ -156,6 +176,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     const playerData: PlayerPresence = {
       id: currentId,
+      userId: user?.id,
       name: player.name,
       level: player.level,
       flag: player.flag,
@@ -164,7 +185,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     playersRef.current.set(currentId, playerData);
     broadcastPresence();
-  }, [broadcastPresence]);
+  }, [broadcastPresence, user?.id]);
 
   const syncPlayerWithData = useCallback((playerName: string, empirePoints: number, playerFlag?: string) => {
     const currentId = localPlayerIdRef.current;
@@ -172,6 +193,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     const playerData: PlayerPresence = {
       id: currentId,
+      userId: user?.id,
       name: playerName,
       level: empirePoints,
       flag: playerFlag,
@@ -180,7 +202,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
     playersRef.current.set(currentId, playerData);
     broadcastPresence();
-  }, [broadcastPresence]);
+  }, [broadcastPresence, user?.id]);
 
   const cleanupRoom = useCallback(() => {
     clearAllTimeouts();
@@ -205,6 +227,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         if (playerData) {
           playersRef.current.set(peerId, {
             id: peerId,
+            userId: playerData.userId,
             name: playerData.name || 'Jugador',
             level: playerData.level ?? 0,
             flag: playerData.flag,
@@ -280,6 +303,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
   const initConnection = useCallback((): boolean => {
     if (isConnecting || isConnected) {
+      return false;
+    }
+
+    if (!session?.access_token || !user?.id) {
       return false;
     }
 
@@ -381,8 +408,15 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
       socket.on('connect', () => {
         const pid = localPlayerIdRef.current;
         if (pid && socketRef.current) {
-          socketRef.current.emit('join_room', { peerId: pid });
+          socketRef.current.emit('join_room', { peerId: pid, token: session.access_token });
         }
+      });
+
+      socket.on('room_join_error', () => {
+        setConnectionError('Autenticación multijugador inválida. Vuelve a iniciar sesión.');
+        setIsConnected(false);
+        setIsConnecting(false);
+        isConnectedRef.current = false;
       });
     }
 
@@ -422,7 +456,13 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
 
       const myId = localPlayerIdRef.current;
       if (myId) {
-        const playerData: PlayerPresence = { id: myId, name: 'Player', level: 0, lastSeen: Date.now() };
+        const playerData: PlayerPresence = {
+          id: myId,
+          userId: user?.id,
+          name: 'Player',
+          level: 0,
+          lastSeen: Date.now(),
+        };
         playersRef.current.set(myId, playerData);
 
         pendingTimeoutsRef.current.broadcastTimeout = setTimeout(() => {
@@ -446,11 +486,20 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
     });
 
     if (socket.connected) {
-      socket.emit('join_room', { peerId: playerId });
+      socket.emit('join_room', { peerId: playerId, token: session.access_token });
     }
 
     return true;
-  }, [isConnecting, broadcastPresence, generatePlayerId, updateRemotePlayers, clearAllTimeouts, isConnected]);
+  }, [
+    isConnecting,
+    broadcastPresence,
+    generatePlayerId,
+    updateRemotePlayers,
+    clearAllTimeouts,
+    isConnected,
+    session?.access_token,
+    user?.id,
+  ]);
 
   useEffect(() => {
     if (!isConnected || !localPlayerIdRef.current) return;
@@ -464,7 +513,21 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
   }, [isConnected]);
 
   useEffect(() => {
-    initConnection();
+    if (session?.access_token && user?.id) {
+      initConnection();
+      return;
+    }
+
+    cleanupRoom();
+    isConnectedRef.current = false;
+    localPlayerIdRef.current = null;
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+  }, [cleanupRoom, initConnection, session?.access_token, user?.id]);
+
+  useEffect(() => {
     return () => {
       cleanupRoom();
       isConnectedRef.current = false;
@@ -474,8 +537,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({ childr
         socketRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cleanupRoom]);
 
   useEffect(() => {
     setSnapshot({
