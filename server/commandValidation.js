@@ -53,6 +53,11 @@ const hasAnyStatePatchKeys = (payload, requiredKeys) => {
   return requiredKeys.some((key) => Object.prototype.hasOwnProperty.call(payload.statePatch, key));
 };
 
+const hasActionFields = (payload, requiredFields) => {
+  if (!isNonNullObject(payload.action)) return false;
+  return requiredFields.every((field) => payload.action[field] !== undefined && payload.action[field] !== null);
+};
+
 const validateNumericMap = (value) => {
   if (!isNonNullObject(value)) return false;
   const entries = Object.entries(value);
@@ -81,9 +86,10 @@ const normalizeCommandPayload = (payload) => {
 
 const COMMAND_CONTRACTS = {
   BUILD_START: {
-    costs: 'required',
+    costs: 'forbidden',
     gains: 'forbidden',
-    statePatchAnyOf: ['activeConstructions', 'buildings'],
+    statePatch: 'forbidden',
+    actionRequired: ['buildingType', 'amount'],
   },
   BUILD_REPAIR: {
     costs: 'required',
@@ -91,18 +97,23 @@ const COMMAND_CONTRACTS = {
     statePatchAnyOf: ['buildings'],
   },
   RECRUIT_START: {
-    costs: 'required',
+    costs: 'forbidden',
     gains: 'forbidden',
-    statePatchAnyOf: ['activeRecruitments', 'units'],
+    statePatch: 'forbidden',
+    actionRequired: ['unitType', 'amount'],
   },
   RESEARCH_START: {
-    costs: 'required',
+    costs: 'forbidden',
     gains: 'forbidden',
-    statePatchAnyOf: ['activeResearch', 'techLevels', 'researchedTechs'],
+    statePatch: 'forbidden',
+    actionRequired: ['techId'],
   },
   SPEEDUP: {
-    costs: 'required',
+    costs: 'optional',
     gains: 'forbidden',
+    statePatch: 'optional',
+    actionRequired: ['targetId', 'type'],
+    actionOptional: true,
     statePatchAnyOf: ['activeConstructions', 'activeRecruitments', 'activeResearch'],
   },
   TRADE_EXECUTE: {
@@ -189,7 +200,7 @@ export const validateCommandPayload = (type, payloadInput) => {
     return { ok: false, errorCode: 'INVALID_PAYLOAD', message: 'Payload has too many keys' };
   }
 
-  const allowedKeys = new Set(['costs', 'gains', 'statePatch']);
+  const allowedKeys = new Set(['costs', 'gains', 'statePatch', 'action']);
   for (const key of keys) {
     if (!allowedKeys.has(key)) {
       return { ok: false, errorCode: 'INVALID_PAYLOAD_KEY', message: `Unsupported payload key: ${key}` };
@@ -208,6 +219,10 @@ export const validateCommandPayload = (type, payloadInput) => {
     return { ok: false, errorCode: 'INVALID_STATE_PATCH', message: 'statePatch must be an object' };
   }
 
+  if (payload.action !== undefined && !isNonNullObject(payload.action)) {
+    return { ok: false, errorCode: 'INVALID_ACTION_PAYLOAD', message: 'action must be an object' };
+  }
+
   if (isNonNullObject(payload.statePatch)) {
     const patchKeys = Object.keys(payload.statePatch);
     if (patchKeys.length > PATCH_ALLOW_LIST.size) {
@@ -220,7 +235,7 @@ export const validateCommandPayload = (type, payloadInput) => {
     }
   }
 
-  if (!hasNonEmptyObject(payload.costs) && !hasNonEmptyObject(payload.gains) && !hasNonEmptyObject(payload.statePatch)) {
+  if (!hasNonEmptyObject(payload.costs) && !hasNonEmptyObject(payload.gains) && !hasNonEmptyObject(payload.statePatch) && !hasNonEmptyObject(payload.action)) {
     return { ok: false, errorCode: 'EMPTY_COMMAND_PAYLOAD', message: 'Command payload is empty' };
   }
 
@@ -232,7 +247,30 @@ export const validateCommandPayload = (type, payloadInput) => {
     const gainRule = validateFieldRule(payload, 'gains', contract.gains, type);
     if (!gainRule.ok) return gainRule;
 
-    if (Array.isArray(contract.statePatchAnyOf) && !hasAnyStatePatchKeys(payload, contract.statePatchAnyOf)) {
+    const patchRule = validateFieldRule(payload, 'statePatch', contract.statePatch, type);
+    if (!patchRule.ok) return patchRule;
+
+    const hasActionObject = isNonNullObject(payload.action);
+    const hasValidAction = Array.isArray(contract.actionRequired)
+      ? hasActionFields(payload, contract.actionRequired)
+      : false;
+    if (Array.isArray(contract.actionRequired) && !hasValidAction && !contract.actionOptional) {
+      return {
+        ok: false,
+        errorCode: 'INVALID_COMMAND_ACTION',
+        message: `Missing action fields for ${type}`,
+      };
+    }
+    if (hasActionObject && Array.isArray(contract.actionRequired) && !hasValidAction) {
+      return {
+        ok: false,
+        errorCode: 'INVALID_COMMAND_ACTION',
+        message: `Missing action fields for ${type}`,
+      };
+    }
+
+    const enforceStatePatchSemantics = !hasValidAction;
+    if (enforceStatePatchSemantics && Array.isArray(contract.statePatchAnyOf) && !hasAnyStatePatchKeys(payload, contract.statePatchAnyOf)) {
       return {
         ok: false,
         errorCode: 'INVALID_COMMAND_SEMANTICS',

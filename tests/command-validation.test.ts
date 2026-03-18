@@ -55,4 +55,32 @@ describe('command payload contracts', () => {
     expect(missingPatch.ok).toBe(false);
     expect(missingPatch.errorCode).toBe('INVALID_COMMAND_SEMANTICS');
   });
+
+  it('requires authoritative action payload for build command', () => {
+    const missingAction = validateCommandPayload('BUILD_START', {
+      statePatch: {
+        activeConstructions: [],
+      },
+    });
+    expect(missingAction.ok).toBe(false);
+    expect(missingAction.errorCode).toBe('COMMAND_FIELD_FORBIDDEN');
+
+    const validAction = validateCommandPayload('BUILD_START', {
+      action: {
+        buildingType: 'HOUSE',
+        amount: 1,
+      },
+    });
+    expect(validAction.ok).toBe(true);
+  });
+
+  it('accepts speedup action payload for authoritative lifecycle queue', () => {
+    const validAction = validateCommandPayload('SPEEDUP', {
+      action: {
+        targetId: 'build-1',
+        type: 'BUILD',
+      },
+    });
+    expect(validAction.ok).toBe(true);
+  });
 });

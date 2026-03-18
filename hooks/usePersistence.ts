@@ -71,6 +71,7 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
+const MULTI_TAB_SYNC_INTERVAL_MS = 8000;
 
 type BootstrapLoadStatus = {
   attempt: number;
@@ -584,6 +585,54 @@ export const usePersistence = (
     setOfflineReport,
     setHasNewReports,
   ]);
+
+  useEffect(() => {
+    if (!user || !session || status !== 'PLAYING') return;
+
+    let cancelled = false;
+    let syncing = false;
+
+    const syncAuthoritativeSnapshot = async () => {
+      if (syncing || cancelled) return;
+      syncing = true;
+      try {
+        const bootstrapPayload = await fetchBootstrapSnapshot();
+        const serverState = bootstrapPayload?.state || null;
+        if (!serverState) return;
+
+        const localState = gameStateRef.current;
+        const localRevision = Number(localState?.revision || 0);
+        const serverRevision = Number(serverState?.revision || 0);
+        const updatedAtChanged = Boolean(
+          bootstrapPayload?.updatedAt
+          && bootstrapPayload.updatedAt !== cloudUpdatedAtRef.current
+        );
+
+        if (bootstrapPayload?.updatedAt) {
+          cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
+        }
+
+        const shouldApply = serverRevision > localRevision || (updatedAtChanged && serverRevision >= localRevision);
+        if (!shouldApply || cancelled) return;
+
+        setGameState(hydrateGameState(serverState as Partial<GameState>));
+        lastTickRef.current = TimeSyncService.getServerTime();
+      } catch (error) {
+        console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
+          userId: shortId(user?.id),
+          error: normalizeError(error),
+        });
+      } finally {
+        syncing = false;
+      }
+    };
+
+    const intervalId = window.setInterval(syncAuthoritativeSnapshot, MULTI_TAB_SYNC_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [fetchBootstrapSnapshot, lastTickRef, session, setGameState, status, user]);
 
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);

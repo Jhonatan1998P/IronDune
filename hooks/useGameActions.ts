@@ -163,7 +163,7 @@ export const useGameActions = (
   ) => {
     const token = session?.access_token;
     if (!token) {
-      return { ok: false, errorCode: 'MISSING_AUTH', diagnostics: [] as string[] };
+      return { ok: false, errorCode: 'MISSING_AUTH', diagnostics: [] as string[], statePatch: undefined as Partial<GameState> | undefined };
     }
 
     const response = await fetch(buildBackendUrl('/api/command'), {
@@ -197,6 +197,7 @@ export const useGameActions = (
         error: body?.error || 'Command failed',
         traceId: body?.traceId || null,
         diagnostics: body?.diagnostics || [],
+        statePatch: undefined as Partial<GameState> | undefined,
       };
     }
 
@@ -204,27 +205,89 @@ export const useGameActions = (
       ok: Boolean(body?.ok),
       newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
       diagnostics: body?.diagnostics || [],
+      statePatch: body?.statePatch && typeof body.statePatch === 'object' ? body.statePatch as Partial<GameState> : undefined,
     };
+  }, [session?.access_token]);
+
+  const syncStateFromBootstrap = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) return null;
+
+    const response = await fetch(buildBackendUrl('/api/bootstrap'), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const body = await response.json().catch(() => null);
+    return (body?.game_state || null) as GameState | null;
   }, [session?.access_token]);
 
   const applyActionWithServerValidation = useCallback((
     commandType: CommandType,
     preview: LocalActionResult,
-    executor: (state: GameState) => LocalActionResult
+    executor: (state: GameState) => LocalActionResult,
+    commandPayloadOverride?: Record<string, unknown>
   ) => {
     if (!preview.success || !preview.newState) {
       if (preview.errorKey) addLog(preview.errorKey, 'info');
       return;
     }
 
-    const { costs, gains } = getResourceDiff(gameState.resources, preview.newState.resources);
-    const statePatch = buildStatePatch(gameState, preview.newState);
-    const expectedRevision = Number(gameState.revision || 0);
+    const buildPayloadFrom = (baseState: GameState, nextState: GameState) => {
+      const { costs, gains } = getResourceDiff(baseState.resources, nextState.resources);
+      const statePatch = buildStatePatch(baseState, nextState);
+      return {
+        expectedRevision: Number(baseState.revision || 0),
+        payload: buildCommandPayload(costs, gains, statePatch),
+      };
+    };
 
     const run = async () => {
-      const commandResult = await dispatchCommand(commandType, expectedRevision, {
-        ...buildCommandPayload(costs, gains, statePatch),
+      const initialPayload = commandPayloadOverride
+        ? {
+          expectedRevision: Number(gameState.revision || 0),
+          payload: commandPayloadOverride,
+        }
+        : buildPayloadFrom(gameState, preview.newState as GameState);
+      let commandResult = await dispatchCommand(commandType, initialPayload.expectedRevision, {
+        ...initialPayload.payload,
       });
+
+      let nextStateToApply = preview.newState as GameState;
+      let baseStateForApply = gameState;
+
+      if (!commandResult.ok && commandResult.errorCode === 'REVISION_MISMATCH') {
+        const syncedState = await syncStateFromBootstrap();
+        if (!syncedState) {
+          addLog('server_sync_error', 'info');
+          return;
+        }
+
+        setGameState(syncedState);
+        const retryPreview = executor(syncedState);
+        if (!retryPreview.success || !retryPreview.newState) {
+          if (retryPreview.errorKey) addLog(retryPreview.errorKey, 'info');
+          return;
+        }
+
+        const retryPayload = commandPayloadOverride
+          ? {
+            expectedRevision: Number(syncedState.revision || 0),
+            payload: commandPayloadOverride,
+          }
+          : buildPayloadFrom(syncedState, retryPreview.newState);
+        commandResult = await dispatchCommand(commandType, retryPayload.expectedRevision, {
+          ...retryPayload.payload,
+        });
+
+        nextStateToApply = retryPreview.newState;
+        baseStateForApply = syncedState;
+      }
 
       if (!commandResult.ok) {
         if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
@@ -251,24 +314,45 @@ export const useGameActions = (
         addLog('server_sync_error', 'info');
         return;
       }
+
       setGameState((prev) => {
-        const result = executor(prev);
-        if (result.success && result.newState) {
+        const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
+          ? prev
+          : baseStateForApply;
+
+        if (commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0) {
           return {
-            ...result.newState,
-            revision: commandResult.newRevision ?? prev.revision,
+            ...sourceState,
+            ...commandResult.statePatch,
+            revision: commandResult.newRevision ?? sourceState.revision,
           };
         }
-        return prev;
+
+        const result = executor(sourceState);
+        if (!result.success || !result.newState) {
+          return {
+            ...nextStateToApply,
+            revision: commandResult.newRevision ?? sourceState.revision,
+          };
+        }
+        return {
+          ...result.newState,
+          revision: commandResult.newRevision ?? sourceState.revision,
+        };
       });
     };
 
     run();
-  }, [addLog, dispatchCommand, gameState, setGameState]);
+  }, [addLog, dispatchCommand, gameState, setGameState, syncStateFromBootstrap]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);
-    applyActionWithServerValidation('BUILD_START', preview, (state: GameState) => executeBuild(state, type, amount));
+    applyActionWithServerValidation(
+      'BUILD_START',
+      preview,
+      (state: GameState) => executeBuild(state, type, amount),
+      { action: { buildingType: type, amount } },
+    );
   }, [applyActionWithServerValidation, gameState]);
 
   const repair = useCallback((type: BuildingType) => {
@@ -278,12 +362,22 @@ export const useGameActions = (
 
   const recruit = useCallback((type: UnitType, amount: number = 1) => {
     const preview = executeRecruit(gameState, type, amount);
-    applyActionWithServerValidation('RECRUIT_START', preview, (state: GameState) => executeRecruit(state, type, amount));
+    applyActionWithServerValidation(
+      'RECRUIT_START',
+      preview,
+      (state: GameState) => executeRecruit(state, type, amount),
+      { action: { unitType: type, amount } },
+    );
   }, [applyActionWithServerValidation, gameState]);
 
   const research = useCallback((techId: TechType) => {
     const preview = executeResearch(gameState, techId);
-    applyActionWithServerValidation('RESEARCH_START', preview, (state: GameState) => executeResearch(state, techId));
+    applyActionWithServerValidation(
+      'RESEARCH_START',
+      preview,
+      (state: GameState) => executeResearch(state, techId),
+      { action: { techId } },
+    );
   }, [applyActionWithServerValidation, gameState]);
 
   const handleBankTransaction = useCallback((amount: number, type: 'deposit' | 'withdraw') => {
@@ -326,7 +420,13 @@ export const useGameActions = (
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);
-      applyActionWithServerValidation('SPEEDUP', preview, (state: GameState) => executeSpeedUp(state, targetId, type));
+      const authoritativeLifecycleType = type === 'BUILD' || type === 'RECRUIT' || type === 'RESEARCH';
+      applyActionWithServerValidation(
+        'SPEEDUP',
+        preview,
+        (state: GameState) => executeSpeedUp(state, targetId, type),
+        authoritativeLifecycleType ? { action: { targetId, type } } : undefined,
+      );
   }, [applyActionWithServerValidation, gameState]);
 
   const startMission = useCallback((units: Partial<Record<UnitType, number>>, duration: MissionDuration) => {

@@ -15,6 +15,7 @@ import { startProductionLoop } from './engine/productionLoop.js';
 import { addResources, getOrCreatePlayerResources, validateResourceDeduction } from './engine/resourceValidator.js';
 import { ResourceType } from './engine/enums.js';
 import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
+import { buildAuthoritativeCommandResult, normalizeLifecycleState, resolveLifecycleCompletions } from './engine/authoritativeLifecycle.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
@@ -25,6 +26,8 @@ const NORMALIZED_DUAL_WRITE_ENABLED = process.env.FF_DUAL_WRITE_NORMALIZED !== '
 const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS === 'true';
 const NORMALIZED_DUAL_WRITE_STRICT = process.env.FF_DUAL_WRITE_STRICT === 'true';
 const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB === 'true';
+const AUTHORITATIVE_QUEUE_COMMANDS = new Set(['BUILD_START', 'RECRUIT_START', 'RESEARCH_START']);
+const AUTHORITATIVE_SPEEDUP_TYPES = new Set(['BUILD', 'RECRUIT', 'RESEARCH']);
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
 const COMMAND_RATE_MAX_REQUESTS = Number(process.env.COMMAND_RATE_MAX_REQUESTS || 120);
 const COMMAND_METRICS_LOG_INTERVAL_MS = Number(process.env.COMMAND_METRICS_LOG_INTERVAL_MS || 60_000);
@@ -116,6 +119,19 @@ const sanitizeStatePatch = (patch) => {
   });
 
   return sanitized;
+};
+
+const buildServerStatePatch = (previousState, nextState) => {
+  const patch = {};
+  const before = isNonNullObject(previousState) ? previousState : {};
+  const after = isNonNullObject(nextState) ? nextState : {};
+
+  PATCH_ALLOW_LIST.forEach((key) => {
+    if (JSON.stringify(before[key]) === JSON.stringify(after[key])) return;
+    patch[key] = after[key];
+  });
+
+  return patch;
 };
 
 
@@ -639,9 +655,26 @@ app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
       nextRateChangeTime: authoritativeResources.next_rate_change,
     };
 
+    const lifecycleResolved = resolveLifecycleCompletions(stateWithDefaults, serverTime);
+    let effectiveState = lifecycleResolved.state;
+
+    if (lifecycleResolved.changed) {
+      const lifecycleUpdatedAt = new Date(serverTime).toISOString();
+      const { error: lifecycleSaveError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: req.user.id,
+          game_state: effectiveState,
+          updated_at: lifecycleUpdatedAt,
+        });
+      if (!lifecycleSaveError) {
+        await syncNormalizedDomain(req.user.id, effectiveState, traceId);
+      }
+    }
+
     const gameState = NORMALIZED_READS_ENABLED
-      ? { ...stateWithDefaults, ...(await loadNormalizedStatePatch(req.user.id)) }
-      : stateWithDefaults;
+      ? { ...effectiveState, ...(await loadNormalizedStatePatch(req.user.id)) }
+      : effectiveState;
 
     return res.json({
       profile: {
@@ -1059,10 +1092,46 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
       });
     }
 
-    const costs = isNonNullObject(payload.costs) ? payload.costs : {};
-    const gains = isNonNullObject(payload.gains) ? payload.gains : {};
-    const statePatch = sanitizeStatePatch(payload.statePatch);
+    const rawCosts = isNonNullObject(payload.costs) ? payload.costs : {};
+    const rawGains = isNonNullObject(payload.gains) ? payload.gains : {};
+    const requestedStatePatch = sanitizeStatePatch(payload.statePatch);
     const diagnostics = [];
+
+    const originalState = normalizeLifecycleState(profile.gameState || {});
+    const lifecycleState = resolveLifecycleCompletions(originalState, serverTime).state;
+    let workingState = lifecycleState;
+    let costs = rawCosts;
+    let gains = rawGains;
+
+    const speedupType = isNonNullObject(payload.action) ? payload.action.type : null;
+    const runAuthoritativeLifecycle = AUTHORITATIVE_QUEUE_COMMANDS.has(type)
+      || (type === 'SPEEDUP' && AUTHORITATIVE_SPEEDUP_TYPES.has(speedupType));
+
+    if (runAuthoritativeLifecycle) {
+      const authoritativeResult = buildAuthoritativeCommandResult(type, lifecycleState, payload.action, serverTime);
+      if (!authoritativeResult.ok) {
+        observeCommandEvent({
+          type,
+          result: 'bad_request',
+          errorCode: authoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
+          durationMs: Date.now() - commandStartedAt,
+        });
+        return res.status(authoritativeResult.status || 400).json({
+          ok: false,
+          error: authoritativeResult.error || 'Invalid command action',
+          errorCode: authoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
+          traceId,
+        });
+      }
+      workingState = authoritativeResult.nextState;
+      costs = authoritativeResult.costs || {};
+      gains = authoritativeResult.gains || {};
+    } else {
+      workingState = {
+        ...lifecycleState,
+        ...requestedStatePatch,
+      };
+    }
 
     if (Object.keys(costs).length > 0) {
       const deduction = await validateResourceDeduction(req.user.id, costs);
@@ -1103,8 +1172,7 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
 
     const authoritativeResources = await getOrCreatePlayerResources(req.user.id);
     const nextState = {
-      ...profile.gameState,
-      ...statePatch,
+      ...workingState,
       revision: nextRevision,
       lastSaveTime: serverTime,
       resources: {
@@ -1145,7 +1213,7 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
     const responsePayload = {
       ok: true,
       newRevision: nextRevision,
-      statePatch,
+      statePatch: buildServerStatePatch(originalState, nextState),
       serverTime,
       diagnostics,
       traceId,

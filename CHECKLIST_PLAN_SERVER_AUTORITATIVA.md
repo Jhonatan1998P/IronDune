@@ -108,9 +108,9 @@ Estado Fase 5: [~] Parcial
 
 ### Paso 2 - Server-authoritative real en colas/tiempos (build/recruit/research)
 
-- [ ] Mover cálculo de tiempos/costos definitivos al backend command handler.
-- [ ] Hacer que el cliente deje de proponer parches críticos de colas y reciba `statePatch` autoritativo.
-- [ ] Cubrir doble click/retry/reconexión con pruebas específicas.
+- [~] Mover cálculo de tiempos/costos definitivos al backend command handler (implementado para `BUILD_START`/`RECRUIT_START`/`RESEARCH_START` y `SPEEDUP` de colas críticas).
+- [~] Hacer que el cliente deje de proponer parches críticos de colas y reciba `statePatch` autoritativo (migrado para comandos de lifecycle + speedup en build/recruit/research; falta extender al resto de comandos críticos).
+- [~] Cubrir doble click/retry/reconexión con pruebas específicas (hay cobertura de idempotencia/revision mismatch e invariantes de lifecycle autoritativo; pendiente cierre E2E multi-tab de larga duración).
 
 ### Paso 3 - Ranking y progreso 100% normalizado
 
