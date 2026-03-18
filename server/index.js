@@ -16,6 +16,15 @@ import { addResources, getOrCreatePlayerResources, validateResourceDeduction } f
 import { ResourceType } from './engine/enums.js';
 import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
 import { buildAuthoritativeCommandResult, normalizeLifecycleState, resolveLifecycleCompletions } from './engine/authoritativeLifecycle.js';
+import { createUserStateRealtime } from './socket/userStateRealtime.js';
+import { createGlobalPresence } from './socket/globalPresence.js';
+import { registerCommandRoutes } from './routes/commandRoutes.js';
+import { registerBootstrapRoutes } from './routes/bootstrapRoutes.js';
+import { registerProfileRoutes } from './routes/profileRoutes.js';
+import { registerResourceRoutes } from './routes/resourceRoutes.js';
+import { makeTraceId, normalizeServerError, shortId } from './lib/trace.js';
+import { buildServerStatePatch, isNonNullObject, parseRevision, sanitizeStatePatch } from './lib/statePatch.js';
+import { createRequireAuthUser } from './middleware/auth.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
@@ -36,7 +45,6 @@ const COMMAND_ALERT_CONFLICTS_PER_MIN_THRESHOLD = Number(process.env.COMMAND_ALE
 const COMMAND_ALERT_ERROR_RATE_THRESHOLD = Number(process.env.COMMAND_ALERT_ERROR_RATE_THRESHOLD || 0.05);
 const COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD = Number(process.env.COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD || 750);
 const COMMAND_ALERT_RETRY_RATIO_THRESHOLD = Number(process.env.COMMAND_ALERT_RETRY_RATIO_THRESHOLD || 0.2);
-const commandRateTracker = new Map();
 const commandMetrics = {
   startedAt: Date.now(),
   totals: {
@@ -78,81 +86,8 @@ app.use((req, res, next) => {
   next();
 });
 
-const makeTraceId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const shortId = (value) => {
-  if (!value || typeof value !== 'string') return null;
-  if (value.length <= 10) return value;
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
-};
-const normalizeServerError = (error) => {
-  if (!error) return { message: 'Unknown error' };
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      status: error.status,
-    };
-  }
-  if (typeof error === 'object') return error;
-  return { message: String(error) };
-};
-
-const isNonNullObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-const parseRevision = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) return 0;
-  return Math.floor(numeric);
-};
-
 const isLikelyUuid = (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-const sanitizeStatePatch = (patch) => {
-  if (!isNonNullObject(patch)) return {};
-  const sanitized = {};
-
-  Object.entries(patch).forEach(([key, value]) => {
-    if (!PATCH_ALLOW_LIST.has(key)) return;
-    sanitized[key] = value;
-  });
-
-  return sanitized;
-};
-
-const buildServerStatePatch = (previousState, nextState) => {
-  const patch = {};
-  const before = isNonNullObject(previousState) ? previousState : {};
-  const after = isNonNullObject(nextState) ? nextState : {};
-
-  PATCH_ALLOW_LIST.forEach((key) => {
-    if (JSON.stringify(before[key]) === JSON.stringify(after[key])) return;
-    patch[key] = after[key];
-  });
-
-  return patch;
-};
-
-
-const classifyBootstrapError = (error) => {
-  const code = error?.code || '';
-  const message = String(error?.message || '').toLowerCase();
-
-  if (code === 'PGRST301' || message.includes('timeout') || message.includes('econnreset') || message.includes('network')) {
-    return {
-      status: 503,
-      errorCode: 'BOOTSTRAP_TRANSIENT_ERROR',
-      retryable: true,
-    };
-  }
-
-  return {
-    status: 500,
-    errorCode: 'BOOTSTRAP_TERMINAL_ERROR',
-    retryable: false,
-  };
-};
 
 const getTypeMetrics = (type) => {
   if (!commandMetrics.byType[type]) {
@@ -310,86 +245,12 @@ const isObservabilityAuthorized = (req) => {
   return typeof provided === 'string' && provided === expectedKey;
 };
 
-const enforceCommandRateLimit = (req, res, next) => {
-  const traceId = req.traceId || makeTraceId('rate-limit');
-  const userKey = req.user?.id || 'anonymous';
-  const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-  const bucketKey = `${userKey}:${ip}`;
-  const now = Date.now();
-  const current = commandRateTracker.get(bucketKey);
-
-  if (!current || now - current.windowStart > COMMAND_RATE_WINDOW_MS) {
-    commandRateTracker.set(bucketKey, { count: 1, windowStart: now });
-    return next();
-  }
-
-  current.count += 1;
-  if (current.count > COMMAND_RATE_MAX_REQUESTS) {
-    observeCommandEvent({
-      type: req.body?.type,
-      result: 'rate_limited',
-      errorCode: 'RATE_LIMITED',
-      durationMs: 0,
-    });
-    console.warn('[CommandGateway] Rate limit exceeded', {
-      traceId,
-      userId: shortId(req.user?.id),
-      ip,
-      count: current.count,
-      windowMs: COMMAND_RATE_WINDOW_MS,
-    });
-    return res.status(429).json({
-      ok: false,
-      error: 'Too many commands',
-      errorCode: 'RATE_LIMITED',
-      retryAfterMs: Math.max(0, COMMAND_RATE_WINDOW_MS - (now - current.windowStart)),
-      traceId,
-    });
-  }
-
-  return next();
-};
-
-const requireAuthUser = async (req, res, next) => {
-  const traceId = req.traceId || makeTraceId('auth-mw');
-  try {
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      console.warn('[AuthMiddleware] Missing bearer token', { traceId });
-      return res.status(401).json({ error: 'Missing auth token', traceId });
-    }
-
-    const token = authHeader.slice('Bearer '.length).trim();
-    if (!token) {
-      console.warn('[AuthMiddleware] Empty bearer token', { traceId });
-      return res.status(401).json({ error: 'Missing auth token', traceId });
-    }
-
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user) {
-      console.warn('[AuthMiddleware] Invalid auth token', {
-        traceId,
-        error: normalizeServerError(error),
-      });
-      return res.status(401).json({ error: 'Invalid auth token', traceId });
-    }
-
-    console.log('[AuthMiddleware] Authenticated request', {
-      traceId,
-      userId: shortId(data.user.id),
-      email: data.user.email || null,
-      path: req.path,
-    });
-    req.user = data.user;
-    return next();
-  } catch (error) {
-    console.error('[AuthMiddleware] Auth validation exception', {
-      traceId,
-      error: normalizeServerError(error),
-    });
-    return res.status(500).json({ error: 'Auth validation failed', traceId });
-  }
-};
+const requireAuthUser = createRequireAuthUser({
+  supabase,
+  makeTraceId,
+  shortId,
+  normalizeServerError,
+});
 
 const getOrCreateProfileState = async (user) => {
   const { data, error } = await supabase
@@ -583,18 +444,14 @@ const io = new Server(httpServer, {
   pingTimeout: 20000,
 });
 
-const USER_STATE_ROOM_PREFIX = 'user-state:';
-const USER_STATE_CHANGED_EVENT = 'user_state_changed';
-
-const emitUserStateChanged = (userId, payload = {}) => {
-  if (!userId || typeof userId !== 'string') return;
-  const room = `${USER_STATE_ROOM_PREFIX}${userId}`;
-  io.to(room).emit(USER_STATE_CHANGED_EVENT, {
-    userId,
-    serverTime: Date.now(),
-    ...payload,
-  });
-};
+const userStateRealtime = createUserStateRealtime({
+  io,
+  supabase,
+  makeTraceId,
+  normalizeServerError,
+});
+const globalPresence = createGlobalPresence({ io });
+const { emitUserStateChanged } = userStateRealtime;
 
 // --- API ENDPOINTS ---
 
@@ -612,710 +469,82 @@ app.get('/api/time', (_req, res) => {
   res.json({ serverTime: Date.now() });
 });
 
-app.get('/api/ops/command-metrics', (req, res) => {
-  if (!isObservabilityAuthorized(req)) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-
-  return res.json({
-    ok: true,
-    serverTime: Date.now(),
-    metrics: getCommandMetricsSnapshot(),
-  });
+registerCommandRoutes(app, {
+  requireAuthUser,
+  makeTraceId,
+  shortId,
+  observeCommandEvent,
+  COMMAND_RATE_WINDOW_MS,
+  COMMAND_RATE_MAX_REQUESTS,
+  isObservabilityAuthorized,
+  getCommandMetricsSnapshot,
+  isLikelyUuid,
+  COMMAND_TYPES,
+  validateCommandPayload,
+  isNonNullObject,
+  loadCommandById,
+  supabase,
+  parseRevision,
+  getOrCreateProfileState,
+  sanitizeStatePatch,
+  patchAllowList: PATCH_ALLOW_LIST,
+  normalizeLifecycleState,
+  resolveLifecycleCompletions,
+  AUTHORITATIVE_QUEUE_COMMANDS,
+  AUTHORITATIVE_SPEEDUP_TYPES,
+  buildAuthoritativeCommandResult,
+  validateResourceDeduction,
+  addResources,
+  getOrCreatePlayerResources,
+  ResourceType,
+  syncNormalizedDomain,
+  buildServerStatePatch,
+  emitUserStateChanged,
+  normalizeServerError,
 });
 
-app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('bootstrap');
-  const serverTime = Date.now();
-
-  try {
-    const [metaResult, profileResult, authoritativeResources] = await Promise.all([
-      supabase.from('server_metadata').select('value').eq('key', 'last_reset_id').maybeSingle(),
-      supabase.from('profiles').select('game_state, updated_at').eq('id', req.user.id).maybeSingle(),
-      getOrCreatePlayerResources(req.user.id),
-    ]);
-
-    if (metaResult.error) throw metaResult.error;
-    if (profileResult.error && profileResult.error.code !== 'PGRST116') throw profileResult.error;
-
-    const metaData = metaResult.data;
-
-    const resetId = metaData?.value || null;
-    const baseState = isNonNullObject(profileResult.data?.game_state) ? profileResult.data.game_state : {};
-    const stateWithDefaults = {
-      ...baseState,
-      playerName: baseState.playerName || req.user.user_metadata?.username || 'Commander',
-      playerFlag: baseState.playerFlag || req.user.user_metadata?.flag || 'US',
-      revision: parseRevision(baseState.revision),
-      lastSaveTime: Number(baseState.lastSaveTime || serverTime),
-      lastResetId: baseState.lastResetId || resetId,
-      resources: {
-        [ResourceType.MONEY]: authoritativeResources.money,
-        [ResourceType.OIL]: authoritativeResources.oil,
-        [ResourceType.AMMO]: authoritativeResources.ammo,
-        [ResourceType.GOLD]: authoritativeResources.gold,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond,
-      },
-      maxResources: {
-        [ResourceType.MONEY]: authoritativeResources.money_max,
-        [ResourceType.OIL]: authoritativeResources.oil_max,
-        [ResourceType.AMMO]: authoritativeResources.ammo_max,
-        [ResourceType.GOLD]: authoritativeResources.gold_max,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond_max,
-      },
-      bankBalance: authoritativeResources.bank_balance,
-      currentInterestRate: authoritativeResources.interest_rate,
-      nextRateChangeTime: authoritativeResources.next_rate_change,
-    };
-
-    const lifecycleResolved = resolveLifecycleCompletions(stateWithDefaults, serverTime);
-    let effectiveState = lifecycleResolved.state;
-
-    if (lifecycleResolved.changed) {
-      const lifecycleUpdatedAt = new Date(serverTime).toISOString();
-      const { error: lifecycleSaveError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: req.user.id,
-          game_state: effectiveState,
-          updated_at: lifecycleUpdatedAt,
-        });
-      if (!lifecycleSaveError) {
-        await syncNormalizedDomain(req.user.id, effectiveState, traceId);
-        emitUserStateChanged(req.user.id, {
-          revision: parseRevision(effectiveState.revision),
-          reason: 'BOOTSTRAP_LIFECYCLE_RESOLVE',
-        });
-      }
-    }
-
-    const gameState = NORMALIZED_READS_ENABLED
-      ? { ...effectiveState, ...(await loadNormalizedStatePatch(req.user.id)) }
-      : effectiveState;
-
-    return res.json({
-      profile: {
-        id: req.user.id,
-        playerName: gameState.playerName,
-        playerFlag: gameState.playerFlag,
-      },
-      resources: gameState.resources,
-      rates: {
-        moneyRate: authoritativeResources.money_rate,
-        oilRate: authoritativeResources.oil_rate,
-        ammoRate: authoritativeResources.ammo_rate,
-        goldRate: authoritativeResources.gold_rate,
-        diamondRate: authoritativeResources.diamond_rate,
-      },
-      buildings: gameState.buildings || {},
-      units: gameState.units || {},
-      tech: {
-        levels: gameState.techLevels || {},
-        researched: Array.isArray(gameState.researchedTechs) ? gameState.researchedTechs : [],
-      },
-      progress: {
-        campaignProgress: Number(gameState.campaignProgress || 1),
-        empirePoints: Number(gameState.empirePoints || 0),
-        lastSaveTime: Number(gameState.lastSaveTime || serverTime),
-      },
-      queues: {
-        activeConstructions: Array.isArray(gameState.activeConstructions) ? gameState.activeConstructions : [],
-        activeRecruitments: Array.isArray(gameState.activeRecruitments) ? gameState.activeRecruitments : [],
-        activeResearch: gameState.activeResearch || null,
-      },
-      metadata: {
-        revision: parseRevision(gameState.revision),
-        serverTime,
-        resetId: gameState.lastResetId || resetId,
-      },
-      game_state: gameState,
-      updated_at: profileResult.data?.updated_at || null,
-      traceId,
-    });
-  } catch (error) {
-    const classified = classifyBootstrapError(error);
-    console.error('[BootstrapAPI] Bootstrap failed', {
-      traceId,
-      userId: shortId(req.user?.id),
-      retryable: classified.retryable,
-      errorCode: classified.errorCode,
-      error: normalizeServerError(error),
-    });
-    return res.status(classified.status).json({
-      error: error.message || 'Failed to bootstrap',
-      errorCode: classified.errorCode,
-      retryable: classified.retryable,
-      traceId,
-    });
-  }
+registerBootstrapRoutes(app, {
+  requireAuthUser,
+  makeTraceId,
+  supabase,
+  getOrCreatePlayerResources,
+  isNonNullObject,
+  parseRevision,
+  ResourceType,
+  resolveLifecycleCompletions,
+  syncNormalizedDomain,
+  emitUserStateChanged,
+  normalizedReadsEnabled: NORMALIZED_READS_ENABLED,
+  loadNormalizedStatePatch,
+  shortId,
+  normalizeServerError,
 });
 
-app.get('/api/profile', requireAuthUser, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('profile-load');
-  try {
-    console.log('[ProfileAPI] Load started', {
-      traceId,
-      userId: shortId(req.user.id),
-    });
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('game_state, updated_at')
-      .eq('id', req.user.id)
-      .single();
-
-    await getOrCreatePlayerResources(req.user.id);
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('[ProfileAPI] Load no profile found', {
-          traceId,
-          userId: shortId(req.user.id),
-        });
-        return res.status(404).json({ game_state: null, traceId });
-      }
-      throw error;
-    }
-
-    let responseState = data?.game_state || null;
-
-    if (NORMALIZED_READS_ENABLED && isNonNullObject(responseState)) {
-      const normalizedPatch = await loadNormalizedStatePatch(req.user.id);
-      responseState = {
-        ...responseState,
-        ...normalizedPatch,
-      };
-    }
-
-    console.log('[ProfileAPI] Load succeeded', {
-      traceId,
-      userId: shortId(req.user.id),
-      hasState: Boolean(data?.game_state),
-      updatedAt: data?.updated_at || null,
-      stateKeys: data?.game_state ? Object.keys(data.game_state).length : 0,
-      normalizedReads: NORMALIZED_READS_ENABLED,
-    });
-    return res.json({ game_state: responseState, updated_at: data?.updated_at || null, traceId });
-  } catch (error) {
-    console.error('[ProfileAPI] Load failed', {
-      traceId,
-      userId: shortId(req.user?.id),
-      error: normalizeServerError(error),
-    });
-    return res.status(500).json({ error: error.message || 'Failed to load profile', traceId });
-  }
+registerProfileRoutes(app, {
+  requireAuthUser,
+  makeTraceId,
+  shortId,
+  supabase,
+  getOrCreatePlayerResources,
+  NORMALIZED_READS_ENABLED,
+  isNonNullObject,
+  loadNormalizedStatePatch,
+  normalizeServerError,
+  DISABLE_LEGACY_SAVE_BLOB,
+  SERVER_MANAGED_FIELDS,
+  ResourceType,
+  syncNormalizedDomain,
+  emitUserStateChanged,
+  parseRevision,
 });
 
-app.post('/api/profile/save', requireAuthUser, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('profile-save');
-  try {
-    if (DISABLE_LEGACY_SAVE_BLOB) {
-      console.warn('[ProfileAPI] Save blocked by feature flag', {
-        traceId,
-        userId: shortId(req.user.id),
-        errorCode: 'LEGACY_SAVE_DISABLED',
-      });
-      return res.status(410).json({
-        ok: false,
-        error: 'Legacy profile save is disabled',
-        errorCode: 'LEGACY_SAVE_DISABLED',
-        traceId,
-      });
-    }
-
-    const gameState = req.body?.game_state;
-    const expectedUpdatedAt = req.body?.expected_updated_at || null;
-
-    console.log('[ProfileAPI] Save started', {
-      traceId,
-      userId: shortId(req.user.id),
-      expectedUpdatedAt,
-      hasGameState: Boolean(gameState),
-      stateKeys: gameState ? Object.keys(gameState).length : 0,
-    });
-
-    if (!gameState) {
-      return res.status(400).json({ error: 'Missing game_state', traceId });
-    }
-
-    if (expectedUpdatedAt) {
-      const { data: existing, error: existingError } = await supabase
-        .from('profiles')
-        .select('updated_at')
-        .eq('id', req.user.id)
-        .single();
-
-      if (existingError && existingError.code !== 'PGRST116') {
-        throw existingError;
-      }
-
-      if (existing?.updated_at && existing.updated_at !== expectedUpdatedAt) {
-        console.warn('[ProfileAPI] Save conflict', {
-          traceId,
-          userId: shortId(req.user.id),
-          expectedUpdatedAt,
-          existingUpdatedAt: existing.updated_at,
-        });
-        return res.status(409).json({ error: 'Profile out of date', updated_at: existing.updated_at, traceId });
-      }
-    }
-
-    const serverTime = Date.now();
-    const stateToSave = { ...gameState, lastSaveTime: serverTime };
-
-    for (const field of SERVER_MANAGED_FIELDS) {
-      if (field in stateToSave) {
-        delete stateToSave[field];
-      }
-    }
-
-    const authoritativeResources = await getOrCreatePlayerResources(req.user.id);
-
-    if (authoritativeResources) {
-      stateToSave.resources = {
-        [ResourceType.MONEY]: authoritativeResources.money,
-        [ResourceType.OIL]: authoritativeResources.oil,
-        [ResourceType.AMMO]: authoritativeResources.ammo,
-        [ResourceType.GOLD]: authoritativeResources.gold,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond,
-      };
-      stateToSave.maxResources = {
-        [ResourceType.MONEY]: authoritativeResources.money_max,
-        [ResourceType.OIL]: authoritativeResources.oil_max,
-        [ResourceType.AMMO]: authoritativeResources.ammo_max,
-        [ResourceType.GOLD]: authoritativeResources.gold_max,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond_max,
-      };
-      stateToSave.bankBalance = authoritativeResources.bank_balance;
-      stateToSave.currentInterestRate = authoritativeResources.interest_rate;
-      stateToSave.nextRateChangeTime = authoritativeResources.next_rate_change;
-    }
-    const updatedAt = new Date().toISOString();
-
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: req.user.id,
-        game_state: stateToSave,
-        updated_at: updatedAt
-      });
-
-    if (error) throw error;
-
-    const diagnostics = [];
-    const normalizedSync = await syncNormalizedDomain(req.user.id, stateToSave, traceId);
-    if (!normalizedSync.ok && normalizedSync.warning) {
-      diagnostics.push(normalizedSync.warning);
-    }
-
-    console.log('[ProfileAPI] Save succeeded', {
-      traceId,
-      userId: shortId(req.user.id),
-      updatedAt,
-      serverTime,
-      savedStateKeys: Object.keys(stateToSave).length,
-    });
-
-    emitUserStateChanged(req.user.id, {
-      revision: parseRevision(stateToSave.revision),
-      reason: 'PROFILE_SAVE',
-    });
-
-    return res.json({ ok: true, serverTime, updated_at: updatedAt, diagnostics, traceId });
-  } catch (error) {
-    console.error('[ProfileAPI] Save failed', {
-      traceId,
-      userId: shortId(req.user?.id),
-      error: normalizeServerError(error),
-    });
-    return res.status(500).json({ error: error.message || 'Failed to save profile', traceId });
-  }
-});
-
-app.post('/api/resources/deduct', requireAuthUser, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('resource-deduct');
-  try {
-    if (DISABLE_LEGACY_SAVE_BLOB) {
-      return res.status(410).json({
-        ok: false,
-        error: 'Legacy resource endpoint is disabled. Use /api/command',
-        errorCode: 'LEGACY_RESOURCE_ENDPOINT_DISABLED',
-        traceId,
-      });
-    }
-
-    const costs = req.body?.costs || {};
-    const result = await validateResourceDeduction(req.user.id, costs);
-    if (!result.ok) {
-      return res.status(400).json({ ok: false, error: result.reason || 'insufficient_funds', resource: result.resource, traceId });
-    }
-    emitUserStateChanged(req.user.id, { reason: 'RESOURCE_DEDUCT' });
-    return res.json({ ok: true, resources: result.resources, traceId });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Failed to deduct resources', traceId });
-  }
-});
-
-app.post('/api/resources/add', requireAuthUser, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('resource-add');
-  try {
-    if (DISABLE_LEGACY_SAVE_BLOB) {
-      return res.status(410).json({
-        ok: false,
-        error: 'Legacy resource endpoint is disabled. Use /api/command',
-        errorCode: 'LEGACY_RESOURCE_ENDPOINT_DISABLED',
-        traceId,
-      });
-    }
-
-    const gains = req.body?.gains || {};
-    const result = await addResources(req.user.id, gains);
-    if (!result.ok) {
-      return res.status(400).json({ ok: false, error: result.reason || 'add_failed', traceId });
-    }
-    emitUserStateChanged(req.user.id, { reason: 'RESOURCE_ADD' });
-    return res.json({ ok: true, resources: result.resources, traceId });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Failed to add resources', traceId });
-  }
-});
-
-app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, res) => {
-  const traceId = req.traceId || makeTraceId('command');
-  const serverTime = Date.now();
-  const commandStartedAt = Date.now();
-
-  try {
-    const commandId = req.body?.commandId;
-    const type = req.body?.type;
-    let payload = isNonNullObject(req.body?.payload) ? req.body.payload : {};
-    const expectedRevision = req.body?.expectedRevision;
-
-    if (!isLikelyUuid(commandId)) {
-      observeCommandEvent({ type, result: 'bad_request', errorCode: 'INVALID_COMMAND_ID', durationMs: Date.now() - commandStartedAt });
-      return res.status(400).json({
-        ok: false,
-        error: 'Invalid commandId',
-        errorCode: 'INVALID_COMMAND_ID',
-        traceId,
-      });
-    }
-
-    if (!COMMAND_TYPES.has(type)) {
-      observeCommandEvent({ type, result: 'bad_request', errorCode: 'UNSUPPORTED_COMMAND_TYPE', durationMs: Date.now() - commandStartedAt });
-      return res.status(400).json({
-        ok: false,
-        error: 'Unsupported command type',
-        errorCode: 'UNSUPPORTED_COMMAND_TYPE',
-        traceId,
-      });
-    }
-
-    if (!Number.isFinite(Number(expectedRevision))) {
-      observeCommandEvent({ type, result: 'bad_request', errorCode: 'INVALID_EXPECTED_REVISION', durationMs: Date.now() - commandStartedAt });
-      return res.status(400).json({
-        ok: false,
-        error: 'Invalid expectedRevision',
-        errorCode: 'INVALID_EXPECTED_REVISION',
-        traceId,
-      });
-    }
-
-    const payloadValidation = validateCommandPayload(type, payload);
-    if (!payloadValidation.ok) {
-      observeCommandEvent({ type, result: 'bad_request', errorCode: payloadValidation.errorCode, durationMs: Date.now() - commandStartedAt });
-      return res.status(400).json({
-        ok: false,
-        error: payloadValidation.message,
-        errorCode: payloadValidation.errorCode,
-        traceId,
-      });
-    }
-    payload = payloadValidation.payload || payload;
-
-    const previousResponse = await loadCommandById(req.user.id, commandId);
-    if (previousResponse && Object.keys(previousResponse).length > 0) {
-      observeCommandEvent({
-        type,
-        result: previousResponse.ok ? 'success' : 'failed',
-        errorCode: previousResponse.errorCode || null,
-        durationMs: Date.now() - commandStartedAt,
-        idempotentReplay: true,
-      });
-      return res.json(previousResponse);
-    }
-
-    const { error: commandReservationError } = await supabase
-      .from('player_commands')
-      .insert({
-        player_id: req.user.id,
-        command_id: commandId,
-        command_type: type,
-        expected_revision: parseRevision(expectedRevision),
-        payload,
-        response_payload: {},
-      });
-
-    if (commandReservationError) {
-      if (commandReservationError.code === '23505') {
-        const racedResponse = await loadCommandById(req.user.id, commandId);
-        if (racedResponse && Object.keys(racedResponse).length > 0) {
-          observeCommandEvent({
-            type,
-            result: racedResponse.ok ? 'success' : 'failed',
-            errorCode: racedResponse.errorCode || null,
-            durationMs: Date.now() - commandStartedAt,
-            idempotentReplay: true,
-          });
-          return res.json(racedResponse);
-        }
-        observeCommandEvent({
-          type,
-          result: 'conflict',
-          errorCode: 'COMMAND_IN_PROGRESS',
-          durationMs: Date.now() - commandStartedAt,
-          inProgressCollision: true,
-        });
-        return res.status(409).json({
-          ok: false,
-          error: 'Command already in progress',
-          errorCode: 'COMMAND_IN_PROGRESS',
-          traceId,
-        });
-      }
-      throw commandReservationError;
-    }
-
-    const profile = await getOrCreateProfileState(req.user);
-    const currentRevision = parseRevision(profile.gameState?.revision);
-    const nextRevision = currentRevision + 1;
-
-    if (currentRevision !== parseRevision(expectedRevision)) {
-      console.warn('[CommandGateway] Revision mismatch', {
-        traceId,
-        userId: shortId(req.user.id),
-        commandId,
-        commandType: type,
-        expectedRevision,
-        currentRevision,
-      });
-      observeCommandEvent({
-        type,
-        result: 'conflict',
-        errorCode: 'REVISION_MISMATCH',
-        durationMs: Date.now() - commandStartedAt,
-        revisionMismatch: true,
-      });
-      return res.status(409).json({
-        ok: false,
-        error: 'Revision mismatch',
-        errorCode: 'REVISION_MISMATCH',
-        expectedRevision: parseRevision(expectedRevision),
-        currentRevision,
-        traceId,
-      });
-    }
-
-    const rawCosts = isNonNullObject(payload.costs) ? payload.costs : {};
-    const rawGains = isNonNullObject(payload.gains) ? payload.gains : {};
-    const requestedStatePatch = sanitizeStatePatch(payload.statePatch);
-    const diagnostics = [];
-
-    const originalState = normalizeLifecycleState(profile.gameState || {});
-    const lifecycleState = resolveLifecycleCompletions(originalState, serverTime).state;
-    let workingState = lifecycleState;
-    let costs = rawCosts;
-    let gains = rawGains;
-
-    const speedupType = isNonNullObject(payload.action) ? payload.action.type : null;
-    const runAuthoritativeLifecycle = AUTHORITATIVE_QUEUE_COMMANDS.has(type)
-      || (type === 'SPEEDUP' && AUTHORITATIVE_SPEEDUP_TYPES.has(speedupType));
-
-    if (runAuthoritativeLifecycle) {
-      const authoritativeResult = buildAuthoritativeCommandResult(type, lifecycleState, payload.action, serverTime);
-      if (!authoritativeResult.ok) {
-        observeCommandEvent({
-          type,
-          result: 'bad_request',
-          errorCode: authoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
-          durationMs: Date.now() - commandStartedAt,
-        });
-        return res.status(authoritativeResult.status || 400).json({
-          ok: false,
-          error: authoritativeResult.error || 'Invalid command action',
-          errorCode: authoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
-          traceId,
-        });
-      }
-      workingState = authoritativeResult.nextState;
-      costs = authoritativeResult.costs || {};
-      gains = authoritativeResult.gains || {};
-    } else {
-      workingState = {
-        ...lifecycleState,
-        ...requestedStatePatch,
-      };
-    }
-
-    if (Object.keys(costs).length > 0) {
-      const deduction = await validateResourceDeduction(req.user.id, costs);
-      if (!deduction.ok) {
-        observeCommandEvent({
-          type,
-          result: 'bad_request',
-          errorCode: 'INSUFFICIENT_FUNDS',
-          durationMs: Date.now() - commandStartedAt,
-        });
-        return res.status(400).json({
-          ok: false,
-          error: deduction.reason || 'insufficient_funds',
-          errorCode: 'INSUFFICIENT_FUNDS',
-          resource: deduction.resource || null,
-          traceId,
-        });
-      }
-    }
-
-    if (Object.keys(gains).length > 0) {
-      const addition = await addResources(req.user.id, gains);
-      if (!addition.ok) {
-        observeCommandEvent({
-          type,
-          result: 'bad_request',
-          errorCode: 'RESOURCE_ADD_FAILED',
-          durationMs: Date.now() - commandStartedAt,
-        });
-        return res.status(400).json({
-          ok: false,
-          error: addition.reason || 'add_failed',
-          errorCode: 'RESOURCE_ADD_FAILED',
-          traceId,
-        });
-      }
-    }
-
-    const authoritativeResources = await getOrCreatePlayerResources(req.user.id);
-    const nextState = {
-      ...workingState,
-      revision: nextRevision,
-      lastSaveTime: serverTime,
-      resources: {
-        [ResourceType.MONEY]: authoritativeResources.money,
-        [ResourceType.OIL]: authoritativeResources.oil,
-        [ResourceType.AMMO]: authoritativeResources.ammo,
-        [ResourceType.GOLD]: authoritativeResources.gold,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond,
-      },
-      maxResources: {
-        [ResourceType.MONEY]: authoritativeResources.money_max,
-        [ResourceType.OIL]: authoritativeResources.oil_max,
-        [ResourceType.AMMO]: authoritativeResources.ammo_max,
-        [ResourceType.GOLD]: authoritativeResources.gold_max,
-        [ResourceType.DIAMOND]: authoritativeResources.diamond_max,
-      },
-      bankBalance: authoritativeResources.bank_balance,
-      currentInterestRate: authoritativeResources.interest_rate,
-      nextRateChangeTime: authoritativeResources.next_rate_change,
-    };
-
-    const updatedAt = new Date(serverTime).toISOString();
-    const { error: saveError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: req.user.id,
-        game_state: nextState,
-        updated_at: updatedAt,
-      });
-
-    if (saveError) throw saveError;
-
-    const normalizedSync = await syncNormalizedDomain(req.user.id, nextState, traceId);
-    if (!normalizedSync.ok && normalizedSync.warning) {
-      diagnostics.push(normalizedSync.warning);
-    }
-
-    const responsePayload = {
-      ok: true,
-      newRevision: nextRevision,
-      statePatch: buildServerStatePatch(originalState, nextState),
-      serverTime,
-      diagnostics,
-      traceId,
-    };
-
-    const { error: commandUpdateError } = await supabase
-      .from('player_commands')
-      .update({
-        resulting_revision: nextRevision,
-        response_payload: responsePayload,
-      })
-      .eq('player_id', req.user.id)
-      .eq('command_id', commandId);
-
-    if (commandUpdateError) {
-      throw commandUpdateError;
-    }
-
-    console.log('[CommandGateway] Command processed', {
-      traceId,
-      userId: shortId(req.user.id),
-      commandId,
-      commandType: type,
-      expectedRevision: parseRevision(expectedRevision),
-      newRevision: nextRevision,
-    });
-
-    observeCommandEvent({
-      type,
-      result: 'success',
-      durationMs: Date.now() - commandStartedAt,
-    });
-
-    emitUserStateChanged(req.user.id, {
-      revision: nextRevision,
-      reason: 'COMMAND',
-      commandType: type,
-      commandId,
-      traceId,
-    });
-
-    return res.json(responsePayload);
-  } catch (error) {
-    if (isLikelyUuid(req.body?.commandId)) {
-      const failedPayload = {
-        ok: false,
-        error: error.message || 'Failed to process command',
-        errorCode: 'COMMAND_FAILED',
-        traceId,
-      };
-
-      await supabase
-        .from('player_commands')
-        .update({ response_payload: failedPayload })
-        .eq('player_id', req.user.id)
-        .eq('command_id', req.body.commandId);
-    }
-
-    console.error('[CommandGateway] Command failed', {
-      traceId,
-      userId: shortId(req.user?.id),
-      error: normalizeServerError(error),
-    });
-
-    observeCommandEvent({
-      type: req.body?.type,
-      result: 'failed',
-      errorCode: 'COMMAND_FAILED',
-      durationMs: Date.now() - commandStartedAt,
-    });
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message || 'Failed to process command',
-      errorCode: 'COMMAND_FAILED',
-      traceId,
-    });
-  }
+registerResourceRoutes(app, {
+  requireAuthUser,
+  makeTraceId,
+  DISABLE_LEGACY_SAVE_BLOB,
+  validateResourceDeduction,
+  addResources,
+  emitUserStateChanged,
 });
 
 app.post('/api/profile/reset', requireAuthUser, async (req, res) => {
@@ -1434,32 +663,77 @@ app.get('/api/bots/global', async (req, res) => {
 
 app.get('/api/rankings/players', async (req, res) => {
     try {
-        const { data: players, error } = await supabase
-            .from('profiles')
-            .select('id, game_state, role');
-        
-        if (error) throw error;
-        
-        // Mapear para extraer campos del JSONB
-        const results = players.map(p => {
-            const state = p.game_state || {};
-            const stats = state.rankingStats || {
-                DOMINION: state.empirePoints || 0,
-                MILITARY: 0,
-                ECONOMY: 0,
-                CAMPAIGN: state.campaignProgress || 0
-            };
-            
+        const [
+            { data: progressRows, error: progressError },
+            { data: buildingRows, error: buildingError },
+            { data: unitRows, error: unitError },
+            { data: techRows, error: techError }
+        ] = await Promise.all([
+            supabase.from('player_progress').select('player_id, campaign_progress'),
+            supabase.from('player_buildings').select('player_id, level'),
+            supabase.from('player_units').select('player_id, count'),
+            supabase.from('player_tech').select('player_id, level')
+        ]);
+
+        if (progressError) throw progressError;
+        if (buildingError) throw buildingError;
+        if (unitError) throw unitError;
+        if (techError) throw techError;
+
+        const campaignMap = new Map((progressRows || []).map(row => [row.player_id, Number(row.campaign_progress || 1)]));
+        const economyMap = new Map();
+        const militaryMap = new Map();
+        const techMap = new Map();
+
+        for (const row of buildingRows || []) {
+            const current = economyMap.get(row.player_id) || 0;
+            economyMap.set(row.player_id, current + (Number(row.level || 0) * 120));
+        }
+
+        for (const row of unitRows || []) {
+            const current = militaryMap.get(row.player_id) || 0;
+            militaryMap.set(row.player_id, current + Number(row.count || 0));
+        }
+
+        for (const row of techRows || []) {
+            const current = techMap.get(row.player_id) || 0;
+            techMap.set(row.player_id, current + (Math.max(0, Number(row.level || 1) - 1) * 200));
+        }
+
+        const playerIds = new Set();
+        for (const row of progressRows || []) playerIds.add(row.player_id);
+        for (const row of buildingRows || []) playerIds.add(row.player_id);
+        for (const row of unitRows || []) playerIds.add(row.player_id);
+        for (const row of techRows || []) playerIds.add(row.player_id);
+
+        const displayMeta = await loadRankingDisplayMeta([...playerIds]);
+
+        const results = [...playerIds].map((playerId) => {
+            const campaignProgress = Math.max(1, Number(campaignMap.get(playerId) || 1));
+            const campaignScore = Math.max(0, (campaignProgress - 1) * 500);
+            const economyScore = Math.max(0, Math.floor(Number(economyMap.get(playerId) || 0)));
+            const militaryScore = Math.max(0, Math.floor(Number(militaryMap.get(playerId) || 0)));
+            const techScore = Math.max(0, Math.floor(Number(techMap.get(playerId) || 0)));
+            const empirePoints = economyScore + militaryScore + techScore + campaignScore;
+            const publicMeta = displayMeta.get(playerId) || {};
+
             return {
-                id: p.id,
-                name: state.playerName || 'Commander',
-                flag: state.playerFlag || 'US',
-                score: state.empirePoints || 0,
-                stats: stats,
-                role: normalizeRole(p.role)
+                id: playerId,
+                name: publicMeta.playerName || 'Commander',
+                flag: publicMeta.playerFlag || 'US',
+                score: empirePoints,
+                stats: {
+                    DOMINION: empirePoints,
+                    MILITARY: militaryScore,
+                    ECONOMY: economyScore,
+                    CAMPAIGN: campaignScore,
+                },
+                role: normalizeRole(publicMeta.role),
             };
         });
-        
+
+        results.sort((a, b) => b.score - a.score);
+
         res.json(results);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1468,109 +742,14 @@ app.get('/api/rankings/players', async (req, res) => {
 
 // --- SOCKET.IO LOGIC ---
 
-const playerPresence = new Map();
-const GLOBAL_ROOM = 'global';
-
 io.on('connection', (socket) => {
-  let playerId = null;
-  let authUserId = null;
+  const connectionState = {
+    playerId: null,
+    authUserId: null,
+  };
 
-  socket.on('subscribe_user_state', async ({ token }) => {
-    const traceId = makeTraceId('socket-subscribe');
-    try {
-      if (typeof token !== 'string' || !token.trim()) {
-        socket.emit('user_state_subscription', {
-          ok: false,
-          errorCode: 'MISSING_AUTH_TOKEN',
-          traceId,
-        });
-        return;
-      }
-
-      const { data, error } = await supabase.auth.getUser(token.trim());
-      if (error || !data?.user?.id) {
-        socket.emit('user_state_subscription', {
-          ok: false,
-          errorCode: 'INVALID_AUTH_TOKEN',
-          traceId,
-        });
-        return;
-      }
-
-      authUserId = data.user.id;
-      socket.join(`${USER_STATE_ROOM_PREFIX}${authUserId}`);
-      socket.emit('user_state_subscription', {
-        ok: true,
-        userId: authUserId,
-        traceId,
-      });
-    } catch (error) {
-      socket.emit('user_state_subscription', {
-        ok: false,
-        errorCode: 'SUBSCRIPTION_FAILED',
-        traceId,
-      });
-      console.error('[Socket] user state subscription failed', {
-        traceId,
-        error: normalizeServerError(error),
-      });
-    }
-  });
-
-  socket.on('join_room', ({ peerId }) => {
-    playerId = peerId;
-    socket.join(GLOBAL_ROOM);
-
-    playerPresence.set(peerId, {
-      id: peerId,
-      socketId: socket.id,
-      name: 'Player',
-      level: 0,
-      lastSeen: Date.now(),
-    });
-
-    const peersInRoom = [];
-    for (const [pid, data] of playerPresence.entries()) {
-      if (pid !== peerId) {
-        peersInRoom.push(pid);
-      }
-    }
-
-    socket.emit('room_joined', { roomId: GLOBAL_ROOM, peers: peersInRoom });
-    socket.to(GLOBAL_ROOM).emit('peer_join', { peerId });
-  });
-
-  socket.on('broadcast_action', ({ action }) => {
-    socket.to(GLOBAL_ROOM).emit('remote_action', { action, fromPeerId: playerId });
-  });
-
-  socket.on('send_to_peer', ({ targetPeerId, action }) => {
-    const target = playerPresence.get(targetPeerId);
-    if (!target) return;
-    const targetSocketId = target.socketId;
-    io.to(targetSocketId).emit('remote_action', { action, fromPeerId: playerId });
-  });
-
-  socket.on('presence_update', ({ playerData }) => {
-    if (!playerId) return;
-    const existing = playerPresence.get(playerId);
-    if (existing) {
-      existing.name = playerData.name || existing.name;
-      existing.level = playerData.level ?? existing.level;
-      existing.flag = playerData.flag;
-      existing.lastSeen = Date.now();
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (playerId) {
-      socket.to(GLOBAL_ROOM).emit('peer_leave', { peerId: playerId });
-      playerPresence.delete(playerId);
-    }
-    if (authUserId) {
-      socket.leave(`${USER_STATE_ROOM_PREFIX}${authUserId}`);
-    }
-  });
+  userStateRealtime.registerSocketHandlers(socket, connectionState);
+  globalPresence.registerSocketHandlers(socket, connectionState);
 });
 
 const PORT = process.env.PORT || 10000;
@@ -1606,6 +785,47 @@ function normalizeRole(role) {
   if (!normalized) return DEFAULT_ROLE;
   const match = ROLE_PRIORITY.find(r => r.toLowerCase() === normalized.toLowerCase());
   return match || DEFAULT_ROLE;
+}
+
+async function loadRankingDisplayMeta(playerIds) {
+  const result = new Map();
+  const pending = new Set((playerIds || []).filter((id) => typeof id === 'string' && id));
+
+  if (pending.size === 0) return result;
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return result;
+  }
+
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore && pending.size > 0) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) {
+      console.warn('[Rankings] Failed to load auth user metadata:', error.message);
+      return result;
+    }
+
+    const users = data?.users || [];
+    if (users.length === 0) {
+      hasMore = false;
+      continue;
+    }
+
+    for (const user of users) {
+      if (!pending.has(user.id)) continue;
+      result.set(user.id, {
+        playerName: user.user_metadata?.username || 'Commander',
+        playerFlag: user.user_metadata?.flag || 'US',
+        role: user.app_metadata?.role || user.user_metadata?.role || DEFAULT_ROLE,
+      });
+      pending.delete(user.id);
+    }
+
+    page += 1;
+  }
+
+  return result;
 }
 
 async function ensureProfilesForAuthUsers() {

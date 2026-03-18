@@ -1,6 +1,6 @@
 # Checklist de Avance - Plan Arquitectura Server-Authoritative
 
-Fecha de corte: 2026-03-17
+Fecha de corte: 2026-03-18
 Referencia: `PLAN_ARQUITECTURA_SERVER_AUTORITATIVA.md`
 
 ## Criterio de estados
@@ -67,7 +67,7 @@ Estado Fase 3: [x] Cumplida
 - [x] Rate limit por usuario/IP activo en `/api/command`.
 - [~] Validación de payload robusta implementada (custom), pero pendiente adopción formal de esquema declarativo (Zod/Joi) si se mantiene ese criterio del plan.
 - [ ] Auditoría completa de permisos RLS y límites service-role en todo el dominio nuevo.
-- [ ] Rankings calculados desde tablas normalizadas (aún hay dependencia de `game_state` en ranking actual).
+- [x] Rankings calculados desde tablas normalizadas (score/categorías/identidad/role del ranking oficial sin dependencia de `profiles.game_state` ni `rankingStats`).
 - [~] Endurecimiento de resets avanzado (`dbReset` robusto), pendiente cierre formal de hardening/secret hygiene de extremo a extremo.
 
 Estado Fase 4: [~] Parcial
@@ -78,6 +78,7 @@ Estado Fase 4: [~] Parcial
 
 - [x] Métricas clave implementadas: conflictos/min, error rate por comando, latencias p50/p95/p99, retry ratio.
 - [x] Endpoint operativo de métricas de comandos disponible.
+- [~] Sincronización multi-tab reducida de polling puro a modelo híbrido (socket `user_state_changed` + fallback `focus/visibility/storage/channel` + polling) para bajar ventana de desincronización.
 - [~] Logging estructurado amplio en backend, pendiente estandarización total en todos los flujos (incluyendo `commandId/revision` de forma uniforme).
 - [ ] Suite E2E completa del plan (2 pestañas, offline/reconnect, colas, caídas parciales) no cerrada al 100%.
 - [ ] Dashboard + alertas productivas conectadas a canal operativo (hoy hay señales/thresholds en código, falta circuito completo).
@@ -110,13 +111,13 @@ Estado Fase 5: [~] Parcial
 
 - [~] Mover cálculo de tiempos/costos definitivos al backend command handler (implementado para `BUILD_START`/`RECRUIT_START`/`RESEARCH_START` y `SPEEDUP` de colas críticas).
 - [~] Hacer que el cliente deje de proponer parches críticos de colas y reciba `statePatch` autoritativo (migrado para comandos de lifecycle + speedup en build/recruit/research; falta extender al resto de comandos críticos).
-- [~] Cubrir doble click/retry/reconexión con pruebas específicas (hay cobertura de idempotencia/revision mismatch e invariantes de lifecycle autoritativo; pendiente cierre E2E multi-tab de larga duración).
+- [~] Cubrir doble click/retry/reconexión con pruebas específicas (hay cobertura de idempotencia/revision mismatch e invariantes de lifecycle autoritativo; se añadió push realtime por socket para convergencia entre pestañas; pendiente cierre E2E multi-tab de larga duración con SLO medido).
 
 ### Paso 3 - Ranking y progreso 100% normalizado
 
-- [ ] Reescribir `/api/rankings/players` para leer exclusivamente tablas normalizadas.
-- [ ] Calcular `empire_points` server-side desde datos normalizados.
-- [ ] Eliminar dependencia de `rankingStats` dentro de `game_state` para ranking oficial.
+- [x] Reescribir `/api/rankings/players` para leer exclusivamente tablas normalizadas.
+- [x] Calcular `empire_points` server-side desde datos normalizados.
+- [x] Eliminar dependencia de `rankingStats` dentro de `game_state` para ranking oficial.
 
 ### Paso 4 - Cerrar migración de datos crítica
 
@@ -139,7 +140,7 @@ Estado Fase 5: [~] Parcial
 
 ### Paso 7 - Suite de pruebas de consistencia (cierre de plan)
 
-- [ ] E2E: 2 pestañas en paralelo durante 10+ min sin pérdida de progreso.
+- [~] E2E: 2 pestañas en paralelo durante 10+ min sin pérdida de progreso (validación manual positiva; falta automatizar y fijar SLO de convergencia inter-pestaña).
 - [ ] E2E: offline/reconnect con replay idempotente correcto.
 - [ ] E2E: queue lifecycle completo (build/recruit/research) tras refresh y reinicio backend.
 - [ ] E2E: tolerancia a caídas parciales de backend sin corrupción de estado.
@@ -157,3 +158,42 @@ Objetivo de control por sprint:
 - Sin regressions en `bootstrap`.
 - Sin incremento sostenido de `badRequest` o `failed` en `/api/command`.
 - Tendencia descendente de conflictos y divergencias cliente-servidor.
+
+---
+
+## Parada técnica obligatoria - Modularización de `server/index.js` (alta precisión)
+
+Objetivo: reducir riesgo operacional y complejidad ciclomática sin cambiar comportamiento funcional.
+
+### Fase M1 - Extraer socket realtime por responsabilidad
+
+- [x] Crear `server/socket/userStateRealtime.js` (suscripción autenticada + rooms `user-state:*` + `emitUserStateChanged`).
+- [x] Crear `server/socket/globalPresence.js` (join/broadcast/send_to_peer/presence/disconnect del room global).
+- [x] Mantener `server/index.js` como composition root de sockets únicamente (wiring + bootstrap).
+- [~] Prueba de no regresión: eventos multiplayer existentes (`remote_action`, `peer_join`, `peer_leave`) intactos (wiring preservado y sin cambios de contrato; pendiente smoke manual multiplayer end-to-end).
+
+### Fase M2 - Extraer capa HTTP por dominio
+
+- [x] Crear `server/routes/commandRoutes.js` (`/api/command`, métricas de command, rate-limit middleware dedicado).
+- [x] Crear `server/routes/bootstrapRoutes.js` (`/api/bootstrap`).
+- [x] Crear `server/routes/profileRoutes.js` (`/api/profile/save`, compatibilidad legacy controlada por flag).
+- [x] Crear `server/routes/resourceRoutes.js` (`/api/resources/*` legacy y su bloqueo por flag).
+
+### Fase M3 - Extraer servicios puros y shared helpers
+
+- [x] Crear `server/services/commandService.js` (idempotencia, revision locking, authoritative lifecycle, statePatch server).
+- [x] Crear `server/services/bootstrapService.js` (hydrate + lifecycle resolve + normalized read integration).
+- [x] Crear `server/middleware/auth.js` y `server/middleware/commandRateLimit.js`.
+- [x] Crear `server/lib/trace.js` y `server/lib/statePatch.js` para utilidades reutilizables.
+
+### Fase M4 - Criterios de aceptación de producción (gates)
+
+- [x] `npm run typecheck` verde + `npm test` verde en cada subfase M1/M2/M3 (no al final solamente) (validado al cierre de modularización).
+- [~] Smoke funcional obligatorio tras cada subfase: login, bootstrap, build/recruit/research/speedup, tutorial claim, refresh (checklist operativo documentado; ejecución pendiente al cierre global).
+- [ ] Comparar métricas 24h pre/post (`failed`, `badRequest`, `revisionMismatch`, latencia p95) sin degradación estadística.
+- [x] Rollback plan definido por subfase (revert puntual de módulos sin tocar migraciones de datos).
+
+### Fase M5 - Cierre documental
+
+- [x] ADR corto: límites de responsabilidad por módulo + contratos de eventos socket.
+- [x] Runbook de incidentes actualizado con mapa de ownership por archivo/módulo.
