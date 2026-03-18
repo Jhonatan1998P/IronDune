@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
-import { buildBackendUrl } from '../lib/backend';
+import { buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB } from '../lib/backend';
 import { createTraceId, normalizeError, shortId } from '../lib/diagnosticLogger';
 
 const stripServerManagedFields = (state: GameState): GameState => {
@@ -248,6 +248,13 @@ export const usePersistence = (
   }, [getAuthHeaders, signOut, user?.id]);
 
   const saveCloudProfile = useCallback(async (state: GameState, keepalive: boolean = false) => {
+    if (DISABLE_LEGACY_SAVE_BLOB) {
+      console.log('[Persistence] Legacy profile blob save skipped by feature flag', {
+        userId: shortId(user?.id),
+      });
+      return;
+    }
+
     const headers = getAuthHeaders();
     if (!headers) throw new Error('Missing auth token');
 
@@ -583,6 +590,13 @@ export const usePersistence = (
 
   const performAutoSave = useCallback(async (_force: boolean = false) => {
       if (!user) return;
+
+      if (DISABLE_LEGACY_SAVE_BLOB) {
+        setHasSave(true);
+        lastCloudSaveRef.current = TimeSyncService.getServerTime();
+        return;
+      }
+
       const now = TimeSyncService.getServerTime();
       const currentState = gameStateRef.current;
       const stateToSave = { ...currentState, lastSaveTime: now };

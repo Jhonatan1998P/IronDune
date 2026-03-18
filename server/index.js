@@ -14,6 +14,7 @@ import { startScheduler } from './scheduler.js';
 import { startProductionLoop } from './engine/productionLoop.js';
 import { addResources, getOrCreatePlayerResources, validateResourceDeduction } from './engine/resourceValidator.js';
 import { ResourceType } from './engine/enums.js';
+import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
@@ -23,48 +24,7 @@ const SERVER_MANAGED_FIELDS = ['resources', 'maxResources', 'bankBalance', 'curr
 const NORMALIZED_DUAL_WRITE_ENABLED = process.env.FF_DUAL_WRITE_NORMALIZED !== 'false';
 const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS === 'true';
 const NORMALIZED_DUAL_WRITE_STRICT = process.env.FF_DUAL_WRITE_STRICT === 'true';
-const COMMAND_TYPES = new Set([
-  'BUILD_START',
-  'BUILD_REPAIR',
-  'RECRUIT_START',
-  'RESEARCH_START',
-  'SPEEDUP',
-  'TRADE_EXECUTE',
-  'DIAMOND_EXCHANGE',
-  'ESPIONAGE_START',
-  'BANK_DEPOSIT',
-  'BANK_WITHDRAW',
-  'TUTORIAL_CLAIM_REWARD',
-  'GIFT_CODE_REDEEM',
-  'DIPLOMACY_GIFT',
-  'DIPLOMACY_PROPOSE_ALLIANCE',
-  'DIPLOMACY_PROPOSE_PEACE',
-]);
-const RESOURCE_KEYS = new Set(Object.values(ResourceType));
-const PATCH_ALLOW_LIST = new Set([
-  'buildings',
-  'units',
-  'activeConstructions',
-  'activeRecruitments',
-  'activeResearch',
-  'techLevels',
-  'researchedTechs',
-  'marketOffers',
-  'marketNextRefreshTime',
-  'activeMarketEvent',
-  'spyReports',
-  'empirePoints',
-  'logs',
-  'rankingData',
-  'diplomaticActions',
-  'redeemedGiftCodes',
-  'giftCodeCooldowns',
-  'completedTutorials',
-  'currentTutorialId',
-  'tutorialClaimable',
-  'tutorialAccepted',
-  'isTutorialMinimized',
-]);
+const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB === 'true';
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
 const COMMAND_RATE_MAX_REQUESTS = Number(process.env.COMMAND_RATE_MAX_REQUESTS || 120);
 const COMMAND_METRICS_LOG_INTERVAL_MS = Number(process.env.COMMAND_METRICS_LOG_INTERVAL_MS || 60_000);
@@ -158,103 +118,6 @@ const sanitizeStatePatch = (patch) => {
   return sanitized;
 };
 
-const validateNumericMap = (value) => {
-  if (!isNonNullObject(value)) return false;
-  const entries = Object.entries(value);
-  if (entries.length > RESOURCE_KEYS.size) return false;
-  for (const [key, amount] of entries) {
-    if (!RESOURCE_KEYS.has(key)) return false;
-    const numeric = Number(amount);
-    if (!Number.isFinite(numeric) || numeric < 0) return false;
-  }
-  return true;
-};
-
-const hasNonEmptyObject = (value) => isNonNullObject(value) && Object.keys(value).length > 0;
-
-const hasAnyStatePatchKeys = (payload, requiredKeys) => {
-  if (!isNonNullObject(payload.statePatch)) return false;
-  return requiredKeys.some((key) => Object.prototype.hasOwnProperty.call(payload.statePatch, key));
-};
-
-const commandSemanticValidators = {
-  BUILD_START: (payload) => hasAnyStatePatchKeys(payload, ['activeConstructions', 'buildings']),
-  BUILD_REPAIR: (payload) => hasAnyStatePatchKeys(payload, ['buildings']),
-  RECRUIT_START: (payload) => hasAnyStatePatchKeys(payload, ['activeRecruitments', 'units']),
-  RESEARCH_START: (payload) => hasAnyStatePatchKeys(payload, ['activeResearch', 'techLevels', 'researchedTechs']),
-  SPEEDUP: (payload) => hasAnyStatePatchKeys(payload, ['activeConstructions', 'activeRecruitments', 'activeResearch']),
-  TRADE_EXECUTE: (payload) => hasAnyStatePatchKeys(payload, ['marketOffers', 'marketNextRefreshTime', 'activeMarketEvent', 'logs']),
-  DIAMOND_EXCHANGE: (payload) => hasNonEmptyObject(payload.costs) && hasNonEmptyObject(payload.gains),
-  ESPIONAGE_START: (payload) => hasAnyStatePatchKeys(payload, ['spyReports']),
-  BANK_DEPOSIT: (payload) => hasNonEmptyObject(payload.costs) && !hasNonEmptyObject(payload.gains),
-  BANK_WITHDRAW: (payload) => hasNonEmptyObject(payload.gains) && !hasNonEmptyObject(payload.costs),
-  TUTORIAL_CLAIM_REWARD: (payload) => hasAnyStatePatchKeys(payload, ['completedTutorials', 'tutorialClaimable', 'currentTutorialId']),
-  GIFT_CODE_REDEEM: (payload) => hasAnyStatePatchKeys(payload, ['redeemedGiftCodes', 'giftCodeCooldowns']),
-  DIPLOMACY_GIFT: (payload) => hasAnyStatePatchKeys(payload, ['diplomaticActions', 'rankingData']),
-  DIPLOMACY_PROPOSE_ALLIANCE: (payload) => hasAnyStatePatchKeys(payload, ['diplomaticActions', 'rankingData']),
-  DIPLOMACY_PROPOSE_PEACE: (payload) => hasAnyStatePatchKeys(payload, ['diplomaticActions', 'rankingData']),
-};
-
-const validateCommandPayload = (type, payload) => {
-  if (!isNonNullObject(payload)) {
-    return { ok: false, errorCode: 'INVALID_PAYLOAD', message: 'Payload must be an object' };
-  }
-
-  const keys = Object.keys(payload);
-  if (keys.length > 8) {
-    return { ok: false, errorCode: 'INVALID_PAYLOAD', message: 'Payload has too many keys' };
-  }
-
-  const allowedKeys = new Set(['costs', 'gains', 'statePatch']);
-  for (const key of keys) {
-    if (!allowedKeys.has(key)) {
-      return { ok: false, errorCode: 'INVALID_PAYLOAD_KEY', message: `Unsupported payload key: ${key}` };
-    }
-  }
-
-  if (payload.costs !== undefined && !validateNumericMap(payload.costs)) {
-    return { ok: false, errorCode: 'INVALID_PAYLOAD_COSTS', message: 'Payload costs are invalid' };
-  }
-
-  if (payload.gains !== undefined && !validateNumericMap(payload.gains)) {
-    return { ok: false, errorCode: 'INVALID_PAYLOAD_GAINS', message: 'Payload gains are invalid' };
-  }
-
-  if (payload.statePatch !== undefined && !isNonNullObject(payload.statePatch)) {
-    return { ok: false, errorCode: 'INVALID_STATE_PATCH', message: 'statePatch must be an object' };
-  }
-
-  if (isNonNullObject(payload.statePatch)) {
-    const patchKeys = Object.keys(payload.statePatch);
-    if (patchKeys.length > PATCH_ALLOW_LIST.size) {
-      return { ok: false, errorCode: 'INVALID_STATE_PATCH', message: 'statePatch has too many keys' };
-    }
-    for (const key of patchKeys) {
-      if (!PATCH_ALLOW_LIST.has(key)) {
-        return { ok: false, errorCode: 'INVALID_STATE_PATCH_KEY', message: `Unsupported statePatch key: ${key}` };
-      }
-    }
-  }
-
-  if (!hasNonEmptyObject(payload.costs) && !hasNonEmptyObject(payload.gains) && !hasNonEmptyObject(payload.statePatch)) {
-    return { ok: false, errorCode: 'EMPTY_COMMAND_PAYLOAD', message: 'Command payload is empty' };
-  }
-
-  if ((type === 'BANK_DEPOSIT' || type === 'BANK_WITHDRAW') && !hasNonEmptyObject(payload.costs) && !hasNonEmptyObject(payload.gains)) {
-    return { ok: false, errorCode: 'INVALID_BANK_PAYLOAD', message: 'Bank commands must include costs or gains' };
-  }
-
-  const semanticValidator = commandSemanticValidators[type];
-  if (typeof semanticValidator === 'function' && !semanticValidator(payload)) {
-    return {
-      ok: false,
-      errorCode: 'INVALID_COMMAND_SEMANTICS',
-      message: `Payload does not satisfy semantic rules for ${type}`,
-    };
-  }
-
-  return { ok: true };
-};
 
 const classifyBootstrapError = (error) => {
   const code = error?.code || '';
@@ -896,6 +759,20 @@ app.get('/api/profile', requireAuthUser, async (req, res) => {
 app.post('/api/profile/save', requireAuthUser, async (req, res) => {
   const traceId = req.traceId || makeTraceId('profile-save');
   try {
+    if (DISABLE_LEGACY_SAVE_BLOB) {
+      console.warn('[ProfileAPI] Save blocked by feature flag', {
+        traceId,
+        userId: shortId(req.user.id),
+        errorCode: 'LEGACY_SAVE_DISABLED',
+      });
+      return res.status(410).json({
+        ok: false,
+        error: 'Legacy profile save is disabled',
+        errorCode: 'LEGACY_SAVE_DISABLED',
+        traceId,
+      });
+    }
+
     const gameState = req.body?.game_state;
     const expectedUpdatedAt = req.body?.expected_updated_at || null;
 
@@ -1003,6 +880,15 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
 app.post('/api/resources/deduct', requireAuthUser, async (req, res) => {
   const traceId = req.traceId || makeTraceId('resource-deduct');
   try {
+    if (DISABLE_LEGACY_SAVE_BLOB) {
+      return res.status(410).json({
+        ok: false,
+        error: 'Legacy resource endpoint is disabled. Use /api/command',
+        errorCode: 'LEGACY_RESOURCE_ENDPOINT_DISABLED',
+        traceId,
+      });
+    }
+
     const costs = req.body?.costs || {};
     const result = await validateResourceDeduction(req.user.id, costs);
     if (!result.ok) {
@@ -1017,6 +903,15 @@ app.post('/api/resources/deduct', requireAuthUser, async (req, res) => {
 app.post('/api/resources/add', requireAuthUser, async (req, res) => {
   const traceId = req.traceId || makeTraceId('resource-add');
   try {
+    if (DISABLE_LEGACY_SAVE_BLOB) {
+      return res.status(410).json({
+        ok: false,
+        error: 'Legacy resource endpoint is disabled. Use /api/command',
+        errorCode: 'LEGACY_RESOURCE_ENDPOINT_DISABLED',
+        traceId,
+      });
+    }
+
     const gains = req.body?.gains || {};
     const result = await addResources(req.user.id, gains);
     if (!result.ok) {
@@ -1036,7 +931,7 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
   try {
     const commandId = req.body?.commandId;
     const type = req.body?.type;
-    const payload = isNonNullObject(req.body?.payload) ? req.body.payload : {};
+    let payload = isNonNullObject(req.body?.payload) ? req.body.payload : {};
     const expectedRevision = req.body?.expectedRevision;
 
     if (!isLikelyUuid(commandId)) {
@@ -1079,6 +974,7 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
         traceId,
       });
     }
+    payload = payloadValidation.payload || payload;
 
     const previousResponse = await loadCommandById(req.user.id, commandId);
     if (previousResponse && Object.keys(previousResponse).length > 0) {
@@ -1544,6 +1440,12 @@ setInterval(() => {
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
   console.log(`[BattleServer] Health check: http://localhost:${PORT}/health`);
+  console.log('[BattleServer] Feature flags', {
+    FF_DUAL_WRITE_NORMALIZED: NORMALIZED_DUAL_WRITE_ENABLED,
+    FF_NORMALIZED_READS: NORMALIZED_READS_ENABLED,
+    FF_DUAL_WRITE_STRICT: NORMALIZED_DUAL_WRITE_STRICT,
+    FF_DISABLE_LEGACY_SAVE_BLOB: DISABLE_LEGACY_SAVE_BLOB,
+  });
     if (process.env.DISABLE_SCHEDULER !== 'true') {
         startScheduler();
         startProductionLoop();
