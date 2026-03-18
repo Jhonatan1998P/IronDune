@@ -130,8 +130,22 @@ export const createBootstrapService = ({
         }
       }
 
-      const gameState = normalizedReadsEnabled
-        ? { ...effectiveState, ...(await loadNormalizedStatePatch(req.user.id)) }
+      const normalizedPatch = normalizedReadsEnabled
+        ? await loadNormalizedStatePatch(req.user.id).catch((error) => {
+          logWithSchema('warn', '[BootstrapAPI] Falling back to profile blob read', {
+            traceId,
+            userId: shortId(req.user.id),
+            errorCode: 'NORMALIZED_READ_FALLBACK',
+            extra: {
+              error: normalizeServerError(error),
+            },
+          });
+          return null;
+        })
+        : null;
+
+      const gameState = normalizedPatch
+        ? { ...effectiveState, ...normalizedPatch }
         : effectiveState;
 
       const responsePayload = {

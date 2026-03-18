@@ -173,8 +173,16 @@ BEGIN
     COALESCE(item->>'buildingType', 'UNKNOWN'),
     item->>'buildingType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-    to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
-    to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+    to_timestamp(CASE
+      WHEN ABS(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+        THEN COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+      ELSE COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+    END),
+    to_timestamp(CASE
+      WHEN ABS(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+        THEN COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+      ELSE COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+    END),
     'ACTIVE',
     NOW()
   FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item;
@@ -187,8 +195,16 @@ BEGIN
     COALESCE(item->>'unitType', 'UNKNOWN'),
     item->>'unitType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-    to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
-    to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+    to_timestamp(CASE
+      WHEN ABS(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+        THEN COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+      ELSE COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+    END),
+    to_timestamp(CASE
+      WHEN ABS(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+        THEN COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+      ELSE COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+    END),
     'ACTIVE',
     NOW()
   FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item;
@@ -202,8 +218,16 @@ BEGIN
       COALESCE(p_state->'activeResearch'->>'techId', 'UNKNOWN'),
       p_state->'activeResearch'->>'techId',
       1,
-      to_timestamp(COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
-      to_timestamp(COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+      to_timestamp(CASE
+        WHEN ABS(COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+          THEN COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+        ELSE COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+      END),
+      to_timestamp(CASE
+        WHEN ABS(COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
+          THEN COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
+        ELSE COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
+      END),
       'ACTIVE',
       NOW()
     );

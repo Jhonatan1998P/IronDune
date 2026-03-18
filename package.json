@@ -13,6 +13,7 @@
     "server": "cd server && node index.js",
     "server:dev": "cd server && node --watch index.js",
     "normalized:check": "node server/scripts/normalized-backfill-check.js",
+    "normalized:repair-queues": "node server/scripts/apply-normalized-queue-fix.js",
     "security:audit": "node server/scripts/security-audit.js",
     "metrics:compare": "node server/scripts/compare-command-metrics.js"
   },

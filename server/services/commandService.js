@@ -138,8 +138,21 @@ export const createCommandService = ({
 
       const profile = await getOrCreateProfileState(req.user);
       const normalizedPatch = normalizedReadsEnabled
-        ? await loadNormalizedStatePatch(req.user.id).catch(() => ({}))
-        : {};
+        ? await loadNormalizedStatePatch(req.user.id).catch((error) => {
+          logWithSchema('warn', '[CommandGateway] Falling back to profile blob read', {
+            traceId,
+            userId: shortId(req.user.id),
+            commandId,
+            expectedRevision: parseRevision(expectedRevision),
+            errorCode: 'NORMALIZED_READ_FALLBACK',
+            extra: {
+              commandType: type,
+              error: normalizeServerError(error),
+            },
+          });
+          return null;
+        })
+        : null;
       const profileState = {
         ...(profile.gameState || {}),
         ...(normalizedPatch || {}),

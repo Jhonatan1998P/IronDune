@@ -6,7 +6,8 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "security:audit": "node scripts/security-audit.js",
-    "metrics:compare": "node scripts/compare-command-metrics.js"
+    "metrics:compare": "node scripts/compare-command-metrics.js",
+    "normalized:repair-queues": "node scripts/apply-normalized-queue-fix.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

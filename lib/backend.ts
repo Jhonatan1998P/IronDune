@@ -19,7 +19,7 @@ const getConfiguredOrigin = (): string => {
 };
 
 export const BACKEND_ORIGIN = getConfiguredOrigin();
-export const DISABLE_LEGACY_SAVE_BLOB = String(ENV.VITE_FF_DISABLE_LEGACY_SAVE_BLOB || 'true').toLowerCase() !== 'false';
+export const DISABLE_LEGACY_SAVE_BLOB = String(ENV.VITE_FF_DISABLE_LEGACY_SAVE_BLOB || '').toLowerCase() === 'true';
 
 export const buildBackendUrl = (path: string) => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

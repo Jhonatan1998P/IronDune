@@ -37,8 +37,9 @@ const FROZEN_BLOB_CRITICAL_FIELDS = ['buildings', 'units', 'techLevels', 'resear
 const NORMALIZED_DUAL_WRITE_ENABLED = process.env.FF_DUAL_WRITE_NORMALIZED !== 'false';
 const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS !== 'false';
 const NORMALIZED_DUAL_WRITE_STRICT = process.env.FF_DUAL_WRITE_STRICT === 'true';
-const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB !== 'false';
-const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = process.env.FF_FREEZE_LEGACY_BLOB_FIELDS !== 'false';
+const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB === 'true';
+const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = process.env.FF_FREEZE_LEGACY_BLOB_FIELDS === 'true';
+const MAX_QUEUE_TIMESTAMP_MS = Date.parse('3000-01-01T00:00:00.000Z');
 const AUTHORITATIVE_QUEUE_COMMANDS = new Set(['BUILD_START', 'RECRUIT_START', 'RESEARCH_START']);
 const AUTHORITATIVE_SPEEDUP_TYPES = new Set(['BUILD', 'RECRUIT', 'RESEARCH']);
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
@@ -397,7 +398,7 @@ const loadCommandById = async (playerId, commandId) => {
 
 const toEpochMillis = (value) => {
   const parsed = Date.parse(value || '');
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
 const stripCriticalDomainFromBlob = (state) => {
@@ -463,6 +464,17 @@ const loadNormalizedStatePatch = async (playerId) => {
     throw failures[0].error;
   }
 
+  const hasAnyNormalizedData =
+    (buildingsRes.data?.length || 0) > 0
+    || (unitsRes.data?.length || 0) > 0
+    || (techRes.data?.length || 0) > 0
+    || (queuesRes.data?.length || 0) > 0
+    || Boolean(progressRes.data);
+
+  if (!hasAnyNormalizedData) {
+    return null;
+  }
+
   const buildings = {};
   for (const row of buildingsRes.data || []) {
     buildings[row.building_type] = {
@@ -488,13 +500,25 @@ const loadNormalizedStatePatch = async (playerId) => {
   let activeResearch = null;
 
   for (const row of queuesRes.data || []) {
+    const startTime = toEpochMillis(row.start_time);
+    const endTime = toEpochMillis(row.end_time);
+    if (
+      !Number.isFinite(startTime)
+      || !Number.isFinite(endTime)
+      || startTime >= MAX_QUEUE_TIMESTAMP_MS
+      || endTime >= MAX_QUEUE_TIMESTAMP_MS
+      || endTime < startTime
+    ) {
+      throw new Error('NORMALIZED_QUEUE_TIME_INVALID');
+    }
+
     if (row.queue_type === 'BUILD') {
       activeConstructions.push({
         id: row.id,
         buildingType: row.target_type,
         count: Number(row.count || 1),
-        startTime: toEpochMillis(row.start_time),
-        endTime: toEpochMillis(row.end_time),
+        startTime,
+        endTime,
       });
       continue;
     }
@@ -504,8 +528,8 @@ const loadNormalizedStatePatch = async (playerId) => {
         id: row.id,
         unitType: row.target_type,
         count: Number(row.count || 1),
-        startTime: toEpochMillis(row.start_time),
-        endTime: toEpochMillis(row.end_time),
+        startTime,
+        endTime,
       });
       continue;
     }
@@ -513,8 +537,8 @@ const loadNormalizedStatePatch = async (playerId) => {
     if (row.queue_type === 'RESEARCH') {
       activeResearch = {
         techId: row.target_type,
-        startTime: toEpochMillis(row.start_time),
-        endTime: toEpochMillis(row.end_time),
+        startTime,
+        endTime,
       };
     }
   }
