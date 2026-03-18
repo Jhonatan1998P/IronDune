@@ -16,7 +16,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         titleKey: 'welcome_title',
         descKey: 'welcome_desc',
         targetTab: 'buildings',
-        reward: { [ResourceType.MONEY]: 2000 },
+        reward: { [ResourceType.MONEY]: 10000, [ResourceType.OIL]: 1000, [ResourceType.AMMO]: 500 },
         condition: () => true, 
         targetElementId: undefined
     },
@@ -26,7 +26,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_house_desc',
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.HOUSE}`,
-        reward: { [ResourceType.MONEY]: 12000 }, // Funds Oil Rig
+        reward: { [ResourceType.MONEY]: 20000, [ResourceType.OIL]: 2000, [ResourceType.AMMO]: 1000 }, // Funds Oil Rig + next steps
         buildingReward: { [BuildingType.HOUSE]: 2 }, // Grant 2 extra houses
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.HOUSE);
@@ -40,7 +40,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_oil_desc',
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.OIL_RIG}`,
-        reward: { [ResourceType.MONEY]: 12000, [ResourceType.OIL]: 500 }, // Funds Munitions
+        reward: { [ResourceType.MONEY]: 25000, [ResourceType.OIL]: 2500, [ResourceType.AMMO]: 1500 }, // Funds Munitions
         buildingReward: { [BuildingType.OIL_RIG]: 1 }, // Grant 1 extra rig
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.OIL_RIG);
@@ -54,7 +54,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_ammo_desc', // Needs localization key
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.MUNITIONS_FACTORY}`,
-        reward: { [ResourceType.MONEY]: 20000, [ResourceType.AMMO]: 1000 }, // Funds Gold
+        reward: { [ResourceType.MONEY]: 35000, [ResourceType.OIL]: 3000, [ResourceType.AMMO]: 3000 }, // Funds Gold + University prep
         buildingReward: { [BuildingType.MUNITIONS_FACTORY]: 1 },
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.MUNITIONS_FACTORY);
@@ -68,7 +68,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_gold_desc', // Needs localization key
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.GOLD_MINE}`,
-        reward: { [ResourceType.MONEY]: 50000, [ResourceType.OIL]: 5000 }, // Funds University
+        reward: { [ResourceType.MONEY]: 80000, [ResourceType.OIL]: 8000, [ResourceType.AMMO]: 4000 }, // Funds University + research chain
         buildingReward: { [BuildingType.GOLD_MINE]: 1 },
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.GOLD_MINE);
@@ -82,7 +82,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_university_desc',
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.UNIVERSITY}`,
-        reward: { [ResourceType.AMMO]: 2000, [ResourceType.OIL]: 2000 },
+        reward: { [ResourceType.MONEY]: 60000, [ResourceType.AMMO]: 4000, [ResourceType.OIL]: 4000 },
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.UNIVERSITY);
             return task ? calculateProgress(task.startTime, task.endTime) : false;
@@ -95,7 +95,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'research_basic_desc',
         targetTab: 'research',
         targetElementId: `btn-research-${TechType.BASIC_TRAINING}`,
-        reward: { [ResourceType.MONEY]: 30000, [ResourceType.AMMO]: 1000 }, // Funds Barracks
+        reward: { [ResourceType.MONEY]: 80000, [ResourceType.AMMO]: 5000, [ResourceType.OIL]: 5000 }, // Funds Barracks
         progressCondition: (state) => {
             const task = state.activeResearch?.techId === TechType.BASIC_TRAINING ? state.activeResearch : null;
             return task ? calculateProgress(task.startTime, task.endTime) : false;
@@ -108,7 +108,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'build_barracks_desc',
         targetTab: 'buildings',
         targetElementId: `btn-build-${BuildingType.BARRACKS}`,
-        reward: { [ResourceType.AMMO]: 500, [ResourceType.OIL]: 500 },
+        reward: { [ResourceType.MONEY]: 70000, [ResourceType.AMMO]: 3000, [ResourceType.OIL]: 3000 },
         buildingReward: { [BuildingType.BARRACKS]: 1 }, // Upgrade boost
         progressCondition: (state) => {
             const task = state.activeConstructions.find(c => c.buildingType === BuildingType.BARRACKS);
@@ -122,7 +122,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'unlock_soldier_desc',
         targetTab: 'research',
         targetElementId: `btn-research-${TechType.UNLOCK_CYBER_MARINE}`,
-        reward: { [ResourceType.MONEY]: 50000, [ResourceType.AMMO]: 2000 }, // Funds Recruitment
+        reward: { [ResourceType.MONEY]: 120000, [ResourceType.AMMO]: 7000, [ResourceType.OIL]: 5000 }, // Funds Recruitment
         progressCondition: (state) => {
             const task = state.activeResearch?.techId === TechType.UNLOCK_CYBER_MARINE ? state.activeResearch : null;
             return task ? calculateProgress(task.startTime, task.endTime) : false;
@@ -135,7 +135,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         descKey: 'recruit_soldier_desc',
         targetTab: 'units',
         targetElementId: `btn-recruit-${UnitType.CYBER_MARINE}`,
-        reward: { [ResourceType.OIL]: 1000 },
+        reward: { [ResourceType.MONEY]: 30000, [ResourceType.OIL]: 5000, [ResourceType.AMMO]: 3000 },
         unitReward: { [UnitType.CYBER_MARINE]: 5 }, // Grant a squad
         progressCondition: (state) => {
             const task = state.activeRecruitments.find(r => r.unitType === UnitType.CYBER_MARINE);

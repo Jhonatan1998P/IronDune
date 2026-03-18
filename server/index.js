@@ -583,6 +583,19 @@ const io = new Server(httpServer, {
   pingTimeout: 20000,
 });
 
+const USER_STATE_ROOM_PREFIX = 'user-state:';
+const USER_STATE_CHANGED_EVENT = 'user_state_changed';
+
+const emitUserStateChanged = (userId, payload = {}) => {
+  if (!userId || typeof userId !== 'string') return;
+  const room = `${USER_STATE_ROOM_PREFIX}${userId}`;
+  io.to(room).emit(USER_STATE_CHANGED_EVENT, {
+    userId,
+    serverTime: Date.now(),
+    ...payload,
+  });
+};
+
 // --- API ENDPOINTS ---
 
 app.get('/health', (_req, res) => {
@@ -669,6 +682,10 @@ app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
         });
       if (!lifecycleSaveError) {
         await syncNormalizedDomain(req.user.id, effectiveState, traceId);
+        emitUserStateChanged(req.user.id, {
+          revision: parseRevision(effectiveState.revision),
+          reason: 'BOOTSTRAP_LIFECYCLE_RESOLVE',
+        });
       }
     }
 
@@ -899,6 +916,11 @@ app.post('/api/profile/save', requireAuthUser, async (req, res) => {
       savedStateKeys: Object.keys(stateToSave).length,
     });
 
+    emitUserStateChanged(req.user.id, {
+      revision: parseRevision(stateToSave.revision),
+      reason: 'PROFILE_SAVE',
+    });
+
     return res.json({ ok: true, serverTime, updated_at: updatedAt, diagnostics, traceId });
   } catch (error) {
     console.error('[ProfileAPI] Save failed', {
@@ -927,6 +949,7 @@ app.post('/api/resources/deduct', requireAuthUser, async (req, res) => {
     if (!result.ok) {
       return res.status(400).json({ ok: false, error: result.reason || 'insufficient_funds', resource: result.resource, traceId });
     }
+    emitUserStateChanged(req.user.id, { reason: 'RESOURCE_DEDUCT' });
     return res.json({ ok: true, resources: result.resources, traceId });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Failed to deduct resources', traceId });
@@ -950,6 +973,7 @@ app.post('/api/resources/add', requireAuthUser, async (req, res) => {
     if (!result.ok) {
       return res.status(400).json({ ok: false, error: result.reason || 'add_failed', traceId });
     }
+    emitUserStateChanged(req.user.id, { reason: 'RESOURCE_ADD' });
     return res.json({ ok: true, resources: result.resources, traceId });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Failed to add resources', traceId });
@@ -1247,6 +1271,14 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
       durationMs: Date.now() - commandStartedAt,
     });
 
+    emitUserStateChanged(req.user.id, {
+      revision: nextRevision,
+      reason: 'COMMAND',
+      commandType: type,
+      commandId,
+      traceId,
+    });
+
     return res.json(responsePayload);
   } catch (error) {
     if (isLikelyUuid(req.body?.commandId)) {
@@ -1441,6 +1473,49 @@ const GLOBAL_ROOM = 'global';
 
 io.on('connection', (socket) => {
   let playerId = null;
+  let authUserId = null;
+
+  socket.on('subscribe_user_state', async ({ token }) => {
+    const traceId = makeTraceId('socket-subscribe');
+    try {
+      if (typeof token !== 'string' || !token.trim()) {
+        socket.emit('user_state_subscription', {
+          ok: false,
+          errorCode: 'MISSING_AUTH_TOKEN',
+          traceId,
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getUser(token.trim());
+      if (error || !data?.user?.id) {
+        socket.emit('user_state_subscription', {
+          ok: false,
+          errorCode: 'INVALID_AUTH_TOKEN',
+          traceId,
+        });
+        return;
+      }
+
+      authUserId = data.user.id;
+      socket.join(`${USER_STATE_ROOM_PREFIX}${authUserId}`);
+      socket.emit('user_state_subscription', {
+        ok: true,
+        userId: authUserId,
+        traceId,
+      });
+    } catch (error) {
+      socket.emit('user_state_subscription', {
+        ok: false,
+        errorCode: 'SUBSCRIPTION_FAILED',
+        traceId,
+      });
+      console.error('[Socket] user state subscription failed', {
+        traceId,
+        error: normalizeServerError(error),
+      });
+    }
+  });
 
   socket.on('join_room', ({ peerId }) => {
     playerId = peerId;
@@ -1491,6 +1566,9 @@ io.on('connection', (socket) => {
     if (playerId) {
       socket.to(GLOBAL_ROOM).emit('peer_leave', { peerId: playerId });
       playerPresence.delete(playerId);
+    }
+    if (authUserId) {
+      socket.leave(`${USER_STATE_ROOM_PREFIX}${authUserId}`);
     }
   });
 });

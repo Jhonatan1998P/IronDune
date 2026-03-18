@@ -54,6 +54,8 @@ const getResourceDiff = (before: Record<ResourceType, number>, after: Record<Res
 };
 
 const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
+const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
+const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
 
 const buildCommandPayload = (
   costs: Partial<Record<ResourceType, number>>,
@@ -155,6 +157,29 @@ export const useGameActions = (
   addLog: (messageKey: string, type?: LogEntry['type'], params?: any) => void
 ) => {
   const { session } = useAuth();
+
+  const notifyCrossTabServerMutation = useCallback((newRevision?: number) => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      userId: session?.user?.id || null,
+      revision: Number(newRevision || 0),
+      at: Date.now(),
+    };
+
+    try {
+      window.localStorage.setItem(SERVER_MUTATION_SYNC_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage errors (private mode/quota)
+    }
+
+    try {
+      const channel = new BroadcastChannel(SERVER_MUTATION_SYNC_CHANNEL);
+      channel.postMessage(payload);
+      channel.close();
+    } catch {
+      // Ignore channel unsupported errors
+    }
+  }, [session?.user?.id]);
 
   const dispatchCommand = useCallback(async (
     commandType: CommandType,
@@ -340,10 +365,11 @@ export const useGameActions = (
           revision: commandResult.newRevision ?? sourceState.revision,
         };
       });
+      notifyCrossTabServerMutation(commandResult.newRevision);
     };
 
     run();
-  }, [addLog, dispatchCommand, gameState, setGameState, syncStateFromBootstrap]);
+  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState, syncStateFromBootstrap]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);
@@ -413,10 +439,11 @@ export const useGameActions = (
             revision: commandResult.newRevision ?? prev.revision,
           };
         });
+        notifyCrossTabServerMutation(commandResult.newRevision);
       };
 
       run();
-  }, [addLog, dispatchCommand, gameState, setGameState]);
+  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);

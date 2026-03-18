@@ -7,10 +7,10 @@ import { TUTORIAL_STEPS } from './tutorial';
 import { initializeRankingState } from '../utils/engine/rankings';
 
 export const INITIAL_RESOURCES: Record<ResourceType, number> = {
-  [ResourceType.MONEY]: 5000, 
-  [ResourceType.OIL]: 2500,
-  [ResourceType.AMMO]: 1500,
-  [ResourceType.GOLD]: 500,
+  [ResourceType.MONEY]: 25000,
+  [ResourceType.OIL]: 8000,
+  [ResourceType.AMMO]: 5000,
+  [ResourceType.GOLD]: 1500,
   [ResourceType.DIAMOND]: 5,
 };
 

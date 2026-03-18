@@ -7,7 +7,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
-import { buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB } from '../lib/backend';
+import { io, Socket } from 'socket.io-client';
+import { BACKEND_ORIGIN, buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB, SOCKET_IO_PATH } from '../lib/backend';
 import { createTraceId, normalizeError, shortId } from '../lib/diagnosticLogger';
 
 const stripServerManagedFields = (state: GameState): GameState => {
@@ -71,7 +72,10 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
-const MULTI_TAB_SYNC_INTERVAL_MS = 8000;
+const MULTI_TAB_SYNC_INTERVAL_MS = 5000;
+const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
+const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
+const USER_STATE_CHANGED_EVENT = 'user_state_changed';
 
 type BootstrapLoadStatus = {
   attempt: number;
@@ -628,9 +632,103 @@ export const usePersistence = (
     };
 
     const intervalId = window.setInterval(syncAuthoritativeSnapshot, MULTI_TAB_SYNC_INTERVAL_MS);
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void syncAuthoritativeSnapshot();
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SERVER_MUTATION_SYNC_STORAGE_KEY || !event.newValue) return;
+      try {
+        const payload = JSON.parse(event.newValue) as { userId?: string | null };
+        if (payload?.userId && payload.userId !== user.id) return;
+      } catch {
+        // Ignore malformed payloads
+      }
+      void syncAuthoritativeSnapshot();
+    };
+
+    let channel: BroadcastChannel | null = null;
+    let socket: Socket | null = null;
+    const onChannelMessage = (event: MessageEvent) => {
+      const payload = event?.data as { userId?: string | null } | null;
+      if (payload?.userId && payload.userId !== user.id) return;
+      void syncAuthoritativeSnapshot();
+    };
+
+    try {
+      channel = new BroadcastChannel(SERVER_MUTATION_SYNC_CHANNEL);
+      channel.addEventListener('message', onChannelMessage);
+    } catch {
+      channel = null;
+    }
+
+    try {
+      const socketOptions = {
+        path: SOCKET_IO_PATH,
+        transports: ['websocket', 'polling'],
+        timeout: 8000,
+      };
+      socket = BACKEND_ORIGIN ? io(BACKEND_ORIGIN, socketOptions) : io(socketOptions);
+
+      socket.on('connect', () => {
+        socket?.emit('subscribe_user_state', { token: session.access_token });
+      });
+
+      socket.on('user_state_subscription', (payload: { ok?: boolean; errorCode?: string }) => {
+        if (payload?.ok) {
+          void syncAuthoritativeSnapshot();
+          return;
+        }
+        if (payload?.errorCode) {
+          console.warn('[Persistence] Realtime state subscription failed', {
+            userId: shortId(user?.id),
+            errorCode: payload.errorCode,
+          });
+        }
+      });
+
+      socket.on(USER_STATE_CHANGED_EVENT, (payload: { userId?: string | null; revision?: number; reason?: string }) => {
+        if (payload?.userId && payload.userId !== user.id) return;
+        void syncAuthoritativeSnapshot();
+      });
+
+      socket.on('reconnect', () => {
+        socket?.emit('subscribe_user_state', { token: session.access_token });
+      });
+    } catch (error) {
+      console.warn('[Persistence] Realtime socket unavailable; polling fallback active', {
+        userId: shortId(user?.id),
+        error: normalizeError(error),
+      });
+      socket = null;
+    }
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onVisibilityOrFocus);
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+
+    void syncAuthoritativeSnapshot();
+
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+      if (channel) {
+        channel.removeEventListener('message', onChannelMessage);
+        channel.close();
+      }
+      if (socket) {
+        socket.off(USER_STATE_CHANGED_EVENT);
+        socket.off('user_state_subscription');
+        socket.off('reconnect');
+        socket.off('connect');
+        socket.disconnect();
+      }
     };
   }, [fetchBootstrapSnapshot, lastTickRef, session, setGameState, status, user]);
 
