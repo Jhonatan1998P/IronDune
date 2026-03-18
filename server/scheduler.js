@@ -134,10 +134,10 @@ async function processSingleProfile(profile, now) {
         }
 
         // 4. Process Attack Queue (Incoming & Outgoing)
-        const queueResult = processAttackQueue(state, now);
-        if (queueResult.queuedResults.length > 0) {
+        const queueResult = await processAttackQueue(state, now);
+        if ((queueResult?.queuedResults || []).length > 0) {
             state = queueResult.newState;
-            allLogs.push(...queueResult.newLogs);
+            allLogs.push(...(queueResult.newLogs || []));
             modified = true;
 
             for (const item of queueResult.queuedResults) {

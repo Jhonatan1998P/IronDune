@@ -2,196 +2,7 @@
 
 **Session ID:** ses_2fd18cf91ffe404AZ1k1Y1ft1v
 **Created:** 3/18/2026, 9:43:18 PM
-**Updated:** 3/18/2026, 10:18:13 PM
-
----
-
-## User
-
-se ha cometido una regresion important en el server pues mira stos logs 2026-03-18T21:40:34.79356227Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:34.79358561Z   traceId: 'req-1773870034750-7vtntv',
-2026-03-18T21:40:34.79359091Z   userId: '82a2...d49e',
-2026-03-18T21:40:34.79359487Z   commandId: null,
-2026-03-18T21:40:34.7935999Z   expectedRevision: null,
-2026-03-18T21:40:34.79360395Z   newRevision: null,
-2026-03-18T21:40:34.79360784Z   errorCode: null,
-2026-03-18T21:40:34.793611571Z   email: 'admin@gmail.com',
-2026-03-18T21:40:34.793615931Z   path: '/api/bootstrap'
-2026-03-18T21:40:34.793620211Z }
-2026-03-18T21:40:39.602102955Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:39.602128236Z   traceId: 'req-1773870039559-2s42hf',
-2026-03-18T21:40:39.602148227Z   userId: '82a2...d49e',
-2026-03-18T21:40:39.602151947Z   commandId: null,
-2026-03-18T21:40:39.602155857Z   expectedRevision: null,
-2026-03-18T21:40:39.602159037Z   newRevision: null,
-2026-03-18T21:40:39.602162137Z   errorCode: null,
-2026-03-18T21:40:39.602165207Z   email: 'admin@gmail.com',
-2026-03-18T21:40:39.602168247Z   path: '/api/bootstrap'
-2026-03-18T21:40:39.602171417Z }
-2026-03-18T21:40:44.791773448Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:44.791801369Z   traceId: 'req-1773870044744-zfu3al',
-2026-03-18T21:40:44.791807269Z   userId: '82a2...d49e',
-2026-03-18T21:40:44.791811449Z   commandId: null,
-2026-03-18T21:40:44.791815989Z   expectedRevision: null,
-2026-03-18T21:40:44.791820359Z   newRevision: null,
-2026-03-18T21:40:44.79182498Z   errorCode: null,
-2026-03-18T21:40:44.791828149Z   email: 'admin@gmail.com',
-2026-03-18T21:40:44.791831009Z   path: '/api/bootstrap'
-2026-03-18T21:40:44.79183394Z }
-2026-03-18T21:40:49.621685183Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:49.621714683Z   traceId: 'req-1773870049574-9gpp5z',
-2026-03-18T21:40:49.621720513Z   userId: '82a2...d49e',
-2026-03-18T21:40:49.621724603Z   commandId: null,
-2026-03-18T21:40:49.621729564Z   expectedRevision: null,
-2026-03-18T21:40:49.621733353Z   newRevision: null,
-2026-03-18T21:40:49.621737184Z   errorCode: null,
-2026-03-18T21:40:49.621741354Z   email: 'admin@gmail.com',
-2026-03-18T21:40:49.621745754Z   path: '/api/bootstrap'
-2026-03-18T21:40:49.621749984Z }
-2026-03-18T21:40:50.844134771Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:50.844167742Z   traceId: 'req-1773870050805-pg50hk',
-2026-03-18T21:40:50.844172742Z   userId: '82a2...d49e',
-2026-03-18T21:40:50.844176792Z   commandId: null,
-2026-03-18T21:40:50.844181602Z   expectedRevision: null,
-2026-03-18T21:40:50.844185382Z   newRevision: null,
-2026-03-18T21:40:50.844189022Z   errorCode: null,
-2026-03-18T21:40:50.844192782Z   email: 'admin@gmail.com',
-2026-03-18T21:40:50.844196483Z   path: '/api/bootstrap'
-2026-03-18T21:40:50.844200203Z }
-2026-03-18T21:40:51.149449259Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:51.14992937Z   traceId: 'req-1773870051110-a9u7js',
-2026-03-18T21:40:51.14994048Z   userId: '82a2...d49e',
-2026-03-18T21:40:51.14994562Z   commandId: null,
-2026-03-18T21:40:51.14995044Z   expectedRevision: null,
-2026-03-18T21:40:51.14995506Z   newRevision: null,
-2026-03-18T21:40:51.14995822Z   errorCode: null,
-2026-03-18T21:40:51.14996097Z   email: 'admin@gmail.com',
-2026-03-18T21:40:51.14996512Z   path: '/api/bootstrap'
-2026-03-18T21:40:51.14996992Z }
-2026-03-18T21:40:51.569560828Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:51.569584439Z   traceId: 'req-1773870051529-8x3tpv',
-2026-03-18T21:40:51.569590189Z   userId: '82a2...d49e',
-2026-03-18T21:40:51.569594599Z   commandId: null,
-2026-03-18T21:40:51.569599799Z   expectedRevision: null,
-2026-03-18T21:40:51.569603989Z   newRevision: null,
-2026-03-18T21:40:51.569608519Z   errorCode: null,
-2026-03-18T21:40:51.569612749Z   email: 'admin@gmail.com',
-2026-03-18T21:40:51.56961727Z   path: '/api/bootstrap'
-2026-03-18T21:40:51.56962139Z }
-2026-03-18T21:40:54.382075846Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:54.382098107Z   traceId: 'req-1773870054341-ft6qp8',
-2026-03-18T21:40:54.382103477Z   userId: '82a2...d49e',
-2026-03-18T21:40:54.382107867Z   commandId: null,
-2026-03-18T21:40:54.382112937Z   expectedRevision: null,
-2026-03-18T21:40:54.382117367Z   newRevision: null,
-2026-03-18T21:40:54.382134938Z   errorCode: null,
-2026-03-18T21:40:54.382138248Z   email: 'admin@gmail.com',
-2026-03-18T21:40:54.382140728Z   path: '/api/command'
-2026-03-18T21:40:54.382143178Z }
-2026-03-18T21:40:55.729197612Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:55.729215292Z   traceId: 'req-1773870055686-ckfz60',
-2026-03-18T21:40:55.729218613Z   userId: '82a2...d49e',
-2026-03-18T21:40:55.729221053Z   commandId: null,
-2026-03-18T21:40:55.729223742Z   expectedRevision: null,
-2026-03-18T21:40:55.729226113Z   newRevision: null,
-2026-03-18T21:40:55.729228213Z   errorCode: null,
-2026-03-18T21:40:55.729230683Z   email: 'admin@gmail.com',
-2026-03-18T21:40:55.729232793Z   path: '/api/bootstrap'
-2026-03-18T21:40:55.729234823Z }
-2026-03-18T21:40:55.839252839Z [CommandMetrics] Snapshot {
-2026-03-18T21:40:55.83926658Z   uptimeMs: 423839,
-2026-03-18T21:40:55.839269169Z   windowMs: 900000,
-2026-03-18T21:40:55.839271469Z   totals: {
-2026-03-18T21:40:55.83927366Z     requests: 9,
-2026-03-18T21:40:55.83927596Z     success: 6,
-2026-03-18T21:40:55.83927814Z     conflicts: 0,
-2026-03-18T21:40:55.83928028Z     badRequest: 3,
-2026-03-18T21:40:55.83928233Z     rateLimited: 0,
-2026-03-18T21:40:55.8393068Z     failed: 0,
-2026-03-18T21:40:55.83931033Z     idempotentReplays: 0,
-2026-03-18T21:40:55.839313761Z     inProgressCollisions: 0,
-2026-03-18T21:40:55.83931689Z     revisionMismatches: 0
-2026-03-18T21:40:55.839320281Z   },
-2026-03-18T21:40:55.839324121Z   byType: {
-2026-03-18T21:40:55.839327391Z     TUTORIAL_CLAIM_REWARD: {
-2026-03-18T21:40:55.839329741Z       requests: 3,
-2026-03-18T21:40:55.839331831Z       success: 3,
-2026-03-18T21:40:55.839333911Z       conflicts: 0,
-2026-03-18T21:40:55.839335991Z       badRequest: 0,
-2026-03-18T21:40:55.839338041Z       failed: 0,
-2026-03-18T21:40:55.839340211Z       rateLimited: 0,
-2026-03-18T21:40:55.839342291Z       idempotentReplays: 0,
-2026-03-18T21:40:55.839344371Z       revisionMismatches: 0
-2026-03-18T21:40:55.839346521Z     },
-2026-03-18T21:40:55.839348641Z     BUILD_START: {
-2026-03-18T21:40:55.839350721Z       requests: 6,
-2026-03-18T21:40:55.839352791Z       success: 3,
-2026-03-18T21:40:55.839354951Z       conflicts: 0,
-2026-03-18T21:40:55.839357082Z       badRequest: 3,
-2026-03-18T21:40:55.839359171Z       failed: 0,
-2026-03-18T21:40:55.839361291Z       rateLimited: 0,
-2026-03-18T21:40:55.839363402Z       idempotentReplays: 0,
-2026-03-18T21:40:55.839365502Z       revisionMismatches: 0
-2026-03-18T21:40:55.839367612Z     }
-2026-03-18T21:40:55.839369672Z   },
-2026-03-18T21:40:55.839372742Z   byErrorCode: { QUEUE_FULL: 3 },
-2026-03-18T21:40:55.839375262Z   latencyMs: {
-2026-03-18T21:40:55.839377432Z     count: 9,
-2026-03-18T21:40:55.839379542Z     min: 180,
-2026-03-18T21:40:55.839381592Z     max: 627,
-2026-03-18T21:40:55.839383682Z     avg: 410,
-2026-03-18T21:40:55.839385732Z     p50: 445,
-2026-03-18T21:40:55.839387802Z     p95: 627,
-2026-03-18T21:40:55.839389862Z     p99: 627
-2026-03-18T21:40:55.839391982Z   },
-2026-03-18T21:40:55.839394072Z   rates: {
-2026-03-18T21:40:55.839396132Z     conflictsPerMin: 0,
-2026-03-18T21:40:55.839398222Z     failedPerMin: 0,
-2026-03-18T21:40:55.839400332Z     rateLimitedPerMin: 0,
-2026-03-18T21:40:55.839402472Z     revisionMismatchesPerMin: 0,
-2026-03-18T21:40:55.839404692Z     errorRate: 0.3333,
-2026-03-18T21:40:55.839406823Z     retryRatio: 0,
-2026-03-18T21:40:55.839408943Z     successRatio: 0.6667
-2026-03-18T21:40:55.839432043Z   },
-2026-03-18T21:40:55.839434303Z   thresholds: {
-2026-03-18T21:40:55.839436393Z     conflictsPerMin: 5,
-2026-03-18T21:40:55.839438503Z     errorRate: 0.05,
-2026-03-18T21:40:55.839440613Z     p95LatencyMs: 750,
-2026-03-18T21:40:55.839442683Z     retryRatio: 0.2
-2026-03-18T21:40:55.839444733Z   },
-2026-03-18T21:40:55.839446863Z   alerts: {
-2026-03-18T21:40:55.839448953Z     highConflicts: false,
-2026-03-18T21:40:55.839451064Z     highErrorRate: true,
-2026-03-18T21:40:55.839453153Z     highP95Latency: false,
-2026-03-18T21:40:55.839455304Z     highRetryRatio: false
-2026-03-18T21:40:55.839457454Z   }
-2026-03-18T21:40:55.839459614Z }
-2026-03-18T21:40:56.062752248Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:40:56.062774988Z   traceId: 'req-1773870056025-f6erjz',
-2026-03-18T21:40:56.062778868Z   userId: '82a2...d49e',
-2026-03-18T21:40:56.062781538Z   commandId: null,
-2026-03-18T21:40:56.062785109Z   expectedRevision: null,
-2026-03-18T21:40:56.062787409Z   newRevision: null,
-2026-03-18T21:40:56.062789989Z   errorCode: null,
-2026-03-18T21:40:56.062792249Z   email: 'admin@gmail.com',
-2026-03-18T21:40:56.062794979Z   path: '/api/command'
-2026-03-18T21:40:56.062797389Z }
-2026-03-18T21:41:01.788704042Z [AuthMiddleware] Authenticated request {
-2026-03-18T21:41:01.788734693Z   traceId: 'req-1773870061744-uhivv6',
-2026-03-18T21:41:01.788739843Z   userId: '82a2...d49e',
-2026-03-18T21:41:01.788743793Z   commandId: null,
-2026-03-18T21:41:01.788748123Z   expectedRevision: null,
-2026-03-18T21:41:01.788752073Z   newRevision: null,
-2026-03-18T21:41:01.788755953Z   errorCode: null,
-2026-03-18T21:41:01.788759953Z   email: 'admin@gmail.com',
-2026-03-18T21:41:01.788764104Z   path: '/api/bootstrap'
-2026-03-18T21:41:01.788767813Z } se reportan fallos en construccion, reclutamiento, investigacion, en las colas, los dificios s terminan de forma inmediata y no en el tiempo dado, el tutorial esta oto y los botones no funcionan nada que ver con la version mas estable que tiene el commit V6.1 Estable
-
----
-
-## Assistant
-
-**Tool: read**
+**Updated:** 3/18/2026, 10:26:52 PM
 
 ---
 
@@ -914,6 +725,132 @@ Para operar exactamente como tú quieres (wipe total en cada deploy):
 3. Deploy y listo: reset total + esquema limpio + funciones + permisos + admin inicial.
 
 Si quieres, en el siguiente paso te dejo un “modo desarrollo duro” (single switch) para que este comportamiento quede explícito y no tengas que tocar 5 variables nunca más.
+
+---
+
+## User
+
+ahora no me deja iniciar sesion mira estos los en render 2026-03-18T22:23:39.757657066Z     errorRate: 0,
+2026-03-18T22:23:39.757659236Z     retryRatio: 0,
+2026-03-18T22:23:39.757681076Z     successRatio: 0
+2026-03-18T22:23:39.757687007Z   },
+2026-03-18T22:23:39.757689777Z   thresholds: {
+2026-03-18T22:23:39.757692537Z     conflictsPerMin: 5,
+2026-03-18T22:23:39.757695157Z     errorRate: 0.05,
+2026-03-18T22:23:39.757697647Z     p95LatencyMs: 750,
+2026-03-18T22:23:39.757699997Z     retryRatio: 0.2
+2026-03-18T22:23:39.757702567Z   },
+2026-03-18T22:23:39.757704977Z   alerts: {
+2026-03-18T22:23:39.757707637Z     highConflicts: false,
+2026-03-18T22:23:39.757710237Z     highErrorRate: false,
+2026-03-18T22:23:39.757712637Z     highP95Latency: false,
+2026-03-18T22:23:39.757726637Z     highRetryRatio: false
+2026-03-18T22:23:39.757728698Z   }
+2026-03-18T22:23:39.757730488Z }
+2026-03-18T22:23:39.799350667Z [Scheduler] Checking 1 offline profiles...
+2026-03-18T22:23:39.930652289Z [Scheduler] Error processing profile 82a21fdc-ad06-41a0-992c-0a090f4dd49e: TypeError: Cannot read properties of undefined (reading 'length')
+2026-03-18T22:23:39.93068947Z     at processSingleProfile (file:///opt/render/project/src/server/scheduler.js:138:39)
+2026-03-18T22:23:39.93069237Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2026-03-18T22:23:39.93069525Z     at async Timeout.processOfflinePlayers [as _onTimeout] (file:///opt/render/project/src/server/scheduler.js:41:13)
+2026-03-18T22:23:49.623659079Z [AuthMiddleware] Authenticated request {
+2026-03-18T22:23:49.623706091Z   traceId: 'req-1773872629559-zmmr3l',
+2026-03-18T22:23:49.623712331Z   userId: '82a2...d49e',
+2026-03-18T22:23:49.623716711Z   commandId: null,
+2026-03-18T22:23:49.623721411Z   expectedRevision: null,
+2026-03-18T22:23:49.623724231Z   newRevision: null,
+2026-03-18T22:23:49.623727051Z   errorCode: null,
+2026-03-18T22:23:49.623729851Z   email: 'admin@gmail.com',
+2026-03-18T22:23:49.623732671Z   path: '/api/bootstrap'
+2026-03-18T22:23:49.623735461Z }
+2026-03-18T22:23:49.776966185Z [BootstrapAPI] Falling back to profile blob read {
+2026-03-18T22:23:49.776990636Z   traceId: 'req-1773872629559-zmmr3l',
+2026-03-18T22:23:49.776995816Z   userId: '82a2...d49e',
+2026-03-18T22:23:49.776999696Z   commandId: null,
+2026-03-18T22:23:49.777003706Z   expectedRevision: null,
+2026-03-18T22:23:49.777007386Z   newRevision: null,
+2026-03-18T22:23:49.777011156Z   errorCode: 'NORMALIZED_READ_FALLBACK',
+2026-03-18T22:23:49.777014876Z   error: {
+2026-03-18T22:23:49.777018567Z     name: 'Error',
+2026-03-18T22:23:49.777022156Z     message: 'NORMALIZED_QUEUE_TIME_INVALID',
+2026-03-18T22:23:49.777025767Z     stack: 'Error: NORMALIZED_QUEUE_TIME_INVALID\n' +
+2026-03-18T22:23:49.777029777Z       '    at loadNormalizedStatePatch (file:///opt/render/project/src/server/index.js:512:13)\n' +
+2026-03-18T22:23:49.777034177Z       '    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n' +
+2026-03-18T22:23:49.777038337Z       '    at async handleBootstrap (file:///opt/render/project/src/server/services/bootstrapService.js:134:11)',
+2026-03-18T22:23:49.777042567Z     code: undefined,
+2026-03-18T22:23:49.777046307Z     status: undefined
+2026-03-18T22:23:49.777049807Z   }
+2026-03-18T22:23:49.777053437Z }
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+Gracias por los logs, aquí sí se ve claro qué pasa.
+
+- **No es fallo de auth**: el log muestra `Authenticated request` a `/api/bootstrap`, o sea el token/login sí entra.
+- Tienes **dos problemas de servidor**:
+  1. `scheduler.js` rompía con `Cannot read properties of undefined (reading 'length')` porque faltaba `await` en `processAttackQueue(...)`.
+  2. Tu BD todavía tiene colas normalizadas con tiempo inválido (`NORMALIZED_QUEUE_TIME_INVALID`), por eso bootstrap cae a fallback.
+
+Ya te dejé corregido el bug del scheduler en `server/scheduler.js:137` (con `await` y guardas defensivas).
+
+Para dejarlo como tú quieres (reset total en cada deploy, sin arrastre viejo), haz esto en Render:
+
+1. `DB_HARD_RESET=true`  
+2. `DB_HARD_RESET_CONFIRM=I_UNDERSTAND_DATA_LOSS`  
+3. `DB_RESET_ADMIN_EMAIL=...`  
+4. `DB_RESET_ADMIN_PASSWORD=...`  
+5. `DB_RESET_ADMIN_USERNAME=Admin`  
+6. **Opcional** `DB_HARD_RESET_REQUEST_ID` (si lo dejas vacío, ahora usa `RENDER_GIT_COMMIT/RENDER_DEPLOY_ID` automáticamente con mi cambio en `server/dbReset.js:7`)
+
+Luego redeploy.
+
+Si quieres evitar wipe y solo reparar colas corruptas:
+- ejecuta una vez `npm run normalized:repair-queues`.
+
+Recomendación en tu caso (pre-release, solo tú): **haz hard reset total y redeploy**. Es lo más limpio y profesional para tu etapa actual.
 
 ---
 
