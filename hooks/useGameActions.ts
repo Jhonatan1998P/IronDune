@@ -79,6 +79,7 @@ type CommandType =
   | 'ESPIONAGE_START'
   | 'BANK_DEPOSIT'
   | 'BANK_WITHDRAW'
+  | 'TUTORIAL_SET_STATE'
   | 'TUTORIAL_CLAIM_REWARD'
   | 'GIFT_CODE_REDEEM'
   | 'DIPLOMACY_GIFT'
@@ -523,8 +524,25 @@ export const useGameActions = (
   }, [applyActionWithServerValidation, gameState, setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
-    setGameState(prev => ({ ...prev, tutorialAccepted: true }));
-  }, [setGameState]);
+    const preview: LocalActionResult = {
+      success: true,
+      newState: {
+        ...gameState,
+        tutorialAccepted: true,
+      },
+    };
+    applyActionWithServerValidation(
+      'TUTORIAL_SET_STATE',
+      preview,
+      (state: GameState) => ({
+        success: true,
+        newState: {
+          ...state,
+          tutorialAccepted: true,
+        },
+      }),
+    );
+  }, [applyActionWithServerValidation, gameState]);
 
   const applyTutorialRewardLocal = useCallback((state: GameState): LocalActionResult => {
       if (!state.currentTutorialId || !state.tutorialClaimable) return { success: false };
@@ -584,8 +602,25 @@ export const useGameActions = (
   }, [applyActionWithServerValidation, applyTutorialRewardLocal, gameState]);
 
   const toggleTutorialMinimize = useCallback(() => {
-    setGameState(prev => ({ ...prev, isTutorialMinimized: !prev.isTutorialMinimized }));
-  }, [setGameState]);
+    const preview: LocalActionResult = {
+      success: true,
+      newState: {
+        ...gameState,
+        isTutorialMinimized: !gameState.isTutorialMinimized,
+      },
+    };
+    applyActionWithServerValidation(
+      'TUTORIAL_SET_STATE',
+      preview,
+      (state: GameState) => ({
+        success: true,
+        newState: {
+          ...state,
+          isTutorialMinimized: !state.isTutorialMinimized,
+        },
+      }),
+    );
+  }, [applyActionWithServerValidation, gameState]);
 
   const spyOnAttacker = useCallback((attackId: string) => {
       const preview = executeEspionage(gameState, attackId);

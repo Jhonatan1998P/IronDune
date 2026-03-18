@@ -14,6 +14,7 @@ export const COMMAND_TYPES = new Set([
   'ESPIONAGE_START',
   'BANK_DEPOSIT',
   'BANK_WITHDRAW',
+  'TUTORIAL_SET_STATE',
   'TUTORIAL_CLAIM_REWARD',
   'GIFT_CODE_REDEEM',
   'DIPLOMACY_GIFT',
@@ -102,6 +103,7 @@ const COMMAND_ZOD_SCHEMAS = {
   BANK_WITHDRAW: basePayloadSchema.extend({
     gains: numericResourceMapSchema,
   }).strict(),
+  TUTORIAL_SET_STATE: basePayloadSchema,
   TUTORIAL_CLAIM_REWARD: basePayloadSchema,
   GIFT_CODE_REDEEM: basePayloadSchema,
   DIPLOMACY_GIFT: basePayloadSchema.extend({
@@ -200,6 +202,11 @@ const COMMAND_CONTRACTS = {
   BANK_WITHDRAW: {
     costs: 'forbidden',
     gains: 'required',
+  },
+  TUTORIAL_SET_STATE: {
+    costs: 'forbidden',
+    gains: 'forbidden',
+    statePatchAnyOf: ['tutorialAccepted', 'isTutorialMinimized'],
   },
   TUTORIAL_CLAIM_REWARD: {
     costs: 'forbidden',

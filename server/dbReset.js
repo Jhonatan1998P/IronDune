@@ -208,7 +208,11 @@ export async function hardResetDatabase() {
         END IF;
 
         v_numeric := p_value::DOUBLE PRECISION;
-        IF NOT isfinite(v_numeric) THEN
+        IF v_numeric <> v_numeric THEN
+          RETURN NULL;
+        END IF;
+
+        IF ABS(v_numeric) >= 1000000000000000 THEN
           RETURN NULL;
         END IF;
 

@@ -292,12 +292,9 @@ export const createCommandService = ({
       };
 
       const updatedAt = new Date(serverTime).toISOString();
-      const stateToPersist = stripCriticalDomainFromBlob
-        ? stripCriticalDomainFromBlob(nextState)
-        : nextState;
       const { error: saveError } = await supabase.from('profiles').upsert({
         id: req.user.id,
-        game_state: stateToPersist,
+        game_state: nextState,
         updated_at: updatedAt,
       });
 
@@ -306,6 +303,21 @@ export const createCommandService = ({
       const normalizedSync = await syncNormalizedDomain(req.user.id, nextState, traceId);
       if (!normalizedSync.ok && normalizedSync.warning) {
         diagnostics.push(normalizedSync.warning);
+      }
+
+      if (normalizedSync.ok && stripCriticalDomainFromBlob) {
+        const frozenState = stripCriticalDomainFromBlob(nextState);
+        const shouldFreeze = frozenState !== nextState;
+        if (shouldFreeze) {
+          const { error: freezeSaveError } = await supabase.from('profiles').upsert({
+            id: req.user.id,
+            game_state: frozenState,
+            updated_at: updatedAt,
+          });
+          if (freezeSaveError) {
+            throw freezeSaveError;
+          }
+        }
       }
 
       const responsePayload = {

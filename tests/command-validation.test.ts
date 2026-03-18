@@ -83,4 +83,21 @@ describe('command payload contracts', () => {
     });
     expect(validAction.ok).toBe(true);
   });
+
+  it('accepts tutorial state patch updates and rejects unrelated keys', () => {
+    const validPatch = validateCommandPayload('TUTORIAL_SET_STATE', {
+      statePatch: {
+        tutorialAccepted: true,
+      },
+    });
+    expect(validPatch.ok).toBe(true);
+
+    const invalidPatch = validateCommandPayload('TUTORIAL_SET_STATE', {
+      statePatch: {
+        currentTutorialId: 'tut_build_house',
+      },
+    });
+    expect(invalidPatch.ok).toBe(false);
+    expect(invalidPatch.errorCode).toBe('INVALID_COMMAND_SEMANTICS');
+  });
 });
