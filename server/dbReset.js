@@ -1,11 +1,14 @@
 import { supabase } from './lib/supabase.js';
 
-const ADMIN_USERNAME = 'Admin';
-const ADMIN_EMAIL = 'Admin@gmail.com';
-const ADMIN_PASSWORD = '26335828JP';
+const ADMIN_USERNAME = process.env.DB_RESET_ADMIN_USERNAME || 'Admin';
+const ADMIN_EMAIL = process.env.DB_RESET_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.DB_RESET_ADMIN_PASSWORD || '';
+const HARD_RESET_CONFIRM = process.env.DB_HARD_RESET_CONFIRM || '';
+const HARD_RESET_REQUEST_ID = process.env.DB_HARD_RESET_REQUEST_ID || '';
 const ADMIN_ROLE = 'Admin';
 const DEFAULT_ROLE = 'Usuario';
 const PGRST_RELOAD_SQL = "NOTIFY pgrst, 'reload schema'; NOTIFY pgrst, 'reload';";
+const HARD_RESET_CONFIRM_PHRASE = 'I_UNDERSTAND_DATA_LOSS';
 
 /**
  * Realiza un reinicio total de la base de datos:
@@ -16,6 +19,29 @@ const PGRST_RELOAD_SQL = "NOTIFY pgrst, 'reload schema'; NOTIFY pgrst, 'reload';
  */
 export async function hardResetDatabase() {
   if (process.env.DB_HARD_RESET !== 'true') {
+    return;
+  }
+
+  if (HARD_RESET_CONFIRM !== HARD_RESET_CONFIRM_PHRASE) {
+    console.error(`❌ [DB Reset] Missing DB_HARD_RESET_CONFIRM=${HARD_RESET_CONFIRM_PHRASE}. Aborting hard reset.`);
+    return;
+  }
+
+  if (!HARD_RESET_REQUEST_ID) {
+    console.error('❌ [DB Reset] Missing DB_HARD_RESET_REQUEST_ID. Aborting hard reset to avoid accidental repeated wipes.');
+    return;
+  }
+
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    console.error('❌ [DB Reset] Missing DB_RESET_ADMIN_EMAIL/DB_RESET_ADMIN_PASSWORD. Aborting hard reset.');
+    return;
+  }
+
+  const alreadyProcessed = await hasProcessedResetRequest(HARD_RESET_REQUEST_ID);
+  if (alreadyProcessed) {
+    console.warn('[DB Reset] Request id already processed; skipping hard reset.', {
+      requestId: HARD_RESET_REQUEST_ID,
+    });
     return;
   }
 
@@ -58,6 +84,7 @@ export async function hardResetDatabase() {
 
       -- Insertar el ID del nuevo reset
       INSERT INTO public.server_metadata (key, value) VALUES ('last_reset_id', '${Date.now()}');
+      INSERT INTO public.server_metadata (key, value) VALUES ('last_hard_reset_request_id', '${HARD_RESET_REQUEST_ID}');
 
       -- 2. Recreación de tabla: profiles
       CREATE TABLE public.profiles (
@@ -707,6 +734,24 @@ export async function hardResetDatabase() {
   }
 }
 
+async function hasProcessedResetRequest(requestId) {
+  try {
+    const { data, error } = await supabase
+      .from('server_metadata')
+      .select('value')
+      .eq('key', 'last_hard_reset_request_id')
+      .maybeSingle();
+
+    if (error) {
+      return false;
+    }
+
+    return data?.value === requestId;
+  } catch (_error) {
+    return false;
+  }
+}
+
 async function deleteAllAuthUsers() {
   console.log('[DB Reset] Eliminando todos los usuarios de Auth...');
   
@@ -788,37 +833,39 @@ async function createAdminUserAndProfile() {
       lastSaveTime: Date.now()
     };
 
-    const adminGameStateJson = JSON.stringify(adminGameState).replace(/'/g, "''");
     const adminUpdatedAt = new Date().toISOString();
-    const profileSql = `
-      INSERT INTO public.profiles (id, role, game_state, updated_at)
-      VALUES ('${adminUserId}', '${ADMIN_ROLE}', '${adminGameStateJson}'::jsonb, '${adminUpdatedAt}')
-      ON CONFLICT (id)
-      DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
-    `;
+    const nextRateChange = Date.now() + (24 * 60 * 60 * 1000);
 
-    const resourcesSql = `
-      INSERT INTO public.player_resources (
-        player_id, money, oil, ammo, gold, diamond,
-        bank_balance, interest_rate, next_rate_change, last_tick_at, updated_at
-      )
-      VALUES (
-        '${adminUserId}', 5000, 2500, 1500, 500, 5,
-        0, 0.15, ${Date.now() + (24 * 60 * 60 * 1000)}, now(), now()
-      )
-      ON CONFLICT (player_id) DO NOTHING;
-    `;
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: adminUserId,
+        role: ADMIN_ROLE,
+        game_state: adminGameState,
+        updated_at: adminUpdatedAt,
+      });
 
-    const { error: profileSqlError } = await supabase.rpc('exec_sql', { sql: profileSql });
-
-    if (profileSqlError) {
-      console.error('[DB Reset] Error creando perfil admin:', profileSqlError.message);
+    if (profileError) {
+      console.error('[DB Reset] Error creando perfil admin:', profileError.message);
       return;
     }
 
-    const { error: resourcesSqlError } = await supabase.rpc('exec_sql', { sql: resourcesSql });
-    if (resourcesSqlError) {
-      console.error('[DB Reset] Error creando recursos admin:', resourcesSqlError.message);
+    const { error: resourcesError } = await supabase
+      .from('player_resources')
+      .upsert({
+        player_id: adminUserId,
+        money: 5000,
+        oil: 2500,
+        ammo: 1500,
+        gold: 500,
+        diamond: 5,
+        bank_balance: 0,
+        interest_rate: 0.15,
+        next_rate_change: nextRateChange,
+      });
+
+    if (resourcesError) {
+      console.error('[DB Reset] Error creando recursos admin:', resourcesError.message);
       return;
     }
 

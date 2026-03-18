@@ -22,19 +22,23 @@ import { registerCommandRoutes } from './routes/commandRoutes.js';
 import { registerBootstrapRoutes } from './routes/bootstrapRoutes.js';
 import { registerProfileRoutes } from './routes/profileRoutes.js';
 import { registerResourceRoutes } from './routes/resourceRoutes.js';
+import { registerDevToolsRoutes } from './routes/devToolsRoutes.js';
 import { makeTraceId, normalizeServerError, shortId } from './lib/trace.js';
 import { buildServerStatePatch, isNonNullObject, parseRevision, sanitizeStatePatch } from './lib/statePatch.js';
 import { createRequireAuthUser } from './middleware/auth.js';
+import { logWithSchema } from './lib/logSchema.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
 const PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SCHEMA_CACHE_ERROR = "schema cache";
 const SERVER_MANAGED_FIELDS = ['resources', 'maxResources', 'bankBalance', 'currentInterestRate', 'nextRateChangeTime', 'lastInterestPayoutTime'];
+const FROZEN_BLOB_CRITICAL_FIELDS = ['buildings', 'units', 'techLevels', 'researchedTechs', 'activeConstructions', 'activeRecruitments', 'activeResearch', 'campaignProgress', 'empirePoints'];
 const NORMALIZED_DUAL_WRITE_ENABLED = process.env.FF_DUAL_WRITE_NORMALIZED !== 'false';
-const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS === 'true';
+const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS !== 'false';
 const NORMALIZED_DUAL_WRITE_STRICT = process.env.FF_DUAL_WRITE_STRICT === 'true';
-const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB === 'true';
+const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB !== 'false';
+const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = process.env.FF_FREEZE_LEGACY_BLOB_FIELDS !== 'false';
 const AUTHORITATIVE_QUEUE_COMMANDS = new Set(['BUILD_START', 'RECRUIT_START', 'RESEARCH_START']);
 const AUTHORITATIVE_SPEEDUP_TYPES = new Set(['BUILD', 'RECRUIT', 'RESEARCH']);
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
@@ -45,6 +49,8 @@ const COMMAND_ALERT_CONFLICTS_PER_MIN_THRESHOLD = Number(process.env.COMMAND_ALE
 const COMMAND_ALERT_ERROR_RATE_THRESHOLD = Number(process.env.COMMAND_ALERT_ERROR_RATE_THRESHOLD || 0.05);
 const COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD = Number(process.env.COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD || 750);
 const COMMAND_ALERT_RETRY_RATIO_THRESHOLD = Number(process.env.COMMAND_ALERT_RETRY_RATIO_THRESHOLD || 0.2);
+const OPS_ALERT_WEBHOOK_URL = process.env.OPS_ALERT_WEBHOOK_URL || '';
+const OPS_ALERT_MIN_INTERVAL_MS = Number(process.env.OPS_ALERT_MIN_INTERVAL_MS || 60_000);
 const commandMetrics = {
   startedAt: Date.now(),
   totals: {
@@ -71,8 +77,18 @@ const commandMetrics = {
   },
   recentLatencies: [],
 };
+const alertState = {
+  lastSignature: null,
+  lastSentAt: 0,
+};
 
 dotenv.config();
+
+const SERVER_LOGS_ENABLED = process.env.SERVER_LOGS_ENABLED !== 'false';
+if (!SERVER_LOGS_ENABLED) {
+  console.log = () => {};
+  console.warn = () => {};
+}
 
 const app = express();
 app.use(cors());
@@ -245,11 +261,83 @@ const isObservabilityAuthorized = (req) => {
   return typeof provided === 'string' && provided === expectedKey;
 };
 
+const maybeSendOperationalAlerts = async () => {
+  if (!OPS_ALERT_WEBHOOK_URL) return;
+
+  const snapshot = getCommandMetricsSnapshot();
+  const activeAlerts = Object.entries(snapshot.alerts)
+    .filter(([, isActive]) => Boolean(isActive))
+    .map(([key]) => key)
+    .sort();
+
+  if (activeAlerts.length === 0) {
+    alertState.lastSignature = null;
+    return;
+  }
+
+  const signature = activeAlerts.join('|');
+  const now = Date.now();
+  if (alertState.lastSignature === signature && now - alertState.lastSentAt < OPS_ALERT_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  const payload = {
+    source: 'iron-dune-server',
+    serverTime: now,
+    activeAlerts,
+    rates: snapshot.rates,
+    latencyMs: snapshot.latencyMs,
+    thresholds: snapshot.thresholds,
+    totals: snapshot.totals,
+  };
+
+  try {
+    const response = await fetch(OPS_ALERT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      logWithSchema('warn', '[CommandMetrics] Failed to deliver operational alert', {
+        traceId: makeTraceId('ops-alert'),
+        errorCode: 'ALERT_WEBHOOK_FAILED',
+        extra: {
+          status: response.status,
+          activeAlerts,
+        },
+      });
+      return;
+    }
+
+    alertState.lastSignature = signature;
+    alertState.lastSentAt = now;
+    logWithSchema('info', '[CommandMetrics] Operational alert delivered', {
+      traceId: makeTraceId('ops-alert'),
+      extra: {
+        activeAlerts,
+      },
+    });
+  } catch (error) {
+    logWithSchema('error', '[CommandMetrics] Operational alert delivery failed', {
+      traceId: makeTraceId('ops-alert'),
+      errorCode: 'ALERT_WEBHOOK_FAILED',
+      extra: {
+        error: normalizeServerError(error),
+        activeAlerts,
+      },
+    });
+  }
+};
+
 const requireAuthUser = createRequireAuthUser({
   supabase,
   makeTraceId,
   shortId,
   normalizeServerError,
+  logWithSchema,
 });
 
 const getOrCreateProfileState = async (user) => {
@@ -312,6 +400,19 @@ const toEpochMillis = (value) => {
   return Number.isFinite(parsed) ? parsed : Date.now();
 };
 
+const stripCriticalDomainFromBlob = (state) => {
+  if (!FREEZE_LEGACY_BLOB_CRITICAL_FIELDS || !isNonNullObject(state)) {
+    return state;
+  }
+  const sanitized = { ...state };
+  for (const key of FROZEN_BLOB_CRITICAL_FIELDS) {
+    if (key in sanitized) {
+      delete sanitized[key];
+    }
+  }
+  return sanitized;
+};
+
 const syncNormalizedDomain = async (playerId, state, traceId) => {
   if (!NORMALIZED_DUAL_WRITE_ENABLED) {
     return { ok: true, skipped: true };
@@ -325,17 +426,15 @@ const syncNormalizedDomain = async (playerId, state, traceId) => {
 
     if (error) throw error;
 
-    const normalizedSync = await syncNormalizedDomain(req.user.id, stateToSave, traceId);
-    const diagnostics = [];
-    if (!normalizedSync.ok && normalizedSync.warning) {
-      diagnostics.push(normalizedSync.warning);
-    }
     return { ok: true, skipped: false };
   } catch (error) {
-    console.error('[NormalizedDomain] Dual-write failed', {
+    logWithSchema('error', '[NormalizedDomain] Dual-write failed', {
       traceId,
-      playerId: shortId(playerId),
-      error: normalizeServerError(error),
+      userId: shortId(playerId),
+      errorCode: 'NORMALIZED_DUAL_WRITE_FAILED',
+      extra: {
+        error: normalizeServerError(error),
+      },
     });
 
     if (NORMALIZED_DUAL_WRITE_STRICT) {
@@ -481,6 +580,7 @@ registerCommandRoutes(app, {
   observeCommandEvent,
   COMMAND_RATE_WINDOW_MS,
   COMMAND_RATE_MAX_REQUESTS,
+  logWithSchema,
   isObservabilityAuthorized,
   getCommandMetricsSnapshot,
   isLikelyUuid,
@@ -493,6 +593,9 @@ registerCommandRoutes(app, {
   getOrCreateProfileState,
   sanitizeStatePatch,
   patchAllowList: PATCH_ALLOW_LIST,
+  normalizedReadsEnabled: NORMALIZED_READS_ENABLED,
+  loadNormalizedStatePatch,
+  stripCriticalDomainFromBlob,
   normalizeLifecycleState,
   resolveLifecycleCompletions,
   AUTHORITATIVE_QUEUE_COMMANDS,
@@ -506,6 +609,7 @@ registerCommandRoutes(app, {
   buildServerStatePatch,
   emitUserStateChanged,
   normalizeServerError,
+  logWithSchema,
 });
 
 registerBootstrapRoutes(app, {
@@ -523,6 +627,7 @@ registerBootstrapRoutes(app, {
   loadNormalizedStatePatch,
   shortId,
   normalizeServerError,
+  logWithSchema,
 });
 
 registerProfileRoutes(app, {
@@ -535,12 +640,6 @@ registerProfileRoutes(app, {
   isNonNullObject,
   loadNormalizedStatePatch,
   normalizeServerError,
-  DISABLE_LEGACY_SAVE_BLOB,
-  SERVER_MANAGED_FIELDS,
-  ResourceType,
-  syncNormalizedDomain,
-  emitUserStateChanged,
-  parseRevision,
 });
 
 registerResourceRoutes(app, {
@@ -552,15 +651,18 @@ registerResourceRoutes(app, {
   emitUserStateChanged,
 });
 
-app.post('/api/profile/reset', requireAuthUser, async (req, res) => {
-  try {
-    const { error } = await supabase.from('profiles').delete().eq('id', req.user.id);
-    if (error) throw error;
-    await supabase.from('player_resources').delete().eq('player_id', req.user.id);
-    return res.json({ ok: true });
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Failed to reset profile' });
-  }
+registerDevToolsRoutes(app, {
+  requireAuthUser,
+  makeTraceId,
+  supabase,
+  getOrCreatePlayerResources,
+  parseRevision,
+  resolveLifecycleCompletions,
+  syncNormalizedDomain,
+  emitUserStateChanged,
+  getCommandMetricsSnapshot,
+  io,
+  normalizeRole,
 });
 
 app.post('/api/battle/simulate-combat', requireAuthUser, (req, res) => {
@@ -765,6 +867,7 @@ await ensureProfilesForAuthUsers();
 setInterval(ensureProfilesForAuthUsers, PROFILE_SYNC_INTERVAL_MS);
 setInterval(() => {
   console.log('[CommandMetrics] Snapshot', getCommandMetricsSnapshot());
+  void maybeSendOperationalAlerts();
 }, COMMAND_METRICS_LOG_INTERVAL_MS);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
@@ -775,6 +878,8 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     FF_NORMALIZED_READS: NORMALIZED_READS_ENABLED,
     FF_DUAL_WRITE_STRICT: NORMALIZED_DUAL_WRITE_STRICT,
     FF_DISABLE_LEGACY_SAVE_BLOB: DISABLE_LEGACY_SAVE_BLOB,
+    FF_FREEZE_LEGACY_BLOB_FIELDS: FREEZE_LEGACY_BLOB_CRITICAL_FIELDS,
+    OPS_ALERT_WEBHOOK_CONFIGURED: Boolean(OPS_ALERT_WEBHOOK_URL),
   });
     if (process.env.DISABLE_SCHEDULER !== 'true') {
         startScheduler();

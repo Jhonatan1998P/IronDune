@@ -40,6 +40,7 @@ Definir ownership por modulo y ruta de diagnostico para incidentes tras la modul
 3. Validar feature flags activas (`FF_*`) impresas al iniciar server.
 4. Revisar errores tipados (`REVISION_MISMATCH`, `COMMAND_FAILED`, `BAD_REQUEST`, `RATE_LIMITED`).
 5. Determinar alcance (single user vs global).
+6. Confirmar estado de entrega de alertas externas (`OPS_ALERT_WEBHOOK_URL`).
 
 ## Playbooks por incidente
 
@@ -64,3 +65,12 @@ Definir ownership por modulo y ruta de diagnostico para incidentes tras la modul
 - Si impacta comandos economicos o progreso: priorizar `commandService`.
 - Si afecta inicio de sesión jugable: priorizar `bootstrapService`.
 - Si afecta sincronización multitab/multiplayer: priorizar módulos de socket.
+
+## Operación de seguridad y alertas
+
+- Auditoría RLS + boundaries:
+  - Ejecutar `npm run security:audit`.
+  - Criterio de éxito: todas las escrituras directas cliente a tablas críticas son denegadas.
+- Alertas operativas externas:
+  - Configurar `OPS_ALERT_WEBHOOK_URL` y `OPS_ALERT_MIN_INTERVAL_MS`.
+  - El server emite alertas cuando se superan `conflictsPerMin`, `errorRate`, `p95LatencyMs` o `retryRatio`.

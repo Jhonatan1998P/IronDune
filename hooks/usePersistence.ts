@@ -8,19 +8,8 @@ import { useAuth } from './useAuth';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 import { io, Socket } from 'socket.io-client';
-import { BACKEND_ORIGIN, buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB, SOCKET_IO_PATH } from '../lib/backend';
+import { BACKEND_ORIGIN, buildBackendUrl, SOCKET_IO_PATH } from '../lib/backend';
 import { createTraceId, normalizeError, shortId } from '../lib/diagnosticLogger';
-
-const stripServerManagedFields = (state: GameState): GameState => {
-  const sanitized = { ...state } as Partial<GameState>;
-  delete sanitized.resources;
-  delete sanitized.maxResources;
-  delete sanitized.bankBalance;
-  delete sanitized.currentInterestRate;
-  delete sanitized.nextRateChangeTime;
-  delete sanitized.lastInterestPayoutTime;
-  return sanitized as GameState;
-};
 
 const hydrateGameState = (input: Partial<GameState> | null | undefined): GameState => {
   const merged = {
@@ -163,54 +152,6 @@ export const usePersistence = (
     return { Authorization: `Bearer ${token}` };
   }, [session]);
 
-  const fetchCloudProfile = useCallback(async () => {
-    const headers = getAuthHeaders();
-    if (!headers) return null;
-
-    const traceId = createTraceId('persist-load');
-    const startedAt = performance.now();
-    console.log('[Persistence] Load profile started', {
-      traceId,
-      userId: shortId(user?.id),
-    });
-
-    const response = await fetch(buildBackendUrl('/api/profile'), { headers });
-    if (response.status === 401) {
-      console.warn('[Persistence] Load profile unauthorized', {
-        traceId,
-        userId: shortId(user?.id),
-      });
-      await signOut();
-      return null;
-    }
-    if (response.status === 404) {
-      console.log('[Persistence] Load profile no save found', {
-        traceId,
-        userId: shortId(user?.id),
-        elapsedMs: Math.round(performance.now() - startedAt),
-      });
-      return null;
-    }
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error || 'Failed to load cloud profile');
-    }
-
-    const payload = await response.json().catch(() => null);
-    console.log('[Persistence] Load profile succeeded', {
-      traceId,
-      userId: shortId(user?.id),
-      hasState: Boolean(payload?.game_state),
-      updatedAt: payload?.updated_at || null,
-      elapsedMs: Math.round(performance.now() - startedAt),
-    });
-
-    return {
-      state: payload?.game_state || null,
-      updatedAt: payload?.updated_at || null
-    };
-  }, [getAuthHeaders, signOut, user?.id]);
-
   const fetchBootstrapSnapshot = useCallback(async () => {
     const headers = getAuthHeaders();
     if (!headers) return null;
@@ -251,90 +192,6 @@ export const usePersistence = (
       resetId: payload?.metadata?.resetId || null,
     };
   }, [getAuthHeaders, signOut, user?.id]);
-
-  const saveCloudProfile = useCallback(async (state: GameState, keepalive: boolean = false) => {
-    if (DISABLE_LEGACY_SAVE_BLOB) {
-      console.log('[Persistence] Legacy profile blob save skipped by feature flag', {
-        userId: shortId(user?.id),
-      });
-      return;
-    }
-
-    const headers = getAuthHeaders();
-    if (!headers) throw new Error('Missing auth token');
-
-    const traceId = createTraceId('persist-save');
-    const startedAt = performance.now();
-    console.log('[Persistence] Save profile started', {
-      traceId,
-      userId: shortId(user?.id),
-      keepalive,
-      expectedUpdatedAt: cloudUpdatedAtRef.current,
-      clientLastSaveTime: state.lastSaveTime,
-    });
-
-    const response = await fetch(buildBackendUrl('/api/profile/save'), {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json'
-      },
-      keepalive,
-      body: JSON.stringify({
-        game_state: stripServerManagedFields(state),
-        expected_updated_at: cloudUpdatedAtRef.current
-      })
-    });
-
-    if (response.status === 401) {
-      console.warn('[Persistence] Save profile unauthorized', {
-        traceId,
-        userId: shortId(user?.id),
-      });
-      await signOut();
-      throw new Error('Unauthorized');
-    }
-    if (response.status === 409) {
-      console.warn('[Persistence] Save profile conflict', {
-        traceId,
-        userId: shortId(user?.id),
-      });
-      throw new Error('Conflict');
-    }
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error || 'Failed to save cloud profile');
-    }
-    const payload = await response.json().catch(() => null);
-    if (payload?.updated_at) {
-      cloudUpdatedAtRef.current = payload.updated_at;
-    }
-    console.log('[Persistence] Save profile succeeded', {
-      traceId,
-      userId: shortId(user?.id),
-      updatedAt: payload?.updated_at || null,
-      elapsedMs: Math.round(performance.now() - startedAt),
-    });
-  }, [getAuthHeaders, signOut, user?.id]);
-
-  const resetCloudProfile = useCallback(async () => {
-    const headers = getAuthHeaders();
-    if (!headers) throw new Error('Missing auth token');
-
-    const response = await fetch(buildBackendUrl('/api/profile/reset'), {
-      method: 'POST',
-      headers
-    });
-
-    if (response.status === 401) {
-      await signOut();
-      throw new Error('Unauthorized');
-    }
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error || 'Failed to reset cloud profile');
-    }
-  }, [getAuthHeaders, signOut]);
 
   // Sync peerId from P2P to gameState
   useEffect(() => {
@@ -581,7 +438,6 @@ export const usePersistence = (
     session,
     isInitialLoadDone,
     loadGameFromData,
-    fetchCloudProfile,
     fetchBootstrapSnapshot,
     signOut,
     setGameState,
@@ -733,73 +589,16 @@ export const usePersistence = (
   }, [fetchBootstrapSnapshot, lastTickRef, session, setGameState, status, user]);
 
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
-  const pendingSaveRef = useRef(false);
 
   const performAutoSave = useCallback(async (_force: boolean = false) => {
       if (!user) return;
 
-      if (DISABLE_LEGACY_SAVE_BLOB) {
-        setHasSave(true);
-        lastCloudSaveRef.current = TimeSyncService.getServerTime();
-        return;
-      }
-
       const now = TimeSyncService.getServerTime();
-      const currentState = gameStateRef.current;
-      const stateToSave = { ...currentState, lastSaveTime: now };
+      if (now - lastCloudSaveRef.current < CLOUD_SAVE_INTERVAL_MS) return;
 
-      if (now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
-          if (pendingSaveRef.current) return;
-          pendingSaveRef.current = true;
-
-          try {
-              await saveCloudProfile(stateToSave);
-              
-              setHasSave(true);
-              lastCloudSaveRef.current = now;
-              console.log('[Persistence] Master-save (cloud) verified.');
-              } catch (e) {
-                if (e instanceof Error && e.message === 'Conflict') {
-                try {
-                  const cloudPayload = await fetchCloudProfile();
-                  const cloudState = cloudPayload?.state || null;
-                  if (cloudPayload?.updatedAt) {
-                    cloudUpdatedAtRef.current = cloudPayload.updatedAt;
-                  }
-                  if (cloudState) {
-                    const hydratedCloud = hydrateGameState(cloudState as Partial<GameState>);
-                    const retryState: GameState = {
-                      ...stateToSave,
-                      resources: hydratedCloud.resources,
-                      maxResources: hydratedCloud.maxResources,
-                      bankBalance: hydratedCloud.bankBalance,
-                      currentInterestRate: hydratedCloud.currentInterestRate,
-                      nextRateChangeTime: hydratedCloud.nextRateChangeTime,
-                      lastInterestPayoutTime: hydratedCloud.lastInterestPayoutTime,
-                    };
-
-                    await saveCloudProfile(retryState);
-                    setHasSave(true);
-                    lastCloudSaveRef.current = now;
-                    console.warn('[Persistence] Conflict resolved by retrying save with fresh server revision.');
-                  }
-                } catch (syncError) {
-                  console.error('[Persistence] Conflict resolution failed', {
-                    userId: shortId(user?.id),
-                    error: normalizeError(syncError),
-                  });
-                }
-              } else {
-                console.error('[Persistence] Cloud save failed', {
-                  userId: shortId(user?.id),
-                  error: normalizeError(e),
-                });
-              }
-          } finally {
-              pendingSaveRef.current = false;
-          }
-      }
-  }, [user, saveCloudProfile, fetchCloudProfile, loadGameFromData]);
+      setHasSave(true);
+      lastCloudSaveRef.current = now;
+  }, [user]);
 
   const saveGame = useCallback(async () => {
       setStatus('MENU');
@@ -807,18 +606,10 @@ export const usePersistence = (
 
   const resetGame = useCallback(async () => {
       if (!user) return;
-      
-      try {
-        await resetCloudProfile();
-        setHasSave(false);
-      } catch (e) {
-        console.error('Reset failed:', e);
-      }
-
       setTimeout(() => {
           window.location.reload();
       }, 50);
-  }, [user, resetCloudProfile]);
+  }, [user]);
 
   return {
     hasSave,

@@ -1,3 +1,39 @@
+import { z } from 'zod';
+
+const bootstrapResponseSchema = z.object({
+  profile: z.object({
+    id: z.string().uuid(),
+    playerName: z.string().min(1),
+    playerFlag: z.string().min(1),
+  }),
+  resources: z.record(z.string(), z.number()),
+  rates: z.record(z.string(), z.number()),
+  buildings: z.record(z.string(), z.any()),
+  units: z.record(z.string(), z.any()),
+  tech: z.object({
+    levels: z.record(z.string(), z.any()),
+    researched: z.array(z.string()),
+  }),
+  progress: z.object({
+    campaignProgress: z.number(),
+    empirePoints: z.number(),
+    lastSaveTime: z.number(),
+  }),
+  queues: z.object({
+    activeConstructions: z.array(z.any()),
+    activeRecruitments: z.array(z.any()),
+    activeResearch: z.any().nullable(),
+  }),
+  metadata: z.object({
+    revision: z.number(),
+    serverTime: z.number(),
+    resetId: z.any().nullable(),
+  }),
+  game_state: z.object({}).passthrough(),
+  updated_at: z.string().nullable(),
+  traceId: z.string().min(1),
+});
+
 export const createBootstrapService = ({
   makeTraceId,
   supabase,
@@ -12,6 +48,7 @@ export const createBootstrapService = ({
   loadNormalizedStatePatch,
   shortId,
   normalizeServerError,
+  logWithSchema,
 }) => {
   const classifyBootstrapError = (error) => {
     const code = error?.code || '';
@@ -97,7 +134,7 @@ export const createBootstrapService = ({
         ? { ...effectiveState, ...(await loadNormalizedStatePatch(req.user.id)) }
         : effectiveState;
 
-      return res.json({
+      const responsePayload = {
         profile: {
           id: req.user.id,
           playerName: gameState.playerName,
@@ -135,15 +172,37 @@ export const createBootstrapService = ({
         game_state: gameState,
         updated_at: profileResult.data?.updated_at || null,
         traceId,
-      });
+      };
+
+      const schemaCheck = bootstrapResponseSchema.safeParse(responsePayload);
+      if (!schemaCheck.success) {
+        logWithSchema('error', '[BootstrapAPI] Invalid bootstrap response schema', {
+          traceId,
+          userId: shortId(req.user?.id),
+          errorCode: 'BOOTSTRAP_SCHEMA_INVALID',
+          extra: {
+            issues: schemaCheck.error.issues,
+          },
+        });
+        return res.status(500).json({
+          error: 'Failed to bootstrap',
+          errorCode: 'BOOTSTRAP_SCHEMA_INVALID',
+          retryable: false,
+          traceId,
+        });
+      }
+
+      return res.json(responsePayload);
     } catch (error) {
       const classified = classifyBootstrapError(error);
-      console.error('[BootstrapAPI] Bootstrap failed', {
+      logWithSchema('error', '[BootstrapAPI] Bootstrap failed', {
         traceId,
         userId: shortId(req.user?.id),
-        retryable: classified.retryable,
         errorCode: classified.errorCode,
-        error: normalizeServerError(error),
+        extra: {
+          retryable: classified.retryable,
+          error: normalizeServerError(error),
+        },
       });
       return res.status(classified.status).json({
         error: error.message || 'Failed to bootstrap',

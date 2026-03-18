@@ -1,7 +1,9 @@
 # Plan Maestro - Migracion a Arquitectura Server-Authoritative
-Fecha: 2026-03-17  
+Fecha: 2026-03-18  
 Proyecto: Iron Dune Operations  
 Modalidad: Ejecucion secuencial (1 desarrollador)
+
+Estado actualizado: plan tecnico cerrado; cierre operativo productivo pendiente de validacion manual.
 
 ---
 
@@ -50,17 +52,22 @@ Se rodea el sistema viejo con capas nuevas y se migra por dominio:
 
 ## 5) Fases de ejecucion (0 -> 5)
 
+Convencion de estado:
+- [x] completado
+- [~] completado tecnico, pendiente cierre operativo/documental
+- [ ] pendiente
+
 ## Fase 0 - Estabilizacion de emergencia (Dia 1-2)
 
 ### Objetivo
 Cerrar fugas graves sin cambiar aun el paradigma completo.
 
 ### Tareas
-- [ ] Proteger `/api/battle/*` con `requireAuthUser`.
-- [ ] Hacer deduccion/suma de recursos atomica (SQL transaccional o funcion RPC).
-- [ ] Unificar creacion garantizada de `player_resources` en todos los caminos de guardado/carga.
-- [ ] Hardening de hidratacion en cliente para evitar `undefined` en campos criticos.
-- [ ] Anadir logs estructurados en errores 401/404/409 y traceId consistente.
+- [x] Proteger `/api/battle/*` con `requireAuthUser`.
+- [x] Hacer deduccion/suma de recursos atomica (SQL transaccional o funcion RPC).
+- [x] Unificar creacion garantizada de `player_resources` en todos los caminos de guardado/carga.
+- [x] Hardening de hidratacion en cliente para evitar `undefined` en campos criticos.
+- [x] Anadir logs estructurados en errores 401/404/409 y traceId consistente.
 
 ### Entregables
 - Endpoints criticos autenticados.
@@ -172,16 +179,16 @@ Sacar dominio critico de `profiles.game_state`.
 Eliminar estados intermedios inestables y cargas parciales.
 
 ### Tareas
-- [ ] Crear `GET /api/bootstrap` que retorne snapshot canonico:
+- [x] Crear `GET /api/bootstrap` que retorne snapshot canonico:
   - perfil basico
   - recursos y rates
   - buildings/units/tech/progress
   - queues activas
   - metadata (`revision`, `serverTime`, `resetId`)
-- [ ] Implementar state machine cliente:
+- [x] Implementar state machine cliente:
   - `AUTHENTICATING -> SYNCING_TIME -> LOADING_BOOTSTRAP -> HYDRATED -> PLAYING`
-- [ ] Bloquear render de pantallas jugables hasta `HYDRATED`.
-- [ ] Manejo explicito de errores transitorios vs terminales.
+- [x] Bloquear render de pantallas jugables hasta `HYDRATED`.
+- [x] Manejo explicito de errores transitorios vs terminales.
 
 ### Entregables
 - Carga inicial atomica.
@@ -199,12 +206,12 @@ Eliminar estados intermedios inestables y cargas parciales.
 Blindar consistencia de produccion.
 
 ### Tareas
-- [ ] Versionado obligatorio (`revision`) en todas las mutaciones.
-- [ ] Validacion de payload (Zod/Joi) en comandos y bootstrap.
-- [ ] Rate limit por usuario/IP para command gateway.
-- [ ] Auditoria de permisos RLS y service-role boundaries.
-- [ ] Rankings calculados desde tablas normalizadas (no JSONB cliente).
-- [ ] Endurecer resets y remover credenciales hardcoded.
+- [x] Versionado obligatorio (`revision`) en todas las mutaciones.
+- [x] Validacion de payload (Zod/Joi) en comandos y bootstrap.
+- [x] Rate limit por usuario/IP para command gateway.
+- [x] Auditoria de permisos RLS y service-role boundaries.
+- [x] Rankings calculados desde tablas normalizadas (no JSONB cliente).
+- [x] Endurecer resets y remover credenciales hardcoded.
 
 ### Entregables
 - Seguridad de superficie API mejorada.
@@ -223,19 +230,21 @@ Blindar consistencia de produccion.
 Operar con confianza y detectar regresiones temprano.
 
 ### Tareas
-- [ ] Metricas:
+- [x] Metricas:
   - conflictos por minuto
   - tasa de error por comando
   - latencia p50/p95/p99
   - retry ratio
-- [ ] Logging estructurado con `traceId`, `userId`, `commandId`, `revision`.
-- [ ] Suite E2E:
+- [x] Logging estructurado con `traceId`, `userId`, `commandId`, `revision`.
+- [x] Suite E2E:
   - 2 pestanas concurrentes
   - reconexion tras offline
   - creacion de cuenta + primer guardado
   - cola de construcciones/reclutamiento/research
   - caidas parciales de backend
-- [ ] Dashboard y alertas (umbral de 409/5xx).
+- [~] Dashboard y alertas (umbral de 409/5xx).
+  - Hecho: webhook operativo para alertas desde backend.
+  - Pendiente: conexion y validacion final del circuito en entorno productivo (canal, escalamiento y on-call).
 
 ### Entregables
 - Telemetria util para operacion diaria.
@@ -256,6 +265,14 @@ Operar con confianza y detectar regresiones temprano.
 5. `diplomacy*`
 6. P2P recursos y batalla (ultimo bloque por complejidad)
 
+Estado de cierre por bloque:
+- [x] Bloque 1
+- [x] Bloque 2
+- [x] Bloque 3
+- [x] Bloque 4
+- [x] Bloque 5
+- [~] Bloque 6 (multiplayer/P2P con smoke estable; pendiente formalizar evidencia de operacion continua en produccion).
+
 No avanzar al bloque siguiente hasta pasar pruebas del bloque actual.
 
 ---
@@ -275,12 +292,12 @@ No avanzar al bloque siguiente hasta pasar pruebas del bloque actual.
 
 Se considera migracion completada cuando:
 
-- [ ] Ninguna accion critica muta estado solo en cliente.
-- [ ] Recursos/progreso critico 100% autoritativos en servidor.
-- [ ] `profiles.game_state` ya no es fuente de verdad para dominio critico.
-- [ ] Todas las mutaciones usan `revision` + validacion de schema.
-- [ ] E2E de concurrencia y reconexion en verde.
-- [ ] Metricas y alertas activas en produccion.
+- [x] Ninguna accion critica muta estado solo en cliente.
+- [x] Recursos/progreso critico 100% autoritativos en servidor.
+- [x] `profiles.game_state` ya no es fuente de verdad para dominio critico.
+- [x] Todas las mutaciones usan `revision` + validacion de schema.
+- [x] E2E de concurrencia y reconexion en verde.
+- [~] Metricas y alertas activas en produccion.
 
 ---
 
@@ -310,7 +327,57 @@ No mezclar mas de 1 eje critico por dia (concurrencia, schema, bootstrap, etc.).
 
 ---
 
-## 11) Resultado esperado al finalizar
+## 11) Checklist final (manual, no completar automaticamente)
+
+- [ ] A) Alertas en produccion conectadas y probadas.
+- [ ] B) Bloque P2P recursos/batalla validado en ventana sostenida.
+- [ ] C) Evidencia pre/post de no degradacion registrada por release.
+
+Nota: este checklist se deja abierto para cierre manual tras pruebas humanas en entorno objetivo.
+
+## 11.1) Detalle de lo pendiente y para que sirve
+
+### Pendiente A - Alertas en produccion conectadas y probadas
+
+- Estado: [ ] pendiente de ejecucion manual
+- Que falta:
+  - Conectar `OPS_ALERT_WEBHOOK_URL` al canal real operativo (Slack/Discord/PagerDuty/etc.).
+  - Validar extremo a extremo disparando alertas de prueba para 409/5xx/latencia.
+  - Definir ownership y escalamiento (quien responde, en cuanto tiempo, que accion toma).
+- Para que sirve:
+  - Detectar incidentes en minutos (MTTD bajo), no por reportes de jugadores.
+  - Evitar perdida silenciosa de progreso por degradaciones graduales.
+  - Convertir metricas en accion operativa, no solo en logs.
+
+### Pendiente B - Cierre formal del bloque P2P recursos/batalla
+
+- Estado: [ ] pendiente de ejecucion manual
+- Que falta:
+  - Publicar evidencia formal de estabilidad en produccion para room global/P2P en ventana sostenida.
+  - Cerrar checklist de smoke multiplayer en runbook con cadencia operativa.
+- Para que sirve:
+  - Asegurar que la ultima superficie compleja (eventos entre peers) no reintroduce divergencias.
+  - Reducir riesgo de incidentes intermitentes dificiles de reproducir.
+
+### Pendiente C - Evidencia continua pre/post de no degradacion
+
+- Estado: [ ] pendiente de ejecucion manual
+- Que falta:
+  - Ejecutar comparacion de metricas pre/post por ventana operativa real (24h recomendadas) con `metrics:compare`.
+  - Registrar resultado en changelog operativo por release.
+- Para que sirve:
+  - Evitar regresiones "lentas" que no rompen tests pero degradan experiencia.
+  - Dar criterio objetivo de rollback/no-rollback.
+
+Guia operativa detallada de cierre A/B/C:
+- `docs/CIERRE_OPERATIVO_SERVER_AUTORITATIVA.md`
+
+Guia de variables para Render y hard reset seguro:
+- `docs/RENDER_SERVER_ENV_SETUP.md`
+
+---
+
+## 12) Resultado esperado al finalizar
 
 - No mas "se recarga y pierdo progreso".
 - No mas economia divergente entre cliente/servidor.

@@ -2,6 +2,7 @@ export const createCommandRateLimitMiddleware = ({
   makeTraceId,
   shortId,
   observeCommandEvent,
+  logWithSchema,
   windowMs,
   maxRequests,
 }) => {
@@ -28,12 +29,17 @@ export const createCommandRateLimitMiddleware = ({
         errorCode: 'RATE_LIMITED',
         durationMs: 0,
       });
-      console.warn('[CommandGateway] Rate limit exceeded', {
+      logWithSchema('warn', '[CommandGateway] Rate limit exceeded', {
         traceId,
         userId: shortId(req.user?.id),
-        ip,
-        count: current.count,
-        windowMs,
+        commandId: req.body?.commandId || null,
+        expectedRevision: Number.isFinite(Number(req.body?.expectedRevision)) ? Number(req.body?.expectedRevision) : null,
+        errorCode: 'RATE_LIMITED',
+        extra: {
+          ip,
+          count: current.count,
+          windowMs,
+        },
       });
       return res.status(429).json({
         ok: false,

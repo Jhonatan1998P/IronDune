@@ -25,6 +25,10 @@ export const createCommandService = ({
   emitUserStateChanged,
   normalizeServerError,
   patchAllowList,
+  normalizedReadsEnabled,
+  loadNormalizedStatePatch,
+  stripCriticalDomainFromBlob,
+  logWithSchema,
 }) => {
   const handleCommand = async (req, res) => {
     const traceId = req.traceId || makeTraceId('command');
@@ -133,17 +137,27 @@ export const createCommandService = ({
       }
 
       const profile = await getOrCreateProfileState(req.user);
-      const currentRevision = parseRevision(profile.gameState?.revision);
+      const normalizedPatch = normalizedReadsEnabled
+        ? await loadNormalizedStatePatch(req.user.id).catch(() => ({}))
+        : {};
+      const profileState = {
+        ...(profile.gameState || {}),
+        ...(normalizedPatch || {}),
+      };
+      const currentRevision = parseRevision(profileState?.revision);
       const nextRevision = currentRevision + 1;
 
       if (currentRevision !== parseRevision(expectedRevision)) {
-        console.warn('[CommandGateway] Revision mismatch', {
+        logWithSchema('warn', '[CommandGateway] Revision mismatch', {
           traceId,
           userId: shortId(req.user.id),
           commandId,
-          commandType: type,
-          expectedRevision,
-          currentRevision,
+          expectedRevision: parseRevision(expectedRevision),
+          newRevision: currentRevision,
+          errorCode: 'REVISION_MISMATCH',
+          extra: {
+            commandType: type,
+          },
         });
         observeCommandEvent({
           type,
@@ -167,7 +181,7 @@ export const createCommandService = ({
       const requestedStatePatch = sanitizeStatePatch(payload.statePatch, patchAllowList);
       const diagnostics = [];
 
-      const originalState = normalizeLifecycleState(profile.gameState || {});
+      const originalState = normalizeLifecycleState(profileState || {});
       const lifecycleState = resolveLifecycleCompletions(originalState, serverTime).state;
       let workingState = lifecycleState;
       let costs = rawCosts;
@@ -265,9 +279,12 @@ export const createCommandService = ({
       };
 
       const updatedAt = new Date(serverTime).toISOString();
+      const stateToPersist = stripCriticalDomainFromBlob
+        ? stripCriticalDomainFromBlob(nextState)
+        : nextState;
       const { error: saveError } = await supabase.from('profiles').upsert({
         id: req.user.id,
-        game_state: nextState,
+        game_state: stateToPersist,
         updated_at: updatedAt,
       });
 
@@ -300,13 +317,15 @@ export const createCommandService = ({
         throw commandUpdateError;
       }
 
-      console.log('[CommandGateway] Command processed', {
+      logWithSchema('info', '[CommandGateway] Command processed', {
         traceId,
         userId: shortId(req.user.id),
         commandId,
-        commandType: type,
         expectedRevision: parseRevision(expectedRevision),
         newRevision: nextRevision,
+        extra: {
+          commandType: type,
+        },
       });
 
       observeCommandEvent({
@@ -340,10 +359,16 @@ export const createCommandService = ({
           .eq('command_id', req.body.commandId);
       }
 
-      console.error('[CommandGateway] Command failed', {
+      logWithSchema('error', '[CommandGateway] Command failed', {
         traceId,
         userId: shortId(req.user?.id),
-        error: normalizeServerError(error),
+        commandId: req.body?.commandId || null,
+        expectedRevision: parseRevision(req.body?.expectedRevision),
+        errorCode: 'COMMAND_FAILED',
+        extra: {
+          error: normalizeServerError(error),
+          commandType: req.body?.type || null,
+        },
       });
 
       observeCommandEvent({

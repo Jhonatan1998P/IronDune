@@ -4,13 +4,16 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "security:audit": "node scripts/security-audit.js",
+    "metrics:compare": "node scripts/compare-command-metrics.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "socket.io": "^4.8.0",
-    "cors": "^2.8.5",
-    "@supabase/supabase-js": "^2.99.1",
-    "dotenv": "^16.4.5"
+    "zod": "^3.25.76"
   }
 }

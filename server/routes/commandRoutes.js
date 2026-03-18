@@ -9,6 +9,7 @@ export const registerCommandRoutes = (app, deps) => {
     observeCommandEvent,
     COMMAND_RATE_WINDOW_MS,
     COMMAND_RATE_MAX_REQUESTS,
+    logWithSchema,
     isObservabilityAuthorized,
     getCommandMetricsSnapshot,
   } = deps;
@@ -18,6 +19,7 @@ export const registerCommandRoutes = (app, deps) => {
     makeTraceId,
     shortId,
     observeCommandEvent,
+    logWithSchema,
     windowMs: COMMAND_RATE_WINDOW_MS,
     maxRequests: COMMAND_RATE_MAX_REQUESTS,
   });

@@ -5,25 +5,21 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { Card, GlassButton, Icons, ResourceIcon } from '../UIComponents';
 import { getFlagEmoji } from '../../utils/engine/rankings';
 import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../ui/Toast';
 import { APP_VERSION, AVAILABLE_FLAGS } from '../../constants';
 
 interface SettingsViewProps {
     gameState: GameState;
     changePlayerName: (name: string, flag?: string) => { success: boolean; errorKey?: string };
     redeemGiftCode: (code: string) => { success: boolean; messageKey?: string; params?: Record<string, any>; hoursRemaining?: number; minutesRemaining?: number };
-    resetGame: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
     gameState, 
     changePlayerName, 
     redeemGiftCode,
-    resetGame, 
 }) => {
     const { t, setLanguage, language } = useLanguage();
     const { signOut } = useAuth();
-    const { showWarning } = useToast();
     const [newName, setNewName] = useState('');
     const [nameError, setNameError] = useState<string | null>(null);
     const [nameSuccess, setNameSuccess] = useState(false);
@@ -32,12 +28,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [selectedFlag, setSelectedFlag] = useState<string | undefined>(gameState.playerFlag);
     const [flagSuccess, setFlagSuccess] = useState(false);
     const [showFlagPicker, setShowFlagPicker] = useState(false);
-    const [showResetModal, setShowResetModal] = useState(false);
-
-    const handleResetAction = () => {
-        showWarning(language === 'es' ? "Iniciando secuencia de borrado..." : "Initiating wipe sequence...");
-        resetGame();
-    };
 
     const handleNameChange = () => {
         setNameError(null);
@@ -301,58 +291,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 </div>
                             </div>
 
-                            <div className="pt-4 sm:pt-6 border-t border-white/10">
-                                <div className="p-3 sm:p-4 rounded-xl bg-red-500/5 border border-red-500/20 mb-3 sm:mb-4 text-center">
-                                    <h4 className="text-[10px] sm:text-xs text-red-400 uppercase tracking-[0.2em] font-bold mb-1">{t.common.ui.reset}</h4>
-                                    <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest">{t.common.ui.reset_confirm}</p>
-                                </div>
-                                <GlassButton onClick={() => setShowResetModal(true)} variant="danger" className="w-full py-2.5 sm:py-3 shadow-lg shadow-red-950/20">
-                                    {t.common.ui.reset}
-                                </GlassButton>
-                            </div>
                         </div>
                     </Card>
                 </div>
             </div>
-
-            {/* RESET CONFIRMATION MODAL */}
-            {showResetModal && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-[fadeIn_0.2s_ease-out]">
-                    <div className="max-w-md w-full glass-panel border-2 border-red-500/30 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-[slideUp_0.3s_ease-out]">
-                        <div className="p-6 sm:p-8 flex flex-col items-center text-center gap-6">
-                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/30">
-                                <Icons.Warning className="w-8 h-8 text-red-500 animate-pulse" />
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <h3 className="text-xl font-tech text-white uppercase tracking-wider">{t.common.ui.reset}</h3>
-                                <p className="text-sm text-slate-400 leading-relaxed font-mono italic">
-                                    {language === 'es' 
-                                        ? "ADVERTENCIA: Esta acción eliminará permanentemente todo tu progreso en la nube. Esta operación no se puede deshacer."
-                                        : "WARNING: This action will permanently erase all your progress in the cloud. This operation cannot be undone."}
-                                </p>
-                            </div>
-
-                            <div className="flex flex-col w-full gap-3">
-                                <GlassButton 
-                                    onClick={handleResetAction}
-                                    variant="danger" 
-                                    className="w-full py-4 text-sm font-bold tracking-[0.2em]"
-                                >
-                                    {language === 'es' ? "CONFIRMAR BORRADO TOTAL" : "CONFIRM TOTAL WIPE"}
-                                </GlassButton>
-                                <button 
-                                    onClick={() => setShowResetModal(false)}
-                                    className="text-xs text-slate-500 hover:text-white uppercase tracking-widest font-bold py-2 transition-colors"
-                                >
-                                    {t.common.actions.cancel}
-                                </button>
-                            </div>
-                        </div>
-                        <div className="bg-red-500/10 h-1 w-full animate-pulse"></div>
-                    </div>
-                </div>
-            )}
             
             <div className="text-center pb-6 sm:pb-8 opacity-30">
                 <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em]">Sector Zero OS {APP_VERSION} - Tactical Terminal</p>
