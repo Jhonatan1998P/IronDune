@@ -32,6 +32,8 @@ export const createCommandService = ({
   logWithSchema,
   calculateEmpirePointsBreakdown,
 }) => {
+  const LOG_STALE_NORMALIZED_PATCH = process.env.LOG_STALE_NORMALIZED_PATCH === 'true';
+
   const NORMALIZED_DOMAIN_STATE_KEYS = [
     'buildings',
     'units',
@@ -174,6 +176,47 @@ export const createCommandService = ({
         throw commandReservationError;
       }
 
+      const expectedRevisionNumber = parseRevision(expectedRevision);
+      const { data: revisionReservations, error: revisionReservationError } = await supabase
+        .from('player_commands')
+        .select('id, command_id, created_at')
+        .eq('player_id', req.user.id)
+        .eq('expected_revision', expectedRevisionNumber)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(2);
+
+      if (revisionReservationError) {
+        throw revisionReservationError;
+      }
+
+      const winnerReservation = Array.isArray(revisionReservations) ? revisionReservations[0] : null;
+      if (winnerReservation && winnerReservation.command_id !== commandId) {
+        const conflictPayload = {
+          ok: false,
+          error: 'Another command already claimed this revision',
+          errorCode: 'REVISION_SLOT_TAKEN',
+          retryable: false,
+          traceId,
+        };
+
+        await supabase
+          .from('player_commands')
+          .update({ response_payload: conflictPayload })
+          .eq('player_id', req.user.id)
+          .eq('command_id', commandId);
+
+        observeCommandEvent({
+          type,
+          result: 'conflict',
+          errorCode: 'REVISION_SLOT_TAKEN',
+          durationMs: Date.now() - commandStartedAt,
+          inProgressCollision: true,
+        });
+
+        return res.status(409).json(conflictPayload);
+      }
+
       const profile = await getOrCreateProfileState(req.user);
       const normalizedPatch = normalizedReadsEnabled
         ? await loadNormalizedStatePatch(req.user.id).catch((error) => {
@@ -198,7 +241,7 @@ export const createCommandService = ({
       const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
         && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
-      if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
+      if (LOG_STALE_NORMALIZED_PATCH && isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
         logWithSchema('warn', '[CommandGateway] Ignoring stale normalized state patch', {
           traceId,
           userId: shortId(req.user.id),

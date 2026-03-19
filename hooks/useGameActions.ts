@@ -161,6 +161,29 @@ export const useGameActions = (
   addLog: (messageKey: string, type?: LogEntry['type'], params?: any) => void
 ) => {
   const { session } = useAuth();
+  const inFlightActionKeysRef = React.useRef<Set<string>>(new Set());
+
+  const acquireActionLock = useCallback((key: string) => {
+    if (inFlightActionKeysRef.current.has(key)) {
+      return false;
+    }
+    inFlightActionKeysRef.current.add(key);
+    return true;
+  }, []);
+
+  const releaseActionLock = useCallback((key: string) => {
+    inFlightActionKeysRef.current.delete(key);
+  }, []);
+
+  const buildActionLockKey = useCallback((
+    commandType: CommandType,
+    commandPayloadOverride?: Record<string, unknown>,
+  ) => {
+    const action = commandPayloadOverride && typeof commandPayloadOverride.action === 'object'
+      ? commandPayloadOverride.action
+      : null;
+    return `${commandType}:${JSON.stringify(action || {})}`;
+  }, []);
 
   const notifyCrossTabServerMutation = useCallback((newRevision?: number) => {
     if (typeof window === 'undefined') return;
@@ -348,105 +371,124 @@ export const useGameActions = (
     };
 
     const run = async () => {
-      const initialPayload = commandPayloadOverride
-        ? {
-          expectedRevision: Number(gameState.revision || 0),
-          payload: commandPayloadOverride,
-        }
-        : buildPayloadFrom(gameState, preview.newState as GameState);
-      const initialCommandId = createCommandId();
-      let commandResult = await dispatchCommandWithRetry(commandType, initialPayload.expectedRevision, {
-        ...initialPayload.payload,
-      }, initialCommandId);
-
-      let nextStateToApply = preview.newState as GameState;
-      let baseStateForApply = gameState;
-
-      if (!commandResult.ok && commandResult.errorCode === 'REVISION_MISMATCH') {
-        const syncedState = await syncStateFromBootstrap();
-        if (!syncedState) {
-          addLog('server_sync_error', 'info');
-          return;
-        }
-
-        setGameState(syncedState);
-        const retryPreview = executor(syncedState);
-        if (!retryPreview.success || !retryPreview.newState) {
-          if (retryPreview.errorKey) addLog(retryPreview.errorKey, 'info');
-          return;
-        }
-
-        const retryPayload = commandPayloadOverride
-          ? {
-            expectedRevision: Number(syncedState.revision || 0),
-            payload: commandPayloadOverride,
-          }
-          : buildPayloadFrom(syncedState, retryPreview.newState);
-        const retryCommandId = createCommandId();
-        commandResult = await dispatchCommandWithRetry(commandType, retryPayload.expectedRevision, {
-          ...retryPayload.payload,
-        }, retryCommandId);
-
-        nextStateToApply = retryPreview.newState;
-        baseStateForApply = syncedState;
-      }
-
-      if (!commandResult.ok) {
-        if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
-          addLog('insufficient_funds', 'info');
-          return;
-        }
-        if (commandResult.errorCode === 'REVISION_MISMATCH') {
-          addLog('server_sync_error', 'info');
-          return;
-        }
-        if (commandResult.errorCode === 'INVALID_COMMAND_SEMANTICS' ||
-            commandResult.errorCode === 'INVALID_PAYLOAD' ||
-            commandResult.errorCode === 'INVALID_PAYLOAD_KEY' ||
-            commandResult.errorCode === 'INVALID_STATE_PATCH' ||
-            commandResult.errorCode === 'INVALID_STATE_PATCH_KEY' ||
-            commandResult.errorCode === 'INVALID_PAYLOAD_COSTS' ||
-            commandResult.errorCode === 'INVALID_PAYLOAD_GAINS') {
-          addLog('server_sync_error', 'info', {
-            errorCode: commandResult.errorCode,
-            traceId: (commandResult as any).traceId || null,
-          });
-          return;
-        }
-        addLog('server_sync_error', 'info');
+      const lockKey = buildActionLockKey(commandType, commandPayloadOverride);
+      if (!acquireActionLock(lockKey)) {
         return;
       }
 
-      setGameState((prev) => {
-        const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
-          ? prev
-          : baseStateForApply;
+      try {
+        const initialPayload = commandPayloadOverride
+          ? {
+            expectedRevision: Number(gameState.revision || 0),
+            payload: commandPayloadOverride,
+          }
+          : buildPayloadFrom(gameState, preview.newState as GameState);
+        const initialCommandId = createCommandId();
+        let commandResult = await dispatchCommandWithRetry(commandType, initialPayload.expectedRevision, {
+          ...initialPayload.payload,
+        }, initialCommandId);
 
-        if (commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0) {
-          return {
-            ...sourceState,
-            ...commandResult.statePatch,
-            revision: commandResult.newRevision ?? sourceState.revision,
-          };
+        let nextStateToApply = preview.newState as GameState;
+        let baseStateForApply = gameState;
+
+        if (!commandResult.ok && (commandResult.errorCode === 'REVISION_MISMATCH' || commandResult.errorCode === 'REVISION_SLOT_TAKEN')) {
+          const syncedState = await syncStateFromBootstrap();
+          if (!syncedState) {
+            addLog('server_sync_error', 'info');
+            return;
+          }
+
+          setGameState(syncedState);
+          const retryPreview = executor(syncedState);
+          if (!retryPreview.success || !retryPreview.newState) {
+            if (retryPreview.errorKey) addLog(retryPreview.errorKey, 'info');
+            return;
+          }
+
+          const retryPayload = commandPayloadOverride
+            ? {
+              expectedRevision: Number(syncedState.revision || 0),
+              payload: commandPayloadOverride,
+            }
+            : buildPayloadFrom(syncedState, retryPreview.newState);
+          const retryCommandId = createCommandId();
+          commandResult = await dispatchCommandWithRetry(commandType, retryPayload.expectedRevision, {
+            ...retryPayload.payload,
+          }, retryCommandId);
+
+          nextStateToApply = retryPreview.newState;
+          baseStateForApply = syncedState;
         }
 
-        const result = executor(sourceState);
-        if (!result.success || !result.newState) {
+        if (!commandResult.ok) {
+          if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
+            addLog('insufficient_funds', 'info');
+            return;
+          }
+          if (commandResult.errorCode === 'REVISION_MISMATCH' || commandResult.errorCode === 'REVISION_SLOT_TAKEN') {
+            addLog('server_sync_error', 'info');
+            return;
+          }
+          if (commandResult.errorCode === 'INVALID_COMMAND_SEMANTICS' ||
+              commandResult.errorCode === 'INVALID_PAYLOAD' ||
+              commandResult.errorCode === 'INVALID_PAYLOAD_KEY' ||
+              commandResult.errorCode === 'INVALID_STATE_PATCH' ||
+              commandResult.errorCode === 'INVALID_STATE_PATCH_KEY' ||
+              commandResult.errorCode === 'INVALID_PAYLOAD_COSTS' ||
+              commandResult.errorCode === 'INVALID_PAYLOAD_GAINS') {
+            addLog('server_sync_error', 'info', {
+              errorCode: commandResult.errorCode,
+              traceId: (commandResult as any).traceId || null,
+            });
+            return;
+          }
+          addLog('server_sync_error', 'info');
+          return;
+        }
+
+        setGameState((prev) => {
+          const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
+            ? prev
+            : baseStateForApply;
+
+          if (commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0) {
+            return {
+              ...sourceState,
+              ...commandResult.statePatch,
+              revision: commandResult.newRevision ?? sourceState.revision,
+            };
+          }
+
+          const result = executor(sourceState);
+          if (!result.success || !result.newState) {
+            return {
+              ...nextStateToApply,
+              revision: commandResult.newRevision ?? sourceState.revision,
+            };
+          }
           return {
-            ...nextStateToApply,
+            ...result.newState,
             revision: commandResult.newRevision ?? sourceState.revision,
           };
-        }
-        return {
-          ...result.newState,
-          revision: commandResult.newRevision ?? sourceState.revision,
-        };
-      });
-      notifyCrossTabServerMutation(commandResult.newRevision);
+        });
+        notifyCrossTabServerMutation(commandResult.newRevision);
+      } finally {
+        releaseActionLock(lockKey);
+      }
     };
 
     run();
-  }, [addLog, dispatchCommandWithRetry, gameState, notifyCrossTabServerMutation, setGameState, syncStateFromBootstrap]);
+  }, [
+    acquireActionLock,
+    addLog,
+    buildActionLockKey,
+    dispatchCommandWithRetry,
+    gameState,
+    notifyCrossTabServerMutation,
+    releaseActionLock,
+    setGameState,
+    syncStateFromBootstrap,
+  ]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);

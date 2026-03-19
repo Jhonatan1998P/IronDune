@@ -51,6 +51,8 @@ export const createBootstrapService = ({
   logWithSchema,
   calculateEmpirePointsBreakdown,
 }) => {
+  const LOG_STALE_NORMALIZED_PATCH = process.env.LOG_STALE_NORMALIZED_PATCH === 'true';
+
   const NORMALIZED_DOMAIN_STATE_KEYS = [
     'buildings',
     'units',
@@ -186,7 +188,7 @@ export const createBootstrapService = ({
       const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
         && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
-      if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
+      if (LOG_STALE_NORMALIZED_PATCH && isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
         logWithSchema('warn', '[BootstrapAPI] Ignoring stale normalized state patch', {
           traceId,
           userId: shortId(req.user.id),

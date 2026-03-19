@@ -27,6 +27,7 @@ import { registerDevToolsRoutes } from './routes/devToolsRoutes.js';
 import { makeTraceId, normalizeServerError, shortId } from './lib/trace.js';
 import { buildServerStatePatch, isNonNullObject, parseRevision, sanitizeStatePatch } from './lib/statePatch.js';
 import { calculateEmpirePointsBreakdown } from './lib/empirePoints.js';
+import { getTrafficMetricsSnapshot, observeServerHttpRequest } from './lib/trafficMetrics.js';
 import { createRequireAuthUser } from './middleware/auth.js';
 import { logWithSchema } from './lib/logSchema.js';
 
@@ -51,6 +52,7 @@ const VALID_TECH_TYPES = new Set(Object.values(TechType));
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
 const COMMAND_RATE_MAX_REQUESTS = Number(process.env.COMMAND_RATE_MAX_REQUESTS || 120);
 const COMMAND_METRICS_LOG_INTERVAL_MS = Number(process.env.COMMAND_METRICS_LOG_INTERVAL_MS || 60_000);
+const TRAFFIC_METRICS_LOG_INTERVAL_MS = Number(process.env.TRAFFIC_METRICS_LOG_INTERVAL_MS || 60_000);
 const COMMAND_METRICS_RETENTION_MS = Number(process.env.COMMAND_METRICS_RETENTION_MS || 15 * 60_000);
 const COMMAND_ALERT_CONFLICTS_PER_MIN_THRESHOLD = Number(process.env.COMMAND_ALERT_CONFLICTS_PER_MIN_THRESHOLD || 5);
 const COMMAND_ALERT_ERROR_RATE_THRESHOLD = Number(process.env.COMMAND_ALERT_ERROR_RATE_THRESHOLD || 0.05);
@@ -70,6 +72,7 @@ const commandMetrics = {
     idempotentReplays: 0,
     inProgressCollisions: 0,
     revisionMismatches: 0,
+    revisionSlotTaken: 0,
   },
   byType: {},
   byErrorCode: {},
@@ -109,6 +112,24 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const basePath = req.path;
+  const method = req.method;
+
+  res.on('finish', () => {
+    observeServerHttpRequest({
+      method,
+      path: basePath,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+      userId: req.user?.id || null,
+    });
+  });
+
+  next();
+});
+
 const isLikelyUuid = (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 
@@ -123,6 +144,7 @@ const getTypeMetrics = (type) => {
       rateLimited: 0,
       idempotentReplays: 0,
       revisionMismatches: 0,
+      revisionSlotTaken: 0,
     };
   }
   return commandMetrics.byType[type];
@@ -211,6 +233,11 @@ const observeCommandEvent = ({
     typeMetrics.revisionMismatches += 1;
   }
 
+  if (errorCode === 'REVISION_SLOT_TAKEN') {
+    commandMetrics.totals.revisionSlotTaken += 1;
+    typeMetrics.revisionSlotTaken += 1;
+  }
+
   if (typeof errorCode === 'string' && errorCode) {
     commandMetrics.byErrorCode[errorCode] = (commandMetrics.byErrorCode[errorCode] || 0) + 1;
   }
@@ -231,6 +258,7 @@ const getCommandMetricsSnapshot = () => {
     failedPerMin: Number((totals.failed / uptimeMinutes).toFixed(3)),
     rateLimitedPerMin: Number((totals.rateLimited / uptimeMinutes).toFixed(3)),
     revisionMismatchesPerMin: Number((totals.revisionMismatches / uptimeMinutes).toFixed(3)),
+    revisionSlotTakenPerMin: Number((totals.revisionSlotTaken / uptimeMinutes).toFixed(3)),
     errorRate: Number(((totals.failed + totals.badRequest + totals.rateLimited) / totalRequests).toFixed(4)),
     retryRatio: Number((totals.idempotentReplays / totalRequests).toFixed(4)),
     successRatio: Number((totals.success / totalRequests).toFixed(4)),
@@ -744,6 +772,7 @@ registerDevToolsRoutes(app, {
   syncNormalizedDomain,
   emitUserStateChanged,
   getCommandMetricsSnapshot,
+  getTrafficMetricsSnapshot,
   io,
   normalizeRole,
 });
@@ -952,6 +981,9 @@ setInterval(() => {
   console.log('[CommandMetrics] Snapshot', getCommandMetricsSnapshot());
   void maybeSendOperationalAlerts();
 }, COMMAND_METRICS_LOG_INTERVAL_MS);
+setInterval(() => {
+  console.log('[TrafficMetrics] Snapshot', getTrafficMetricsSnapshot());
+}, TRAFFIC_METRICS_LOG_INTERVAL_MS);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);

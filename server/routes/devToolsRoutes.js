@@ -33,6 +33,7 @@ export const registerDevToolsRoutes = (app, deps) => {
     syncNormalizedDomain,
     emitUserStateChanged,
     getCommandMetricsSnapshot,
+    getTrafficMetricsSnapshot,
     io,
     normalizeRole,
   } = deps;
@@ -67,10 +68,11 @@ export const registerDevToolsRoutes = (app, deps) => {
       const role = await ensurePrivilegedRole(req, res, traceId);
       if (!role) return;
 
-      const [profileResult, resources, commandMetrics] = await Promise.all([
+      const [profileResult, resources, commandMetrics, trafficMetrics] = await Promise.all([
         supabase.from('profiles').select('game_state, updated_at').eq('id', req.user.id).maybeSingle(),
         getOrCreatePlayerResources(req.user.id),
         Promise.resolve(getCommandMetricsSnapshot()),
+        Promise.resolve(getTrafficMetricsSnapshot()),
       ]);
 
       if (profileResult.error) throw profileResult.error;
@@ -96,6 +98,7 @@ export const registerDevToolsRoutes = (app, deps) => {
           time: Date.now(),
           connectedPlayers: io?.sockets?.sockets?.size || 0,
           commandMetrics,
+          trafficMetrics,
         },
         player: {
           revision: parseRevision(gameState.revision),

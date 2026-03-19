@@ -26,6 +26,7 @@ export const registerProfileRoutes = (app, deps) => {
   const hasCriticalCoverageGap = (blobState, normalizedPatch) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
     blobState?.[key] === undefined && normalizedPatch?.[key] !== undefined
   ));
+  const LOG_STALE_NORMALIZED_PATCH = process.env.LOG_STALE_NORMALIZED_PATCH === 'true';
 
   app.get('/api/profile', requireAuthUser, async (req, res) => {
     const traceId = req.traceId || makeTraceId('profile-load');
@@ -64,7 +65,7 @@ export const registerProfileRoutes = (app, deps) => {
         const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
           && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
-        if (!shouldUseNormalizedPatch && isNonNullObject(normalizedPatch)) {
+        if (LOG_STALE_NORMALIZED_PATCH && !shouldUseNormalizedPatch && isNonNullObject(normalizedPatch)) {
           console.warn('[ProfileAPI] Ignoring stale normalized state patch', {
             traceId,
             userId: shortId(req.user.id),
