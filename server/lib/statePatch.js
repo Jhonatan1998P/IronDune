@@ -24,6 +24,7 @@ export const buildServerStatePatch = (previousState, nextState, allowList) => {
   const after = isNonNullObject(nextState) ? nextState : {};
 
   allowList.forEach((key) => {
+    if (after[key] === undefined) return;
     if (JSON.stringify(before[key]) === JSON.stringify(after[key])) return;
     patch[key] = after[key];
   });

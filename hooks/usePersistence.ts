@@ -56,6 +56,14 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
     ...(input?.diplomaticActions || {}),
   };
 
+  merged.rankingData = {
+    ...INITIAL_GAME_STATE.rankingData,
+    ...(input?.rankingData || {}),
+    bots: Array.isArray(input?.rankingData?.bots)
+      ? input.rankingData.bots
+      : INITIAL_GAME_STATE.rankingData.bots,
+  };
+
   return merged;
 };
 
@@ -64,6 +72,7 @@ const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
 const MULTI_TAB_SYNC_INTERVAL_MS = 30000;
 const MULTI_TAB_MIN_SYNC_GAP_MS = 1200;
 const MULTI_TAB_FOCUS_RESYNC_STALE_MS = 15000;
+const RECENT_BOOTSTRAP_SUPPRESS_SYNC_MS = 8000;
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
 const USER_STATE_CHANGED_EVENT = 'user_state_changed';
@@ -139,6 +148,7 @@ export const usePersistence = (
   gameStateRef.current = gameState;
   statusRef.current = status;
   const cloudUpdatedAtRef = useRef<string | null>(null);
+  const lastBootstrapSuccessAtRef = useRef(0);
 
   useEffect(() => {
     setIsInitialLoadDone(false);
@@ -146,6 +156,7 @@ export const usePersistence = (
     setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
     initialCheckStartedRef.current = false;
     cloudUpdatedAtRef.current = null;
+    lastBootstrapSuccessAtRef.current = 0;
   }, [user?.id]);
 
   const getAuthHeaders = useCallback(() => {
@@ -307,6 +318,7 @@ export const usePersistence = (
         for (let attempt = 1; attempt <= BOOTSTRAP_RETRY_DELAYS_MS.length; attempt += 1) {
           try {
             bootstrapPayload = await fetchBootstrapSnapshot();
+            lastBootstrapSuccessAtRef.current = Date.now();
             bootstrapError = null;
             setBootstrapLoadStatus((prev) => ({
               ...prev,
@@ -482,6 +494,7 @@ export const usePersistence = (
 
     const runSync = async () => {
       const bootstrapPayload = await fetchBootstrapSnapshot();
+      lastBootstrapSuccessAtRef.current = Date.now();
       const serverState = bootstrapPayload?.state || null;
       if (!serverState || cancelled) return;
 
@@ -506,8 +519,13 @@ export const usePersistence = (
       const reason = options?.reason || 'unknown';
       const force = options?.force === true;
       const expectedRevision = options?.expectedRevision;
+      const recentBootstrap = (Date.now() - lastBootstrapSuccessAtRef.current) < RECENT_BOOTSTRAP_SUPPRESS_SYNC_MS;
 
       if (!force && canSkipForRevision(expectedRevision)) {
+        return;
+      }
+
+      if (force && recentBootstrap && (reason === 'initial' || reason === 'socket_subscribed')) {
         return;
       }
 
@@ -583,7 +601,7 @@ export const usePersistence = (
     try {
       const socketOptions = {
         path: SOCKET_IO_PATH,
-        transports: ['websocket', 'polling'],
+        transports: ['websocket'],
         timeout: 8000,
       };
       socket = BACKEND_ORIGIN ? io(BACKEND_ORIGIN, socketOptions) : io(socketOptions);

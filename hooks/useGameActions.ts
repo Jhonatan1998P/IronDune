@@ -461,10 +461,13 @@ export const useGameActions = (
           const baseNextState = result.success && result.newState
             ? result.newState
             : nextStateToApply;
+          const safeServerPatch = commandResult.statePatch && typeof commandResult.statePatch === 'object'
+            ? Object.fromEntries(Object.entries(commandResult.statePatch).filter(([, value]) => value !== undefined))
+            : {};
 
           return {
             ...baseNextState,
-            ...(commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0 ? commandResult.statePatch : {}),
+            ...safeServerPatch,
             revision: commandResult.newRevision ?? sourceState.revision,
           };
         });
