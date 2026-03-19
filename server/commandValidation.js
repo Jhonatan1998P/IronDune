@@ -1,5 +1,4 @@
 import { ResourceType } from './engine/enums.js';
-import { z } from 'zod';
 
 const RESOURCE_KEYS = new Set(Object.values(ResourceType));
 
@@ -14,7 +13,6 @@ export const COMMAND_TYPES = new Set([
   'ESPIONAGE_START',
   'BANK_DEPOSIT',
   'BANK_WITHDRAW',
-  'TUTORIAL_SET_STATE',
   'TUTORIAL_CLAIM_REWARD',
   'GIFT_CODE_REDEEM',
   'DIPLOMACY_GIFT',
@@ -47,93 +45,8 @@ export const PATCH_ALLOW_LIST = new Set([
   'isTutorialMinimized',
 ]);
 
-export const SERVER_RESPONSE_PATCH_ALLOW_LIST = new Set([
-  ...PATCH_ALLOW_LIST,
-  'resources',
-  'maxResources',
-  'bankBalance',
-  'currentInterestRate',
-  'nextRateChangeTime',
-  'rankingStats',
-  'lastSaveTime',
-]);
-
 const isNonNullObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const hasNonEmptyObject = (value) => isNonNullObject(value) && Object.keys(value).length > 0;
-
-const numericResourceMapSchema = z.record(z.nativeEnum(ResourceType), z.number().finite().min(0));
-const anyActionSchema = z.object({}).passthrough();
-const tutorialSetStateActionSchema = z.object({
-  type: z.enum(['ACCEPT_STEP', 'TOGGLE_MINIMIZED']),
-}).strict();
-const tutorialClaimRewardActionSchema = z.object({
-  type: z.literal('CLAIM_REWARD'),
-  tutorialId: z.string().min(1).optional(),
-}).strict();
-const basePayloadSchema = z.object({
-  costs: numericResourceMapSchema.optional(),
-  gains: numericResourceMapSchema.optional(),
-  statePatch: z.object({}).passthrough().optional(),
-  action: anyActionSchema.optional(),
-}).strict();
-
-const actionSchema = (shape) => z.object(shape).strict();
-
-const COMMAND_ZOD_SCHEMAS = {
-  BUILD_START: basePayloadSchema.extend({
-    action: actionSchema({
-      buildingType: z.string().min(1),
-      amount: z.number().int().positive(),
-    }),
-  }).strict(),
-  BUILD_REPAIR: basePayloadSchema.extend({
-    costs: numericResourceMapSchema,
-    statePatch: z.object({ buildings: z.any() }).passthrough(),
-  }).strict(),
-  RECRUIT_START: basePayloadSchema.extend({
-    action: actionSchema({
-      unitType: z.string().min(1),
-      amount: z.number().int().positive(),
-    }),
-  }).strict(),
-  RESEARCH_START: basePayloadSchema.extend({
-    action: actionSchema({
-      techId: z.string().min(1),
-    }),
-  }).strict(),
-  SPEEDUP: basePayloadSchema.extend({
-    action: actionSchema({
-      targetId: z.string().min(1),
-      type: z.string().min(1),
-    }).optional(),
-  }).strict(),
-  TRADE_EXECUTE: basePayloadSchema,
-  DIAMOND_EXCHANGE: basePayloadSchema.extend({
-    costs: numericResourceMapSchema,
-    gains: numericResourceMapSchema,
-  }).strict(),
-  ESPIONAGE_START: basePayloadSchema.extend({
-    costs: numericResourceMapSchema,
-  }).strict(),
-  BANK_DEPOSIT: basePayloadSchema.extend({
-    costs: numericResourceMapSchema,
-  }).strict(),
-  BANK_WITHDRAW: basePayloadSchema.extend({
-    gains: numericResourceMapSchema,
-  }).strict(),
-  TUTORIAL_SET_STATE: basePayloadSchema.extend({
-    action: tutorialSetStateActionSchema,
-  }).strict(),
-  TUTORIAL_CLAIM_REWARD: basePayloadSchema.extend({
-    action: tutorialClaimRewardActionSchema,
-  }).strict(),
-  GIFT_CODE_REDEEM: basePayloadSchema,
-  DIPLOMACY_GIFT: basePayloadSchema.extend({
-    costs: numericResourceMapSchema,
-  }).strict(),
-  DIPLOMACY_PROPOSE_ALLIANCE: basePayloadSchema,
-  DIPLOMACY_PROPOSE_PEACE: basePayloadSchema,
-};
 
 const hasAnyStatePatchKeys = (payload, requiredKeys) => {
   if (!isNonNullObject(payload.statePatch)) return false;
@@ -225,17 +138,10 @@ const COMMAND_CONTRACTS = {
     costs: 'forbidden',
     gains: 'required',
   },
-  TUTORIAL_SET_STATE: {
-    costs: 'forbidden',
-    gains: 'forbidden',
-    statePatch: 'forbidden',
-    actionRequired: ['type'],
-  },
   TUTORIAL_CLAIM_REWARD: {
     costs: 'forbidden',
-    gains: 'forbidden',
-    statePatch: 'forbidden',
-    actionRequired: ['type'],
+    gains: 'optional',
+    statePatchAnyOf: ['completedTutorials', 'tutorialClaimable', 'currentTutorialId'],
   },
   GIFT_CODE_REDEEM: {
     costs: 'forbidden',
@@ -369,18 +275,6 @@ export const validateCommandPayload = (type, payloadInput) => {
         ok: false,
         errorCode: 'INVALID_COMMAND_SEMANTICS',
         message: `Payload does not satisfy semantic rules for ${type}`,
-      };
-    }
-  }
-
-  const zodSchema = COMMAND_ZOD_SCHEMAS[type] || null;
-  if (zodSchema) {
-    const parsed = zodSchema.safeParse(payload);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        errorCode: 'INVALID_PAYLOAD_SCHEMA',
-        message: parsed.error.issues[0]?.message || 'Payload schema validation failed',
       };
     }
   }

@@ -8,8 +8,19 @@ import { useAuth } from './useAuth';
 import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 import { io, Socket } from 'socket.io-client';
-import { BACKEND_ORIGIN, buildBackendUrl, SOCKET_IO_PATH } from '../lib/backend';
+import { BACKEND_ORIGIN, buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB, SOCKET_IO_PATH } from '../lib/backend';
 import { createTraceId, normalizeError, shortId } from '../lib/diagnosticLogger';
+
+const stripServerManagedFields = (state: GameState): GameState => {
+  const sanitized = { ...state } as Partial<GameState>;
+  delete sanitized.resources;
+  delete sanitized.maxResources;
+  delete sanitized.bankBalance;
+  delete sanitized.currentInterestRate;
+  delete sanitized.nextRateChangeTime;
+  delete sanitized.lastInterestPayoutTime;
+  return sanitized as GameState;
+};
 
 const hydrateGameState = (input: Partial<GameState> | null | undefined): GameState => {
   const merged = {
@@ -56,23 +67,12 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
     ...(input?.diplomaticActions || {}),
   };
 
-  merged.rankingData = {
-    ...INITIAL_GAME_STATE.rankingData,
-    ...(input?.rankingData || {}),
-    bots: Array.isArray(input?.rankingData?.bots)
-      ? input.rankingData.bots
-      : INITIAL_GAME_STATE.rankingData.bots,
-  };
-
   return merged;
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
-const MULTI_TAB_SYNC_INTERVAL_MS = 30000;
-const MULTI_TAB_MIN_SYNC_GAP_MS = 1200;
-const MULTI_TAB_FOCUS_RESYNC_STALE_MS = 15000;
-const RECENT_BOOTSTRAP_SUPPRESS_SYNC_MS = 8000;
+const MULTI_TAB_SYNC_INTERVAL_MS = 5000;
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
 const USER_STATE_CHANGED_EVENT = 'user_state_changed';
@@ -148,7 +148,6 @@ export const usePersistence = (
   gameStateRef.current = gameState;
   statusRef.current = status;
   const cloudUpdatedAtRef = useRef<string | null>(null);
-  const lastBootstrapSuccessAtRef = useRef(0);
 
   useEffect(() => {
     setIsInitialLoadDone(false);
@@ -156,7 +155,6 @@ export const usePersistence = (
     setBootstrapLoadStatus(INITIAL_BOOTSTRAP_LOAD_STATUS);
     initialCheckStartedRef.current = false;
     cloudUpdatedAtRef.current = null;
-    lastBootstrapSuccessAtRef.current = 0;
   }, [user?.id]);
 
   const getAuthHeaders = useCallback(() => {
@@ -165,29 +163,60 @@ export const usePersistence = (
     return { Authorization: `Bearer ${token}` };
   }, [session]);
 
+  const fetchCloudProfile = useCallback(async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return null;
+
+    const traceId = createTraceId('persist-load');
+    const startedAt = performance.now();
+    console.log('[Persistence] Load profile started', {
+      traceId,
+      userId: shortId(user?.id),
+    });
+
+    const response = await fetch(buildBackendUrl('/api/profile'), { headers });
+    if (response.status === 401) {
+      console.warn('[Persistence] Load profile unauthorized', {
+        traceId,
+        userId: shortId(user?.id),
+      });
+      await signOut();
+      return null;
+    }
+    if (response.status === 404) {
+      console.log('[Persistence] Load profile no save found', {
+        traceId,
+        userId: shortId(user?.id),
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+      return null;
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to load cloud profile');
+    }
+
+    const payload = await response.json().catch(() => null);
+    console.log('[Persistence] Load profile succeeded', {
+      traceId,
+      userId: shortId(user?.id),
+      hasState: Boolean(payload?.game_state),
+      updatedAt: payload?.updated_at || null,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    });
+
+    return {
+      state: payload?.game_state || null,
+      updatedAt: payload?.updated_at || null
+    };
+  }, [getAuthHeaders, signOut, user?.id]);
+
   const fetchBootstrapSnapshot = useCallback(async () => {
     const headers = getAuthHeaders();
     if (!headers) return null;
 
     const traceId = createTraceId('persist-bootstrap-v2');
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-
-    let response: Response;
-    try {
-      response = await fetch(buildBackendUrl('/api/bootstrap'), { headers, signal: controller.signal });
-    } catch (error) {
-      const timeoutError = makeBootstrapError('Bootstrap request timeout', {
-        errorCode: 'BOOTSTRAP_TIMEOUT',
-        retryable: true,
-      });
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw timeoutError;
-      }
-      throw error;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
+    const response = await fetch(buildBackendUrl('/api/bootstrap'), { headers });
 
     if (response.status === 401) {
       await signOut();
@@ -222,6 +251,90 @@ export const usePersistence = (
       resetId: payload?.metadata?.resetId || null,
     };
   }, [getAuthHeaders, signOut, user?.id]);
+
+  const saveCloudProfile = useCallback(async (state: GameState, keepalive: boolean = false) => {
+    if (DISABLE_LEGACY_SAVE_BLOB) {
+      console.log('[Persistence] Legacy profile blob save skipped by feature flag', {
+        userId: shortId(user?.id),
+      });
+      return;
+    }
+
+    const headers = getAuthHeaders();
+    if (!headers) throw new Error('Missing auth token');
+
+    const traceId = createTraceId('persist-save');
+    const startedAt = performance.now();
+    console.log('[Persistence] Save profile started', {
+      traceId,
+      userId: shortId(user?.id),
+      keepalive,
+      expectedUpdatedAt: cloudUpdatedAtRef.current,
+      clientLastSaveTime: state.lastSaveTime,
+    });
+
+    const response = await fetch(buildBackendUrl('/api/profile/save'), {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      keepalive,
+      body: JSON.stringify({
+        game_state: stripServerManagedFields(state),
+        expected_updated_at: cloudUpdatedAtRef.current
+      })
+    });
+
+    if (response.status === 401) {
+      console.warn('[Persistence] Save profile unauthorized', {
+        traceId,
+        userId: shortId(user?.id),
+      });
+      await signOut();
+      throw new Error('Unauthorized');
+    }
+    if (response.status === 409) {
+      console.warn('[Persistence] Save profile conflict', {
+        traceId,
+        userId: shortId(user?.id),
+      });
+      throw new Error('Conflict');
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to save cloud profile');
+    }
+    const payload = await response.json().catch(() => null);
+    if (payload?.updated_at) {
+      cloudUpdatedAtRef.current = payload.updated_at;
+    }
+    console.log('[Persistence] Save profile succeeded', {
+      traceId,
+      userId: shortId(user?.id),
+      updatedAt: payload?.updated_at || null,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    });
+  }, [getAuthHeaders, signOut, user?.id]);
+
+  const resetCloudProfile = useCallback(async () => {
+    const headers = getAuthHeaders();
+    if (!headers) throw new Error('Missing auth token');
+
+    const response = await fetch(buildBackendUrl('/api/profile/reset'), {
+      method: 'POST',
+      headers
+    });
+
+    if (response.status === 401) {
+      await signOut();
+      throw new Error('Unauthorized');
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || 'Failed to reset cloud profile');
+    }
+  }, [getAuthHeaders, signOut]);
 
   // Sync peerId from P2P to gameState
   useEffect(() => {
@@ -318,7 +431,6 @@ export const usePersistence = (
         for (let attempt = 1; attempt <= BOOTSTRAP_RETRY_DELAYS_MS.length; attempt += 1) {
           try {
             bootstrapPayload = await fetchBootstrapSnapshot();
-            lastBootstrapSuccessAtRef.current = Date.now();
             bootstrapError = null;
             setBootstrapLoadStatus((prev) => ({
               ...prev,
@@ -469,6 +581,7 @@ export const usePersistence = (
     session,
     isInitialLoadDone,
     loadGameFromData,
+    fetchCloudProfile,
     fetchBootstrapSnapshot,
     signOut,
     setGameState,
@@ -481,114 +594,68 @@ export const usePersistence = (
     if (!user || !session || status !== 'PLAYING') return;
 
     let cancelled = false;
-    let socketSubscribed = false;
-    let syncInFlight: Promise<void> | null = null;
-    let lastSyncStartedAt = 0;
+    let syncing = false;
 
-    const canSkipForRevision = (revision: number | null | undefined) => {
-      if (!Number.isFinite(Number(revision))) return false;
-      const incoming = Number(revision || 0);
-      const localRevision = Number(gameStateRef.current?.revision || 0);
-      return incoming <= localRevision;
-    };
+    const syncAuthoritativeSnapshot = async () => {
+      if (syncing || cancelled) return;
+      syncing = true;
+      try {
+        const bootstrapPayload = await fetchBootstrapSnapshot();
+        const serverState = bootstrapPayload?.state || null;
+        if (!serverState) return;
 
-    const runSync = async () => {
-      const bootstrapPayload = await fetchBootstrapSnapshot();
-      lastBootstrapSuccessAtRef.current = Date.now();
-      const serverState = bootstrapPayload?.state || null;
-      if (!serverState || cancelled) return;
+        const localState = gameStateRef.current;
+        const localRevision = Number(localState?.revision || 0);
+        const serverRevision = Number(serverState?.revision || 0);
+        const updatedAtChanged = Boolean(
+          bootstrapPayload?.updatedAt
+          && bootstrapPayload.updatedAt !== cloudUpdatedAtRef.current
+        );
 
-      const localState = gameStateRef.current;
-      const localRevision = Number(localState?.revision || 0);
-      const serverRevision = Number(serverState?.revision || 0);
-      if (bootstrapPayload?.updatedAt) {
-        cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
-      }
+        if (bootstrapPayload?.updatedAt) {
+          cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
+        }
 
-      if (!Number.isFinite(serverRevision) || serverRevision <= localRevision || cancelled) {
-        return;
-      }
+        const shouldApply = serverRevision > localRevision || (updatedAtChanged && serverRevision >= localRevision);
+        if (!shouldApply || cancelled) return;
 
-      setGameState(hydrateGameState(serverState as Partial<GameState>));
-      lastTickRef.current = TimeSyncService.getServerTime();
-    };
-
-    const requestSync = (options?: { reason?: string; force?: boolean; expectedRevision?: number | null }) => {
-      if (cancelled) return;
-
-      const reason = options?.reason || 'unknown';
-      const force = options?.force === true;
-      const expectedRevision = options?.expectedRevision;
-      const recentBootstrap = (Date.now() - lastBootstrapSuccessAtRef.current) < RECENT_BOOTSTRAP_SUPPRESS_SYNC_MS;
-
-      if (!force && canSkipForRevision(expectedRevision)) {
-        return;
-      }
-
-      if (force && recentBootstrap && (reason === 'initial' || reason === 'socket_subscribed')) {
-        return;
-      }
-
-      if (!force && reason === 'poll' && socketSubscribed) {
-        return;
-      }
-
-      const now = Date.now();
-      if (!force && (now - lastSyncStartedAt) < MULTI_TAB_MIN_SYNC_GAP_MS) {
-        return;
-      }
-
-      if (syncInFlight) {
-        return;
-      }
-
-      lastSyncStartedAt = now;
-      syncInFlight = runSync()
-        .catch((error) => {
-          console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
-            userId: shortId(user?.id),
-            reason,
-            error: normalizeError(error),
-          });
-        })
-        .finally(() => {
-          syncInFlight = null;
+        setGameState(hydrateGameState(serverState as Partial<GameState>));
+        lastTickRef.current = TimeSyncService.getServerTime();
+      } catch (error) {
+        console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
+          userId: shortId(user?.id),
+          error: normalizeError(error),
         });
+      } finally {
+        syncing = false;
+      }
     };
 
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') {
-        return;
-      }
-      requestSync({ reason: 'poll' });
-    }, MULTI_TAB_SYNC_INTERVAL_MS);
+    const intervalId = window.setInterval(syncAuthoritativeSnapshot, MULTI_TAB_SYNC_INTERVAL_MS);
 
     const onVisibilityOrFocus = () => {
-      if (document.visibilityState !== 'visible') {
-        return;
+      if (document.visibilityState === 'visible') {
+        void syncAuthoritativeSnapshot();
       }
-      const staleMs = Date.now() - lastSyncStartedAt;
-      const force = staleMs >= MULTI_TAB_FOCUS_RESYNC_STALE_MS;
-      requestSync({ reason: 'focus', force });
     };
 
     const onStorage = (event: StorageEvent) => {
       if (event.key !== SERVER_MUTATION_SYNC_STORAGE_KEY || !event.newValue) return;
       try {
-        const payload = JSON.parse(event.newValue) as { userId?: string | null; revision?: number };
+        const payload = JSON.parse(event.newValue) as { userId?: string | null };
         if (payload?.userId && payload.userId !== user.id) return;
-        requestSync({ reason: 'storage', expectedRevision: Number(payload?.revision || 0) });
       } catch {
         // Ignore malformed payloads
       }
+      void syncAuthoritativeSnapshot();
     };
 
     let channel: BroadcastChannel | null = null;
     let socket: Socket | null = null;
     const onChannelMessage = (event: MessageEvent) => {
-      const payload = event?.data as { userId?: string | null; revision?: number } | null;
+      const payload = event?.data as { userId?: string | null } | null;
       if (payload?.userId && payload.userId !== user.id) return;
-      requestSync({ reason: 'broadcast', expectedRevision: Number(payload?.revision || 0) });
+      void syncAuthoritativeSnapshot();
     };
 
     try {
@@ -601,23 +668,20 @@ export const usePersistence = (
     try {
       const socketOptions = {
         path: SOCKET_IO_PATH,
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         timeout: 8000,
       };
       socket = BACKEND_ORIGIN ? io(BACKEND_ORIGIN, socketOptions) : io(socketOptions);
 
       socket.on('connect', () => {
-        socketSubscribed = false;
         socket?.emit('subscribe_user_state', { token: session.access_token });
       });
 
       socket.on('user_state_subscription', (payload: { ok?: boolean; errorCode?: string }) => {
         if (payload?.ok) {
-          socketSubscribed = true;
-          requestSync({ reason: 'socket_subscribed', force: true });
+          void syncAuthoritativeSnapshot();
           return;
         }
-        socketSubscribed = false;
         if (payload?.errorCode) {
           console.warn('[Persistence] Realtime state subscription failed', {
             userId: shortId(user?.id),
@@ -628,20 +692,11 @@ export const usePersistence = (
 
       socket.on(USER_STATE_CHANGED_EVENT, (payload: { userId?: string | null; revision?: number; reason?: string }) => {
         if (payload?.userId && payload.userId !== user.id) return;
-        requestSync({ reason: 'socket_push', expectedRevision: Number(payload?.revision || 0) });
+        void syncAuthoritativeSnapshot();
       });
 
       socket.on('reconnect', () => {
-        socketSubscribed = false;
         socket?.emit('subscribe_user_state', { token: session.access_token });
-      });
-
-      socket.on('disconnect', () => {
-        socketSubscribed = false;
-      });
-
-      socket.on('connect_error', () => {
-        socketSubscribed = false;
       });
     } catch (error) {
       console.warn('[Persistence] Realtime socket unavailable; polling fallback active', {
@@ -655,7 +710,7 @@ export const usePersistence = (
     window.addEventListener('focus', onVisibilityOrFocus);
     document.addEventListener('visibilitychange', onVisibilityOrFocus);
 
-    requestSync({ reason: 'initial', force: true });
+    void syncAuthoritativeSnapshot();
 
     return () => {
       cancelled = true;
@@ -671,8 +726,6 @@ export const usePersistence = (
         socket.off(USER_STATE_CHANGED_EVENT);
         socket.off('user_state_subscription');
         socket.off('reconnect');
-        socket.off('disconnect');
-        socket.off('connect_error');
         socket.off('connect');
         socket.disconnect();
       }
@@ -680,16 +733,73 @@ export const usePersistence = (
   }, [fetchBootstrapSnapshot, lastTickRef, session, setGameState, status, user]);
 
   const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
+  const pendingSaveRef = useRef(false);
 
   const performAutoSave = useCallback(async (_force: boolean = false) => {
       if (!user) return;
 
-      const now = TimeSyncService.getServerTime();
-      if (now - lastCloudSaveRef.current < CLOUD_SAVE_INTERVAL_MS) return;
+      if (DISABLE_LEGACY_SAVE_BLOB) {
+        setHasSave(true);
+        lastCloudSaveRef.current = TimeSyncService.getServerTime();
+        return;
+      }
 
-      setHasSave(true);
-      lastCloudSaveRef.current = now;
-  }, [user]);
+      const now = TimeSyncService.getServerTime();
+      const currentState = gameStateRef.current;
+      const stateToSave = { ...currentState, lastSaveTime: now };
+
+      if (now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
+          if (pendingSaveRef.current) return;
+          pendingSaveRef.current = true;
+
+          try {
+              await saveCloudProfile(stateToSave);
+              
+              setHasSave(true);
+              lastCloudSaveRef.current = now;
+              console.log('[Persistence] Master-save (cloud) verified.');
+              } catch (e) {
+                if (e instanceof Error && e.message === 'Conflict') {
+                try {
+                  const cloudPayload = await fetchCloudProfile();
+                  const cloudState = cloudPayload?.state || null;
+                  if (cloudPayload?.updatedAt) {
+                    cloudUpdatedAtRef.current = cloudPayload.updatedAt;
+                  }
+                  if (cloudState) {
+                    const hydratedCloud = hydrateGameState(cloudState as Partial<GameState>);
+                    const retryState: GameState = {
+                      ...stateToSave,
+                      resources: hydratedCloud.resources,
+                      maxResources: hydratedCloud.maxResources,
+                      bankBalance: hydratedCloud.bankBalance,
+                      currentInterestRate: hydratedCloud.currentInterestRate,
+                      nextRateChangeTime: hydratedCloud.nextRateChangeTime,
+                      lastInterestPayoutTime: hydratedCloud.lastInterestPayoutTime,
+                    };
+
+                    await saveCloudProfile(retryState);
+                    setHasSave(true);
+                    lastCloudSaveRef.current = now;
+                    console.warn('[Persistence] Conflict resolved by retrying save with fresh server revision.');
+                  }
+                } catch (syncError) {
+                  console.error('[Persistence] Conflict resolution failed', {
+                    userId: shortId(user?.id),
+                    error: normalizeError(syncError),
+                  });
+                }
+              } else {
+                console.error('[Persistence] Cloud save failed', {
+                  userId: shortId(user?.id),
+                  error: normalizeError(e),
+                });
+              }
+          } finally {
+              pendingSaveRef.current = false;
+          }
+      }
+  }, [user, saveCloudProfile, fetchCloudProfile, loadGameFromData]);
 
   const saveGame = useCallback(async () => {
       setStatus('MENU');
@@ -697,10 +807,18 @@ export const usePersistence = (
 
   const resetGame = useCallback(async () => {
       if (!user) return;
+      
+      try {
+        await resetCloudProfile();
+        setHasSave(false);
+      } catch (e) {
+        console.error('Reset failed:', e);
+      }
+
       setTimeout(() => {
           window.location.reload();
       }, 50);
-  }, [user]);
+  }, [user, resetCloudProfile]);
 
   return {
     hasSave,

@@ -56,7 +56,6 @@ const getResourceDiff = (before: Record<ResourceType, number>, after: Record<Res
 const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
-const TRANSIENT_COMMAND_RETRY_DELAYS_MS = [250, 700] as const;
 
 const buildCommandPayload = (
   costs: Partial<Record<ResourceType, number>>,
@@ -80,7 +79,6 @@ type CommandType =
   | 'ESPIONAGE_START'
   | 'BANK_DEPOSIT'
   | 'BANK_WITHDRAW'
-  | 'TUTORIAL_SET_STATE'
   | 'TUTORIAL_CLAIM_REWARD'
   | 'GIFT_CODE_REDEEM'
   | 'DIPLOMACY_GIFT'
@@ -140,8 +138,6 @@ const createCommandId = () => {
   return `${a.slice(0, 8)}-${a.slice(0, 4)}-4${a.slice(5, 8)}-a${b.slice(1, 4)}-${a.slice(0, 4)}${b}`;
 };
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const buildStatePatch = (before: GameState, after: GameState) => {
   const patch: Partial<GameState> = {};
   const sanitizedBefore = stripServerManagedFields(before);
@@ -161,36 +157,6 @@ export const useGameActions = (
   addLog: (messageKey: string, type?: LogEntry['type'], params?: any) => void
 ) => {
   const { session } = useAuth();
-  const inFlightActionKeysRef = React.useRef<Set<string>>(new Set());
-  const commandQueueRef = React.useRef<Promise<void>>(Promise.resolve());
-
-  const enqueueCommand = useCallback((job: () => Promise<void>) => {
-    const run = commandQueueRef.current.then(job, job);
-    commandQueueRef.current = run.catch(() => {});
-    return run;
-  }, []);
-
-  const acquireActionLock = useCallback((key: string) => {
-    if (inFlightActionKeysRef.current.has(key)) {
-      return false;
-    }
-    inFlightActionKeysRef.current.add(key);
-    return true;
-  }, []);
-
-  const releaseActionLock = useCallback((key: string) => {
-    inFlightActionKeysRef.current.delete(key);
-  }, []);
-
-  const buildActionLockKey = useCallback((
-    commandType: CommandType,
-    commandPayloadOverride?: Record<string, unknown>,
-  ) => {
-    const action = commandPayloadOverride && typeof commandPayloadOverride.action === 'object'
-      ? commandPayloadOverride.action
-      : null;
-    return `${commandType}:${JSON.stringify(action || {})}`;
-  }, []);
 
   const notifyCrossTabServerMutation = useCallback((newRevision?: number) => {
     if (typeof window === 'undefined') return;
@@ -218,144 +184,73 @@ export const useGameActions = (
   const dispatchCommand = useCallback(async (
     commandType: CommandType,
     expectedRevision: number,
-    payload: Record<string, unknown>,
-    commandId: string,
+    payload: Record<string, unknown>
   ) => {
     const token = session?.access_token;
     if (!token) {
-      return {
-        ok: false,
-        errorCode: 'MISSING_AUTH',
-        diagnostics: [] as string[],
-        statePatch: undefined as Partial<GameState> | undefined,
-        retryable: false,
-      };
+      return { ok: false, errorCode: 'MISSING_AUTH', diagnostics: [] as string[], statePatch: undefined as Partial<GameState> | undefined };
     }
 
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(buildBackendUrl('/api/command'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        commandId: createCommandId(),
+        type: commandType,
+        payload,
+        expectedRevision,
+      }),
+    });
 
-    try {
-      const response = await fetch(buildBackendUrl('/api/command'), {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          commandId,
-          type: commandType,
-          payload,
-          expectedRevision,
-        }),
-      });
-
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        console.error('[CommandGateway] Command failed', {
-          status: response.status,
-          commandType,
-          errorCode: body?.errorCode || 'COMMAND_FAILED',
-          error: body?.error || null,
-          traceId: body?.traceId || null,
-          diagnostics: body?.diagnostics || [],
-        });
-        return {
-          ok: false,
-          status: response.status,
-          errorCode: body?.errorCode || 'COMMAND_FAILED',
-          error: body?.error || 'Command failed',
-          traceId: body?.traceId || null,
-          diagnostics: body?.diagnostics || [],
-          retryable: Boolean(body?.retryable) || response.status === 503,
-          statePatch: undefined as Partial<GameState> | undefined,
-        };
-      }
-
-      return {
-        ok: Boolean(body?.ok),
-        newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
-        diagnostics: body?.diagnostics || [],
-        retryable: false,
-        statePatch: body?.statePatch && typeof body.statePatch === 'object' ? body.statePatch as Partial<GameState> : undefined,
-      };
-    } catch (error) {
-      const isAbort = error instanceof DOMException && error.name === 'AbortError';
-      console.error('[CommandGateway] Command network failure', {
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      console.error('[CommandGateway] Command failed', {
+        status: response.status,
         commandType,
-        error: isAbort ? 'Request timeout' : (error instanceof Error ? error.message : String(error || 'unknown')),
+        errorCode: body?.errorCode || 'COMMAND_FAILED',
+        error: body?.error || null,
+        traceId: body?.traceId || null,
+        diagnostics: body?.diagnostics || [],
       });
       return {
         ok: false,
-        status: 0,
-        errorCode: 'COMMAND_NETWORK_ERROR',
-        error: isAbort ? 'Request timeout' : (error instanceof Error ? error.message : 'Network error'),
-        diagnostics: [] as string[],
-        retryable: true,
+        status: response.status,
+        errorCode: body?.errorCode || 'COMMAND_FAILED',
+        error: body?.error || 'Command failed',
+        traceId: body?.traceId || null,
+        diagnostics: body?.diagnostics || [],
         statePatch: undefined as Partial<GameState> | undefined,
       };
-    } finally {
-      window.clearTimeout(timeoutId);
     }
+
+    return {
+      ok: Boolean(body?.ok),
+      newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
+      diagnostics: body?.diagnostics || [],
+      statePatch: body?.statePatch && typeof body.statePatch === 'object' ? body.statePatch as Partial<GameState> : undefined,
+    };
   }, [session?.access_token]);
 
   const syncStateFromBootstrap = useCallback(async () => {
     const token = session?.access_token;
     if (!token) return null;
 
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const response = await fetch(buildBackendUrl('/api/bootstrap'), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-    try {
-      const response = await fetch(buildBackendUrl('/api/bootstrap'), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const body = await response.json().catch(() => null);
-      return (body?.game_state || null) as GameState | null;
-    } catch {
+    if (!response.ok) {
       return null;
-    } finally {
-      window.clearTimeout(timeoutId);
     }
+
+    const body = await response.json().catch(() => null);
+    return (body?.game_state || null) as GameState | null;
   }, [session?.access_token]);
-
-  const isRetryableCommandFailure = useCallback((result: any) => {
-    if (result?.ok) return false;
-    if (result?.retryable === true) return true;
-    if (result?.errorCode === 'COMMAND_TRANSIENT_ERROR' || result?.errorCode === 'COMMAND_NETWORK_ERROR') return true;
-    return Number(result?.status || 0) === 503;
-  }, []);
-
-  const dispatchCommandWithRetry = useCallback(async (
-    commandType: CommandType,
-    expectedRevision: number,
-    payload: Record<string, unknown>,
-    commandId: string,
-  ) => {
-    let result = await dispatchCommand(commandType, expectedRevision, payload, commandId);
-    if (!isRetryableCommandFailure(result)) {
-      return result;
-    }
-
-    for (const delayMs of TRANSIENT_COMMAND_RETRY_DELAYS_MS) {
-      await sleep(delayMs + Math.floor(Math.random() * 120));
-      result = await dispatchCommand(commandType, expectedRevision, payload, commandId);
-      if (!isRetryableCommandFailure(result)) {
-        return result;
-      }
-    }
-
-    return result;
-  }, [dispatchCommand, isRetryableCommandFailure]);
 
   const applyActionWithServerValidation = useCallback((
     commandType: CommandType,
@@ -378,118 +273,103 @@ export const useGameActions = (
     };
 
     const run = async () => {
-      const lockKey = buildActionLockKey(commandType, commandPayloadOverride);
-      if (!acquireActionLock(lockKey)) {
-        return;
-      }
-
-      try {
-        const initialPayload = commandPayloadOverride
-          ? {
-            expectedRevision: Number(gameState.revision || 0),
-            payload: commandPayloadOverride,
-          }
-          : buildPayloadFrom(gameState, preview.newState as GameState);
-        const initialCommandId = createCommandId();
-        let commandResult = await dispatchCommandWithRetry(commandType, initialPayload.expectedRevision, {
-          ...initialPayload.payload,
-        }, initialCommandId);
-
-        let nextStateToApply = preview.newState as GameState;
-        let baseStateForApply = gameState;
-
-        if (!commandResult.ok && (commandResult.errorCode === 'REVISION_MISMATCH' || commandResult.errorCode === 'REVISION_SLOT_TAKEN')) {
-          const syncedState = await syncStateFromBootstrap();
-          if (!syncedState) {
-            addLog('server_sync_error', 'info');
-            return;
-          }
-
-          setGameState(syncedState);
-          const retryPreview = executor(syncedState);
-          if (!retryPreview.success || !retryPreview.newState) {
-            if (retryPreview.errorKey) addLog(retryPreview.errorKey, 'info');
-            return;
-          }
-
-          const retryPayload = commandPayloadOverride
-            ? {
-              expectedRevision: Number(syncedState.revision || 0),
-              payload: commandPayloadOverride,
-            }
-            : buildPayloadFrom(syncedState, retryPreview.newState);
-          const retryCommandId = createCommandId();
-          commandResult = await dispatchCommandWithRetry(commandType, retryPayload.expectedRevision, {
-            ...retryPayload.payload,
-          }, retryCommandId);
-
-          nextStateToApply = retryPreview.newState;
-          baseStateForApply = syncedState;
+      const initialPayload = commandPayloadOverride
+        ? {
+          expectedRevision: Number(gameState.revision || 0),
+          payload: commandPayloadOverride,
         }
+        : buildPayloadFrom(gameState, preview.newState as GameState);
+      let commandResult = await dispatchCommand(commandType, initialPayload.expectedRevision, {
+        ...initialPayload.payload,
+      });
 
-        if (!commandResult.ok) {
-          if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
-            addLog('insufficient_funds', 'info');
-            return;
-          }
-          if (commandResult.errorCode === 'REVISION_MISMATCH' || commandResult.errorCode === 'REVISION_SLOT_TAKEN') {
-            addLog('server_sync_error', 'info');
-            return;
-          }
-          if (commandResult.errorCode === 'INVALID_COMMAND_SEMANTICS' ||
-              commandResult.errorCode === 'INVALID_PAYLOAD' ||
-              commandResult.errorCode === 'INVALID_PAYLOAD_KEY' ||
-              commandResult.errorCode === 'INVALID_STATE_PATCH' ||
-              commandResult.errorCode === 'INVALID_STATE_PATCH_KEY' ||
-              commandResult.errorCode === 'INVALID_PAYLOAD_COSTS' ||
-              commandResult.errorCode === 'INVALID_PAYLOAD_GAINS') {
-            addLog('server_sync_error', 'info', {
-              errorCode: commandResult.errorCode,
-              traceId: (commandResult as any).traceId || null,
-            });
-            return;
-          }
+      let nextStateToApply = preview.newState as GameState;
+      let baseStateForApply = gameState;
+
+      if (!commandResult.ok && commandResult.errorCode === 'REVISION_MISMATCH') {
+        const syncedState = await syncStateFromBootstrap();
+        if (!syncedState) {
           addLog('server_sync_error', 'info');
           return;
         }
 
-        setGameState((prev) => {
-          const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
-            ? prev
-            : baseStateForApply;
-          const result = executor(sourceState);
-          const baseNextState = result.success && result.newState
-            ? result.newState
-            : nextStateToApply;
-          const safeServerPatch = commandResult.statePatch && typeof commandResult.statePatch === 'object'
-            ? Object.fromEntries(Object.entries(commandResult.statePatch).filter(([, value]) => value !== undefined))
-            : {};
+        setGameState(syncedState);
+        const retryPreview = executor(syncedState);
+        if (!retryPreview.success || !retryPreview.newState) {
+          if (retryPreview.errorKey) addLog(retryPreview.errorKey, 'info');
+          return;
+        }
 
+        const retryPayload = commandPayloadOverride
+          ? {
+            expectedRevision: Number(syncedState.revision || 0),
+            payload: commandPayloadOverride,
+          }
+          : buildPayloadFrom(syncedState, retryPreview.newState);
+        commandResult = await dispatchCommand(commandType, retryPayload.expectedRevision, {
+          ...retryPayload.payload,
+        });
+
+        nextStateToApply = retryPreview.newState;
+        baseStateForApply = syncedState;
+      }
+
+      if (!commandResult.ok) {
+        if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
+          addLog('insufficient_funds', 'info');
+          return;
+        }
+        if (commandResult.errorCode === 'REVISION_MISMATCH') {
+          addLog('server_sync_error', 'info');
+          return;
+        }
+        if (commandResult.errorCode === 'INVALID_COMMAND_SEMANTICS' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_KEY' ||
+            commandResult.errorCode === 'INVALID_STATE_PATCH' ||
+            commandResult.errorCode === 'INVALID_STATE_PATCH_KEY' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_COSTS' ||
+            commandResult.errorCode === 'INVALID_PAYLOAD_GAINS') {
+          addLog('server_sync_error', 'info', {
+            errorCode: commandResult.errorCode,
+            traceId: (commandResult as any).traceId || null,
+          });
+          return;
+        }
+        addLog('server_sync_error', 'info');
+        return;
+      }
+
+      setGameState((prev) => {
+        const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
+          ? prev
+          : baseStateForApply;
+
+        if (commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0) {
           return {
-            ...baseNextState,
-            ...safeServerPatch,
+            ...sourceState,
+            ...commandResult.statePatch,
             revision: commandResult.newRevision ?? sourceState.revision,
           };
-        });
-        notifyCrossTabServerMutation(commandResult.newRevision);
-      } finally {
-        releaseActionLock(lockKey);
-      }
+        }
+
+        const result = executor(sourceState);
+        if (!result.success || !result.newState) {
+          return {
+            ...nextStateToApply,
+            revision: commandResult.newRevision ?? sourceState.revision,
+          };
+        }
+        return {
+          ...result.newState,
+          revision: commandResult.newRevision ?? sourceState.revision,
+        };
+      });
+      notifyCrossTabServerMutation(commandResult.newRevision);
     };
 
-    void enqueueCommand(run);
-  }, [
-    acquireActionLock,
-    addLog,
-    buildActionLockKey,
-    dispatchCommandWithRetry,
-    enqueueCommand,
-    gameState,
-    notifyCrossTabServerMutation,
-    releaseActionLock,
-    setGameState,
-    syncStateFromBootstrap,
-  ]);
+    run();
+  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState, syncStateFromBootstrap]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);
@@ -538,10 +418,9 @@ export const useGameActions = (
       const expectedRevision = Number(gameState.revision || 0);
 
       const run = async () => {
-        const commandId = createCommandId();
-        const commandResult = await dispatchCommandWithRetry(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
+        const commandResult = await dispatchCommand(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
           ...buildCommandPayload(costs, gains, statePatch),
-        }, commandId);
+        });
 
         if (!commandResult.ok) {
           if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
@@ -563,8 +442,8 @@ export const useGameActions = (
         notifyCrossTabServerMutation(commandResult.newRevision);
       };
 
-      void enqueueCommand(run);
-  }, [addLog, dispatchCommandWithRetry, enqueueCommand, gameState, notifyCrossTabServerMutation, setGameState]);
+      run();
+  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);
@@ -644,43 +523,10 @@ export const useGameActions = (
   }, [applyActionWithServerValidation, gameState, setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
-    console.info('[TutorialAction] Accept step requested', {
-      tutorialId: gameState.currentTutorialId || null,
-      tutorialAccepted: gameState.tutorialAccepted,
-      tutorialClaimable: gameState.tutorialClaimable,
-    });
-
-    const preview: LocalActionResult = {
-      success: true,
-      newState: {
-        ...gameState,
-        tutorialAccepted: true,
-      },
-    };
-    applyActionWithServerValidation(
-      'TUTORIAL_SET_STATE',
-      preview,
-      (state: GameState) => ({
-        success: true,
-        newState: {
-          ...state,
-          tutorialAccepted: true,
-        },
-      }),
-      {
-        action: {
-          type: 'ACCEPT_STEP',
-        },
-      },
-    );
-
-    console.info('[TutorialAction] Accept step dispatched', {
-      tutorialId: gameState.currentTutorialId || null,
-    });
-  }, [applyActionWithServerValidation, gameState]);
+    setGameState(prev => ({ ...prev, tutorialAccepted: true }));
+  }, [setGameState]);
 
   const applyTutorialRewardLocal = useCallback((state: GameState): LocalActionResult => {
-      try {
       if (!state.currentTutorialId || !state.tutorialClaimable) return { success: false };
       const step = TUTORIAL_STEPS.find(s => s.id === state.currentTutorialId);
       if (!step) return { success: false };
@@ -729,80 +575,17 @@ export const useGameActions = (
               isTutorialMinimized: false
           }
       };
-      } catch (error) {
-          console.error('[TutorialAction] Local reward application failed', {
-              tutorialId: state.currentTutorialId || null,
-              error: error instanceof Error ? error.message : String(error || 'unknown'),
-          });
-          return { success: false };
-      }
   }, []);
 
   const claimTutorialReward = useCallback(() => {
-      console.info('[TutorialAction] Claim reward requested', {
-        tutorialId: gameState.currentTutorialId || null,
-        tutorialAccepted: gameState.tutorialAccepted,
-        tutorialClaimable: gameState.tutorialClaimable,
-      });
-
       const preview = applyTutorialRewardLocal(gameState);
-      if (!preview.success || !preview.newState) {
-        console.warn('[TutorialAction] Claim reward aborted (preview failed)', {
-          tutorialId: gameState.currentTutorialId || null,
-          tutorialAccepted: gameState.tutorialAccepted,
-          tutorialClaimable: gameState.tutorialClaimable,
-        });
-        return;
-      }
-
-      console.info('[TutorialAction] Claim reward local preview ready', {
-        tutorialId: gameState.currentTutorialId || null,
-        nextTutorialId: preview.newState.currentTutorialId || null,
-        completedTutorials: preview.newState.completedTutorials.length,
-      });
-
-      applyActionWithServerValidation(
-        'TUTORIAL_CLAIM_REWARD',
-        preview,
-        (state: GameState) => applyTutorialRewardLocal(state),
-        {
-          action: {
-            type: 'CLAIM_REWARD',
-            tutorialId: gameState.currentTutorialId || undefined,
-          },
-        },
-      );
-
-      console.info('[TutorialAction] Claim reward dispatched', {
-        tutorialId: gameState.currentTutorialId || null,
-      });
+      if (!preview.success || !preview.newState) return;
+      applyActionWithServerValidation('TUTORIAL_CLAIM_REWARD', preview, (state: GameState) => applyTutorialRewardLocal(state));
   }, [applyActionWithServerValidation, applyTutorialRewardLocal, gameState]);
 
   const toggleTutorialMinimize = useCallback(() => {
-    const preview: LocalActionResult = {
-      success: true,
-      newState: {
-        ...gameState,
-        isTutorialMinimized: !gameState.isTutorialMinimized,
-      },
-    };
-    applyActionWithServerValidation(
-      'TUTORIAL_SET_STATE',
-      preview,
-      (state: GameState) => ({
-        success: true,
-        newState: {
-          ...state,
-          isTutorialMinimized: !state.isTutorialMinimized,
-        },
-      }),
-      {
-        action: {
-          type: 'TOGGLE_MINIMIZED',
-        },
-      },
-    );
-  }, [applyActionWithServerValidation, gameState]);
+    setGameState(prev => ({ ...prev, isTutorialMinimized: !prev.isTutorialMinimized }));
+  }, [setGameState]);
 
   const spyOnAttacker = useCallback((attackId: string) => {
       const preview = executeEspionage(gameState, attackId);

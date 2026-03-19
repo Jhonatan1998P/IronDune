@@ -46,7 +46,7 @@ const useThrottledChatEvent = (activeTabRef: React.MutableRefObject<TabType>, se
 };
 
 export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, setActiveTab }) => {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const hasNewReports = useGameStoreSelector(selectHasNewReports);
   const activeWar = useGameStoreSelector(selectActiveWar);
   const { isPrivileged } = useProfileRole();
@@ -106,9 +106,9 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 
     if (isPrivileged) {
       groups.push({
-        title: language === 'es' ? 'Control' : 'Control',
+        title: 'Control',
         items: [
-          { id: 'devtools' as TabType, label: language === 'es' ? 'Herramientas Dev' : 'Dev Tools', icon: Icons.Terminal, color: 'text-amber-400' }
+          { id: 'devtools' as TabType, label: 'Dev Tools', icon: Icons.Terminal, color: 'text-amber-400' }
         ]
       });
     }
@@ -221,7 +221,7 @@ export const GameSidebar: React.FC<GameSidebarProps> = React.memo(({ activeTab, 
 });
 
 export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabType) => void }> = React.memo(({ activeTab, setActiveTab }) => {
-    const { t, language } = useLanguage();
+    const { t } = useLanguage();
     const hasNewReports = useGameStoreSelector(selectHasNewReports);
     const activeWar = useGameStoreSelector(selectActiveWar);
     const { isPrivileged } = useProfileRole();
@@ -293,7 +293,7 @@ export const MobileNavBar: React.FC<{ activeTab: TabType; setActiveTab: (t: TabT
     ];
 
     if (isPrivileged) {
-        secondaryItems.push({ id: 'devtools' as TabType, icon: Icons.Terminal, label: language === 'es' ? 'Herramientas Dev' : 'Dev Tools', color: 'text-amber-400' });
+        secondaryItems.push({ id: 'devtools' as TabType, icon: Icons.Terminal, label: 'Dev Tools', color: 'text-amber-400' });
     }
 
     const handleTabSelect = (tab: TabType) => {

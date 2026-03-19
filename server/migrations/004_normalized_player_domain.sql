@@ -170,75 +170,40 @@ BEGIN
     COALESCE(item->>'id', CONCAT('build-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'BUILD',
-    item->>'buildingType',
+    COALESCE(item->>'buildingType', 'UNKNOWN'),
     item->>'buildingType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-    to_timestamp(CASE
-      WHEN ABS(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-        THEN COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-      ELSE COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-    END),
-    to_timestamp(CASE
-      WHEN ABS(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-        THEN COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-      ELSE COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-    END),
+    to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+    to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
     'ACTIVE',
     NOW()
-  FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item
-  WHERE NULLIF(btrim(item->>'buildingType'), '') IS NOT NULL
-    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOWN'
-    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOW';
+  FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item;
 
   INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
   SELECT
     COALESCE(item->>'id', CONCAT('recruit-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'RECRUIT',
-    item->>'unitType',
+    COALESCE(item->>'unitType', 'UNKNOWN'),
     item->>'unitType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-    to_timestamp(CASE
-      WHEN ABS(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-        THEN COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-      ELSE COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-    END),
-    to_timestamp(CASE
-      WHEN ABS(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-        THEN COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-      ELSE COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-    END),
+    to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+    to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
     'ACTIVE',
     NOW()
-  FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item
-  WHERE NULLIF(btrim(item->>'unitType'), '') IS NOT NULL
-    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOWN'
-    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOW';
+  FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item;
 
-  IF (p_state ? 'activeResearch')
-    AND p_state->'activeResearch' IS NOT NULL
-    AND NULLIF(btrim(p_state->'activeResearch'->>'techId'), '') IS NOT NULL
-    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOWN'
-    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOW'
-  THEN
+  IF (p_state ? 'activeResearch') AND p_state->'activeResearch' IS NOT NULL THEN
     INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
     VALUES (
       CONCAT('research-', p_player_id::TEXT),
       p_player_id,
       'RESEARCH',
-      btrim(p_state->'activeResearch'->>'techId'),
+      COALESCE(p_state->'activeResearch'->>'techId', 'UNKNOWN'),
       p_state->'activeResearch'->>'techId',
       1,
-      to_timestamp(CASE
-        WHEN ABS(COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-          THEN COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-        ELSE COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-      END),
-      to_timestamp(CASE
-        WHEN ABS(COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))) >= 100000000000
-          THEN COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW())) / 1000.0
-        ELSE COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))
-      END),
+      to_timestamp(COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+      to_timestamp(COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
       'ACTIVE',
       NOW()
     );

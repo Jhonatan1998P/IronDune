@@ -1,14 +1,11 @@
 import { supabase } from './lib/supabase.js';
 
-const ADMIN_USERNAME = process.env.DB_RESET_ADMIN_USERNAME || 'Admin';
-const ADMIN_EMAIL = process.env.DB_RESET_ADMIN_EMAIL || '';
-const ADMIN_PASSWORD = process.env.DB_RESET_ADMIN_PASSWORD || '';
-const HARD_RESET_CONFIRM = process.env.DB_HARD_RESET_CONFIRM || '';
-const HARD_RESET_REQUEST_ID = process.env.DB_HARD_RESET_REQUEST_ID || process.env.RENDER_GIT_COMMIT || process.env.RENDER_DEPLOY_ID || '';
+const ADMIN_USERNAME = 'Admin';
+const ADMIN_EMAIL = 'Admin@gmail.com';
+const ADMIN_PASSWORD = '26335828JP';
 const ADMIN_ROLE = 'Admin';
 const DEFAULT_ROLE = 'Usuario';
 const PGRST_RELOAD_SQL = "NOTIFY pgrst, 'reload schema'; NOTIFY pgrst, 'reload';";
-const HARD_RESET_CONFIRM_PHRASE = 'I_UNDERSTAND_DATA_LOSS';
 
 /**
  * Realiza un reinicio total de la base de datos:
@@ -19,29 +16,6 @@ const HARD_RESET_CONFIRM_PHRASE = 'I_UNDERSTAND_DATA_LOSS';
  */
 export async function hardResetDatabase() {
   if (process.env.DB_HARD_RESET !== 'true') {
-    return;
-  }
-
-  if (HARD_RESET_CONFIRM !== HARD_RESET_CONFIRM_PHRASE) {
-    console.error(`❌ [DB Reset] Missing DB_HARD_RESET_CONFIRM=${HARD_RESET_CONFIRM_PHRASE}. Aborting hard reset.`);
-    return;
-  }
-
-  if (!HARD_RESET_REQUEST_ID) {
-    console.error('❌ [DB Reset] Missing DB_HARD_RESET_REQUEST_ID. Aborting hard reset to avoid accidental repeated wipes.');
-    return;
-  }
-
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-    console.error('❌ [DB Reset] Missing DB_RESET_ADMIN_EMAIL/DB_RESET_ADMIN_PASSWORD. Aborting hard reset.');
-    return;
-  }
-
-  const alreadyProcessed = await hasProcessedResetRequest(HARD_RESET_REQUEST_ID);
-  if (alreadyProcessed) {
-    console.warn('[DB Reset] Request id already processed; skipping hard reset.', {
-      requestId: HARD_RESET_REQUEST_ID,
-    });
     return;
   }
 
@@ -59,7 +33,6 @@ export async function hardResetDatabase() {
       DROP FUNCTION IF EXISTS public.compare_player_domain_state(UUID) CASCADE;
       DROP FUNCTION IF EXISTS public.backfill_player_domain_from_profiles() CASCADE;
       DROP FUNCTION IF EXISTS public.sync_player_domain_from_state(UUID, JSONB) CASCADE;
-      DROP FUNCTION IF EXISTS public.parse_epoch_timestamptz(TEXT) CASCADE;
       DROP FUNCTION IF EXISTS public.resource_add_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) CASCADE;
       DROP FUNCTION IF EXISTS public.resource_deduct_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) CASCADE;
       DROP FUNCTION IF EXISTS public.ensure_player_resources(UUID) CASCADE;
@@ -85,7 +58,6 @@ export async function hardResetDatabase() {
 
       -- Insertar el ID del nuevo reset
       INSERT INTO public.server_metadata (key, value) VALUES ('last_reset_id', '${Date.now()}');
-      INSERT INTO public.server_metadata (key, value) VALUES ('last_hard_reset_request_id', '${HARD_RESET_REQUEST_ID}');
 
       -- 2. Recreación de tabla: profiles
       CREATE TABLE public.profiles (
@@ -177,9 +149,6 @@ export async function hardResetDatabase() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      ALTER TABLE public.player_queues
-        ADD CONSTRAINT player_queues_end_after_start CHECK (end_time >= start_time);
-
       CREATE INDEX idx_player_queues_player_status
         ON public.player_queues (player_id, status, end_time);
 
@@ -190,39 +159,6 @@ export async function hardResetDatabase() {
         last_save_time BIGINT NOT NULL DEFAULT 0,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-
-      CREATE OR REPLACE FUNCTION public.parse_epoch_timestamptz(p_value TEXT)
-      RETURNS TIMESTAMPTZ
-      LANGUAGE plpgsql
-      IMMUTABLE
-      AS $epoch$
-      DECLARE
-        v_numeric DOUBLE PRECISION;
-      BEGIN
-        IF p_value IS NULL OR btrim(p_value) = '' THEN
-          RETURN NULL;
-        END IF;
-
-        IF p_value !~ '^-?[0-9]+(\.[0-9]+)?$' THEN
-          RETURN NULL;
-        END IF;
-
-        v_numeric := p_value::DOUBLE PRECISION;
-        IF v_numeric <> v_numeric THEN
-          RETURN NULL;
-        END IF;
-
-        IF ABS(v_numeric) >= 1000000000000000 THEN
-          RETURN NULL;
-        END IF;
-
-        IF ABS(v_numeric) >= 100000000000 THEN
-          RETURN to_timestamp(v_numeric / 1000.0);
-        END IF;
-
-        RETURN to_timestamp(v_numeric);
-      END;
-      $epoch$;
 
       CREATE OR REPLACE FUNCTION public.ensure_player_resources(p_player_id UUID)
       RETURNS public.player_resources
@@ -346,9 +282,6 @@ export async function hardResetDatabase() {
       SECURITY DEFINER
       SET search_path = public
       AS $$
-      DECLARE
-        v_start_time TIMESTAMPTZ;
-        v_end_time TIMESTAMPTZ;
       BEGIN
         DELETE FROM public.player_buildings WHERE player_id = p_player_id;
         INSERT INTO public.player_buildings (player_id, building_type, level, is_damaged, updated_at)
@@ -401,64 +334,40 @@ export async function hardResetDatabase() {
           COALESCE(item->>'id', CONCAT('build-', p_player_id::TEXT, '-', row_number() OVER ())),
           p_player_id,
           'BUILD',
-          item->>'buildingType',
+          COALESCE(item->>'buildingType', 'UNKNOWN'),
           item->>'buildingType',
           GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-          queue_times.start_time,
-          GREATEST(queue_times.end_time, queue_times.start_time),
+          to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+          to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
           'ACTIVE',
           NOW()
-        FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item
-        CROSS JOIN LATERAL (
-          SELECT
-            COALESCE(public.parse_epoch_timestamptz(item->>'startTime'), NOW()) AS start_time,
-            COALESCE(public.parse_epoch_timestamptz(item->>'endTime'), NOW()) AS end_time
-        ) queue_times
-        WHERE NULLIF(btrim(item->>'buildingType'), '') IS NOT NULL
-          AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOWN'
-          AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOW';
+        FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item;
 
         INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
         SELECT
           COALESCE(item->>'id', CONCAT('recruit-', p_player_id::TEXT, '-', row_number() OVER ())),
           p_player_id,
           'RECRUIT',
-          item->>'unitType',
+          COALESCE(item->>'unitType', 'UNKNOWN'),
           item->>'unitType',
           GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
-          queue_times.start_time,
-          GREATEST(queue_times.end_time, queue_times.start_time),
+          to_timestamp(COALESCE((item->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+          to_timestamp(COALESCE((item->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
           'ACTIVE',
           NOW()
-        FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item
-        CROSS JOIN LATERAL (
-          SELECT
-            COALESCE(public.parse_epoch_timestamptz(item->>'startTime'), NOW()) AS start_time,
-            COALESCE(public.parse_epoch_timestamptz(item->>'endTime'), NOW()) AS end_time
-        ) queue_times
-        WHERE NULLIF(btrim(item->>'unitType'), '') IS NOT NULL
-          AND UPPER(btrim(item->>'unitType')) <> 'UNKNOWN'
-          AND UPPER(btrim(item->>'unitType')) <> 'UNKNOW';
+        FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item;
 
-        IF (p_state ? 'activeResearch')
-          AND p_state->'activeResearch' IS NOT NULL
-          AND NULLIF(btrim(p_state->'activeResearch'->>'techId'), '') IS NOT NULL
-          AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOWN'
-          AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOW'
-        THEN
-          v_start_time := COALESCE(public.parse_epoch_timestamptz(p_state->'activeResearch'->>'startTime'), NOW());
-          v_end_time := COALESCE(public.parse_epoch_timestamptz(p_state->'activeResearch'->>'endTime'), NOW());
-
+        IF (p_state ? 'activeResearch') AND p_state->'activeResearch' IS NOT NULL THEN
           INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
           VALUES (
             CONCAT('research-', p_player_id::TEXT),
             p_player_id,
             'RESEARCH',
-            btrim(p_state->'activeResearch'->>'techId'),
+            COALESCE(p_state->'activeResearch'->>'techId', 'UNKNOWN'),
             p_state->'activeResearch'->>'techId',
             1,
-            v_start_time,
-            GREATEST(v_end_time, v_start_time),
+            to_timestamp(COALESCE((p_state->'activeResearch'->>'startTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
+            to_timestamp(COALESCE((p_state->'activeResearch'->>'endTime')::DOUBLE PRECISION, EXTRACT(EPOCH FROM NOW()))),
             'ACTIVE',
             NOW()
           );
@@ -744,7 +653,6 @@ export async function hardResetDatabase() {
       GRANT EXECUTE ON FUNCTION public.ensure_player_resources(UUID) TO service_role;
       GRANT EXECUTE ON FUNCTION public.resource_deduct_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) TO service_role;
       GRANT EXECUTE ON FUNCTION public.resource_add_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) TO service_role;
-      GRANT EXECUTE ON FUNCTION public.parse_epoch_timestamptz(TEXT) TO service_role;
       GRANT EXECUTE ON FUNCTION public.sync_player_domain_from_state(UUID, JSONB) TO service_role;
       GRANT EXECUTE ON FUNCTION public.backfill_player_domain_from_profiles() TO service_role;
       GRANT EXECUTE ON FUNCTION public.compare_player_domain_state(UUID) TO service_role;
@@ -796,24 +704,6 @@ export async function hardResetDatabase() {
     console.log('✅ [DB Reset] Reinicio de base de datos completado con éxito.');
   } catch (error) {
     console.error('❌ [DB Reset] Error crítico durante el hard reset:', error.message);
-  }
-}
-
-async function hasProcessedResetRequest(requestId) {
-  try {
-    const { data, error } = await supabase
-      .from('server_metadata')
-      .select('value')
-      .eq('key', 'last_hard_reset_request_id')
-      .maybeSingle();
-
-    if (error) {
-      return false;
-    }
-
-    return data?.value === requestId;
-  } catch (_error) {
-    return false;
   }
 }
 
@@ -898,39 +788,37 @@ async function createAdminUserAndProfile() {
       lastSaveTime: Date.now()
     };
 
+    const adminGameStateJson = JSON.stringify(adminGameState).replace(/'/g, "''");
     const adminUpdatedAt = new Date().toISOString();
-    const nextRateChange = Date.now() + (24 * 60 * 60 * 1000);
+    const profileSql = `
+      INSERT INTO public.profiles (id, role, game_state, updated_at)
+      VALUES ('${adminUserId}', '${ADMIN_ROLE}', '${adminGameStateJson}'::jsonb, '${adminUpdatedAt}')
+      ON CONFLICT (id)
+      DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
+    `;
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: adminUserId,
-        role: ADMIN_ROLE,
-        game_state: adminGameState,
-        updated_at: adminUpdatedAt,
-      });
+    const resourcesSql = `
+      INSERT INTO public.player_resources (
+        player_id, money, oil, ammo, gold, diamond,
+        bank_balance, interest_rate, next_rate_change, last_tick_at, updated_at
+      )
+      VALUES (
+        '${adminUserId}', 5000, 2500, 1500, 500, 5,
+        0, 0.15, ${Date.now() + (24 * 60 * 60 * 1000)}, now(), now()
+      )
+      ON CONFLICT (player_id) DO NOTHING;
+    `;
 
-    if (profileError) {
-      console.error('[DB Reset] Error creando perfil admin:', profileError.message);
+    const { error: profileSqlError } = await supabase.rpc('exec_sql', { sql: profileSql });
+
+    if (profileSqlError) {
+      console.error('[DB Reset] Error creando perfil admin:', profileSqlError.message);
       return;
     }
 
-    const { error: resourcesError } = await supabase
-      .from('player_resources')
-      .upsert({
-        player_id: adminUserId,
-        money: 5000,
-        oil: 2500,
-        ammo: 1500,
-        gold: 500,
-        diamond: 5,
-        bank_balance: 0,
-        interest_rate: 0.15,
-        next_rate_change: nextRateChange,
-      });
-
-    if (resourcesError) {
-      console.error('[DB Reset] Error creando recursos admin:', resourcesError.message);
+    const { error: resourcesSqlError } = await supabase.rpc('exec_sql', { sql: resourcesSql });
+    if (resourcesSqlError) {
+      console.error('[DB Reset] Error creando recursos admin:', resourcesSqlError.message);
       return;
     }
 

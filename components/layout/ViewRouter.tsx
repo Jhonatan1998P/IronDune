@@ -111,7 +111,7 @@ const useViewProps = (
             case 'diplomacy':
                 return {};
             case 'settings':
-                return { gameState, changePlayerName: actionsRef.current.changePlayerName, redeemGiftCode: actionsRef.current.redeemGiftCode };
+                return { gameState, changePlayerName: actionsRef.current.changePlayerName, redeemGiftCode: actionsRef.current.redeemGiftCode, resetGame: actionsRef.current.resetGame };
             case 'chat':
                 return { gameState };
             case 'salvage':

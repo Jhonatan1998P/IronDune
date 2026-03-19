@@ -86,16 +86,6 @@ const makeQueueId = (prefix, now) => {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const safeObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
-const normalizeActiveResearch = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const techId = typeof value.techId === 'string' ? value.techId.trim() : '';
-  if (!techId || techId.toUpperCase() === 'UNKNOWN' || techId.toUpperCase() === 'UNKNOW') return null;
-
-  return {
-    ...value,
-    techId,
-  };
-};
 
 export const normalizeLifecycleState = (stateInput) => {
   const state = clone(stateInput);
@@ -105,7 +95,7 @@ export const normalizeLifecycleState = (stateInput) => {
   state.researchedTechs = safeArray(state.researchedTechs);
   state.activeConstructions = safeArray(state.activeConstructions);
   state.activeRecruitments = safeArray(state.activeRecruitments);
-  state.activeResearch = normalizeActiveResearch(state.activeResearch);
+  state.activeResearch = state.activeResearch && typeof state.activeResearch === 'object' ? state.activeResearch : null;
   return state;
 };
 

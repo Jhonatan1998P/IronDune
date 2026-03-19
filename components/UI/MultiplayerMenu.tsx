@@ -8,7 +8,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
-import { useAuthStore } from '../../stores/authStore';
 
 // Iconos de lucide-react
 import {
@@ -27,8 +26,6 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
     isConnecting,
     remotePlayers,
   } = useMultiplayer();
-  const user = useAuthStore((state) => state.user);
-  const activePlayers = remotePlayers.length + (isConnected && user ? 1 : 0);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -81,7 +78,7 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
               <div className="flex items-center gap-1.5 mt-0.5">
                 <p className="text-[10px] text-slate-400 font-medium">
                   {isConnected
-                    ? `${activePlayers} usuarios conectados`
+                    ? `${remotePlayers.length + 1} usuarios conectados`
                     : isConnecting
                     ? 'Conectando...'
                     : 'Desconectado'}
@@ -127,7 +124,7 @@ const MultiplayerMenuContent: React.FC<MultiplayerMenuProps> = ({ onClose }) => 
 
                 <div className="flex flex-col">
                   <div className="text-6xl font-tech font-black text-white leading-none">
-                    {activePlayers}
+                    {remotePlayers.length + 1}
                   </div>
                   <div className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
                     Comandantes en línea

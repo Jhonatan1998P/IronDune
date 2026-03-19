@@ -11,7 +11,6 @@ import { UnitType, ResourceType, BuildingType } from './enums';
  */
 export interface PlayerPresence {
   id: string;        // playerId único
-  userId?: string;   // auth user id (dedupe multi-tab)
   name: string;      // Nombre del jugador
   level: number;     // Nivel del jugador (empirePoints)
   flag?: string;     // Bandera del jugador

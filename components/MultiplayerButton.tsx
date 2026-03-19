@@ -8,7 +8,6 @@
 import React, { useState } from 'react';
 import { MultiplayerMenu } from './UI/MultiplayerMenu';
 import { useMultiplayer } from '../hooks/useMultiplayer';
-import { useAuthStore } from '../stores/authStore';
 import { User } from 'lucide-react';
 
 interface MultiplayerButtonProps {
@@ -26,8 +25,6 @@ export const MultiplayerButton: React.FC<MultiplayerButtonProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const { isConnected, remotePlayers } = useMultiplayer();
-  const user = useAuthStore((state) => state.user);
-  const activePlayers = remotePlayers.length + (isConnected && user ? 1 : 0);
 
   return (
     <>
@@ -43,7 +40,7 @@ export const MultiplayerButton: React.FC<MultiplayerButtonProps> = ({
         `}
         title={
           isConnected
-            ? `${activePlayers} usuarios en línea`
+            ? `${remotePlayers.length + 1} usuarios en línea`
             : 'Desconectado — pulsa para reintentar conexión'
         }
       >
@@ -52,7 +49,7 @@ export const MultiplayerButton: React.FC<MultiplayerButtonProps> = ({
         {variant !== 'icon' && (
           <span className="hidden sm:inline">
             {isConnected
-              ? `${activePlayers}`
+              ? `${remotePlayers.length + 1}`
               : 'OFF'}
           </span>
         )}
