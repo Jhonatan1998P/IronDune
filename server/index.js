@@ -16,6 +16,7 @@ import { addResources, getOrCreatePlayerResources, validateResourceDeduction } f
 import { ResourceType } from './engine/enums.js';
 import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
 import { buildAuthoritativeCommandResult, normalizeLifecycleState, resolveLifecycleCompletions } from './engine/authoritativeLifecycle.js';
+import { buildAuthoritativeTutorialCommandResult } from './engine/authoritativeTutorial.js';
 import { createUserStateRealtime } from './socket/userStateRealtime.js';
 import { createGlobalPresence } from './socket/globalPresence.js';
 import { registerCommandRoutes } from './routes/commandRoutes.js';
@@ -37,8 +38,8 @@ const FROZEN_BLOB_CRITICAL_FIELDS = ['buildings', 'units', 'techLevels', 'resear
 const NORMALIZED_DUAL_WRITE_ENABLED = process.env.FF_DUAL_WRITE_NORMALIZED !== 'false';
 const NORMALIZED_READS_ENABLED = process.env.FF_NORMALIZED_READS !== 'false';
 const NORMALIZED_DUAL_WRITE_STRICT = process.env.FF_DUAL_WRITE_STRICT === 'true';
-const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB === 'true';
-const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = process.env.FF_FREEZE_LEGACY_BLOB_FIELDS === 'true';
+const DISABLE_LEGACY_SAVE_BLOB = process.env.FF_DISABLE_LEGACY_SAVE_BLOB !== 'false';
+const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = process.env.FF_FREEZE_LEGACY_BLOB_FIELDS !== 'false';
 const MAX_QUEUE_TIMESTAMP_MS = Date.parse('3000-01-01T00:00:00.000Z');
 const AUTHORITATIVE_QUEUE_COMMANDS = new Set(['BUILD_START', 'RECRUIT_START', 'RESEARCH_START']);
 const AUTHORITATIVE_SPEEDUP_TYPES = new Set(['BUILD', 'RECRUIT', 'RESEARCH']);
@@ -630,6 +631,7 @@ registerCommandRoutes(app, {
   AUTHORITATIVE_QUEUE_COMMANDS,
   AUTHORITATIVE_SPEEDUP_TYPES,
   buildAuthoritativeCommandResult,
+  buildAuthoritativeTutorialCommandResult,
   validateResourceDeduction,
   addResources,
   getOrCreatePlayerResources,

@@ -52,6 +52,13 @@ const hasNonEmptyObject = (value) => isNonNullObject(value) && Object.keys(value
 
 const numericResourceMapSchema = z.record(z.nativeEnum(ResourceType), z.number().finite().min(0));
 const anyActionSchema = z.object({}).passthrough();
+const tutorialSetStateActionSchema = z.object({
+  type: z.enum(['ACCEPT_STEP', 'TOGGLE_MINIMIZED']),
+}).strict();
+const tutorialClaimRewardActionSchema = z.object({
+  type: z.literal('CLAIM_REWARD'),
+  tutorialId: z.string().min(1).optional(),
+}).strict();
 const basePayloadSchema = z.object({
   costs: numericResourceMapSchema.optional(),
   gains: numericResourceMapSchema.optional(),
@@ -103,8 +110,12 @@ const COMMAND_ZOD_SCHEMAS = {
   BANK_WITHDRAW: basePayloadSchema.extend({
     gains: numericResourceMapSchema,
   }).strict(),
-  TUTORIAL_SET_STATE: basePayloadSchema,
-  TUTORIAL_CLAIM_REWARD: basePayloadSchema,
+  TUTORIAL_SET_STATE: basePayloadSchema.extend({
+    action: tutorialSetStateActionSchema,
+  }).strict(),
+  TUTORIAL_CLAIM_REWARD: basePayloadSchema.extend({
+    action: tutorialClaimRewardActionSchema,
+  }).strict(),
   GIFT_CODE_REDEEM: basePayloadSchema,
   DIPLOMACY_GIFT: basePayloadSchema.extend({
     costs: numericResourceMapSchema,
@@ -206,12 +217,14 @@ const COMMAND_CONTRACTS = {
   TUTORIAL_SET_STATE: {
     costs: 'forbidden',
     gains: 'forbidden',
-    statePatchAnyOf: ['tutorialAccepted', 'isTutorialMinimized'],
+    statePatch: 'forbidden',
+    actionRequired: ['type'],
   },
   TUTORIAL_CLAIM_REWARD: {
     costs: 'forbidden',
-    gains: 'optional',
-    statePatchAnyOf: ['completedTutorials', 'tutorialClaimable', 'currentTutorialId'],
+    gains: 'forbidden',
+    statePatch: 'forbidden',
+    actionRequired: ['type'],
   },
   GIFT_CODE_REDEEM: {
     costs: 'forbidden',

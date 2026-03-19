@@ -30,13 +30,13 @@ Base profesional (segura):
 - `FF_NORMALIZED_READS=true`
 - `FF_DUAL_WRITE_NORMALIZED=true`
 - `FF_DUAL_WRITE_STRICT=false`
-- `FF_FREEZE_LEGACY_BLOB_FIELDS=false`
-- `FF_DISABLE_LEGACY_SAVE_BLOB=false`
+- `FF_FREEZE_LEGACY_BLOB_FIELDS=true`
+- `FF_DISABLE_LEGACY_SAVE_BLOB=true`
 
 Nota de rollout:
 
-- Activa `FF_FREEZE_LEGACY_BLOB_FIELDS=true` solo cuando el reporte de consistencia este limpio.
-- Activa `FF_DISABLE_LEGACY_SAVE_BLOB=true` en la fase final, cuando ya no dependes de endpoints legacy.
+- Para modo 100% server-side y server-authoritative, mantener ambos flags legacy en `true`.
+- Solo considera ponerlos en `false` temporalmente durante incidentes de migracion/controlados.
 
 Si vienes de una version con colas corruptas por timestamp, ejecuta una vez:
 

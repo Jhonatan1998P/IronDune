@@ -2,19 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { validateCommandPayload } from '../server/commandValidation.js';
 
 describe('command payload contracts', () => {
-  it('normalizes empty maps before validating tutorial reward', () => {
+  it('normalizes empty maps before validating tutorial reward action', () => {
     const result = validateCommandPayload('TUTORIAL_CLAIM_REWARD', {
       costs: {},
       gains: {},
-      statePatch: {
-        completedTutorials: { intro: true },
+      action: {
+        type: 'CLAIM_REWARD',
       },
     });
 
     expect(result.ok).toBe(true);
     expect(result.payload).toEqual({
-      statePatch: {
-        completedTutorials: { intro: true },
+      action: {
+        type: 'CLAIM_REWARD',
       },
     });
   });
@@ -22,8 +22,8 @@ describe('command payload contracts', () => {
   it('rejects forbidden costs on tutorial reward', () => {
     const result = validateCommandPayload('TUTORIAL_CLAIM_REWARD', {
       costs: { MONEY: 10 },
-      statePatch: {
-        completedTutorials: { intro: true },
+      action: {
+        type: 'CLAIM_REWARD',
       },
     });
 
@@ -84,10 +84,10 @@ describe('command payload contracts', () => {
     expect(validAction.ok).toBe(true);
   });
 
-  it('accepts tutorial state patch updates and rejects unrelated keys', () => {
+  it('accepts tutorial state actions and rejects state patches', () => {
     const validPatch = validateCommandPayload('TUTORIAL_SET_STATE', {
-      statePatch: {
-        tutorialAccepted: true,
+      action: {
+        type: 'ACCEPT_STEP',
       },
     });
     expect(validPatch.ok).toBe(true);
@@ -98,6 +98,6 @@ describe('command payload contracts', () => {
       },
     });
     expect(invalidPatch.ok).toBe(false);
-    expect(invalidPatch.errorCode).toBe('INVALID_COMMAND_SEMANTICS');
+    expect(invalidPatch.errorCode).toBe('COMMAND_FIELD_FORBIDDEN');
   });
 });

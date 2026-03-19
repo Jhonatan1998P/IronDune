@@ -541,6 +541,11 @@ export const useGameActions = (
           tutorialAccepted: true,
         },
       }),
+      {
+        action: {
+          type: 'ACCEPT_STEP',
+        },
+      },
     );
   }, [applyActionWithServerValidation, gameState]);
 
@@ -598,7 +603,17 @@ export const useGameActions = (
   const claimTutorialReward = useCallback(() => {
       const preview = applyTutorialRewardLocal(gameState);
       if (!preview.success || !preview.newState) return;
-      applyActionWithServerValidation('TUTORIAL_CLAIM_REWARD', preview, (state: GameState) => applyTutorialRewardLocal(state));
+      applyActionWithServerValidation(
+        'TUTORIAL_CLAIM_REWARD',
+        preview,
+        (state: GameState) => applyTutorialRewardLocal(state),
+        {
+          action: {
+            type: 'CLAIM_REWARD',
+            tutorialId: gameState.currentTutorialId || undefined,
+          },
+        },
+      );
   }, [applyActionWithServerValidation, applyTutorialRewardLocal, gameState]);
 
   const toggleTutorialMinimize = useCallback(() => {
@@ -619,6 +634,11 @@ export const useGameActions = (
           isTutorialMinimized: !state.isTutorialMinimized,
         },
       }),
+      {
+        action: {
+          type: 'TOGGLE_MINIMIZED',
+        },
+      },
     );
   }, [applyActionWithServerValidation, gameState]);
 

@@ -42,10 +42,26 @@ export const registerProfileRoutes = (app, deps) => {
 
       if (NORMALIZED_READS_ENABLED && isNonNullObject(responseState)) {
         const normalizedPatch = await loadNormalizedStatePatch(req.user.id);
-        responseState = {
-          ...responseState,
-          ...normalizedPatch,
-        };
+        const blobLastSaveTime = Number(responseState?.lastSaveTime || 0);
+        const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+        const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
+          && normalizedLastSaveTime >= blobLastSaveTime;
+
+        if (!shouldUseNormalizedPatch && isNonNullObject(normalizedPatch)) {
+          console.warn('[ProfileAPI] Ignoring stale normalized state patch', {
+            traceId,
+            userId: shortId(req.user.id),
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          });
+        }
+
+        responseState = shouldUseNormalizedPatch
+          ? {
+            ...responseState,
+            ...normalizedPatch,
+          }
+          : responseState;
       }
 
       console.log('[ProfileAPI] Load succeeded', {

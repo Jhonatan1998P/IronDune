@@ -144,7 +144,24 @@ export const createBootstrapService = ({
         })
         : null;
 
-      const gameState = normalizedPatch
+      const blobLastSaveTime = Number(effectiveState?.lastSaveTime || 0);
+      const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+      const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
+        && normalizedLastSaveTime >= blobLastSaveTime;
+
+      if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
+        logWithSchema('warn', '[BootstrapAPI] Ignoring stale normalized state patch', {
+          traceId,
+          userId: shortId(req.user.id),
+          errorCode: 'NORMALIZED_PATCH_STALE',
+          extra: {
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          },
+        });
+      }
+
+      const gameState = shouldUseNormalizedPatch
         ? { ...effectiveState, ...normalizedPatch }
         : effectiveState;
 

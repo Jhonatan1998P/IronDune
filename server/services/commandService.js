@@ -16,6 +16,7 @@ export const createCommandService = ({
   AUTHORITATIVE_QUEUE_COMMANDS,
   AUTHORITATIVE_SPEEDUP_TYPES,
   buildAuthoritativeCommandResult,
+  buildAuthoritativeTutorialCommandResult,
   validateResourceDeduction,
   addResources,
   getOrCreatePlayerResources,
@@ -30,6 +31,22 @@ export const createCommandService = ({
   stripCriticalDomainFromBlob,
   logWithSchema,
 }) => {
+  const NORMALIZED_DOMAIN_STATE_KEYS = [
+    'buildings',
+    'units',
+    'techLevels',
+    'researchedTechs',
+    'activeConstructions',
+    'activeRecruitments',
+    'activeResearch',
+    'campaignProgress',
+    'empirePoints',
+  ];
+
+  const hasNormalizedDomainChanges = (beforeState, afterState) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
+    JSON.stringify(beforeState?.[key]) !== JSON.stringify(afterState?.[key])
+  ));
+
   const handleCommand = async (req, res) => {
     const traceId = req.traceId || makeTraceId('command');
     const serverTime = Date.now();
@@ -153,9 +170,30 @@ export const createCommandService = ({
           return null;
         })
         : null;
+
+      const blobLastSaveTime = Number(profile.gameState?.lastSaveTime || 0);
+      const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+      const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
+        && normalizedLastSaveTime >= blobLastSaveTime;
+
+      if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
+        logWithSchema('warn', '[CommandGateway] Ignoring stale normalized state patch', {
+          traceId,
+          userId: shortId(req.user.id),
+          commandId,
+          expectedRevision: parseRevision(expectedRevision),
+          errorCode: 'NORMALIZED_PATCH_STALE',
+          extra: {
+            commandType: type,
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          },
+        });
+      }
+
       const profileState = {
         ...(profile.gameState || {}),
-        ...(normalizedPatch || {}),
+        ...(shouldUseNormalizedPatch ? normalizedPatch : {}),
       };
       const currentRevision = parseRevision(profileState?.revision);
       const nextRevision = currentRevision + 1;
@@ -204,7 +242,27 @@ export const createCommandService = ({
       const runAuthoritativeLifecycle = AUTHORITATIVE_QUEUE_COMMANDS.has(type)
         || (type === 'SPEEDUP' && AUTHORITATIVE_SPEEDUP_TYPES.has(speedupType));
 
-      if (runAuthoritativeLifecycle) {
+      const tutorialAuthoritativeResult = buildAuthoritativeTutorialCommandResult(type, lifecycleState, payload.action);
+
+      if (tutorialAuthoritativeResult.handled) {
+        if (!tutorialAuthoritativeResult.ok) {
+          observeCommandEvent({
+            type,
+            result: 'bad_request',
+            errorCode: tutorialAuthoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
+            durationMs: Date.now() - commandStartedAt,
+          });
+          return res.status(tutorialAuthoritativeResult.status || 400).json({
+            ok: false,
+            error: tutorialAuthoritativeResult.error || 'Invalid command action',
+            errorCode: tutorialAuthoritativeResult.errorCode || 'INVALID_COMMAND_ACTION',
+            traceId,
+          });
+        }
+        workingState = tutorialAuthoritativeResult.nextState;
+        costs = tutorialAuthoritativeResult.costs || {};
+        gains = tutorialAuthoritativeResult.gains || {};
+      } else if (runAuthoritativeLifecycle) {
         const authoritativeResult = buildAuthoritativeCommandResult(type, lifecycleState, payload.action, serverTime);
         if (!authoritativeResult.ok) {
           observeCommandEvent({
@@ -300,7 +358,10 @@ export const createCommandService = ({
 
       if (saveError) throw saveError;
 
-      const normalizedSync = await syncNormalizedDomain(req.user.id, nextState, traceId);
+      const shouldSyncNormalizedDomain = hasNormalizedDomainChanges(originalState, nextState);
+      const normalizedSync = shouldSyncNormalizedDomain
+        ? await syncNormalizedDomain(req.user.id, nextState, traceId)
+        : { ok: true, skipped: true };
       if (!normalizedSync.ok && normalizedSync.warning) {
         diagnostics.push(normalizedSync.warning);
       }
