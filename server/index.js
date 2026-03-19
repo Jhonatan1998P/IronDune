@@ -710,6 +710,7 @@ registerBootstrapRoutes(app, {
   shortId,
   normalizeServerError,
   logWithSchema,
+  calculateEmpirePointsBreakdown,
 });
 
 registerProfileRoutes(app, {
