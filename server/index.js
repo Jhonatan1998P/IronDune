@@ -36,6 +36,8 @@ const COMMAND_ALERT_CONFLICTS_PER_MIN_THRESHOLD = Number(process.env.COMMAND_ALE
 const COMMAND_ALERT_ERROR_RATE_THRESHOLD = Number(process.env.COMMAND_ALERT_ERROR_RATE_THRESHOLD || 0.05);
 const COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD = Number(process.env.COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD || 750);
 const COMMAND_ALERT_RETRY_RATIO_THRESHOLD = Number(process.env.COMMAND_ALERT_RETRY_RATIO_THRESHOLD || 0.2);
+const ENDPOINT_METRICS_RETENTION_MS = Number(process.env.ENDPOINT_METRICS_RETENTION_MS || 15 * 60_000);
+const EVENT_BACKLOG_MAX = Number(process.env.EVENT_BACKLOG_MAX || 200);
 const commandRateTracker = new Map();
 const commandMetrics = {
   startedAt: Date.now(),
@@ -62,6 +64,10 @@ const commandMetrics = {
     p99: 0,
   },
   recentLatencies: [],
+};
+const endpointMetrics = {
+  startedAt: Date.now(),
+  byEndpoint: {},
 };
 
 dotenv.config();
@@ -262,6 +268,64 @@ const observeCommandEvent = ({
   }
 };
 
+const observeEndpointEvent = ({ endpoint, userId, status, durationMs }) => {
+  const safeEndpoint = typeof endpoint === 'string' && endpoint ? endpoint : 'unknown';
+  if (!endpointMetrics.byEndpoint[safeEndpoint]) {
+    endpointMetrics.byEndpoint[safeEndpoint] = {
+      requests: 0,
+      success: 0,
+      failed: 0,
+      avgLatencyMs: 0,
+      p95LatencyMs: 0,
+      recentLatencies: [],
+      byUser: {},
+    };
+  }
+
+  const bucket = endpointMetrics.byEndpoint[safeEndpoint];
+  bucket.requests += 1;
+  if (status === 'success') bucket.success += 1;
+  else bucket.failed += 1;
+
+  if (typeof userId === 'string' && userId) {
+    if (!bucket.byUser[userId]) {
+      bucket.byUser[userId] = { requests: 0, success: 0, failed: 0 };
+    }
+    bucket.byUser[userId].requests += 1;
+    if (status === 'success') bucket.byUser[userId].success += 1;
+    else bucket.byUser[userId].failed += 1;
+  }
+
+  if (Number.isFinite(durationMs) && durationMs >= 0) {
+    const rounded = Math.round(durationMs);
+    bucket.recentLatencies.push({ at: Date.now(), value: rounded });
+    const cutoff = Date.now() - ENDPOINT_METRICS_RETENTION_MS;
+    bucket.recentLatencies = bucket.recentLatencies.filter((entry) => entry.at >= cutoff);
+    const values = bucket.recentLatencies.map((entry) => entry.value).sort((a, b) => a - b);
+    if (values.length > 0) {
+      const sum = values.reduce((acc, value) => acc + value, 0);
+      const p95Index = Math.min(values.length - 1, Math.floor(0.95 * values.length));
+      bucket.avgLatencyMs = Math.round(sum / values.length);
+      bucket.p95LatencyMs = values[p95Index] || 0;
+    }
+  }
+};
+
+const getEndpointMetricsSnapshot = () => ({
+  uptimeMs: Date.now() - endpointMetrics.startedAt,
+  windowMs: ENDPOINT_METRICS_RETENTION_MS,
+  endpoints: Object.fromEntries(
+    Object.entries(endpointMetrics.byEndpoint).map(([endpoint, value]) => [endpoint, {
+      requests: value.requests,
+      success: value.success,
+      failed: value.failed,
+      avgLatencyMs: value.avgLatencyMs,
+      p95LatencyMs: value.p95LatencyMs,
+      byUser: value.byUser,
+    }])
+  ),
+});
+
 const getCommandMetricsSnapshot = () => {
   const uptimeMs = Date.now() - commandMetrics.startedAt;
   const uptimeMinutes = Math.max(1, uptimeMs / 60_000);
@@ -446,6 +510,101 @@ const loadCommandById = async (playerId, commandId) => {
   return data.response_payload;
 };
 
+const normalizeEventId = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.floor(numeric);
+};
+
+const loadLatestPlayerEventId = async (playerId) => {
+  try {
+    const { data, error } = await supabase
+      .from('player_events')
+      .select('event_id')
+      .eq('player_id', playerId)
+      .order('event_id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return normalizeEventId(data?.event_id);
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message.toLowerCase().includes('player_events')) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+const loadPlayerEventBacklog = async (playerId, afterEventId, limit = EVENT_BACKLOG_MAX) => {
+  const normalizedAfter = normalizeEventId(afterEventId);
+  if (!normalizedAfter) {
+    return { events: [], latestEventId: await loadLatestPlayerEventId(playerId), forceResync: false };
+  }
+
+  try {
+    const [eventsResult, latestEventId] = await Promise.all([
+      supabase
+        .from('player_events')
+        .select('event_id, revision, event_type, delta_json, server_time, command_id, created_at')
+        .eq('player_id', playerId)
+        .gt('event_id', normalizedAfter)
+        .order('event_id', { ascending: true })
+        .limit(limit),
+      loadLatestPlayerEventId(playerId),
+    ]);
+
+    if (eventsResult.error) throw eventsResult.error;
+    const events = Array.isArray(eventsResult.data) ? eventsResult.data : [];
+    const normalizedLatest = normalizeEventId(latestEventId);
+    const backlogGap = normalizedLatest && normalizedLatest > normalizedAfter
+      ? normalizedLatest - normalizedAfter
+      : 0;
+    const forceResync = backlogGap > limit;
+
+    return {
+      events,
+      latestEventId: normalizedLatest,
+      forceResync,
+    };
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message.toLowerCase().includes('player_events')) {
+      return { events: [], latestEventId: null, forceResync: false };
+    }
+    throw error;
+  }
+};
+
+const appendPlayerEvent = async ({ playerId, revision, eventType, delta, commandId, serverTime }) => {
+  try {
+    const payload = {
+      player_id: playerId,
+      revision: parseRevision(revision),
+      event_type: eventType,
+      delta_json: isNonNullObject(delta) ? delta : {},
+      command_id: commandId || null,
+      server_time: Number.isFinite(Number(serverTime)) ? Math.floor(Number(serverTime)) : Date.now(),
+    };
+
+    const { data, error } = await supabase
+      .from('player_events')
+      .insert(payload)
+      .select('event_id')
+      .single();
+
+    if (error) throw error;
+    return normalizeEventId(data?.event_id);
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message.toLowerCase().includes('player_events')) {
+      return null;
+    }
+    throw error;
+  }
+};
+
 const toEpochMillis = (value) => {
   const parsed = Date.parse(value || '');
   return Number.isFinite(parsed) ? parsed : Date.now();
@@ -591,6 +750,7 @@ const emitUserStateChanged = (userId, payload = {}) => {
   const room = `${USER_STATE_ROOM_PREFIX}${userId}`;
   io.to(room).emit(USER_STATE_CHANGED_EVENT, {
     userId,
+    playerId: userId,
     serverTime: Date.now(),
     ...payload,
   });
@@ -624,9 +784,23 @@ app.get('/api/ops/command-metrics', (req, res) => {
   });
 });
 
+app.get('/api/ops/endpoint-metrics', (req, res) => {
+  if (!isObservabilityAuthorized(req)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  return res.json({
+    ok: true,
+    serverTime: Date.now(),
+    metrics: getEndpointMetricsSnapshot(),
+  });
+});
+
 app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
   const traceId = req.traceId || makeTraceId('bootstrap');
   const serverTime = Date.now();
+  const bootstrapStartedAt = Date.now();
+  let bootstrapStatus = 'success';
 
   try {
     const [metaResult, profileResult, authoritativeResources] = await Promise.all([
@@ -692,8 +866,14 @@ app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
     const gameState = NORMALIZED_READS_ENABLED
       ? { ...effectiveState, ...(await loadNormalizedStatePatch(req.user.id)) }
       : effectiveState;
+    const latestEventId = await loadLatestPlayerEventId(req.user.id);
 
     return res.json({
+      playerId: req.user.id,
+      serverTime,
+      revision: parseRevision(gameState.revision),
+      state: gameState,
+      lastEventId: latestEventId,
       profile: {
         id: req.user.id,
         playerName: gameState.playerName,
@@ -733,6 +913,7 @@ app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
       traceId,
     });
   } catch (error) {
+    bootstrapStatus = 'failed';
     const classified = classifyBootstrapError(error);
     console.error('[BootstrapAPI] Bootstrap failed', {
       traceId,
@@ -746,6 +927,13 @@ app.get('/api/bootstrap', requireAuthUser, async (req, res) => {
       errorCode: classified.errorCode,
       retryable: classified.retryable,
       traceId,
+    });
+  } finally {
+    observeEndpointEvent({
+      endpoint: 'GET /api/bootstrap',
+      userId: req.user?.id,
+      status: bootstrapStatus,
+      durationMs: Date.now() - bootstrapStartedAt,
     });
   }
 });
@@ -1234,10 +1422,23 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
       diagnostics.push(normalizedSync.warning);
     }
 
+    const appliedDelta = buildServerStatePatch(originalState, nextState);
+    const persistedEventId = await appendPlayerEvent({
+      playerId: req.user.id,
+      revision: nextRevision,
+      eventType: type,
+      delta: appliedDelta,
+      commandId,
+      serverTime,
+    });
+    const eventId = persistedEventId || commandId;
+
     const responsePayload = {
       ok: true,
       newRevision: nextRevision,
-      statePatch: buildServerStatePatch(originalState, nextState),
+      statePatch: appliedDelta,
+      appliedDelta,
+      eventId,
       serverTime,
       diagnostics,
       traceId,
@@ -1272,10 +1473,12 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
     });
 
     emitUserStateChanged(req.user.id, {
+      eventId,
       revision: nextRevision,
       reason: 'COMMAND',
       commandType: type,
       commandId,
+      delta: appliedDelta,
       traceId,
     });
 
@@ -1314,6 +1517,13 @@ app.post('/api/command', requireAuthUser, enforceCommandRateLimit, async (req, r
       error: error.message || 'Failed to process command',
       errorCode: 'COMMAND_FAILED',
       traceId,
+    });
+  } finally {
+    observeEndpointEvent({
+      endpoint: 'POST /api/command',
+      userId: req.user?.id,
+      status: res.statusCode >= 400 ? 'failed' : 'success',
+      durationMs: Date.now() - commandStartedAt,
     });
   }
 });
@@ -1475,7 +1685,7 @@ io.on('connection', (socket) => {
   let playerId = null;
   let authUserId = null;
 
-  socket.on('subscribe_user_state', async ({ token }) => {
+  socket.on('subscribe_user_state', async ({ token, lastEventId }) => {
     const traceId = makeTraceId('socket-subscribe');
     try {
       if (typeof token !== 'string' || !token.trim()) {
@@ -1499,9 +1709,31 @@ io.on('connection', (socket) => {
 
       authUserId = data.user.id;
       socket.join(`${USER_STATE_ROOM_PREFIX}${authUserId}`);
+
+      const normalizedLastEventId = normalizeEventId(lastEventId);
+      const backlog = await loadPlayerEventBacklog(authUserId, normalizedLastEventId, EVENT_BACKLOG_MAX);
+      if (!backlog.forceResync && Array.isArray(backlog.events) && backlog.events.length > 0) {
+        backlog.events.forEach((eventRow) => {
+          socket.emit(USER_STATE_CHANGED_EVENT, {
+            eventId: normalizeEventId(eventRow.event_id),
+            userId: authUserId,
+            playerId: authUserId,
+            revision: parseRevision(eventRow.revision),
+            serverTime: Number(eventRow.server_time || Date.now()),
+            reason: eventRow.event_type || 'BACKLOG_EVENT',
+            delta: isNonNullObject(eventRow.delta_json) ? eventRow.delta_json : {},
+            commandId: eventRow.command_id || null,
+          });
+        });
+      }
+
       socket.emit('user_state_subscription', {
         ok: true,
         userId: authUserId,
+        playerId: authUserId,
+        lastEventId: backlog.latestEventId,
+        force_resync: backlog.forceResync,
+        replayedCount: backlog.forceResync ? 0 : backlog.events.length,
         traceId,
       });
     } catch (error) {

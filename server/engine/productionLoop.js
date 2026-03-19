@@ -2,16 +2,16 @@ import { supabase } from '../lib/supabase.js';
 import { processServerEconomyTick } from './economyTick.js';
 import { getOrCreatePlayerResources } from './resourceValidator.js';
 
-const TICK_INTERVAL_MS = 5000;
+const TICK_INTERVAL_MS = 15000;
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
-const PROFILE_SYNC_INTERVAL_MS = 30 * 1000;
+const PROFILE_SYNC_INTERVAL_MS = 60 * 1000;
 
 let syncCounter = 0;
 
 const toIso = (timestamp) => new Date(timestamp).toISOString();
 
 export function startProductionLoop() {
-  console.log('[ProductionLoop] Starting server economy engine (5s interval)...');
+  console.log('[ProductionLoop] Starting server economy engine (15s interval)...');
   setInterval(processAllActivePlayers, TICK_INTERVAL_MS);
 }
 

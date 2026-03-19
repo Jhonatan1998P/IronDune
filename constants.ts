@@ -138,7 +138,7 @@ export const calculateHourlyInterest = (balance: number, rate: number): number =
 };
 
 // --- INTERVALOS DE GUARDADO ---
-export const CLOUD_SAVE_INTERVAL_MS = 10000; // 10 segundos
+export const CLOUD_SAVE_INTERVAL_MS = 60000; // 60 segundos
 export const OFFLINE_SIGNOUT_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutos
 
 export const SAVE_VERSION = 7;

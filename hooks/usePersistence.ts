@@ -72,7 +72,9 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
-const MULTI_TAB_SYNC_INTERVAL_MS = 5000;
+const MULTI_TAB_SYNC_INTERVAL_MS = 20000;
+const SOCKET_FALLBACK_POLLING_BACKOFF_MS = [10000, 20000, 40000] as const;
+const VISIBILITY_BOOTSTRAP_THROTTLE_MS = 30000;
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
 const USER_STATE_CHANGED_EVENT = 'user_state_changed';
@@ -249,6 +251,10 @@ export const usePersistence = (
       state: payload?.game_state || null,
       updatedAt: payload?.updated_at || null,
       resetId: payload?.metadata?.resetId || null,
+      revision: Number(payload?.revision ?? payload?.metadata?.revision ?? 0),
+      lastEventId: payload?.lastEventId || null,
+      serverTime: Number(payload?.serverTime ?? payload?.metadata?.serverTime ?? Date.now()),
+      playerId: payload?.playerId || payload?.profile?.id || null,
     };
   }, [getAuthHeaders, signOut, user?.id]);
 
@@ -595,18 +601,29 @@ export const usePersistence = (
 
     let cancelled = false;
     let syncing = false;
+    let socketSubscribed = false;
+    let fallbackPollingAttempt = 0;
+    let fallbackPollingTimer: number | null = null;
+    let lastBootstrapFetchAt = 0;
+    let lastEventId: string | null = null;
 
-    const syncAuthoritativeSnapshot = async () => {
+    const syncAuthoritativeSnapshot = async (reason: 'socket' | 'storage' | 'visibility' | 'fallback' = 'fallback') => {
       if (syncing || cancelled) return;
+      if (reason === 'visibility' && (Date.now() - lastBootstrapFetchAt) < VISIBILITY_BOOTSTRAP_THROTTLE_MS) return;
       syncing = true;
       try {
         const bootstrapPayload = await fetchBootstrapSnapshot();
+        lastBootstrapFetchAt = Date.now();
         const serverState = bootstrapPayload?.state || null;
         if (!serverState) return;
 
+        if (typeof bootstrapPayload?.lastEventId === 'string' && bootstrapPayload.lastEventId) {
+          lastEventId = bootstrapPayload.lastEventId;
+        }
+
         const localState = gameStateRef.current;
         const localRevision = Number(localState?.revision || 0);
-        const serverRevision = Number(serverState?.revision || 0);
+        const serverRevision = Number(bootstrapPayload?.revision || serverState?.revision || 0);
         const updatedAtChanged = Boolean(
           bootstrapPayload?.updatedAt
           && bootstrapPayload.updatedAt !== cloudUpdatedAtRef.current
@@ -621,6 +638,7 @@ export const usePersistence = (
 
         setGameState(hydrateGameState(serverState as Partial<GameState>));
         lastTickRef.current = TimeSyncService.getServerTime();
+        fallbackPollingAttempt = 0;
       } catch (error) {
         console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
           userId: shortId(user?.id),
@@ -631,11 +649,91 @@ export const usePersistence = (
       }
     };
 
-    const intervalId = window.setInterval(syncAuthoritativeSnapshot, MULTI_TAB_SYNC_INTERVAL_MS);
+    const applyRealtimeDelta = (payload: {
+      eventId?: string;
+      userId?: string | null;
+      playerId?: string | null;
+      revision?: number;
+      delta?: Partial<GameState>;
+      force_resync?: boolean;
+    }) => {
+      if (!payload) return;
+      const playerId = payload.playerId || payload.userId;
+      if (playerId && playerId !== user.id) return;
+
+      if (payload.eventId) {
+        if (lastEventId && payload.eventId === lastEventId) return;
+        lastEventId = payload.eventId;
+      }
+
+      const incomingRevision = Number(payload.revision || 0);
+      if (payload.force_resync) {
+        void syncAuthoritativeSnapshot('socket');
+        return;
+      }
+
+      const currentRevision = Number(gameStateRef.current?.revision || 0);
+      if (incomingRevision && incomingRevision > currentRevision + 1) {
+        void syncAuthoritativeSnapshot('socket');
+        return;
+      }
+
+      setGameState((prev) => {
+        const prevRevision = Number(prev?.revision || 0);
+        if (incomingRevision && incomingRevision <= prevRevision) return prev;
+
+        const delta = payload.delta;
+        if (!delta || typeof delta !== 'object' || Object.keys(delta).length === 0) {
+          if (incomingRevision) {
+            return {
+              ...prev,
+              revision: incomingRevision,
+            };
+          }
+          return prev;
+        }
+
+        return {
+          ...prev,
+          ...delta,
+          revision: incomingRevision || prevRevision,
+        };
+      });
+      lastTickRef.current = TimeSyncService.getServerTime();
+      fallbackPollingAttempt = 0;
+    };
+
+    const scheduleFallbackPolling = () => {
+      if (cancelled || socketSubscribed) return;
+      if (fallbackPollingTimer !== null) return;
+
+      const backoffIndex = Math.min(fallbackPollingAttempt, SOCKET_FALLBACK_POLLING_BACKOFF_MS.length - 1);
+      const delay = SOCKET_FALLBACK_POLLING_BACKOFF_MS[backoffIndex];
+      fallbackPollingTimer = window.setTimeout(async () => {
+        fallbackPollingTimer = null;
+        if (cancelled || socketSubscribed) return;
+        await syncAuthoritativeSnapshot('fallback');
+        fallbackPollingAttempt += 1;
+        scheduleFallbackPolling();
+      }, delay);
+    };
+
+    const clearFallbackPolling = () => {
+      fallbackPollingAttempt = 0;
+      if (fallbackPollingTimer !== null) {
+        window.clearTimeout(fallbackPollingTimer);
+        fallbackPollingTimer = null;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (socketSubscribed) return;
+      void syncAuthoritativeSnapshot('fallback');
+    }, MULTI_TAB_SYNC_INTERVAL_MS);
 
     const onVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
-        void syncAuthoritativeSnapshot();
+        void syncAuthoritativeSnapshot('visibility');
       }
     };
 
@@ -647,7 +745,7 @@ export const usePersistence = (
       } catch {
         // Ignore malformed payloads
       }
-      void syncAuthoritativeSnapshot();
+      void syncAuthoritativeSnapshot('storage');
     };
 
     let channel: BroadcastChannel | null = null;
@@ -655,7 +753,7 @@ export const usePersistence = (
     const onChannelMessage = (event: MessageEvent) => {
       const payload = event?.data as { userId?: string | null } | null;
       if (payload?.userId && payload.userId !== user.id) return;
-      void syncAuthoritativeSnapshot();
+      void syncAuthoritativeSnapshot('storage');
     };
 
     try {
@@ -674,14 +772,28 @@ export const usePersistence = (
       socket = BACKEND_ORIGIN ? io(BACKEND_ORIGIN, socketOptions) : io(socketOptions);
 
       socket.on('connect', () => {
-        socket?.emit('subscribe_user_state', { token: session.access_token });
+        socket?.emit('subscribe_user_state', { token: session.access_token, lastEventId });
       });
 
-      socket.on('user_state_subscription', (payload: { ok?: boolean; errorCode?: string }) => {
+      socket.on('user_state_subscription', (payload: {
+        ok?: boolean;
+        errorCode?: string;
+        force_resync?: boolean;
+        lastEventId?: string | null;
+      }) => {
         if (payload?.ok) {
-          void syncAuthoritativeSnapshot();
+          socketSubscribed = true;
+          clearFallbackPolling();
+          if (typeof payload.lastEventId === 'string' && payload.lastEventId) {
+            lastEventId = payload.lastEventId;
+          }
+          if (payload.force_resync) {
+            void syncAuthoritativeSnapshot('socket');
+          }
           return;
         }
+        socketSubscribed = false;
+        scheduleFallbackPolling();
         if (payload?.errorCode) {
           console.warn('[Persistence] Realtime state subscription failed', {
             userId: shortId(user?.id),
@@ -690,13 +802,26 @@ export const usePersistence = (
         }
       });
 
-      socket.on(USER_STATE_CHANGED_EVENT, (payload: { userId?: string | null; revision?: number; reason?: string }) => {
-        if (payload?.userId && payload.userId !== user.id) return;
-        void syncAuthoritativeSnapshot();
+      socket.on(USER_STATE_CHANGED_EVENT, (payload: {
+        eventId?: string;
+        userId?: string | null;
+        playerId?: string | null;
+        revision?: number;
+        reason?: string;
+        delta?: Partial<GameState>;
+        force_resync?: boolean;
+      }) => {
+        applyRealtimeDelta(payload);
       });
 
       socket.on('reconnect', () => {
-        socket?.emit('subscribe_user_state', { token: session.access_token });
+        socketSubscribed = false;
+        socket?.emit('subscribe_user_state', { token: session.access_token, lastEventId });
+      });
+
+      socket.on('disconnect', () => {
+        socketSubscribed = false;
+        scheduleFallbackPolling();
       });
     } catch (error) {
       console.warn('[Persistence] Realtime socket unavailable; polling fallback active', {
@@ -704,16 +829,19 @@ export const usePersistence = (
         error: normalizeError(error),
       });
       socket = null;
+      scheduleFallbackPolling();
     }
 
     window.addEventListener('storage', onStorage);
     window.addEventListener('focus', onVisibilityOrFocus);
     document.addEventListener('visibilitychange', onVisibilityOrFocus);
 
-    void syncAuthoritativeSnapshot();
+    void syncAuthoritativeSnapshot('fallback');
+    scheduleFallbackPolling();
 
     return () => {
       cancelled = true;
+      clearFallbackPolling();
       window.clearInterval(intervalId);
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('focus', onVisibilityOrFocus);
@@ -726,6 +854,7 @@ export const usePersistence = (
         socket.off(USER_STATE_CHANGED_EVENT);
         socket.off('user_state_subscription');
         socket.off('reconnect');
+        socket.off('disconnect');
         socket.off('connect');
         socket.disconnect();
       }

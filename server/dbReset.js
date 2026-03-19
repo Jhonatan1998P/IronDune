@@ -28,26 +28,82 @@ export async function hardResetDatabase() {
     // 2. Ejecutamos el SQL para limpiar y recrear todo
     // Nota: Necesitamos una función RPC 'exec_sql' en Supabase para ejecutar SQL arbitrario
     const sqlScript = `
-      -- 1. Limpieza de tablas existentes
-      DROP FUNCTION IF EXISTS public.normalized_consistency_report(INTEGER) CASCADE;
-      DROP FUNCTION IF EXISTS public.compare_player_domain_state(UUID) CASCADE;
-      DROP FUNCTION IF EXISTS public.backfill_player_domain_from_profiles() CASCADE;
-      DROP FUNCTION IF EXISTS public.sync_player_domain_from_state(UUID, JSONB) CASCADE;
-      DROP FUNCTION IF EXISTS public.resource_add_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) CASCADE;
-      DROP FUNCTION IF EXISTS public.resource_deduct_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) CASCADE;
-      DROP FUNCTION IF EXISTS public.ensure_player_resources(UUID) CASCADE;
+      -- 1. Limpieza robusta: elimina objetos existentes/desconocidos en schema public
+      DO $$
+      DECLARE
+        obj RECORD;
+      BEGIN
+        -- Vistas materializadas
+        FOR obj IN
+          SELECT schemaname, matviewname AS object_name
+          FROM pg_matviews
+          WHERE schemaname = 'public'
+        LOOP
+          BEGIN
+            EXECUTE format('DROP MATERIALIZED VIEW IF EXISTS %I.%I CASCADE', obj.schemaname, obj.object_name);
+          EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '[DB Reset] Skip matview %.%: %', obj.schemaname, obj.object_name, SQLERRM;
+          END;
+        END LOOP;
 
-      DROP TABLE IF EXISTS public.logistic_loot CASCADE;
-      DROP TABLE IF EXISTS public.game_bots CASCADE;
-      DROP TABLE IF EXISTS public.player_progress CASCADE;
-      DROP TABLE IF EXISTS public.player_queues CASCADE;
-      DROP TABLE IF EXISTS public.player_tech CASCADE;
-      DROP TABLE IF EXISTS public.player_units CASCADE;
-      DROP TABLE IF EXISTS public.player_buildings CASCADE;
-      DROP TABLE IF EXISTS public.player_commands CASCADE;
-      DROP TABLE IF EXISTS public.player_resources CASCADE;
-      DROP TABLE IF EXISTS public.profiles CASCADE;
-      DROP TABLE IF EXISTS public.server_metadata CASCADE;
+        -- Vistas
+        FOR obj IN
+          SELECT table_schema AS schemaname, table_name AS object_name
+          FROM information_schema.views
+          WHERE table_schema = 'public'
+        LOOP
+          BEGIN
+            EXECUTE format('DROP VIEW IF EXISTS %I.%I CASCADE', obj.schemaname, obj.object_name);
+          EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '[DB Reset] Skip view %.%: %', obj.schemaname, obj.object_name, SQLERRM;
+          END;
+        END LOOP;
+
+        -- Tablas (incluye particionadas y tablas desconocidas)
+        FOR obj IN
+          SELECT schemaname, tablename AS object_name
+          FROM pg_tables
+          WHERE schemaname = 'public'
+        LOOP
+          BEGIN
+            EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', obj.schemaname, obj.object_name);
+          EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '[DB Reset] Skip table %.%: %', obj.schemaname, obj.object_name, SQLERRM;
+          END;
+        END LOOP;
+
+        -- Secuencias remanentes
+        FOR obj IN
+          SELECT sequence_schema AS schemaname, sequence_name AS object_name
+          FROM information_schema.sequences
+          WHERE sequence_schema = 'public'
+        LOOP
+          BEGIN
+            EXECUTE format('DROP SEQUENCE IF EXISTS %I.%I CASCADE', obj.schemaname, obj.object_name);
+          EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE '[DB Reset] Skip sequence %.%: %', obj.schemaname, obj.object_name, SQLERRM;
+          END;
+        END LOOP;
+
+        -- Funciones y procedimientos definidos en public
+        FOR obj IN
+          SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args
+          FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'public'
+        LOOP
+          BEGIN
+            EXECUTE format('DROP FUNCTION IF EXISTS public.%I(%s) CASCADE', obj.proname, obj.args);
+          EXCEPTION WHEN OTHERS THEN
+            BEGIN
+              EXECUTE format('DROP PROCEDURE IF EXISTS public.%I(%s) CASCADE', obj.proname, obj.args);
+            EXCEPTION WHEN OTHERS THEN
+              RAISE NOTICE '[DB Reset] Skip routine public.%(%): %', obj.proname, obj.args, SQLERRM;
+            END;
+          END;
+        END LOOP;
+      END
+      $$;
 
       -- 1.5 Tabla de metadatos (para control de resets)
       CREATE TABLE public.server_metadata (
@@ -109,6 +165,23 @@ export async function hardResetDatabase() {
 
       CREATE INDEX idx_player_commands_player_created
         ON public.player_commands (player_id, created_at DESC);
+
+      CREATE TABLE public.player_events (
+        event_id BIGSERIAL PRIMARY KEY,
+        player_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        revision BIGINT NOT NULL,
+        event_type TEXT NOT NULL,
+        delta_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        command_id UUID,
+        server_time BIGINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX idx_player_events_player_event
+        ON public.player_events (player_id, event_id DESC);
+
+      CREATE INDEX idx_player_events_player_revision
+        ON public.player_events (player_id, revision DESC);
 
       CREATE TABLE public.player_buildings (
         player_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -597,6 +670,7 @@ export async function hardResetDatabase() {
       ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.player_resources ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.player_commands ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.player_events ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.player_buildings ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.player_units ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.player_tech ENABLE ROW LEVEL SECURITY;
@@ -609,6 +683,7 @@ export async function hardResetDatabase() {
       CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
       CREATE POLICY "Users read own resources" ON public.player_resources FOR SELECT USING (auth.uid() = player_id);
       CREATE POLICY "Users read own commands" ON public.player_commands FOR SELECT USING (auth.uid() = player_id);
+      CREATE POLICY "Users read own events" ON public.player_events FOR SELECT USING (auth.uid() = player_id);
       CREATE POLICY "Users read own buildings" ON public.player_buildings FOR SELECT USING (auth.uid() = player_id);
       CREATE POLICY "Users read own units" ON public.player_units FOR SELECT USING (auth.uid() = player_id);
       CREATE POLICY "Users read own tech" ON public.player_tech FOR SELECT USING (auth.uid() = player_id);
@@ -629,6 +704,7 @@ export async function hardResetDatabase() {
        GRANT ALL ON TABLE public.profiles TO postgres, service_role;
        GRANT ALL ON TABLE public.player_resources TO postgres, service_role;
        GRANT ALL ON TABLE public.player_commands TO postgres, service_role;
+       GRANT ALL ON TABLE public.player_events TO postgres, service_role;
        GRANT ALL ON TABLE public.player_buildings TO postgres, service_role;
        GRANT ALL ON TABLE public.player_units TO postgres, service_role;
        GRANT ALL ON TABLE public.player_tech TO postgres, service_role;
@@ -640,6 +716,7 @@ export async function hardResetDatabase() {
       GRANT SELECT ON TABLE public.profiles TO authenticated;
       GRANT SELECT ON TABLE public.player_resources TO authenticated;
       GRANT SELECT ON TABLE public.player_commands TO authenticated;
+      GRANT SELECT ON TABLE public.player_events TO authenticated;
       GRANT SELECT ON TABLE public.player_buildings TO authenticated;
       GRANT SELECT ON TABLE public.player_units TO authenticated;
       GRANT SELECT ON TABLE public.player_tech TO authenticated;
@@ -649,6 +726,7 @@ export async function hardResetDatabase() {
        GRANT SELECT ON TABLE public.game_bots TO anon, authenticated;
 
       GRANT USAGE, SELECT ON SEQUENCE public.player_commands_id_seq TO postgres, service_role;
+      GRANT USAGE, SELECT ON SEQUENCE public.player_events_event_id_seq TO postgres, service_role;
 
       GRANT EXECUTE ON FUNCTION public.ensure_player_resources(UUID) TO service_role;
       GRANT EXECUTE ON FUNCTION public.resource_deduct_atomic(UUID, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION) TO service_role;

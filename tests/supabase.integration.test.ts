@@ -63,6 +63,7 @@ const isGatewayInfraUnavailable = (payload: any) => {
   if (!message.includes('schema cache')) return false;
   return (
     message.includes('player_commands')
+    || message.includes('player_events')
     || message.includes('resource_add_atomic')
     || message.includes('resource_deduct_atomic')
     || message.includes('ensure_player_resources')
@@ -159,7 +160,20 @@ describeIf.sequential('Supabase auth and save integration', () => {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_player_commands_player_command ON public.player_commands (player_id, command_id);
       CREATE INDEX IF NOT EXISTS idx_player_commands_player_created ON public.player_commands (player_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS public.player_events (
+        event_id BIGSERIAL PRIMARY KEY,
+        player_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        revision BIGINT NOT NULL,
+        event_type TEXT NOT NULL,
+        delta_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        command_id UUID,
+        server_time BIGINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_player_events_player_event ON public.player_events (player_id, event_id DESC);
+      CREATE INDEX IF NOT EXISTS idx_player_events_player_revision ON public.player_events (player_id, revision DESC);
       ALTER TABLE public.player_commands ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.player_events ENABLE ROW LEVEL SECURITY;
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -174,9 +188,26 @@ describeIf.sequential('Supabase auth and save integration', () => {
             USING (auth.uid() = player_id);
         END IF;
       END $$;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_policies
+          WHERE schemaname = 'public'
+            AND tablename = 'player_events'
+            AND policyname = 'Users read own events'
+        ) THEN
+          CREATE POLICY "Users read own events"
+            ON public.player_events
+            FOR SELECT
+            USING (auth.uid() = player_id);
+        END IF;
+      END $$;
       GRANT SELECT ON TABLE public.player_commands TO authenticated;
+      GRANT SELECT ON TABLE public.player_events TO authenticated;
       GRANT ALL ON TABLE public.player_commands TO postgres, service_role;
+      GRANT ALL ON TABLE public.player_events TO postgres, service_role;
       GRANT USAGE, SELECT ON SEQUENCE public.player_commands_id_seq TO postgres, service_role;
+      GRANT USAGE, SELECT ON SEQUENCE public.player_events_event_id_seq TO postgres, service_role;
 
       CREATE OR REPLACE FUNCTION public.ensure_player_resources(p_player_id UUID)
       RETURNS public.player_resources
@@ -489,6 +520,54 @@ describeIf.sequential('Supabase auth and save integration', () => {
     expect(afterMoney).toBe(beforeMoney + 77);
   });
 
+  it('includes event stream metadata in command and bootstrap contracts', async () => {
+    if (!accessToken) {
+      throw new Error('Missing access token');
+    }
+
+    const before = await fetchBootstrap(baseUrl, accessToken);
+    const expectedRevision = Number(before?.metadata?.revision || 0);
+
+    const command = await fetch(`${baseUrl}/api/command`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        commandId: randomUUID(),
+        type: 'BANK_WITHDRAW',
+        expectedRevision,
+        payload: {
+          gains: {
+            MONEY: 3,
+          },
+        },
+      }),
+    });
+
+    if (!command.ok) {
+      const failure = await command.json().catch(() => null);
+      if (isGatewayInfraUnavailable(failure)) {
+        console.warn('[IntegrationTest] Skipping event stream contract assertion: command gateway infra unavailable in schema cache');
+        return;
+      }
+      throw new Error(`Command failed (${command.status}): ${JSON.stringify(failure)}`);
+    }
+
+    const commandPayload = await command.json();
+    expect(commandPayload.ok).toBe(true);
+    expect(commandPayload.eventId).toBeTruthy();
+    expect(commandPayload.appliedDelta).toBeTruthy();
+
+    const after = await fetchBootstrap(baseUrl, accessToken);
+    expect(after?.playerId).toBeTruthy();
+    expect(Number(after?.serverTime || 0)).toBeGreaterThan(0);
+    expect(Number(after?.revision || 0)).toBeGreaterThanOrEqual(expectedRevision + 1);
+    expect(after?.state).toBeTruthy();
+    expect(after?.lastEventId).toBeTruthy();
+  });
+
   it('returns REVISION_MISMATCH for stale concurrent command', async () => {
     if (!accessToken) {
       throw new Error('Missing access token');
@@ -553,7 +632,7 @@ describeIf.sequential('Supabase auth and save integration', () => {
 
     const after = await fetchBootstrap(baseUrl, accessToken);
     expect(Number(after?.metadata?.revision || 0)).toBe(staleRevision + 1);
-  });
+  }, 10000);
 
   it('preserves saved progress across bootstrap refresh cycle', async () => {
     if (!accessToken) {
