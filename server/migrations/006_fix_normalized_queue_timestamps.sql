@@ -92,7 +92,7 @@ BEGIN
     COALESCE(item->>'id', CONCAT('build-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'BUILD',
-    COALESCE(item->>'buildingType', 'UNKNOWN'),
+    item->>'buildingType',
     item->>'buildingType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
     queue_times.start_time,
@@ -104,14 +104,17 @@ BEGIN
     SELECT
       COALESCE(public.parse_epoch_timestamptz(item->>'startTime'), NOW()) AS start_time,
       COALESCE(public.parse_epoch_timestamptz(item->>'endTime'), NOW()) AS end_time
-  ) queue_times;
+  ) queue_times
+  WHERE NULLIF(btrim(item->>'buildingType'), '') IS NOT NULL
+    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOWN'
+    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOW';
 
   INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
   SELECT
     COALESCE(item->>'id', CONCAT('recruit-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'RECRUIT',
-    COALESCE(item->>'unitType', 'UNKNOWN'),
+    item->>'unitType',
     item->>'unitType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
     queue_times.start_time,
@@ -123,15 +126,23 @@ BEGIN
     SELECT
       COALESCE(public.parse_epoch_timestamptz(item->>'startTime'), NOW()) AS start_time,
       COALESCE(public.parse_epoch_timestamptz(item->>'endTime'), NOW()) AS end_time
-  ) queue_times;
+  ) queue_times
+  WHERE NULLIF(btrim(item->>'unitType'), '') IS NOT NULL
+    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOWN'
+    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOW';
 
-  IF (p_state ? 'activeResearch') AND p_state->'activeResearch' IS NOT NULL THEN
+  IF (p_state ? 'activeResearch')
+    AND p_state->'activeResearch' IS NOT NULL
+    AND NULLIF(btrim(p_state->'activeResearch'->>'techId'), '') IS NOT NULL
+    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOWN'
+    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOW'
+  THEN
     INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
     VALUES (
       CONCAT('research-', p_player_id::TEXT),
       p_player_id,
       'RESEARCH',
-      COALESCE(p_state->'activeResearch'->>'techId', 'UNKNOWN'),
+      btrim(p_state->'activeResearch'->>'techId'),
       p_state->'activeResearch'->>'techId',
       1,
       COALESCE(public.parse_epoch_timestamptz(p_state->'activeResearch'->>'startTime'), NOW()),

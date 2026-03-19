@@ -61,7 +61,9 @@ const hydrateGameState = (input: Partial<GameState> | null | undefined): GameSta
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOOTSTRAP_RETRY_DELAYS_MS = [700, 1500, 3000] as const;
-const MULTI_TAB_SYNC_INTERVAL_MS = 5000;
+const MULTI_TAB_SYNC_INTERVAL_MS = 30000;
+const MULTI_TAB_MIN_SYNC_GAP_MS = 1200;
+const MULTI_TAB_FOCUS_RESYNC_STALE_MS = 15000;
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
 const USER_STATE_CHANGED_EVENT = 'user_state_changed';
@@ -157,7 +159,24 @@ export const usePersistence = (
     if (!headers) return null;
 
     const traceId = createTraceId('persist-bootstrap-v2');
-    const response = await fetch(buildBackendUrl('/api/bootstrap'), { headers });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+
+    let response: Response;
+    try {
+      response = await fetch(buildBackendUrl('/api/bootstrap'), { headers, signal: controller.signal });
+    } catch (error) {
+      const timeoutError = makeBootstrapError('Bootstrap request timeout', {
+        errorCode: 'BOOTSTRAP_TIMEOUT',
+        retryable: true,
+      });
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
 
     if (response.status === 401) {
       await signOut();
@@ -450,63 +469,108 @@ export const usePersistence = (
     if (!user || !session || status !== 'PLAYING') return;
 
     let cancelled = false;
-    let syncing = false;
+    let socketSubscribed = false;
+    let syncInFlight: Promise<void> | null = null;
+    let lastSyncStartedAt = 0;
 
-    const syncAuthoritativeSnapshot = async () => {
-      if (syncing || cancelled) return;
-      syncing = true;
-      try {
-        const bootstrapPayload = await fetchBootstrapSnapshot();
-        const serverState = bootstrapPayload?.state || null;
-        if (!serverState) return;
-
-        const localState = gameStateRef.current;
-        const localRevision = Number(localState?.revision || 0);
-        const serverRevision = Number(serverState?.revision || 0);
-        if (bootstrapPayload?.updatedAt) {
-          cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
-        }
-
-        const shouldApply = serverRevision > localRevision;
-        if (!shouldApply || cancelled) return;
-
-        setGameState(hydrateGameState(serverState as Partial<GameState>));
-        lastTickRef.current = TimeSyncService.getServerTime();
-      } catch (error) {
-        console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
-          userId: shortId(user?.id),
-          error: normalizeError(error),
-        });
-      } finally {
-        syncing = false;
-      }
+    const canSkipForRevision = (revision: number | null | undefined) => {
+      if (!Number.isFinite(Number(revision))) return false;
+      const incoming = Number(revision || 0);
+      const localRevision = Number(gameStateRef.current?.revision || 0);
+      return incoming <= localRevision;
     };
 
-    const intervalId = window.setInterval(syncAuthoritativeSnapshot, MULTI_TAB_SYNC_INTERVAL_MS);
+    const runSync = async () => {
+      const bootstrapPayload = await fetchBootstrapSnapshot();
+      const serverState = bootstrapPayload?.state || null;
+      if (!serverState || cancelled) return;
+
+      const localState = gameStateRef.current;
+      const localRevision = Number(localState?.revision || 0);
+      const serverRevision = Number(serverState?.revision || 0);
+      if (bootstrapPayload?.updatedAt) {
+        cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
+      }
+
+      if (!Number.isFinite(serverRevision) || serverRevision <= localRevision || cancelled) {
+        return;
+      }
+
+      setGameState(hydrateGameState(serverState as Partial<GameState>));
+      lastTickRef.current = TimeSyncService.getServerTime();
+    };
+
+    const requestSync = (options?: { reason?: string; force?: boolean; expectedRevision?: number | null }) => {
+      if (cancelled) return;
+
+      const reason = options?.reason || 'unknown';
+      const force = options?.force === true;
+      const expectedRevision = options?.expectedRevision;
+
+      if (!force && canSkipForRevision(expectedRevision)) {
+        return;
+      }
+
+      if (!force && reason === 'poll' && socketSubscribed) {
+        return;
+      }
+
+      const now = Date.now();
+      if (!force && (now - lastSyncStartedAt) < MULTI_TAB_MIN_SYNC_GAP_MS) {
+        return;
+      }
+
+      if (syncInFlight) {
+        return;
+      }
+
+      lastSyncStartedAt = now;
+      syncInFlight = runSync()
+        .catch((error) => {
+          console.warn('[Persistence] Multi-tab sync skipped due to transient error', {
+            userId: shortId(user?.id),
+            reason,
+            error: normalizeError(error),
+          });
+        })
+        .finally(() => {
+          syncInFlight = null;
+        });
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      requestSync({ reason: 'poll' });
+    }, MULTI_TAB_SYNC_INTERVAL_MS);
 
     const onVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        void syncAuthoritativeSnapshot();
+      if (document.visibilityState !== 'visible') {
+        return;
       }
+      const staleMs = Date.now() - lastSyncStartedAt;
+      const force = staleMs >= MULTI_TAB_FOCUS_RESYNC_STALE_MS;
+      requestSync({ reason: 'focus', force });
     };
 
     const onStorage = (event: StorageEvent) => {
       if (event.key !== SERVER_MUTATION_SYNC_STORAGE_KEY || !event.newValue) return;
       try {
-        const payload = JSON.parse(event.newValue) as { userId?: string | null };
+        const payload = JSON.parse(event.newValue) as { userId?: string | null; revision?: number };
         if (payload?.userId && payload.userId !== user.id) return;
+        requestSync({ reason: 'storage', expectedRevision: Number(payload?.revision || 0) });
       } catch {
         // Ignore malformed payloads
       }
-      void syncAuthoritativeSnapshot();
     };
 
     let channel: BroadcastChannel | null = null;
     let socket: Socket | null = null;
     const onChannelMessage = (event: MessageEvent) => {
-      const payload = event?.data as { userId?: string | null } | null;
+      const payload = event?.data as { userId?: string | null; revision?: number } | null;
       if (payload?.userId && payload.userId !== user.id) return;
-      void syncAuthoritativeSnapshot();
+      requestSync({ reason: 'broadcast', expectedRevision: Number(payload?.revision || 0) });
     };
 
     try {
@@ -525,14 +589,17 @@ export const usePersistence = (
       socket = BACKEND_ORIGIN ? io(BACKEND_ORIGIN, socketOptions) : io(socketOptions);
 
       socket.on('connect', () => {
+        socketSubscribed = false;
         socket?.emit('subscribe_user_state', { token: session.access_token });
       });
 
       socket.on('user_state_subscription', (payload: { ok?: boolean; errorCode?: string }) => {
         if (payload?.ok) {
-          void syncAuthoritativeSnapshot();
+          socketSubscribed = true;
+          requestSync({ reason: 'socket_subscribed', force: true });
           return;
         }
+        socketSubscribed = false;
         if (payload?.errorCode) {
           console.warn('[Persistence] Realtime state subscription failed', {
             userId: shortId(user?.id),
@@ -543,11 +610,20 @@ export const usePersistence = (
 
       socket.on(USER_STATE_CHANGED_EVENT, (payload: { userId?: string | null; revision?: number; reason?: string }) => {
         if (payload?.userId && payload.userId !== user.id) return;
-        void syncAuthoritativeSnapshot();
+        requestSync({ reason: 'socket_push', expectedRevision: Number(payload?.revision || 0) });
       });
 
       socket.on('reconnect', () => {
+        socketSubscribed = false;
         socket?.emit('subscribe_user_state', { token: session.access_token });
+      });
+
+      socket.on('disconnect', () => {
+        socketSubscribed = false;
+      });
+
+      socket.on('connect_error', () => {
+        socketSubscribed = false;
       });
     } catch (error) {
       console.warn('[Persistence] Realtime socket unavailable; polling fallback active', {
@@ -561,7 +637,7 @@ export const usePersistence = (
     window.addEventListener('focus', onVisibilityOrFocus);
     document.addEventListener('visibilitychange', onVisibilityOrFocus);
 
-    void syncAuthoritativeSnapshot();
+    requestSync({ reason: 'initial', force: true });
 
     return () => {
       cancelled = true;
@@ -577,6 +653,8 @@ export const usePersistence = (
         socket.off(USER_STATE_CHANGED_EVENT);
         socket.off('user_state_subscription');
         socket.off('reconnect');
+        socket.off('disconnect');
+        socket.off('connect_error');
         socket.off('connect');
         socket.disconnect();
       }

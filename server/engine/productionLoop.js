@@ -2,21 +2,89 @@ import { supabase } from '../lib/supabase.js';
 import { processServerEconomyTick } from './economyTick.js';
 import { getOrCreatePlayerResources } from './resourceValidator.js';
 
-const TICK_INTERVAL_MS = 5000;
+const TICK_INTERVAL_MS = Number(process.env.PRODUCTION_TICK_INTERVAL_MS || 15000);
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
-const PROFILE_SYNC_INTERVAL_MS = 30 * 1000;
+const PROFILE_SYNC_INTERVAL_MS = Number(process.env.PRODUCTION_PROFILE_SYNC_INTERVAL_MS || 60000);
+const LOOP_BACKOFF_BASE_MS = 5000;
+const LOOP_BACKOFF_MAX_MS = 120000;
+const PROFILE_SYNC_EVERY_TICKS = Math.max(1, Math.round(PROFILE_SYNC_INTERVAL_MS / Math.max(1, TICK_INTERVAL_MS)));
 
 let syncCounter = 0;
+let isProcessing = false;
+let consecutiveTransientFailures = 0;
+let backoffUntil = 0;
 
 const toIso = (timestamp) => new Date(timestamp).toISOString();
 
+const normalizeErrorMessage = (error) => {
+  const message = String(error?.message || error || 'unknown_error');
+  const compact = message.replace(/\s+/g, ' ').trim();
+
+  if (compact.toLowerCase().includes('<!doctype html>') || compact.toLowerCase().includes('<html')) {
+    return 'upstream_html_error_cloudflare';
+  }
+
+  return compact.slice(0, 300);
+};
+
+const isTransientUpstreamError = (error) => {
+  const message = normalizeErrorMessage(error).toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+
+  return (
+    code === '57014'
+    || message.includes('upstream request timeout')
+    || message.includes('temporarily unavailable')
+    || message.includes('cloudflare')
+    || message.includes('timeout')
+    || message.includes('econnreset')
+    || message.includes('fetch failed')
+    || message.includes('network')
+    || message.includes('upstream_html_error_cloudflare')
+  );
+};
+
+const registerTransientFailure = (context, error) => {
+  consecutiveTransientFailures += 1;
+  const cooldownMs = Math.min(LOOP_BACKOFF_MAX_MS, LOOP_BACKOFF_BASE_MS * (2 ** (consecutiveTransientFailures - 1)));
+  backoffUntil = Date.now() + cooldownMs;
+
+  console.warn(`[ProductionLoop] ${context}: ${normalizeErrorMessage(error)} (cooldown ${cooldownMs}ms)`);
+};
+
+const resetTransientFailureState = () => {
+  consecutiveTransientFailures = 0;
+  backoffUntil = 0;
+};
+
 export function startProductionLoop() {
-  console.log('[ProductionLoop] Starting server economy engine (5s interval)...');
+  console.log(`[ProductionLoop] Starting server economy engine (${Math.max(1, Math.floor(TICK_INTERVAL_MS / 1000))}s interval)...`);
   setInterval(processAllActivePlayers, TICK_INTERVAL_MS);
 }
 
 async function processAllActivePlayers() {
+  if (isProcessing) return;
+
   const now = Date.now();
+  if (now < backoffUntil) return;
+
+  isProcessing = true;
+
+  try {
+    await processAllActivePlayersInternal(now);
+    resetTransientFailureState();
+  } catch (error) {
+    if (isTransientUpstreamError(error)) {
+      registerTransientFailure('Transient upstream failure', error);
+    } else {
+      console.error('[ProductionLoop] Unhandled processing error:', normalizeErrorMessage(error));
+    }
+  } finally {
+    isProcessing = false;
+  }
+}
+
+async function processAllActivePlayersInternal(now) {
   const staleIso = toIso(now - ACTIVE_WINDOW_MS);
 
   const { data: profiles, error } = await supabase
@@ -26,8 +94,7 @@ async function processAllActivePlayers() {
     .limit(200);
 
   if (error) {
-    console.error('[ProductionLoop] Failed to fetch active profiles:', error.message);
-    return;
+    throw error;
   }
 
   if (!profiles || profiles.length === 0) return;
@@ -39,8 +106,7 @@ async function processAllActivePlayers() {
     .in('player_id', ids);
 
   if (resourceError) {
-    console.error('[ProductionLoop] Failed to fetch player_resources:', resourceError.message);
-    return;
+    throw resourceError;
   }
 
   const resourceMap = new Map((resourceRows || []).map((row) => [row.player_id, row]));
@@ -80,7 +146,7 @@ async function processAllActivePlayers() {
         updated_at: new Date().toISOString(),
       });
 
-      const shouldSyncProfile = (syncCounter % (PROFILE_SYNC_INTERVAL_MS / TICK_INTERVAL_MS)) === 0;
+      const shouldSyncProfile = (syncCounter % PROFILE_SYNC_EVERY_TICKS) === 0;
       if (shouldSyncProfile) {
         profileUpdates.push({
           id: profile.id,
@@ -109,7 +175,7 @@ async function processAllActivePlayers() {
         });
       }
     } catch (profileError) {
-      console.error(`[ProductionLoop] Failed to process profile ${profile.id}:`, profileError.message || profileError);
+      console.warn(`[ProductionLoop] Failed to process profile ${profile.id}: ${normalizeErrorMessage(profileError)}`);
     }
   }
 
@@ -119,7 +185,7 @@ async function processAllActivePlayers() {
       .upsert(upserts, { onConflict: 'player_id' });
 
     if (upsertError) {
-      console.error('[ProductionLoop] Failed to upsert player_resources:', upsertError.message);
+      throw upsertError;
     }
   }
 
@@ -128,7 +194,7 @@ async function processAllActivePlayers() {
       .from('profiles')
       .upsert(profileUpdates, { onConflict: 'id' });
     if (profileUpdateError) {
-      console.error('[ProductionLoop] Failed to sync resources to profiles:', profileUpdateError.message);
+      throw profileUpdateError;
     }
   }
 

@@ -49,6 +49,7 @@ export const createBootstrapService = ({
   shortId,
   normalizeServerError,
   logWithSchema,
+  calculateEmpirePointsBreakdown,
 }) => {
   const NORMALIZED_DOMAIN_STATE_KEYS = [
     'buildings',
@@ -128,9 +129,28 @@ export const createBootstrapService = ({
       };
 
       const lifecycleResolved = resolveLifecycleCompletions(stateWithDefaults, serverTime);
-      const effectiveState = lifecycleResolved.state;
+      const progression = calculateEmpirePointsBreakdown(lifecycleResolved.state);
+      const effectiveState = {
+        ...lifecycleResolved.state,
+        empirePoints: progression.empirePoints,
+        rankingStats: {
+          ...(isNonNullObject(lifecycleResolved.state?.rankingStats) ? lifecycleResolved.state.rankingStats : {}),
+          DOMINION: progression.empirePoints,
+          MILITARY: progression.militaryScore,
+          ECONOMY: progression.economyScore,
+          CAMPAIGN: progression.campaignScore,
+        },
+      };
+      const currentRankingStats = isNonNullObject(lifecycleResolved.state?.rankingStats)
+        ? lifecycleResolved.state.rankingStats
+        : {};
+      const progressionChanged = Number(lifecycleResolved.state?.empirePoints || 0) !== progression.empirePoints
+        || Number(currentRankingStats.DOMINION || 0) !== progression.empirePoints
+        || Number(currentRankingStats.MILITARY || 0) !== progression.militaryScore
+        || Number(currentRankingStats.ECONOMY || 0) !== progression.economyScore
+        || Number(currentRankingStats.CAMPAIGN || 0) !== progression.campaignScore;
 
-      if (lifecycleResolved.changed) {
+      if (lifecycleResolved.changed || progressionChanged) {
         const lifecycleUpdatedAt = new Date(serverTime).toISOString();
         const { error: lifecycleSaveError } = await supabase.from('profiles').upsert({
           id: req.user.id,

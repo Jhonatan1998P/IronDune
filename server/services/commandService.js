@@ -30,6 +30,7 @@ export const createCommandService = ({
   loadNormalizedStatePatch,
   stripCriticalDomainFromBlob,
   logWithSchema,
+  calculateEmpirePointsBreakdown,
 }) => {
   const NORMALIZED_DOMAIN_STATE_KEYS = [
     'buildings',
@@ -50,6 +51,22 @@ export const createCommandService = ({
   const hasNormalizedDomainChanges = (beforeState, afterState) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
     JSON.stringify(beforeState?.[key]) !== JSON.stringify(afterState?.[key])
   ));
+
+  const isTransientCommandError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    const code = String(error?.code || '').toLowerCase();
+
+    return (
+      code === '57014'
+      || message.includes('upstream request timeout')
+      || message.includes('temporarily unavailable')
+      || message.includes('cloudflare')
+      || message.includes('timeout')
+      || message.includes('fetch failed')
+      || message.includes('network')
+      || message.includes('econnreset')
+    );
+  };
 
   const handleCommand = async (req, res) => {
     const traceId = req.traceId || makeTraceId('command');
@@ -346,10 +363,20 @@ export const createCommandService = ({
       }
 
       const authoritativeResources = await getOrCreatePlayerResources(req.user.id);
+      const progression = calculateEmpirePointsBreakdown(workingState);
+
       const nextState = {
         ...workingState,
         revision: nextRevision,
         lastSaveTime: serverTime,
+        empirePoints: progression.empirePoints,
+        rankingStats: {
+          ...(isNonNullObject(workingState.rankingStats) ? workingState.rankingStats : {}),
+          DOMINION: progression.empirePoints,
+          MILITARY: progression.militaryScore,
+          ECONOMY: progression.economyScore,
+          CAMPAIGN: progression.campaignScore,
+        },
         resources: {
           [ResourceType.MONEY]: authoritativeResources.money,
           [ResourceType.OIL]: authoritativeResources.oil,
@@ -450,11 +477,15 @@ export const createCommandService = ({
 
       return res.json(responsePayload);
     } catch (error) {
+      const isTransient = isTransientCommandError(error);
+      const errorCode = isTransient ? 'COMMAND_TRANSIENT_ERROR' : 'COMMAND_FAILED';
+
       if (isLikelyUuid(req.body?.commandId)) {
         const failedPayload = {
           ok: false,
           error: error.message || 'Failed to process command',
-          errorCode: 'COMMAND_FAILED',
+          errorCode,
+          retryable: isTransient,
           traceId,
         };
 
@@ -470,7 +501,7 @@ export const createCommandService = ({
         userId: shortId(req.user?.id),
         commandId: req.body?.commandId || null,
         expectedRevision: parseRevision(req.body?.expectedRevision),
-        errorCode: 'COMMAND_FAILED',
+        errorCode,
         extra: {
           error: normalizeServerError(error),
           commandType: req.body?.type || null,
@@ -480,14 +511,15 @@ export const createCommandService = ({
       observeCommandEvent({
         type: req.body?.type,
         result: 'failed',
-        errorCode: 'COMMAND_FAILED',
+        errorCode,
         durationMs: Date.now() - commandStartedAt,
       });
 
-      return res.status(500).json({
+      return res.status(isTransient ? 503 : 500).json({
         ok: false,
         error: error.message || 'Failed to process command',
-        errorCode: 'COMMAND_FAILED',
+        errorCode,
+        retryable: isTransient,
         traceId,
       });
     }

@@ -170,7 +170,7 @@ BEGIN
     COALESCE(item->>'id', CONCAT('build-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'BUILD',
-    COALESCE(item->>'buildingType', 'UNKNOWN'),
+    item->>'buildingType',
     item->>'buildingType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
     to_timestamp(CASE
@@ -185,14 +185,17 @@ BEGIN
     END),
     'ACTIVE',
     NOW()
-  FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item;
+  FROM jsonb_array_elements(COALESCE(p_state->'activeConstructions', '[]'::jsonb)) item
+  WHERE NULLIF(btrim(item->>'buildingType'), '') IS NOT NULL
+    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOWN'
+    AND UPPER(btrim(item->>'buildingType')) <> 'UNKNOW';
 
   INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
   SELECT
     COALESCE(item->>'id', CONCAT('recruit-', p_player_id::TEXT, '-', row_number() OVER ())),
     p_player_id,
     'RECRUIT',
-    COALESCE(item->>'unitType', 'UNKNOWN'),
+    item->>'unitType',
     item->>'unitType',
     GREATEST(COALESCE((item->>'count')::INTEGER, 1), 1),
     to_timestamp(CASE
@@ -207,15 +210,23 @@ BEGIN
     END),
     'ACTIVE',
     NOW()
-  FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item;
+  FROM jsonb_array_elements(COALESCE(p_state->'activeRecruitments', '[]'::jsonb)) item
+  WHERE NULLIF(btrim(item->>'unitType'), '') IS NOT NULL
+    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOWN'
+    AND UPPER(btrim(item->>'unitType')) <> 'UNKNOW';
 
-  IF (p_state ? 'activeResearch') AND p_state->'activeResearch' IS NOT NULL THEN
+  IF (p_state ? 'activeResearch')
+    AND p_state->'activeResearch' IS NOT NULL
+    AND NULLIF(btrim(p_state->'activeResearch'->>'techId'), '') IS NOT NULL
+    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOWN'
+    AND UPPER(btrim(p_state->'activeResearch'->>'techId')) <> 'UNKNOW'
+  THEN
     INSERT INTO public.player_queues (id, player_id, queue_type, target_type, target_id, count, start_time, end_time, status, updated_at)
     VALUES (
       CONCAT('research-', p_player_id::TEXT),
       p_player_id,
       'RESEARCH',
-      COALESCE(p_state->'activeResearch'->>'techId', 'UNKNOWN'),
+      btrim(p_state->'activeResearch'->>'techId'),
       p_state->'activeResearch'->>'techId',
       1,
       to_timestamp(CASE

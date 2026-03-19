@@ -13,7 +13,7 @@ import { simulateCombat } from './engine/combat.js';
 import { startScheduler } from './scheduler.js';
 import { startProductionLoop } from './engine/productionLoop.js';
 import { addResources, getOrCreatePlayerResources, validateResourceDeduction } from './engine/resourceValidator.js';
-import { ResourceType } from './engine/enums.js';
+import { BuildingType, ResourceType, TechType, UnitType } from './engine/enums.js';
 import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
 import { buildAuthoritativeCommandResult, normalizeLifecycleState, resolveLifecycleCompletions } from './engine/authoritativeLifecycle.js';
 import { buildAuthoritativeTutorialCommandResult } from './engine/authoritativeTutorial.js';
@@ -26,12 +26,13 @@ import { registerResourceRoutes } from './routes/resourceRoutes.js';
 import { registerDevToolsRoutes } from './routes/devToolsRoutes.js';
 import { makeTraceId, normalizeServerError, shortId } from './lib/trace.js';
 import { buildServerStatePatch, isNonNullObject, parseRevision, sanitizeStatePatch } from './lib/statePatch.js';
+import { calculateEmpirePointsBreakdown } from './lib/empirePoints.js';
 import { createRequireAuthUser } from './middleware/auth.js';
 import { logWithSchema } from './lib/logSchema.js';
 
 const DEFAULT_ROLE = 'Usuario';
 const ROLE_PRIORITY = ['Dev', 'Admin', 'Moderador', 'Premium', 'Usuario'];
-const PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const PROFILE_SYNC_INTERVAL_MS = Number(process.env.PROFILE_SYNC_INTERVAL_MS || 60 * 60 * 1000);
 const SCHEMA_CACHE_ERROR = "schema cache";
 const SERVER_MANAGED_FIELDS = ['resources', 'maxResources', 'bankBalance', 'currentInterestRate', 'nextRateChangeTime', 'lastInterestPayoutTime'];
 const FROZEN_BLOB_CRITICAL_FIELDS = ['buildings', 'units', 'techLevels', 'researchedTechs', 'activeConstructions', 'activeRecruitments', 'activeResearch', 'campaignProgress', 'empirePoints'];
@@ -43,6 +44,10 @@ const FREEZE_LEGACY_BLOB_CRITICAL_FIELDS = false;
 const MAX_QUEUE_TIMESTAMP_MS = Date.parse('3000-01-01T00:00:00.000Z');
 const AUTHORITATIVE_QUEUE_COMMANDS = new Set(['BUILD_START', 'RECRUIT_START', 'RESEARCH_START']);
 const AUTHORITATIVE_SPEEDUP_TYPES = new Set(['BUILD', 'RECRUIT', 'RESEARCH']);
+const INVALID_QUEUE_TARGETS = new Set(['UNKNOWN', 'UNKNOW']);
+const VALID_BUILDING_TYPES = new Set(Object.values(BuildingType));
+const VALID_UNIT_TYPES = new Set(Object.values(UnitType));
+const VALID_TECH_TYPES = new Set(Object.values(TechType));
 const COMMAND_RATE_WINDOW_MS = Number(process.env.COMMAND_RATE_WINDOW_MS || 60_000);
 const COMMAND_RATE_MAX_REQUESTS = Number(process.env.COMMAND_RATE_MAX_REQUESTS || 120);
 const COMMAND_METRICS_LOG_INTERVAL_MS = Number(process.env.COMMAND_METRICS_LOG_INTERVAL_MS || 60_000);
@@ -340,6 +345,7 @@ const requireAuthUser = createRequireAuthUser({
   shortId,
   normalizeServerError,
   logWithSchema,
+  calculateEmpirePointsBreakdown,
 });
 
 const getOrCreateProfileState = async (user) => {
@@ -415,15 +421,59 @@ const stripCriticalDomainFromBlob = (state) => {
   return sanitized;
 };
 
+const isValidQueueTarget = (queueType, rawTargetType) => {
+  const targetType = String(rawTargetType || '').trim();
+  if (!targetType || INVALID_QUEUE_TARGETS.has(targetType.toUpperCase())) {
+    return false;
+  }
+
+  if (queueType === 'BUILD') return VALID_BUILDING_TYPES.has(targetType);
+  if (queueType === 'RECRUIT') return VALID_UNIT_TYPES.has(targetType);
+  if (queueType === 'RESEARCH') return VALID_TECH_TYPES.has(targetType);
+  return false;
+};
+
+const sanitizeStateForNormalizedSync = (state) => {
+  if (!isNonNullObject(state)) return state;
+
+  const nextState = { ...state };
+
+  const constructions = Array.isArray(nextState.activeConstructions)
+    ? nextState.activeConstructions.filter((item) => isValidQueueTarget('BUILD', item?.buildingType))
+    : [];
+  nextState.activeConstructions = constructions;
+
+  const recruitments = Array.isArray(nextState.activeRecruitments)
+    ? nextState.activeRecruitments.filter((item) => isValidQueueTarget('RECRUIT', item?.unitType))
+    : [];
+  nextState.activeRecruitments = recruitments;
+
+  const researchTechId = typeof nextState.activeResearch?.techId === 'string'
+    ? nextState.activeResearch.techId.trim()
+    : '';
+  if (!isValidQueueTarget('RESEARCH', researchTechId)) {
+    nextState.activeResearch = null;
+  } else {
+    nextState.activeResearch = {
+      ...nextState.activeResearch,
+      techId: researchTechId,
+    };
+  }
+
+  return nextState;
+};
+
 const syncNormalizedDomain = async (playerId, state, traceId) => {
   if (!NORMALIZED_DUAL_WRITE_ENABLED) {
     return { ok: true, skipped: true };
   }
 
   try {
+    const sanitizedState = sanitizeStateForNormalizedSync(state);
+
     const { error } = await supabase.rpc('sync_player_domain_from_state', {
       p_player_id: playerId,
-      p_state: state,
+      p_state: sanitizedState,
     });
 
     if (error) throw error;
@@ -502,7 +552,7 @@ const loadNormalizedStatePatch = async (playerId) => {
 
   for (const row of queuesRes.data || []) {
     const targetType = String(row.target_type || '').trim();
-    if (!targetType || targetType === 'UNKNOWN') {
+    if (!isValidQueueTarget(row.queue_type, targetType)) {
       continue;
     }
 
@@ -641,6 +691,7 @@ registerCommandRoutes(app, {
   emitUserStateChanged,
   normalizeServerError,
   logWithSchema,
+  calculateEmpirePointsBreakdown,
 });
 
 registerBootstrapRoutes(app, {

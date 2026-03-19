@@ -56,6 +56,7 @@ const getResourceDiff = (before: Record<ResourceType, number>, after: Record<Res
 const hasAmounts = (amounts: Partial<Record<ResourceType, number>>) => Object.values(amounts).some((value) => (value || 0) > 0);
 const SERVER_MUTATION_SYNC_STORAGE_KEY = 'ido.serverMutationSync.v1';
 const SERVER_MUTATION_SYNC_CHANNEL = 'ido.serverMutationSync.channel.v1';
+const TRANSIENT_COMMAND_RETRY_DELAYS_MS = [250, 700] as const;
 
 const buildCommandPayload = (
   costs: Partial<Record<ResourceType, number>>,
@@ -139,6 +140,8 @@ const createCommandId = () => {
   return `${a.slice(0, 8)}-${a.slice(0, 4)}-4${a.slice(5, 8)}-a${b.slice(1, 4)}-${a.slice(0, 4)}${b}`;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const buildStatePatch = (before: GameState, after: GameState) => {
   const patch: Partial<GameState> = {};
   const sanitizedBefore = stripServerManagedFields(before);
@@ -185,73 +188,144 @@ export const useGameActions = (
   const dispatchCommand = useCallback(async (
     commandType: CommandType,
     expectedRevision: number,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    commandId: string,
   ) => {
     const token = session?.access_token;
     if (!token) {
-      return { ok: false, errorCode: 'MISSING_AUTH', diagnostics: [] as string[], statePatch: undefined as Partial<GameState> | undefined };
-    }
-
-    const response = await fetch(buildBackendUrl('/api/command'), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        commandId: createCommandId(),
-        type: commandType,
-        payload,
-        expectedRevision,
-      }),
-    });
-
-    const body = await response.json().catch(() => null);
-    if (!response.ok) {
-      console.error('[CommandGateway] Command failed', {
-        status: response.status,
-        commandType,
-        errorCode: body?.errorCode || 'COMMAND_FAILED',
-        error: body?.error || null,
-        traceId: body?.traceId || null,
-        diagnostics: body?.diagnostics || [],
-      });
       return {
         ok: false,
-        status: response.status,
-        errorCode: body?.errorCode || 'COMMAND_FAILED',
-        error: body?.error || 'Command failed',
-        traceId: body?.traceId || null,
-        diagnostics: body?.diagnostics || [],
+        errorCode: 'MISSING_AUTH',
+        diagnostics: [] as string[],
         statePatch: undefined as Partial<GameState> | undefined,
+        retryable: false,
       };
     }
 
-    return {
-      ok: Boolean(body?.ok),
-      newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
-      diagnostics: body?.diagnostics || [],
-      statePatch: body?.statePatch && typeof body.statePatch === 'object' ? body.statePatch as Partial<GameState> : undefined,
-    };
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(buildBackendUrl('/api/command'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          commandId,
+          type: commandType,
+          payload,
+          expectedRevision,
+        }),
+      });
+
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        console.error('[CommandGateway] Command failed', {
+          status: response.status,
+          commandType,
+          errorCode: body?.errorCode || 'COMMAND_FAILED',
+          error: body?.error || null,
+          traceId: body?.traceId || null,
+          diagnostics: body?.diagnostics || [],
+        });
+        return {
+          ok: false,
+          status: response.status,
+          errorCode: body?.errorCode || 'COMMAND_FAILED',
+          error: body?.error || 'Command failed',
+          traceId: body?.traceId || null,
+          diagnostics: body?.diagnostics || [],
+          retryable: Boolean(body?.retryable) || response.status === 503,
+          statePatch: undefined as Partial<GameState> | undefined,
+        };
+      }
+
+      return {
+        ok: Boolean(body?.ok),
+        newRevision: Number.isFinite(body?.newRevision) ? body.newRevision : undefined,
+        diagnostics: body?.diagnostics || [],
+        retryable: false,
+        statePatch: body?.statePatch && typeof body.statePatch === 'object' ? body.statePatch as Partial<GameState> : undefined,
+      };
+    } catch (error) {
+      const isAbort = error instanceof DOMException && error.name === 'AbortError';
+      console.error('[CommandGateway] Command network failure', {
+        commandType,
+        error: isAbort ? 'Request timeout' : (error instanceof Error ? error.message : String(error || 'unknown')),
+      });
+      return {
+        ok: false,
+        status: 0,
+        errorCode: 'COMMAND_NETWORK_ERROR',
+        error: isAbort ? 'Request timeout' : (error instanceof Error ? error.message : 'Network error'),
+        diagnostics: [] as string[],
+        retryable: true,
+        statePatch: undefined as Partial<GameState> | undefined,
+      };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }, [session?.access_token]);
 
   const syncStateFromBootstrap = useCallback(async () => {
     const token = session?.access_token;
     if (!token) return null;
 
-    const response = await fetch(buildBackendUrl('/api/bootstrap'), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
 
-    if (!response.ok) {
+    try {
+      const response = await fetch(buildBackendUrl('/api/bootstrap'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const body = await response.json().catch(() => null);
+      return (body?.game_state || null) as GameState | null;
+    } catch {
       return null;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }, [session?.access_token]);
+
+  const isRetryableCommandFailure = useCallback((result: any) => {
+    if (result?.ok) return false;
+    if (result?.retryable === true) return true;
+    if (result?.errorCode === 'COMMAND_TRANSIENT_ERROR' || result?.errorCode === 'COMMAND_NETWORK_ERROR') return true;
+    return Number(result?.status || 0) === 503;
+  }, []);
+
+  const dispatchCommandWithRetry = useCallback(async (
+    commandType: CommandType,
+    expectedRevision: number,
+    payload: Record<string, unknown>,
+    commandId: string,
+  ) => {
+    let result = await dispatchCommand(commandType, expectedRevision, payload, commandId);
+    if (!isRetryableCommandFailure(result)) {
+      return result;
     }
 
-    const body = await response.json().catch(() => null);
-    return (body?.game_state || null) as GameState | null;
-  }, [session?.access_token]);
+    for (const delayMs of TRANSIENT_COMMAND_RETRY_DELAYS_MS) {
+      await sleep(delayMs + Math.floor(Math.random() * 120));
+      result = await dispatchCommand(commandType, expectedRevision, payload, commandId);
+      if (!isRetryableCommandFailure(result)) {
+        return result;
+      }
+    }
+
+    return result;
+  }, [dispatchCommand, isRetryableCommandFailure]);
 
   const applyActionWithServerValidation = useCallback((
     commandType: CommandType,
@@ -280,9 +354,10 @@ export const useGameActions = (
           payload: commandPayloadOverride,
         }
         : buildPayloadFrom(gameState, preview.newState as GameState);
-      let commandResult = await dispatchCommand(commandType, initialPayload.expectedRevision, {
+      const initialCommandId = createCommandId();
+      let commandResult = await dispatchCommandWithRetry(commandType, initialPayload.expectedRevision, {
         ...initialPayload.payload,
-      });
+      }, initialCommandId);
 
       let nextStateToApply = preview.newState as GameState;
       let baseStateForApply = gameState;
@@ -307,9 +382,10 @@ export const useGameActions = (
             payload: commandPayloadOverride,
           }
           : buildPayloadFrom(syncedState, retryPreview.newState);
-        commandResult = await dispatchCommand(commandType, retryPayload.expectedRevision, {
+        const retryCommandId = createCommandId();
+        commandResult = await dispatchCommandWithRetry(commandType, retryPayload.expectedRevision, {
           ...retryPayload.payload,
-        });
+        }, retryCommandId);
 
         nextStateToApply = retryPreview.newState;
         baseStateForApply = syncedState;
@@ -370,7 +446,7 @@ export const useGameActions = (
     };
 
     run();
-  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState, syncStateFromBootstrap]);
+  }, [addLog, dispatchCommandWithRetry, gameState, notifyCrossTabServerMutation, setGameState, syncStateFromBootstrap]);
 
   const build = useCallback((type: BuildingType, amount: number = 1) => {
     const preview = executeBuild(gameState, type, amount);
@@ -419,9 +495,10 @@ export const useGameActions = (
       const expectedRevision = Number(gameState.revision || 0);
 
       const run = async () => {
-        const commandResult = await dispatchCommand(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
+        const commandId = createCommandId();
+        const commandResult = await dispatchCommandWithRetry(type === 'deposit' ? 'BANK_DEPOSIT' : 'BANK_WITHDRAW', expectedRevision, {
           ...buildCommandPayload(costs, gains, statePatch),
-        });
+        }, commandId);
 
         if (!commandResult.ok) {
           if (commandResult.errorCode === 'INSUFFICIENT_FUNDS') {
@@ -444,7 +521,7 @@ export const useGameActions = (
       };
 
       run();
-  }, [addLog, dispatchCommand, gameState, notifyCrossTabServerMutation, setGameState]);
+  }, [addLog, dispatchCommandWithRetry, gameState, notifyCrossTabServerMutation, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);
