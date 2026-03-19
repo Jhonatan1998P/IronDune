@@ -11,6 +11,22 @@ export const registerProfileRoutes = (app, deps) => {
     normalizeServerError,
   } = deps;
 
+  const NORMALIZED_DOMAIN_STATE_KEYS = [
+    'buildings',
+    'units',
+    'techLevels',
+    'researchedTechs',
+    'activeConstructions',
+    'activeRecruitments',
+    'activeResearch',
+    'campaignProgress',
+    'empirePoints',
+  ];
+
+  const hasCriticalCoverageGap = (blobState, normalizedPatch) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
+    blobState?.[key] === undefined && normalizedPatch?.[key] !== undefined
+  ));
+
   app.get('/api/profile', requireAuthUser, async (req, res) => {
     const traceId = req.traceId || makeTraceId('profile-load');
     try {
@@ -44,11 +60,21 @@ export const registerProfileRoutes = (app, deps) => {
         const normalizedPatch = await loadNormalizedStatePatch(req.user.id);
         const blobLastSaveTime = Number(responseState?.lastSaveTime || 0);
         const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+        const normalizedRepairsBlobGap = hasCriticalCoverageGap(responseState || {}, normalizedPatch || {});
         const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
-          && normalizedLastSaveTime >= blobLastSaveTime;
+          && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
         if (!shouldUseNormalizedPatch && isNonNullObject(normalizedPatch)) {
           console.warn('[ProfileAPI] Ignoring stale normalized state patch', {
+            traceId,
+            userId: shortId(req.user.id),
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          });
+        }
+
+        if (isNonNullObject(normalizedPatch) && shouldUseNormalizedPatch && normalizedLastSaveTime < blobLastSaveTime && normalizedRepairsBlobGap) {
+          console.warn('[ProfileAPI] Using stale normalized patch to repair blob critical gap', {
             traceId,
             userId: shortId(req.user.id),
             blobLastSaveTime,

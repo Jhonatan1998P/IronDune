@@ -25,6 +25,9 @@ Si quieres operar con el minimo de variables, usa solo estas:
 
 ## 2) Flags recomendadas para arquitectura autoritativa
 
+Nota: el servidor actual ya corre en modo autoritativo fijo por codigo (sin dependencia operativa de toggles).
+Estas flags se mantienen solo por compatibilidad con despliegues antiguos.
+
 Base profesional (segura):
 
 - `FF_NORMALIZED_READS=true`

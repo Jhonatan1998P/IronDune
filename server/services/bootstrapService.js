@@ -50,6 +50,22 @@ export const createBootstrapService = ({
   normalizeServerError,
   logWithSchema,
 }) => {
+  const NORMALIZED_DOMAIN_STATE_KEYS = [
+    'buildings',
+    'units',
+    'techLevels',
+    'researchedTechs',
+    'activeConstructions',
+    'activeRecruitments',
+    'activeResearch',
+    'campaignProgress',
+    'empirePoints',
+  ];
+
+  const hasCriticalCoverageGap = (blobState, normalizedPatch) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
+    blobState?.[key] === undefined && normalizedPatch?.[key] !== undefined
+  ));
+
   const classifyBootstrapError = (error) => {
     const code = error?.code || '';
     const message = String(error?.message || '').toLowerCase();
@@ -146,14 +162,27 @@ export const createBootstrapService = ({
 
       const blobLastSaveTime = Number(effectiveState?.lastSaveTime || 0);
       const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+      const normalizedRepairsBlobGap = hasCriticalCoverageGap(effectiveState || {}, normalizedPatch || {});
       const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
-        && normalizedLastSaveTime >= blobLastSaveTime;
+        && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
       if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
         logWithSchema('warn', '[BootstrapAPI] Ignoring stale normalized state patch', {
           traceId,
           userId: shortId(req.user.id),
           errorCode: 'NORMALIZED_PATCH_STALE',
+          extra: {
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          },
+        });
+      }
+
+      if (isNonNullObject(normalizedPatch) && shouldUseNormalizedPatch && normalizedLastSaveTime < blobLastSaveTime && normalizedRepairsBlobGap) {
+        logWithSchema('warn', '[BootstrapAPI] Using stale normalized patch to repair blob critical gap', {
+          traceId,
+          userId: shortId(req.user.id),
+          errorCode: 'NORMALIZED_PATCH_CRITICAL_GAP_RECOVERY',
           extra: {
             blobLastSaveTime,
             normalizedLastSaveTime,

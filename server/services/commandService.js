@@ -43,6 +43,10 @@ export const createCommandService = ({
     'empirePoints',
   ];
 
+  const hasCriticalCoverageGap = (blobState, normalizedPatch) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
+    blobState?.[key] === undefined && normalizedPatch?.[key] !== undefined
+  ));
+
   const hasNormalizedDomainChanges = (beforeState, afterState) => NORMALIZED_DOMAIN_STATE_KEYS.some((key) => (
     JSON.stringify(beforeState?.[key]) !== JSON.stringify(afterState?.[key])
   ));
@@ -173,8 +177,9 @@ export const createCommandService = ({
 
       const blobLastSaveTime = Number(profile.gameState?.lastSaveTime || 0);
       const normalizedLastSaveTime = Number(normalizedPatch?.lastSaveTime || 0);
+      const normalizedRepairsBlobGap = hasCriticalCoverageGap(profile.gameState || {}, normalizedPatch || {});
       const shouldUseNormalizedPatch = isNonNullObject(normalizedPatch)
-        && normalizedLastSaveTime >= blobLastSaveTime;
+        && (normalizedLastSaveTime >= blobLastSaveTime || normalizedRepairsBlobGap);
 
       if (isNonNullObject(normalizedPatch) && !shouldUseNormalizedPatch) {
         logWithSchema('warn', '[CommandGateway] Ignoring stale normalized state patch', {
@@ -183,6 +188,21 @@ export const createCommandService = ({
           commandId,
           expectedRevision: parseRevision(expectedRevision),
           errorCode: 'NORMALIZED_PATCH_STALE',
+          extra: {
+            commandType: type,
+            blobLastSaveTime,
+            normalizedLastSaveTime,
+          },
+        });
+      }
+
+      if (isNonNullObject(normalizedPatch) && shouldUseNormalizedPatch && normalizedLastSaveTime < blobLastSaveTime && normalizedRepairsBlobGap) {
+        logWithSchema('warn', '[CommandGateway] Using stale normalized patch to repair blob critical gap', {
+          traceId,
+          userId: shortId(req.user.id),
+          commandId,
+          expectedRevision: parseRevision(expectedRevision),
+          errorCode: 'NORMALIZED_PATCH_CRITICAL_GAP_RECOVERY',
           extra: {
             commandType: type,
             blobLastSaveTime,
