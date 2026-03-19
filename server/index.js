@@ -500,6 +500,11 @@ const loadNormalizedStatePatch = async (playerId) => {
   let activeResearch = null;
 
   for (const row of queuesRes.data || []) {
+    const targetType = String(row.target_type || '').trim();
+    if (!targetType || targetType === 'UNKNOWN') {
+      continue;
+    }
+
     const startTime = toEpochMillis(row.start_time);
     const endTime = toEpochMillis(row.end_time);
     if (
@@ -515,7 +520,7 @@ const loadNormalizedStatePatch = async (playerId) => {
     if (row.queue_type === 'BUILD') {
       activeConstructions.push({
         id: row.id,
-        buildingType: row.target_type,
+        buildingType: targetType,
         count: Number(row.count || 1),
         startTime,
         endTime,
@@ -526,7 +531,7 @@ const loadNormalizedStatePatch = async (playerId) => {
     if (row.queue_type === 'RECRUIT') {
       activeRecruitments.push({
         id: row.id,
-        unitType: row.target_type,
+        unitType: targetType,
         count: Number(row.count || 1),
         startTime,
         endTime,
@@ -536,7 +541,7 @@ const loadNormalizedStatePatch = async (playerId) => {
 
     if (row.queue_type === 'RESEARCH') {
       activeResearch = {
-        techId: row.target_type,
+        techId: targetType,
         startTime,
         endTime,
       };

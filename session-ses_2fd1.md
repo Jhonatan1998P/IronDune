@@ -2,55 +2,7 @@
 
 **Session ID:** ses_2fd18cf91ffe404AZ1k1Y1ft1v
 **Created:** 3/18/2026, 9:43:18 PM
-**Updated:** 3/18/2026, 10:50:51 PM
-
----
-
-## Assistant
-
-**Tool: bash**
-
----
-
-## Assistant
-
-**Tool: bash**
-
----
-
-## Assistant
-
-**Tool: grep**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: bash**
-
----
-
-## Assistant
-
-**Tool: bash**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
+**Updated:** 3/18/2026, 11:06:32 PM
 
 ---
 
@@ -1216,6 +1168,84 @@ Qué hacer ahora en Render (importante):
 3. Reinicia servicio si Render no lo hace automáticamente.
 
 Si quieres, te paso una mini checklist de 4 pruebas para verificar que el tutorial ya no se reinicia al refrescar ni al hacer click en botones.
+
+---
+
+## User
+
+ok resueltovolvio todo ala normalidad a excepcion de algo que yo diia no un bug critico pero si es muy curioso, el problema es que cada ciertos segundos no de cuantos exactamente pero se que son pocs entre 5s-15s, en ese tiempo se ponen los puntos de imperio del jugador en 0 y se crea una cola en investigaciones con nombre UNKNOW y estoo genera un parpadeo un poco molesto y hace que se sienta la app como pesada o con errores. revisa que sucede y porque y reparalo con al precision quirurgica sin regresiones
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Buenísimo, este bug sí tenía una firma muy clara y ya lo corregí con enfoque quirúrgico.
+
+Qué estaba pasando:
+
+- El parpadeo cada ~5s venía del sync periódico cliente (`MULTI_TAB_SYNC_INTERVAL_MS=5000`) que reaplicaba bootstrap aunque la revisión no hubiera cambiado.
+- Esa reaplicación traía estado “viejo/incompleto” del server (por ejemplo `empirePoints` en 0) y te pisaba el estado local, de ahí el efecto de “se resetea y vuelve”.
+- Además, si en DB quedaba una cola corrupta con `target_type='UNKNOWN'`, el patch normalizado la reinyectaba y aparecía esa investigación fantasma.
+
+Fixes aplicados:
+
+- `hooks/usePersistence.ts:475`
+  - Ahora solo aplica snapshot remoto si `serverRevision > localRevision`.
+  - Ya no pisa estado cada 5s por simple cambio de `updated_at`.
+- `server/index.js:502`
+  - En lectura de colas normalizadas ignora entradas inválidas/sucias (`target_type` vacío o `UNKNOWN`).
+  - Evita que vuelva a aparecer `activeResearch` fantasma `UNKNOWN`.
+
+Verificación:
+
+- `npm run build` OK
+- `node --check server/index.js` OK
+
+Con esto deberías ver:
+- Sin parpadeo periódico de puntos de imperio.
+- Sin cola de investigación `UNKNOWN` apareciendo sola.
+
+Siguiente paso recomendado (una vez desplegado):
+1. Deploy de estos cambios.
+2. Ejecuta una vez `npm run normalized:repair-queues` para limpiar restos viejos en DB y dejarla consistente.
 
 ---
 

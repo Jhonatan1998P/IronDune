@@ -463,16 +463,11 @@ export const usePersistence = (
         const localState = gameStateRef.current;
         const localRevision = Number(localState?.revision || 0);
         const serverRevision = Number(serverState?.revision || 0);
-        const updatedAtChanged = Boolean(
-          bootstrapPayload?.updatedAt
-          && bootstrapPayload.updatedAt !== cloudUpdatedAtRef.current
-        );
-
         if (bootstrapPayload?.updatedAt) {
           cloudUpdatedAtRef.current = bootstrapPayload.updatedAt;
         }
 
-        const shouldApply = serverRevision > localRevision || (updatedAtChanged && serverRevision >= localRevision);
+        const shouldApply = serverRevision > localRevision;
         if (!shouldApply || cancelled) return;
 
         setGameState(hydrateGameState(serverState as Partial<GameState>));
