@@ -644,6 +644,12 @@ export const useGameActions = (
   }, [applyActionWithServerValidation, gameState, setGameState]);
 
   const acceptTutorialStep = useCallback(() => {
+    console.info('[TutorialAction] Accept step requested', {
+      tutorialId: gameState.currentTutorialId || null,
+      tutorialAccepted: gameState.tutorialAccepted,
+      tutorialClaimable: gameState.tutorialClaimable,
+    });
+
     const preview: LocalActionResult = {
       success: true,
       newState: {
@@ -667,9 +673,14 @@ export const useGameActions = (
         },
       },
     );
+
+    console.info('[TutorialAction] Accept step dispatched', {
+      tutorialId: gameState.currentTutorialId || null,
+    });
   }, [applyActionWithServerValidation, gameState]);
 
   const applyTutorialRewardLocal = useCallback((state: GameState): LocalActionResult => {
+      try {
       if (!state.currentTutorialId || !state.tutorialClaimable) return { success: false };
       const step = TUTORIAL_STEPS.find(s => s.id === state.currentTutorialId);
       if (!step) return { success: false };
@@ -718,11 +729,38 @@ export const useGameActions = (
               isTutorialMinimized: false
           }
       };
+      } catch (error) {
+          console.error('[TutorialAction] Local reward application failed', {
+              tutorialId: state.currentTutorialId || null,
+              error: error instanceof Error ? error.message : String(error || 'unknown'),
+          });
+          return { success: false };
+      }
   }, []);
 
   const claimTutorialReward = useCallback(() => {
+      console.info('[TutorialAction] Claim reward requested', {
+        tutorialId: gameState.currentTutorialId || null,
+        tutorialAccepted: gameState.tutorialAccepted,
+        tutorialClaimable: gameState.tutorialClaimable,
+      });
+
       const preview = applyTutorialRewardLocal(gameState);
-      if (!preview.success || !preview.newState) return;
+      if (!preview.success || !preview.newState) {
+        console.warn('[TutorialAction] Claim reward aborted (preview failed)', {
+          tutorialId: gameState.currentTutorialId || null,
+          tutorialAccepted: gameState.tutorialAccepted,
+          tutorialClaimable: gameState.tutorialClaimable,
+        });
+        return;
+      }
+
+      console.info('[TutorialAction] Claim reward local preview ready', {
+        tutorialId: gameState.currentTutorialId || null,
+        nextTutorialId: preview.newState.currentTutorialId || null,
+        completedTutorials: preview.newState.completedTutorials.length,
+      });
+
       applyActionWithServerValidation(
         'TUTORIAL_CLAIM_REWARD',
         preview,
@@ -734,6 +772,10 @@ export const useGameActions = (
           },
         },
       );
+
+      console.info('[TutorialAction] Claim reward dispatched', {
+        tutorialId: gameState.currentTutorialId || null,
+      });
   }, [applyActionWithServerValidation, applyTutorialRewardLocal, gameState]);
 
   const toggleTutorialMinimize = useCallback(() => {

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { TUTORIAL_STEPS } from '../data/tutorial';
 import { useLanguage } from '../hooks/useLanguage';
 import { GlassButton, Icons } from './UIComponents';
@@ -30,10 +30,79 @@ export const ObjectiveTracker: React.FC = () => {
     const isComplete = gameState.tutorialClaimable;
     const isMinimized = gameState.isTutorialMinimized;
     const isAccepted = gameState.tutorialAccepted;
+    const previousTutorialIdRef = useRef<string | null>(null);
+    const previousClaimableRef = useRef<boolean>(gameState.tutorialClaimable);
 
     const progressResult = currentStep?.progressCondition ? currentStep.progressCondition(gameState) : false;
     const isInProgress = typeof progressResult === 'number' || (progressResult === true);
     const progressPercent = typeof progressResult === 'number' ? progressResult : 0;
+
+    useEffect(() => {
+        if (!currentStep) {
+            previousTutorialIdRef.current = null;
+            return;
+        }
+
+        if (previousTutorialIdRef.current !== currentStep.id) {
+            console.info('[TutorialUI] Tutorial step opened', {
+                tutorialId: currentStep.id,
+                accepted: gameState.tutorialAccepted,
+                claimable: gameState.tutorialClaimable,
+                activeTab: currentStep.targetTab,
+            });
+            previousTutorialIdRef.current = currentStep.id;
+        }
+    }, [currentStep, gameState.tutorialAccepted, gameState.tutorialClaimable]);
+
+    useEffect(() => {
+        if (!currentStep) {
+            previousClaimableRef.current = gameState.tutorialClaimable;
+            return;
+        }
+
+        if (!previousClaimableRef.current && gameState.tutorialClaimable) {
+            console.info('[TutorialUI] Tutorial reward is claimable', {
+                tutorialId: currentStep.id,
+                accepted: gameState.tutorialAccepted,
+            });
+        }
+
+        previousClaimableRef.current = gameState.tutorialClaimable;
+    }, [currentStep, gameState.tutorialAccepted, gameState.tutorialClaimable]);
+
+    const handleAcceptTutorialStep = () => {
+        console.info('[TutorialUI] Continue tutorial clicked', {
+            tutorialId: currentStep?.id || null,
+            accepted: gameState.tutorialAccepted,
+            claimable: gameState.tutorialClaimable,
+        });
+
+        try {
+            acceptTutorialStep();
+        } catch (error) {
+            console.error('[TutorialUI] Continue tutorial crashed', {
+                tutorialId: currentStep?.id || null,
+                error: error instanceof Error ? error.message : String(error || 'unknown'),
+            });
+        }
+    };
+
+    const handleClaimTutorialReward = () => {
+        console.info('[TutorialUI] Claim tutorial reward clicked', {
+            tutorialId: currentStep?.id || null,
+            accepted: gameState.tutorialAccepted,
+            claimable: gameState.tutorialClaimable,
+        });
+
+        try {
+            claimTutorialReward();
+        } catch (error) {
+            console.error('[TutorialUI] Claim tutorial reward crashed', {
+                tutorialId: currentStep?.id || null,
+                error: error instanceof Error ? error.message : String(error || 'unknown'),
+            });
+        }
+    };
 
     // --- DRAG HANDLERS ---
     const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
@@ -117,28 +186,28 @@ export const ObjectiveTracker: React.FC = () => {
                                  
                                  {currentStep.buildingReward && Object.entries(currentStep.buildingReward).map(([bId, amt]) => {
                                      const def = BUILDING_DEFS[bId as BuildingType];
-                                     const name = t.buildings[def.translationKey]?.name || bId;
-                                     return (
-                                         <span key={bId} className="text-xs font-mono font-bold text-cyan-400 border border-cyan-500/20 bg-cyan-900/20 px-2 py-1 rounded flex items-center gap-1">
-                                             <Icons.Base className="w-3 h-3" /> +{amt} {name}
+                                      const name = def ? (t.buildings[def.translationKey]?.name || bId) : bId;
+                                      return (
+                                          <span key={bId} className="text-xs font-mono font-bold text-cyan-400 border border-cyan-500/20 bg-cyan-900/20 px-2 py-1 rounded flex items-center gap-1">
+                                              <Icons.Base className="w-3 h-3" /> +{amt} {name}
                                          </span>
                                      );
                                  })}
 
                                  {currentStep.unitReward && Object.entries(currentStep.unitReward).map(([uId, amt]) => {
                                      const def = UNIT_DEFS[uId as UnitType];
-                                     const name = t.units[def.translationKey]?.name || uId;
-                                     return (
-                                         <span key={uId} className="text-xs font-mono font-bold text-red-400 border border-red-500/20 bg-red-900/20 px-2 py-1 rounded flex items-center gap-1">
-                                             <Icons.Army className="w-3 h-3" /> +{amt} {name}
+                                      const name = def ? (t.units[def.translationKey]?.name || uId) : uId;
+                                      return (
+                                          <span key={uId} className="text-xs font-mono font-bold text-red-400 border border-red-500/20 bg-red-900/20 px-2 py-1 rounded flex items-center gap-1">
+                                              <Icons.Army className="w-3 h-3" /> +{amt} {name}
                                          </span>
                                      );
                                  })}
                              </div>
                          </div>
 
-                         <GlassButton 
-                            onClick={acceptTutorialStep}
+                          <GlassButton 
+                             onClick={handleAcceptTutorialStep}
                             variant="primary"
                             className="w-full py-3 shadow-[0_0_20px_rgba(6,182,212,0.4)]"
                          >
@@ -253,7 +322,7 @@ export const ObjectiveTracker: React.FC = () => {
 
                 {isComplete && (
                     <GlassButton 
-                        onClick={claimTutorialReward} 
+                        onClick={handleClaimTutorialReward} 
                         variant="primary" 
                         className="w-full text-xs animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.4)]"
                     >
