@@ -16,7 +16,6 @@ export const useGameLoop = (
   status: GameStatus,
   setGameState: React.Dispatch<React.SetStateAction<GameState>>,
   setHasNewReports: (has: boolean) => void,
-  performAutoSave?: (force?: boolean) => Promise<void>,
   externalLastTickRef?: React.MutableRefObject<number>,
   externalIsLoopRunningRef?: React.MutableRefObject<boolean>,
   externalAnimationFrameRef?: React.MutableRefObject<number | undefined>
@@ -30,7 +29,6 @@ export const useGameLoop = (
   const localIsLoopRunningRef = useRef<boolean>(false);
   const isLoopRunningRef = externalIsLoopRunningRef || localIsLoopRunningRef;
 
-  const lastAutoSaveRef = useRef<number>(TimeSyncService.getServerTime());
   const hasNewReportsRef = useRef<boolean>(false);
   const targetFPS = useRef<number>(getTargetFPS());
   const frameInterval = useRef<number>(1000 / targetFPS.current);
@@ -93,12 +91,6 @@ export const useGameLoop = (
         if (deltaTimeMs >= TICK_RATE_MS) {
           tickCount++;
           
-          // Auto-save orchestration (Every 5s check)
-          if (now - lastAutoSaveRef.current >= 5000) {
-            lastAutoSaveRef.current = now;
-            if (performAutoSave) performAutoSave();
-          }
-
           if (tickCount % 10 === 0) {
             console.log('[GameLoop] Tick update - deltaTimeMs:', deltaTimeMs, 'tickCount:', tickCount);
           }

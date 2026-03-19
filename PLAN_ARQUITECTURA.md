@@ -326,7 +326,7 @@ Con este plan, el sistema pasa de una arquitectura reactiva por polling a una ar
 - [x] Mantener `POST /api/command` como puerta principal de mutaciones.
 - [x] Responder comando con `newRevision` consistente.
 - [x] Emitir `user_state_changed` por cada mutacion aplicada.
-- [~] Eliminar totalmente autosave periodico del frontend (reducido de 10s a 60s, pendiente retiro completo).
+- [x] Eliminar autosave periodico del loop frontend; persistencia legacy solo bajo guardado forzado/eventual.
 
 ### Fase 2 - Event stream + reconexion robusta
 - [x] Crear `player_events` con indices y permisos/RLS.
@@ -342,8 +342,8 @@ Con este plan, el sistema pasa de una arquitectura reactiva por polling a una ar
 - [ ] Sharding logico por `player_id` para workers de comandos.
 
 ### Fase 4 - Operacion continua
-- [~] Endpoints de metricas operativos (`/api/ops/command-metrics`, `/api/ops/endpoint-metrics`), pendiente dashboard.
-- [ ] Alertas automaticas por regresion de request rate/conflicts/error rate.
+- [~] Endpoints de metricas operativos (`/api/ops/command-metrics`, `/api/ops/endpoint-metrics`, `/api/ops/slo-summary`), pendiente dashboard.
+- [x] Alertas automaticas backend por regresion de request rate/conflicts/error rate/latencia y disponibilidad de suscripcion socket (con cooldown).
 - [ ] Capacity planning mensual formalizado.
 
 ### Infraestructura y operacion de reset
@@ -351,4 +351,4 @@ Con este plan, el sistema pasa de una arquitectura reactiva por polling a una ar
 - [x] Recreacion integral de tablas core y politicas de seguridad tras reset.
 
 ### Proximo hito recomendado
-- [ ] Migracion incremental para `player_events` en entornos vivos (sin depender de `DB_HARD_RESET`).
+- [~] Migracion incremental para `player_events` en entornos vivos: bootstrap automatico en startup con `exec_sql` cuando esta disponible; pendiente alternativa sin `exec_sql` para proyectos sin RPC habilitada.

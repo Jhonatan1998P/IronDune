@@ -57,7 +57,6 @@ export const useGameEngine = () => {
     status,
     setGameState,
     setHasNewReports,
-    persistence.performAutoSave,
     lastTickRef,
     isLoopRunningRef,
     animationFrameRef

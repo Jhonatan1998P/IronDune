@@ -38,7 +38,14 @@ const COMMAND_ALERT_P95_LATENCY_MS_THRESHOLD = Number(process.env.COMMAND_ALERT_
 const COMMAND_ALERT_RETRY_RATIO_THRESHOLD = Number(process.env.COMMAND_ALERT_RETRY_RATIO_THRESHOLD || 0.2);
 const ENDPOINT_METRICS_RETENTION_MS = Number(process.env.ENDPOINT_METRICS_RETENTION_MS || 15 * 60_000);
 const EVENT_BACKLOG_MAX = Number(process.env.EVENT_BACKLOG_MAX || 200);
+const OPS_ALERT_EVAL_INTERVAL_MS = Number(process.env.OPS_ALERT_EVAL_INTERVAL_MS || 60_000);
+const OPS_ALERT_COOLDOWN_MS = Number(process.env.OPS_ALERT_COOLDOWN_MS || 5 * 60_000);
+const SLO_COMMAND_P95_TARGET_MS = Number(process.env.SLO_COMMAND_P95_TARGET_MS || 250);
+const SLO_BOOTSTRAP_REQ_PER_MIN_TARGET = Number(process.env.SLO_BOOTSTRAP_REQ_PER_MIN_TARGET || 1);
+const SLO_SOCKET_AVAILABILITY_TARGET = Number(process.env.SLO_SOCKET_AVAILABILITY_TARGET || 0.99);
+const ALERT_BOOTSTRAP_REQ_PER_MIN_THRESHOLD = Number(process.env.ALERT_BOOTSTRAP_REQ_PER_MIN_THRESHOLD || 4);
 const commandRateTracker = new Map();
+const alertCooldownTracker = new Map();
 const commandMetrics = {
   startedAt: Date.now(),
   totals: {
@@ -68,6 +75,12 @@ const commandMetrics = {
 const endpointMetrics = {
   startedAt: Date.now(),
   byEndpoint: {},
+};
+const realtimeMetrics = {
+  startedAt: Date.now(),
+  subscriptionsAttempted: 0,
+  subscriptionsSucceeded: 0,
+  subscriptionsFailed: 0,
 };
 
 dotenv.config();
@@ -325,6 +338,119 @@ const getEndpointMetricsSnapshot = () => ({
     }])
   ),
 });
+
+const getRealtimeMetricsSnapshot = () => {
+  const attempted = realtimeMetrics.subscriptionsAttempted;
+  const succeeded = realtimeMetrics.subscriptionsSucceeded;
+  const failed = realtimeMetrics.subscriptionsFailed;
+  const availability = attempted > 0 ? Number((succeeded / attempted).toFixed(4)) : 1;
+
+  return {
+    uptimeMs: Date.now() - realtimeMetrics.startedAt,
+    attempted,
+    succeeded,
+    failed,
+    availability,
+  };
+};
+
+const getSloSummary = () => {
+  const command = getCommandMetricsSnapshot();
+  const endpoint = getEndpointMetricsSnapshot();
+  const realtime = getRealtimeMetricsSnapshot();
+  const uptimeMinutes = Math.max(1, endpoint.uptimeMs / 60_000);
+  const bootstrapBucket = endpoint.endpoints['GET /api/bootstrap'] || null;
+  const bootstrapReqPerMin = bootstrapBucket
+    ? Number((bootstrapBucket.requests / uptimeMinutes).toFixed(3))
+    : 0;
+
+  const objective = {
+    commandP95Ms: SLO_COMMAND_P95_TARGET_MS,
+    bootstrapReqPerMin: SLO_BOOTSTRAP_REQ_PER_MIN_TARGET,
+    socketAvailability: SLO_SOCKET_AVAILABILITY_TARGET,
+  };
+
+  const current = {
+    commandP95Ms: Number(command.latencyMs.p95 || 0),
+    bootstrapReqPerMin,
+    socketAvailability: realtime.availability,
+  };
+
+  return {
+    objective,
+    current,
+    status: {
+      commandP95: current.commandP95Ms <= objective.commandP95Ms,
+      bootstrapRate: current.bootstrapReqPerMin <= objective.bootstrapReqPerMin,
+      socketAvailability: current.socketAvailability >= objective.socketAvailability,
+    },
+    raw: {
+      command,
+      endpoint,
+      realtime,
+    },
+  };
+};
+
+const emitOpsAlert = (key, message, details) => {
+  const now = Date.now();
+  const lastAlertAt = alertCooldownTracker.get(key) || 0;
+  if (now - lastAlertAt < OPS_ALERT_COOLDOWN_MS) return;
+  alertCooldownTracker.set(key, now);
+  console.warn('[OpsAlert]', {
+    key,
+    message,
+    details,
+    serverTime: now,
+  });
+};
+
+const evaluateOperationalAlerts = () => {
+  const command = getCommandMetricsSnapshot();
+  const endpoint = getEndpointMetricsSnapshot();
+  const realtime = getRealtimeMetricsSnapshot();
+  const uptimeMinutes = Math.max(1, endpoint.uptimeMs / 60_000);
+  const bootstrapBucket = endpoint.endpoints['GET /api/bootstrap'] || null;
+  const bootstrapReqPerMin = bootstrapBucket
+    ? Number((bootstrapBucket.requests / uptimeMinutes).toFixed(3))
+    : 0;
+
+  if (command.alerts.highErrorRate) {
+    emitOpsAlert('command_high_error_rate', 'High command error rate detected', {
+      errorRate: command.rates.errorRate,
+      threshold: command.thresholds.errorRate,
+    });
+  }
+
+  if (command.alerts.highP95Latency) {
+    emitOpsAlert('command_high_p95_latency', 'High command p95 latency detected', {
+      p95LatencyMs: command.latencyMs.p95,
+      threshold: command.thresholds.p95LatencyMs,
+    });
+  }
+
+  if (command.alerts.highConflicts) {
+    emitOpsAlert('command_high_conflicts', 'High command conflict rate detected', {
+      conflictsPerMin: command.rates.conflictsPerMin,
+      threshold: command.thresholds.conflictsPerMin,
+    });
+  }
+
+  if (bootstrapReqPerMin >= ALERT_BOOTSTRAP_REQ_PER_MIN_THRESHOLD) {
+    emitOpsAlert('bootstrap_req_rate_high', 'Bootstrap request rate is above threshold', {
+      bootstrapReqPerMin,
+      threshold: ALERT_BOOTSTRAP_REQ_PER_MIN_THRESHOLD,
+    });
+  }
+
+  if (realtime.attempted >= 20 && realtime.availability < SLO_SOCKET_AVAILABILITY_TARGET) {
+    emitOpsAlert('socket_availability_low', 'Socket subscription availability below target', {
+      availability: realtime.availability,
+      target: SLO_SOCKET_AVAILABILITY_TARGET,
+      attempted: realtime.attempted,
+    });
+  }
+};
 
 const getCommandMetricsSnapshot = () => {
   const uptimeMs = Date.now() - commandMetrics.startedAt;
@@ -793,6 +919,18 @@ app.get('/api/ops/endpoint-metrics', (req, res) => {
     ok: true,
     serverTime: Date.now(),
     metrics: getEndpointMetricsSnapshot(),
+  });
+});
+
+app.get('/api/ops/slo-summary', (req, res) => {
+  if (!isObservabilityAuthorized(req)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  return res.json({
+    ok: true,
+    serverTime: Date.now(),
+    metrics: getSloSummary(),
   });
 });
 
@@ -1687,8 +1825,10 @@ io.on('connection', (socket) => {
 
   socket.on('subscribe_user_state', async ({ token, lastEventId }) => {
     const traceId = makeTraceId('socket-subscribe');
+    realtimeMetrics.subscriptionsAttempted += 1;
     try {
       if (typeof token !== 'string' || !token.trim()) {
+        realtimeMetrics.subscriptionsFailed += 1;
         socket.emit('user_state_subscription', {
           ok: false,
           errorCode: 'MISSING_AUTH_TOKEN',
@@ -1699,6 +1839,7 @@ io.on('connection', (socket) => {
 
       const { data, error } = await supabase.auth.getUser(token.trim());
       if (error || !data?.user?.id) {
+        realtimeMetrics.subscriptionsFailed += 1;
         socket.emit('user_state_subscription', {
           ok: false,
           errorCode: 'INVALID_AUTH_TOKEN',
@@ -1727,6 +1868,7 @@ io.on('connection', (socket) => {
         });
       }
 
+      realtimeMetrics.subscriptionsSucceeded += 1;
       socket.emit('user_state_subscription', {
         ok: true,
         userId: authUserId,
@@ -1737,6 +1879,7 @@ io.on('connection', (socket) => {
         traceId,
       });
     } catch (error) {
+      realtimeMetrics.subscriptionsFailed += 1;
       socket.emit('user_state_subscription', {
         ok: false,
         errorCode: 'SUBSCRIPTION_FAILED',
@@ -1809,11 +1952,13 @@ const PORT = process.env.PORT || 10000;
 
 // Run hard reset if requested via environment variable
 await hardResetDatabase();
+await ensureEventStreamInfra();
 await ensureProfilesForAuthUsers();
 setInterval(ensureProfilesForAuthUsers, PROFILE_SYNC_INTERVAL_MS);
 setInterval(() => {
   console.log('[CommandMetrics] Snapshot', getCommandMetricsSnapshot());
 }, COMMAND_METRICS_LOG_INTERVAL_MS);
+setInterval(evaluateOperationalAlerts, OPS_ALERT_EVAL_INTERVAL_MS);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[BattleServer] Running on port ${PORT}`);
@@ -1974,6 +2119,68 @@ async function ensureProfilesForAuthUsers() {
 }
 
 const escapeSql = (value) => String(value).replace(/'/g, "''");
+
+async function ensureEventStreamInfra() {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS public.player_events (
+      event_id BIGSERIAL PRIMARY KEY,
+      player_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      revision BIGINT NOT NULL,
+      event_type TEXT NOT NULL,
+      delta_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      command_id UUID,
+      server_time BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_player_events_player_event
+      ON public.player_events (player_id, event_id DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_player_events_player_revision
+      ON public.player_events (player_id, revision DESC);
+
+    ALTER TABLE public.player_events ENABLE ROW LEVEL SECURITY;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'player_events'
+          AND policyname = 'Users read own events'
+      ) THEN
+        CREATE POLICY "Users read own events"
+          ON public.player_events
+          FOR SELECT
+          USING (auth.uid() = player_id);
+      END IF;
+    END $$;
+
+    GRANT SELECT ON TABLE public.player_events TO authenticated;
+    GRANT ALL ON TABLE public.player_events TO postgres, service_role;
+    GRANT USAGE, SELECT ON SEQUENCE public.player_events_event_id_seq TO postgres, service_role;
+    NOTIFY pgrst, 'reload schema';
+  `;
+
+  try {
+    const { error } = await supabase.rpc('exec_sql', { sql });
+    if (error) {
+      const message = String(error.message || '');
+      if (message.toLowerCase().includes('function public.exec_sql') || message.toLowerCase().includes('schema cache')) {
+        console.warn('[StartupInfra] exec_sql unavailable; skipping incremental event-stream migration', {
+          error: message,
+        });
+        return;
+      }
+      console.error('[StartupInfra] Failed ensuring event stream infra:', message);
+      return;
+    }
+
+    console.log('[StartupInfra] Event stream infra ensured (player_events).');
+  } catch (error) {
+    console.error('[StartupInfra] Failed ensuring event stream infra:', normalizeServerError(error));
+  }
+}
 
 async function insertProfilesViaSql(profiles) {
   try {

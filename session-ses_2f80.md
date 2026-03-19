@@ -2,89 +2,7 @@
 
 **Session ID:** ses_2f80e2a10ffe6w5R2VCs3El5tk
 **Created:** 3/19/2026, 9:13:02 PM
-**Updated:** 3/19/2026, 9:49:27 PM
-
----
-
-## User
-
-ahora ejecuta @PLAN_ARQUITECTURA.md de forma precisa, pero antes leelo, analizalo y luego ejecutalo de forma precisa.
-
----
-
-## Assistant
-
-**Tool: todowrite**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: grep**
-
-**Tool: grep**
-
-**Tool: grep**
-
-**Tool: grep**
-
----
-
-## Assistant
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
-
-**Tool: read**
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: read**
-
----
-
-## Assistant
-
-**Tool: grep**
+**Updated:** 3/19/2026, 10:27:52 PM
 
 ---
 
@@ -623,6 +541,344 @@ Luego:
 3. Después del reset, vuelve `DB_HARD_RESET=false` para evitar borrados accidentales en cada arranque.
 
 Si quieres, te preparo también un guard adicional (`DB_HARD_RESET_CONFIRM`) para que nunca se dispare por error en producción.
+
+---
+
+## User
+
+continua con el plan
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Perfecto, seguí con el plan y avancé en el siguiente hito clave: **migración incremental de `player_events` en startup**, sin depender únicamente de `DB_HARD_RESET`.
+
+- Implementé `ensureEventStreamInfra()` en `server/index.js` para que al arrancar el server intente crear/asegurar `player_events` (tabla, índices, RLS, policy y grants) vía `exec_sql`.
+- Lo conecté al arranque justo después de `hardResetDatabase()`, así cubre entornos vivos donde faltaba `player_events`.
+- Si `exec_sql` no está disponible, ahora el server no cae: registra warning y sigue operando (`StartupInfra`), evitando downtime.
+- Ajusté la estabilidad de tests de integración Supabase (timeouts puntuales) en `tests/supabase.integration.test.ts`.
+- Actualicé el checklist vivo del plan para reflejar que este hito está **en progreso avanzado** en `PLAN_ARQUITECTURA.md`.
+
+Archivos modificados:
+- `server/index.js`
+- `tests/supabase.integration.test.ts`
+- `PLAN_ARQUITECTURA.md`
+
+Validación:
+- `npm run typecheck` ✅
+- `npm test` ✅ (16 files, 211 passed, 8 skipped)
+
+Siguiente paso recomendado (natural):
+1. Añadir una vía alternativa de migración cuando no exista `exec_sql` (por ejemplo, script SQL/manual runbook versionado), para cerrar al 100% el punto “sin depender de RPC”.
+
+---
+
+## User
+
+procede con el plan mira que cosas nos falta y procede recuerda que nuestro objetivo es el objetivo que esta en @PLAN_ARQUITECTURA.md y su paso son nuestro pasos de implementacion
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+**Tool: read**
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Avancé con el plan en un punto clave que faltaba de Fase 1: **eliminar autosave periódico del frontend**.
+
+- Quité el disparo automático cada 5s desde el loop de juego en `hooks/useGameLoop.ts`.
+- El `performAutoSave` ahora solo guarda en modo forzado (`force=true`), ya no por intervalo continuo en `hooks/usePersistence.ts`.
+- Actualicé la integración del engine para no pasar autosave periódico al loop en `hooks/useGameEngine.ts`.
+- Marqué este ítem como completado en el checklist vivo en `PLAN_ARQUITECTURA.md`.
+
+También quedó estable:
+- `npm run typecheck` ✅
+- `npm test` ✅ (16 files, 211 passed, 8 skipped)
+
+Estado real contra el plan:
+- Fase 0: ✅
+- Fase 1: ✅ (con este cambio queda cerrada en lo principal)
+- Fase 2: ✅ base funcional ya implementada (`player_events`, backlog, `lastEventId`, `force_resync`)
+- Fase 3: pendiente (workers/proyecciones/sharding lógico)
+- Fase 4: parcial (métricas endpoint ya, faltan dashboard/alertas/capacity)
+
+Siguiente ejecución que recomiendo (ya alineada al plan):
+1. Implementar **alertas automáticas** sobre métricas existentes (`errorRate`, `p95`, `conflicts`) en backend.
+2. Crear endpoint/resumen de **SLO/KPI** listo para dashboard.
+3. Empezar worker async de **proyecciones de ranking/reportes** (Fase 3).
+
+---
+
+## User
+
+procede
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+**Tool: read**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+---
+
+## Assistant
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Perfecto, continué con el plan y cerré otro bloque importante de Fase 4 (operación continua).
+
+Hice estos avances:
+
+- Eliminé el autosave periódico del loop cliente (quedaba ruido legacy):
+  - quitado el disparo automático cada 5s en `hooks/useGameLoop.ts`.
+  - ahora `performAutoSave` solo guarda en modo forzado (`force=true`) en `hooks/usePersistence.ts`.
+  - actualizado el wiring en `hooks/useGameEngine.ts`.
+- Implementé alertas operativas automáticas en backend:
+  - evaluación periódica con cooldown para evitar spam.
+  - alertas por `errorRate`, `p95`, `conflicts`, tasa alta de `GET /api/bootstrap` y baja disponibilidad de suscripción socket.
+  - todo en `server/index.js`.
+- Añadí métricas de disponibilidad realtime (suscripciones socket):
+  - intentos / éxitos / fallos + ratio de disponibilidad.
+  - integradas al resumen SLO.
+- Añadí endpoint de resumen SLO listo para dashboard:
+  - `GET /api/ops/slo-summary` en `server/index.js`.
+  - incluye objetivo vs actual para `command p95`, `bootstrap req/min`, `socket availability`.
+- Actualicé el checklist vivo del plan con el nuevo estado:
+  - `PLAN_ARQUITECTURA.md`.
+
+Validación:
+- `npm run typecheck` ✅
+- `npm test` ✅ (16 files, 211 passed, 8 skipped)
+
+Estado actual del plan:
+- Fase 0: ✅
+- Fase 1: ✅
+- Fase 2: ✅ (base robusta)
+- Fase 4: ahora más avanzada (métricas + alertas + SLO summary), pendiente dashboard y capacity planning formal.
+- Fase 3: sigue pendiente (workers/proyecciones/sharding lógico).
+
+Siguiente paso que ejecuto si me dices “continúa”:
+1. Implementar primer worker async de proyección (ranking/reportes) para empezar a cerrar Fase 3.
 
 ---
 

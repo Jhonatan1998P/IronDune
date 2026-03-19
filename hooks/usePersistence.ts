@@ -5,7 +5,7 @@ import { INITIAL_GAME_STATE } from '../data/initialState';
 import { calculateOfflineProgress } from '../utils/engine/offline';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
-import { CLOUD_SAVE_INTERVAL_MS, OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
+import { OFFLINE_SIGNOUT_THRESHOLD_MS } from '../constants';
 import { TimeSyncService } from '../lib/timeSync';
 import { io, Socket } from 'socket.io-client';
 import { BACKEND_ORIGIN, buildBackendUrl, DISABLE_LEGACY_SAVE_BLOB, SOCKET_IO_PATH } from '../lib/backend';
@@ -861,15 +861,14 @@ export const usePersistence = (
     };
   }, [fetchBootstrapSnapshot, lastTickRef, session, setGameState, status, user]);
 
-  const lastCloudSaveRef = useRef(TimeSyncService.getServerTime());
   const pendingSaveRef = useRef(false);
 
   const performAutoSave = useCallback(async (_force: boolean = false) => {
       if (!user) return;
+      if (!_force) return;
 
       if (DISABLE_LEGACY_SAVE_BLOB) {
         setHasSave(true);
-        lastCloudSaveRef.current = TimeSyncService.getServerTime();
         return;
       }
 
@@ -877,58 +876,53 @@ export const usePersistence = (
       const currentState = gameStateRef.current;
       const stateToSave = { ...currentState, lastSaveTime: now };
 
-      if (now - lastCloudSaveRef.current >= CLOUD_SAVE_INTERVAL_MS) {
-          if (pendingSaveRef.current) return;
-          pendingSaveRef.current = true;
+      if (pendingSaveRef.current) return;
+      pendingSaveRef.current = true;
 
+      try {
+          await saveCloudProfile(stateToSave);
+          setHasSave(true);
+          console.log('[Persistence] Forced cloud save completed.');
+      } catch (e) {
+        if (e instanceof Error && e.message === 'Conflict') {
           try {
-              await saveCloudProfile(stateToSave);
-              
-              setHasSave(true);
-              lastCloudSaveRef.current = now;
-              console.log('[Persistence] Master-save (cloud) verified.');
-              } catch (e) {
-                if (e instanceof Error && e.message === 'Conflict') {
-                try {
-                  const cloudPayload = await fetchCloudProfile();
-                  const cloudState = cloudPayload?.state || null;
-                  if (cloudPayload?.updatedAt) {
-                    cloudUpdatedAtRef.current = cloudPayload.updatedAt;
-                  }
-                  if (cloudState) {
-                    const hydratedCloud = hydrateGameState(cloudState as Partial<GameState>);
-                    const retryState: GameState = {
-                      ...stateToSave,
-                      resources: hydratedCloud.resources,
-                      maxResources: hydratedCloud.maxResources,
-                      bankBalance: hydratedCloud.bankBalance,
-                      currentInterestRate: hydratedCloud.currentInterestRate,
-                      nextRateChangeTime: hydratedCloud.nextRateChangeTime,
-                      lastInterestPayoutTime: hydratedCloud.lastInterestPayoutTime,
-                    };
+            const cloudPayload = await fetchCloudProfile();
+            const cloudState = cloudPayload?.state || null;
+            if (cloudPayload?.updatedAt) {
+              cloudUpdatedAtRef.current = cloudPayload.updatedAt;
+            }
+            if (cloudState) {
+              const hydratedCloud = hydrateGameState(cloudState as Partial<GameState>);
+              const retryState: GameState = {
+                ...stateToSave,
+                resources: hydratedCloud.resources,
+                maxResources: hydratedCloud.maxResources,
+                bankBalance: hydratedCloud.bankBalance,
+                currentInterestRate: hydratedCloud.currentInterestRate,
+                nextRateChangeTime: hydratedCloud.nextRateChangeTime,
+                lastInterestPayoutTime: hydratedCloud.lastInterestPayoutTime,
+              };
 
-                    await saveCloudProfile(retryState);
-                    setHasSave(true);
-                    lastCloudSaveRef.current = now;
-                    console.warn('[Persistence] Conflict resolved by retrying save with fresh server revision.');
-                  }
-                } catch (syncError) {
-                  console.error('[Persistence] Conflict resolution failed', {
-                    userId: shortId(user?.id),
-                    error: normalizeError(syncError),
-                  });
-                }
-              } else {
-                console.error('[Persistence] Cloud save failed', {
-                  userId: shortId(user?.id),
-                  error: normalizeError(e),
-                });
-              }
-          } finally {
-              pendingSaveRef.current = false;
+              await saveCloudProfile(retryState);
+              setHasSave(true);
+              console.warn('[Persistence] Conflict resolved by retrying forced save with fresh server revision.');
+            }
+          } catch (syncError) {
+            console.error('[Persistence] Conflict resolution failed', {
+              userId: shortId(user?.id),
+              error: normalizeError(syncError),
+            });
           }
+        } else {
+          console.error('[Persistence] Cloud save failed', {
+            userId: shortId(user?.id),
+            error: normalizeError(e),
+          });
+        }
+      } finally {
+          pendingSaveRef.current = false;
       }
-  }, [user, saveCloudProfile, fetchCloudProfile, loadGameFromData]);
+  }, [user, saveCloudProfile, fetchCloudProfile]);
 
   const saveGame = useCallback(async () => {
       setStatus('MENU');

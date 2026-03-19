@@ -403,7 +403,7 @@ describeIf.sequential('Supabase auth and save integration', () => {
     expect(signInData.session?.access_token).toBeTruthy();
 
     accessToken = signInData.session?.access_token || null;
-  });
+  }, 10000);
 
   it('blocks direct client writes to profiles (RLS)', async () => {
     if (!testUserId) {
@@ -455,7 +455,7 @@ describeIf.sequential('Supabase auth and save integration', () => {
 
     const payload = await loadResponse.json();
     expect(payload.game_state?.playerName).toBe('Integration Commander');
-  });
+  }, 10000);
 
   it('does not duplicate effects on idempotent command retry', async () => {
     if (!accessToken) {
@@ -808,5 +808,5 @@ describeIf.sequential('Supabase auth and save integration', () => {
     await spawnServer();
     const recovered = await fetchBootstrap(baseUrl, accessToken);
     expect(recovered?.metadata?.serverTime).toBeTruthy();
-  });
+  }, 10000);
 });
