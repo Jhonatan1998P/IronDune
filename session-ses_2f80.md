@@ -2,7 +2,7 @@
 
 **Session ID:** ses_2f80e2a10ffe6w5R2VCs3El5tk
 **Created:** 3/19/2026, 9:13:02 PM
-**Updated:** 3/19/2026, 9:30:21 PM
+**Updated:** 3/19/2026, 9:49:27 PM
 
 ---
 
@@ -468,6 +468,161 @@ Archivo clave:
 - `server/dbReset.js`
 
 Si quieres, en el siguiente paso te puedo agregar un “modo seguro” adicional (`DB_HARD_RESET_CONFIRM`) para evitar activaciones accidentales en producción.
+
+---
+
+## User
+
+bien como vamos con el plan? ademas agrega una seccion ha @PLAN_ARQUITECTURA.md dicha seccion sera un checklist para ver como vamos avanzando
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+Vamos bien, con avance alto en las fases críticas.
+
+- Fase 0: prácticamente completa (contención de tráfico, throttling, fallback controlado, métricas base).
+- Fase 1: casi completa; el autosave no está eliminado al 100%, pero ya quedó muy reducido (10s -> 60s) y el flujo command-first está activo.
+- Fase 2: completa a nivel base funcional (`player_events`, `lastEventId`, backlog, `force_resync`, idempotencia por `eventId`).
+- Fase 3/4: pendientes de maduración operativa (workers/proyecciones/alertas/dashboard).
+- DB reset: ya robustecido para borrar objetos conocidos y desconocidos en `public` y reconstruir todo.
+
+Además, ya agregué la sección de checklist vivo al plan en:
+
+- `PLAN_ARQUITECTURA.md`
+
+Incluye estado por fase (`[x]`, `[~]`, `[ ]`), progreso de infraestructura/reset y próximo hito recomendado.
+
+---
+
+## User
+
+2026-03-19T21:43:55.789023925Z ==> Using Node.js version 22.22.0 (default)
+2026-03-19T21:43:55.813718783Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-03-19T21:43:57.995235997Z ==> Using Bun version 1.3.4 (default)
+2026-03-19T21:43:57.995257758Z ==> Docs on specifying a Bun version: https://render.com/docs/bun-version
+2026-03-19T21:43:58.040002376Z ==> Running build command 'npm install'...
+2026-03-19T21:43:59.342946705Z 
+2026-03-19T21:43:59.342968176Z added 100 packages, and audited 101 packages in 1s
+2026-03-19T21:43:59.343008117Z 
+2026-03-19T21:43:59.343016287Z 17 packages are looking for funding
+2026-03-19T21:43:59.343054167Z   run `npm fund` for details
+2026-03-19T21:43:59.344607086Z 
+2026-03-19T21:43:59.344621576Z 1 high severity vulnerability
+2026-03-19T21:43:59.344625357Z 
+2026-03-19T21:43:59.344628737Z To address all issues, run:
+2026-03-19T21:43:59.344632017Z   npm audit fix
+2026-03-19T21:43:59.344635207Z 
+2026-03-19T21:43:59.344638397Z Run `npm audit` for details.
+2026-03-19T21:44:00.78288524Z ==> Uploading build...
+2026-03-19T21:44:06.271895888Z ==> Uploaded in 4.2s. Compression took 1.2s
+2026-03-19T21:44:06.295743399Z ==> Build successful 🎉
+2026-03-19T21:44:11.371366512Z ==> Deploying...
+2026-03-19T21:44:11.425669904Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-03-19T21:44:23.977591186Z ==> Using Bun version 1.3.4 (default)
+2026-03-19T21:44:23.977609966Z ==> Docs on specifying a Bun version: https://render.com/docs/bun-version
+2026-03-19T21:44:28.473314819Z ==> Running 'node index.js'
+2026-03-19T21:44:30.860002627Z ⚠️ [DB Reset] DB_HARD_RESET=true detectado. Iniciando reinicio TOTAL...
+2026-03-19T21:44:30.860600481Z [DB Reset] Eliminando todos los usuarios de Auth...
+2026-03-19T21:44:31.60589353Z [DB Reset] Encontrados 1 usuarios para eliminar.
+2026-03-19T21:44:32.06269041Z [DB Reset] Ejecutando script SQL de recreación...
+2026-03-19T21:44:32.725462291Z [DB Reset] Creando cuenta admin...
+2026-03-19T21:44:33.236167474Z ✅ [DB Reset] Reinicio de base de datos completado con éxito.
+2026-03-19T21:44:33.236211985Z [DB Reset] Error creando perfil admin: function public.exec_sql(sql => text) does not exist
+2026-03-19T21:44:33.236546273Z [Profile Sync] Ensuring profiles for all auth users...
+2026-03-19T21:44:33.915370041Z [BattleServer] Running on port 10000
+2026-03-19T21:44:33.916452366Z [BattleServer] Health check: http://localhost:10000/health
+2026-03-19T21:44:33.916468716Z [BattleServer] Feature flags {
+2026-03-19T21:44:33.916473856Z   FF_DUAL_WRITE_NORMALIZED: true,
+2026-03-19T21:44:33.916478136Z   FF_NORMALIZED_READS: false,
+2026-03-19T21:44:33.916482237Z   FF_DUAL_WRITE_STRICT: false,
+2026-03-19T21:44:33.916486417Z   FF_DISABLE_LEGACY_SAVE_BLOB: false
+2026-03-19T21:44:33.916490537Z }
+2026-03-19T21:44:33.916494787Z [Scheduler] Starting background battle processor...
+2026-03-19T21:44:33.916502017Z [ProductionLoop] Starting server economy engine (15s interval)...
+2026-03-19T21:44:38.15228757Z ==> Your service is live 🎉
+2026-03-19T21:44:38.289607842Z ==> 
+2026-03-19T21:44:38.291666977Z ==> ///////////////////////////////////////////////////////////
+2026-03-19T21:44:38.293572843Z ==> 
+2026-03-19T21:44:38.295759207Z ==> Available at your primary URL https://irondune.onrender.com
+2026-03-19T21:44:38.297372645Z ==> 
+2026-03-19T21:44:38.29958677Z ==> /////////////////////////////////////////////////////////// medio estos errores el werver en render sobre exec
+
+---
+
+## Assistant
+
+**Tool: grep**
+
+**Tool: read**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: apply_patch**
+
+---
+
+## Assistant
+
+**Tool: bash**
+
+**Tool: bash**
+
+---
+
+## Assistant
+
+Sí, ese error viene exactamente de lo que sospechas con `exec_sql`.
+
+Qué pasó:
+- El `DB_HARD_RESET` corrió bien y limpió/recreó la DB.
+- Pero en esa limpieza robusta se llegó a eliminar la función RPC `public.exec_sql`.
+- Luego, al crear el perfil admin, el script intentó volver a usar `exec_sql` y falló con:
+  - `function public.exec_sql(sql => text) does not exist`.
+
+Ya lo corregí en código:
+- En `server/dbReset.js` ahora el borrado dinámico **excluye** `exec_sql` para no romper futuros resets.
+- También cambié la creación del perfil/recursos admin para **no depender** de `exec_sql`; usa `supabase.from(...).upsert(...)` directamente.
+- Verificado con `typecheck` y tests OK.
+
+Archivos tocados:
+- `server/dbReset.js`
+
+Importante para tu entorno Render (paso único manual):
+- Como en tu entorno actual `exec_sql` ya quedó borrada, debes recrearla **una vez** en Supabase SQL Editor:
+
+```sql
+CREATE OR REPLACE FUNCTION public.exec_sql(sql text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  EXECUTE sql;
+END;
+$$;
+```
+
+Luego:
+1. Redeploy del server con este cambio.
+2. Ejecuta con `DB_HARD_RESET=true` solo cuando quieras reset total.
+3. Después del reset, vuelve `DB_HARD_RESET=false` para evitar borrados accidentales en cada arranque.
+
+Si quieres, te preparo también un guard adicional (`DB_HARD_RESET_CONFIRM`) para que nunca se dispare por error en producción.
 
 ---
 

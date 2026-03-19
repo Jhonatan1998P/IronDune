@@ -91,6 +91,7 @@ export async function hardResetDatabase() {
           FROM pg_proc p
           JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'public'
+            AND p.proname <> 'exec_sql'
         LOOP
           BEGIN
             EXECUTE format('DROP FUNCTION IF EXISTS public.%I(%s) CASCADE', obj.proname, obj.args);
@@ -866,37 +867,39 @@ async function createAdminUserAndProfile() {
       lastSaveTime: Date.now()
     };
 
-    const adminGameStateJson = JSON.stringify(adminGameState).replace(/'/g, "''");
     const adminUpdatedAt = new Date().toISOString();
-    const profileSql = `
-      INSERT INTO public.profiles (id, role, game_state, updated_at)
-      VALUES ('${adminUserId}', '${ADMIN_ROLE}', '${adminGameStateJson}'::jsonb, '${adminUpdatedAt}')
-      ON CONFLICT (id)
-      DO UPDATE SET role = EXCLUDED.role, game_state = EXCLUDED.game_state, updated_at = EXCLUDED.updated_at;
-    `;
+    const { error: profileUpsertError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: adminUserId,
+        role: ADMIN_ROLE,
+        game_state: adminGameState,
+        updated_at: adminUpdatedAt,
+      });
 
-    const resourcesSql = `
-      INSERT INTO public.player_resources (
-        player_id, money, oil, ammo, gold, diamond,
-        bank_balance, interest_rate, next_rate_change, last_tick_at, updated_at
-      )
-      VALUES (
-        '${adminUserId}', 5000, 2500, 1500, 500, 5,
-        0, 0.15, ${Date.now() + (24 * 60 * 60 * 1000)}, now(), now()
-      )
-      ON CONFLICT (player_id) DO NOTHING;
-    `;
-
-    const { error: profileSqlError } = await supabase.rpc('exec_sql', { sql: profileSql });
-
-    if (profileSqlError) {
-      console.error('[DB Reset] Error creando perfil admin:', profileSqlError.message);
+    if (profileUpsertError) {
+      console.error('[DB Reset] Error creando perfil admin:', profileUpsertError.message);
       return;
     }
 
-    const { error: resourcesSqlError } = await supabase.rpc('exec_sql', { sql: resourcesSql });
-    if (resourcesSqlError) {
-      console.error('[DB Reset] Error creando recursos admin:', resourcesSqlError.message);
+    const { error: resourcesUpsertError } = await supabase
+      .from('player_resources')
+      .upsert({
+        player_id: adminUserId,
+        money: 5000,
+        oil: 2500,
+        ammo: 1500,
+        gold: 500,
+        diamond: 5,
+        bank_balance: 0,
+        interest_rate: 0.15,
+        next_rate_change: Date.now() + (24 * 60 * 60 * 1000),
+        last_tick_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (resourcesUpsertError) {
+      console.error('[DB Reset] Error creando recursos admin:', resourcesUpsertError.message);
       return;
     }
 
