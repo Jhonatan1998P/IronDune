@@ -14,7 +14,7 @@ import { startScheduler } from './scheduler.js';
 import { startProductionLoop } from './engine/productionLoop.js';
 import { addResources, getOrCreatePlayerResources, validateResourceDeduction } from './engine/resourceValidator.js';
 import { BuildingType, ResourceType, TechType, UnitType } from './engine/enums.js';
-import { COMMAND_TYPES, PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
+import { COMMAND_TYPES, PATCH_ALLOW_LIST, SERVER_RESPONSE_PATCH_ALLOW_LIST, validateCommandPayload } from './commandValidation.js';
 import { buildAuthoritativeCommandResult, normalizeLifecycleState, resolveLifecycleCompletions } from './engine/authoritativeLifecycle.js';
 import { buildAuthoritativeTutorialCommandResult } from './engine/authoritativeTutorial.js';
 import { createUserStateRealtime } from './socket/userStateRealtime.js';
@@ -700,7 +700,8 @@ registerCommandRoutes(app, {
   parseRevision,
   getOrCreateProfileState,
   sanitizeStatePatch,
-  patchAllowList: PATCH_ALLOW_LIST,
+  clientPatchAllowList: PATCH_ALLOW_LIST,
+  serverResponsePatchAllowList: SERVER_RESPONSE_PATCH_ALLOW_LIST,
   normalizedReadsEnabled: NORMALIZED_READS_ENABLED,
   loadNormalizedStatePatch,
   stripCriticalDomainFromBlob,

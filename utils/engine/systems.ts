@@ -1,9 +1,6 @@
 
 import { BuildingType, GameState, LogEntry, UnitType, WarState, RankingCategory } from '../../types';
 import { TUTORIAL_STEPS } from '../../data/tutorial';
-import { BUILDING_DEFS } from '../../data/buildings';
-import { UNIT_DEFS } from '../../data/units';
-import { TECH_DEFS } from '../../data/techs';
 
 /**
  * Handles localized UI progression: construction, recruitment, and research.
@@ -64,45 +61,41 @@ export const processSystemTick = (state: GameState, now: number, _activeWar: War
  * Calculates total Empire Points and checks Tutorial/Objectives status.
  */
 export const recalculateProgression = (state: GameState): Partial<GameState> => {
-    // 1. Calculate Scores for Categories
-    let militaryPoints = 0;
+    // 1. Keep progression math aligned with backend authoritative formula.
     let economyPoints = 0;
-    let techPoints = 0;
-    
-    // Units (Military)
-    Object.keys(state.units).forEach(u => militaryPoints += state.units[u as UnitType] * (UNIT_DEFS[u as UnitType].score || 0));
-    state.activeMissions.forEach(mission => {
-        Object.entries(mission.units).forEach(([uType, qty]) => {
-            militaryPoints += (qty || 0) * (UNIT_DEFS[uType as UnitType].score || 0);
-        });
-    });
-
-    // Buildings (Economy/Military)
-    Object.keys(state.buildings).forEach(b => {
+    Object.keys(state.buildings).forEach((b) => {
         const bType = b as BuildingType;
-        const score = state.buildings[bType].level * (BUILDING_DEFS[bType].score || 0);
-        if (bType === BuildingType.BARRACKS || bType === BuildingType.TANK_FACTORY || bType === BuildingType.SHIPYARD || bType === BuildingType.AIRFIELD) {
-            militaryPoints += score;
-        } else {
-            economyPoints += score;
-        }
+        economyPoints += Number(state.buildings[bType]?.level || 0) * 120;
     });
 
-    // Tech (Mixed, but mostly tech/military)
-    state.researchedTechs.forEach(t => techPoints += (TECH_DEFS[t]?.score || 0));
-    
-    // Bank (Economy)
-    const bankPoints = Math.floor(state.bankBalance / 100000);
-    economyPoints += bankPoints;
+    let militaryPoints = 0;
+    Object.keys(state.units).forEach((u) => {
+        const uType = u as UnitType;
+        militaryPoints += Number(state.units[uType] || 0);
+    });
 
-    // Dominion (Total)
-    const totalPoints = militaryPoints + economyPoints + techPoints;
+    let techPoints = 0;
+    Object.keys(state.techLevels).forEach((techId) => {
+        const key = techId as keyof typeof state.techLevels;
+        const level = Math.max(0, Math.floor(Number(state.techLevels[key] || 0)));
+        techPoints += Math.max(0, level - 1) * 200;
+    });
+
+    const campaignProgress = Math.max(1, Math.floor(Number(state.campaignProgress || 1)));
+    const campaignPoints = Math.max(0, (campaignProgress - 1) * 500);
+    const totalPoints = Math.max(0, Math.floor(militaryPoints + economyPoints + techPoints + campaignPoints));
 
     // 2. Check Tutorial
     let tutorialClaimable = state.tutorialClaimable;
     if (state.currentTutorialId && !tutorialClaimable) {
         const step = TUTORIAL_STEPS.find(s => s.id === state.currentTutorialId);
-        if (step && step.condition(state)) tutorialClaimable = true;
+        if (step) {
+            try {
+                if (step.condition(state)) tutorialClaimable = true;
+            } catch {
+                tutorialClaimable = false;
+            }
+        }
     }
 
     return {
@@ -111,7 +104,7 @@ export const recalculateProgression = (state: GameState): Partial<GameState> => 
             [RankingCategory.DOMINION]: totalPoints,
             [RankingCategory.MILITARY]: militaryPoints,
             [RankingCategory.ECONOMY]: economyPoints,
-            [RankingCategory.CAMPAIGN]: state.campaignProgress
+            [RankingCategory.CAMPAIGN]: campaignPoints
         },
         tutorialClaimable
     };

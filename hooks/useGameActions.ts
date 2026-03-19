@@ -162,6 +162,13 @@ export const useGameActions = (
 ) => {
   const { session } = useAuth();
   const inFlightActionKeysRef = React.useRef<Set<string>>(new Set());
+  const commandQueueRef = React.useRef<Promise<void>>(Promise.resolve());
+
+  const enqueueCommand = useCallback((job: () => Promise<void>) => {
+    const run = commandQueueRef.current.then(job, job);
+    commandQueueRef.current = run.catch(() => {});
+    return run;
+  }, []);
 
   const acquireActionLock = useCallback((key: string) => {
     if (inFlightActionKeysRef.current.has(key)) {
@@ -450,24 +457,14 @@ export const useGameActions = (
           const sourceState = Number(prev.revision || 0) > Number(baseStateForApply.revision || 0)
             ? prev
             : baseStateForApply;
-
-          if (commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0) {
-            return {
-              ...sourceState,
-              ...commandResult.statePatch,
-              revision: commandResult.newRevision ?? sourceState.revision,
-            };
-          }
-
           const result = executor(sourceState);
-          if (!result.success || !result.newState) {
-            return {
-              ...nextStateToApply,
-              revision: commandResult.newRevision ?? sourceState.revision,
-            };
-          }
+          const baseNextState = result.success && result.newState
+            ? result.newState
+            : nextStateToApply;
+
           return {
-            ...result.newState,
+            ...baseNextState,
+            ...(commandResult.statePatch && Object.keys(commandResult.statePatch).length > 0 ? commandResult.statePatch : {}),
             revision: commandResult.newRevision ?? sourceState.revision,
           };
         });
@@ -477,12 +474,13 @@ export const useGameActions = (
       }
     };
 
-    run();
+    void enqueueCommand(run);
   }, [
     acquireActionLock,
     addLog,
     buildActionLockKey,
     dispatchCommandWithRetry,
+    enqueueCommand,
     gameState,
     notifyCrossTabServerMutation,
     releaseActionLock,
@@ -562,8 +560,8 @@ export const useGameActions = (
         notifyCrossTabServerMutation(commandResult.newRevision);
       };
 
-      run();
-  }, [addLog, dispatchCommandWithRetry, gameState, notifyCrossTabServerMutation, setGameState]);
+      void enqueueCommand(run);
+  }, [addLog, dispatchCommandWithRetry, enqueueCommand, gameState, notifyCrossTabServerMutation, setGameState]);
 
   const speedUp = useCallback((targetId: string, type: 'BUILD' | 'RECRUIT' | 'RESEARCH' | 'MISSION') => {
       const preview = executeSpeedUp(gameState, targetId, type);

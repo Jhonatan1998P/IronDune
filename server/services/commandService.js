@@ -25,7 +25,8 @@ export const createCommandService = ({
   buildServerStatePatch,
   emitUserStateChanged,
   normalizeServerError,
-  patchAllowList,
+  clientPatchAllowList,
+  serverResponsePatchAllowList,
   normalizedReadsEnabled,
   loadNormalizedStatePatch,
   stripCriticalDomainFromBlob,
@@ -309,7 +310,7 @@ export const createCommandService = ({
 
       const rawCosts = isNonNullObject(payload.costs) ? payload.costs : {};
       const rawGains = isNonNullObject(payload.gains) ? payload.gains : {};
-      const requestedStatePatch = sanitizeStatePatch(payload.statePatch, patchAllowList);
+      const requestedStatePatch = sanitizeStatePatch(payload.statePatch, clientPatchAllowList);
       const diagnostics = [];
 
       const originalState = normalizeLifecycleState(profileState || {});
@@ -474,7 +475,7 @@ export const createCommandService = ({
       const responsePayload = {
         ok: true,
         newRevision: nextRevision,
-        statePatch: buildServerStatePatch(originalState, nextState, patchAllowList),
+        statePatch: buildServerStatePatch(originalState, nextState, serverResponsePatchAllowList),
         serverTime,
         diagnostics,
         traceId,

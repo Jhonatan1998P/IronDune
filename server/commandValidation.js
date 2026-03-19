@@ -47,6 +47,17 @@ export const PATCH_ALLOW_LIST = new Set([
   'isTutorialMinimized',
 ]);
 
+export const SERVER_RESPONSE_PATCH_ALLOW_LIST = new Set([
+  ...PATCH_ALLOW_LIST,
+  'resources',
+  'maxResources',
+  'bankBalance',
+  'currentInterestRate',
+  'nextRateChangeTime',
+  'rankingStats',
+  'lastSaveTime',
+]);
+
 const isNonNullObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const hasNonEmptyObject = (value) => isNonNullObject(value) && Object.keys(value).length > 0;
 
